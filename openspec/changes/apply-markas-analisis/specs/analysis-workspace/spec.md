@@ -162,6 +162,22 @@ Ringkasan SHALL list the period's spending per category in groups per Kakeibo pi
 - **WHEN** two categories have no spending
 - **THEN** they SHALL be hidden behind "Tampilkan 2 kategori tanpa pengeluaran"
 
+### Requirement: One Spending Basis on Analisis
+Every figure Analisis names "Pengeluaran" SHALL be the Pengeluaran basis of Beranda and Transaksi: reportable expenses outside the Tabungan pillar, net of reimbursements. The analytics, the calendar and the flow SHALL return it per day, per category and in total as read-only additions that add up to `comparison.totals.spending`; every existing field SHALL keep its value (owner decision, 2026-11-08).
+
+#### Scenario: Saving-pillar expense
+- **GIVEN** a period with Rp 4.355.990 of Pengeluaran and a Rp 300.000 expense in the Tabungan pillar
+- **WHEN** Ringkasan, Kalender and Peta Aliran are shown for that period
+- **THEN** the hero, the Kalender hero, the sum of the daily bars, the sum of the category amounts and Peta Aliran's Pengeluaran SHALL each read Rp 4.355.990, and the Belanja-basis fields SHALL still return Rp 4.655.990
+
+#### Scenario: Fields of the Pengeluaran basis
+- **WHEN** the analytics, the calendar and the flow are requested
+- **THEN** they SHALL carry `daily_cadence[].spending`, `category_variance[].spending` and `spending_percentage_used`, `totals.spending`, `days[].spending`, `days[].spending_heat` and `spending_heat_thresholds`, and `summary.spending`
+
+#### Scenario: Reimbursement on the Pengeluaran basis
+- **WHEN** a Rp 40.000 reimbursement offsets a Kebutuhan category in the period
+- **THEN** the daily and category Pengeluaran SHALL be reduced by it on that category's days, never below zero, and still add up to `comparison.totals.spending`
+
 ### Requirement: Analisis in Both Languages
 Analisis SHALL read in English and Indonesian from one catalogue per language, with dates, amounts and compact amounts formatted by the account region, and SHALL show no untranslated-page notice. Every figure SHALL be the same string in both languages for the same data, and "Pengeluaran" / "Spending" SHALL be the only label of the spending figure.
 

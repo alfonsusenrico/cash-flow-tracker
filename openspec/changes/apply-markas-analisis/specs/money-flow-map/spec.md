@@ -44,11 +44,12 @@ The node and link details of Peta Aliran SHALL open as a centered dialog from 76
 ## ADDED Requirements
 
 ### Requirement: Peta Aliran Figures
-Peta Aliran SHALL show Masuk as its hero and four supporting figures from the flow summary: Pengeluaran, Ditabung & top up, Menunggu pasangan and Masih ada. A "Sorot aliran" control (Semua, Pengeluaran, Pindah saldo, Tabungan & investasi, Menunggu pasangan) SHALL dim the other bands on the map and filter the table.
+Peta Aliran SHALL show Masuk as its hero and four supporting figures from the flow summary: Pengeluaran (`summary.spending`, the Pengeluaran basis), Ditabung & top up, Menunggu pasangan and Masih ada. A "Sorot aliran" control (Semua, Pengeluaran, Pindah saldo, Tabungan & investasi, Menunggu pasangan) SHALL dim the other bands on the map and filter the table.
 
 #### Scenario: Figures from the summary
-- **WHEN** Peta Aliran is shown for a full window
-- **THEN** its Pengeluaran SHALL equal Ringkasan's hero and the analytics `total_outflow` of the window, and Masih ada SHALL equal the summary's `remaining`
+- **GIVEN** a window with a Rp 300.000 expense in the Tabungan pillar
+- **WHEN** Peta Aliran is shown for the full window
+- **THEN** its Pengeluaran SHALL equal Ringkasan's hero and the comparison's `totals.spending` of the window, not the Belanja-basis `summary.belanja`, and Masih ada SHALL equal the summary's `remaining`
 
 #### Scenario: Highlight in the table
 - **WHEN** the owner highlights "Pindah saldo" in the table view

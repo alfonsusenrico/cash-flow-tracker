@@ -389,6 +389,18 @@ The `monthly-navigation-stepper` and `tactile-pulse-ui` deltas copy phase 5's me
 
 The credit change (`2026-11-06-add-credit-spending-flow`, not yet merged) hands nothing to Analisis or Laporan: its blocks are H5 (Transaksi), H8 (Rekening), H9 (Target, Beranda, bell) and H11 (Catat). Its two informational figures, `spent_on_credit` ("Pengeluaran pakai kredit") and `paid_to_credit` ("Tagihan kredit dibayar"), exist only in the current cycle summary and per credit account (`GET /api/credit/accounts/{id}` `totals`). Analisis shows any period, so it would need them in the analytics window, which is backend work outside a UI phase. Default: not shown. A credit purchase already counts in Pengeluaran and a bill payment appears as Pindah saldo in Kalender and Peta Aliran, as today. Fallback: a later backend change adds both figures to the analytics window, and a UI change shows them as lines of the Pengeluaran Rincian.
 
+### D31. One spending basis — owner decision (2026-11-08)
+
+Found while building: the page mixed two server figures under one name. Ringkasan's hero, the comparison and the Kakeibo rows read Pengeluaran (`comparison.totals.spending`: reportable expenses whose pillar is not Tabungan, net of reimbursements per category and pillar, the rule of Beranda and Transaksi). The Kalender (`totals.spend`, `days[].spend`, the heat levels), Peta Aliran (`summary.belanja`), the daily chart (`daily_cadence[].expense`) and the category list (`category_variance[].spent`) read Belanja, which also counts expenses with the Tabungan pillar. The former page named the second group "Belanja"; D7, D8, D11 and D14 renamed it "Pengeluaran", so a period with a saving-pillar expense showed two different "Pengeluaran" amounts.
+
+Owner decision (2026-11-08, option "one basis"): every "Pengeluaran" on Analisis is the Pengeluaran figure.
+- **Server, additive and read-only:** `services/spending_basis.py` computes Pengeluaran per local day and per category for a window: the reportable expenses that are not saving-pillar expenses (the predicate `saving_pillar_sql` in `services/saving_flow.py`, which the saving direction already uses), less each category and pillar's applied reimbursement, never below zero, spread over that category and pillar's days in proportion to their amounts (`apportion`). Its total equals `comparison.totals.spending` for the same window.
+- **New fields:** analytics `daily_cadence[].spending`, `category_variance[].spending` and `spending_percentage_used` (same rounding as `percentage_used`); calendar `totals.spending`, `days[].spending`, `days[].spending_heat` and `spending_heat_thresholds` (the same percentile rule on the Pengeluaran amounts); flow `summary.spending`. Every existing field keeps its value.
+- **Page:** the daily chart, the category amounts and budget shares, the Kalender hero, cells, heat strip, legend and day figure, and Peta Aliran's Pengeluaran figure read the new fields. Expenses with the Tabungan pillar stay visible in Ditabung & investasi on Ringkasan and in the Kakeibo Tabungan bucket of Laporan; the flow's bands, table and link rows are unchanged (they show money moving, not a figure named Pengeluaran).
+- **Proof:** pytest on an owner with a saving-pillar expense and a reimbursement: the calendar, flow, daily and category totals equal `comparison.totals.spending`, every Belanja-basis field is unchanged; a page test and the parity run find every "Pengeluaran" figure of a period equal.
+
+Rejected: keeping the plan's labels (two different "Pengeluaran" figures); naming the Belanja-basis figures differently (a second spending concept the glossary does not have).
+
 ### D30. Capital gain
 
 Analisis has no capital-gain field: investment top-ups appear as money moved into investments, and gains belong to Rekening (phase 8), which shows them wherever they exist. Nothing to show here.
@@ -425,8 +437,9 @@ Approved under the owner's standing instruction "complete all until finished" (2
 | D24 | Shared pieces | Meter, ChangeFigure, ChartTable, compactMoney, BudgetDialog shared | page-local copies | — |
 | D29 | Credit figures | not shown | backend field in this phase | **scope** |
 | D30 | Capital gain | none on Analisis | — | — |
+| D31 | Spending basis | Pengeluaran-basis server fields shown everywhere on Analisis | plan's relabelling of Belanja; another name for Belanja | **owner decision 2026-11-08** |
 
-No default changes money behaviour: every figure keeps its server source and value, every action sends today's request, and the one backend addition is read-only.
+No default changes money behaviour: every action sends today's request, and the backend additions are read-only. By the owner's decision D31 the Kalender, Peta Aliran's Pengeluaran, the daily chart and the category amounts show the Pengeluaran figure instead of Belanja; every existing API field keeps its value.
 
 ## Risks / Trade-offs
 

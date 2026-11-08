@@ -28,7 +28,12 @@ Expected Result: the phase starts from a verified base with its dependencies mer
   - a test proves every other field of the comparison byte-identical to a baseline run on the same data;
   - the full backend suite passes on migrated disposable PostgreSQL, with its count recorded.
 
-Expected Result: the comparison carries the share the page needs, and nothing else changes.
+- [ ] 2.2 Add the Pengeluaran-basis fields (owner decision D31, 2026-11-08). Evidence:
+  - `tests/test_spending_basis.py` on an owner with a saving-pillar expense and a reimbursement: the calendar's `totals.spending` and its days, the flow's `summary.spending`, the analytics daily and category `spending` all equal `comparison.totals.spending`; every Belanja-basis field equals a run without the new fields;
+  - the saving-pillar predicate is one helper in `services/saving_flow.py`, used by the saving direction and by the new helper;
+  - the full backend suite passes on migrated disposable PostgreSQL.
+
+Expected Result: the comparison carries the share the page needs, every Pengeluaran on Analisis is one figure, and nothing else changes.
 
 ## 3. Shared pieces and language
 
