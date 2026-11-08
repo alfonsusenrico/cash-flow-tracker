@@ -1494,11 +1494,11 @@ button.tile:active { background: var(--surface-2); }
 .rk-ring text { fill: var(--text); }
 .rk-ring .cap { fill: var(--muted); font-size: 12px; }
 .rk-ring .tot { font-size: 14px; font-weight: 600; }
-.ring-legend { border-top: 1px solid var(--line); }
-.ring-legend .ws-select-row { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto 96px; align-items: center; gap: var(--sp-12); width: 100%; min-height: 48px; padding: 0 var(--sp-12); border-bottom: 1px solid var(--line); text-align: left; }
-.ring-legend .ws-select-row:disabled { opacity: 0.45; cursor: not-allowed; }
-.ring-legend .amt { font-size: var(--fs-14); line-height: 20px; font-weight: 600; text-align: right; }
-.ring-legend .t-meta { text-align: right; }
+.rk-legend { border-top: 1px solid var(--line); }
+.rk-legend .ws-select-row { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto 96px; align-items: center; gap: var(--sp-12); width: 100%; min-height: 48px; padding: 0 var(--sp-12); border-bottom: 1px solid var(--line); text-align: left; }
+.rk-legend .ws-select-row:disabled { opacity: 0.45; cursor: not-allowed; }
+.rk-legend .amt { font-size: var(--fs-14); line-height: 20px; font-weight: 600; text-align: right; }
+.rk-legend .t-meta { text-align: right; }
 .rk-bars-section + .rk-bars-section { margin-top: var(--sp-48); }
 .rk-bars { margin-top: var(--sp-8); }
 .rk-bars .ws-group-rail + .ws-group-rail { margin-top: var(--sp-24); }
@@ -1541,9 +1541,9 @@ button.hbar:hover { background: var(--surface); }
   .rk-kinds li .gain { flex-basis: 100%; }
   .rk-chart { grid-template-columns: minmax(0, 1fr); justify-items: center; }
   .rk-ring { width: 160px; height: 160px; }
-  .ring-legend { width: 100%; }
-  .ring-legend .ws-select-row { grid-template-columns: 8px minmax(0, 1fr) auto; }
-  .ring-legend .ws-select-row .t-meta { grid-column: 2 / -1; text-align: left; margin-top: -12px; padding-bottom: var(--sp-8); }
+  .rk-legend { width: 100%; }
+  .rk-legend .ws-select-row { grid-template-columns: 8px minmax(0, 1fr) auto; }
+  .rk-legend .ws-select-row .t-meta { grid-column: 2 / -1; text-align: left; margin-top: -12px; padding-bottom: var(--sp-8); }
   .hbar { grid-template-columns: minmax(0, 1fr) auto; gap: var(--sp-4) var(--sp-8); padding: var(--sp-8) 0; }
   button.hbar { padding: var(--sp-8); }
   .hbar .bar { grid-column: 1 / -1; grid-row: 2; }

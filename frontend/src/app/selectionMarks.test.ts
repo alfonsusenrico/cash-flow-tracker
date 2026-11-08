@@ -85,7 +85,7 @@ describe("straight selection marks", () => {
     const source = (file: string) => readFileSync(path.join(srcDir, file), "utf8");
     expect(source("components/goals/GoalDialogs.tsx")).toMatch(/data-selected=\{isChildChecked \? "" : undefined\}[\s\S]{0,120}ws-select-row/);
     expect(source("components/goals/GoalDialogs.tsx")).toContain('className="ws-group-rail ml-4');
-    expect(source("components/accounts/WalletChart.tsx")).toContain('className="ws-select-row" aria-pressed=');
+    expect(source("components/accounts/RekeningChart.tsx")).toContain('className="ws-select-row" aria-pressed=');
     expect(source("components/workspace/lists.tsx")).toMatch(/cn\("row", "ws-select-row", layout === "stacked" && "is-stacked"\)/);
     expect(source("components/review/triage/TriageList.tsx")).toMatch(/<ListRow\s+layout="stacked"[\s\S]*current=\{item\.id === selectedId\}/);
     expect(source("components/workspace/rail.tsx")).toContain('className="rail-item ws-select-bar"');

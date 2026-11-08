@@ -170,7 +170,7 @@ export function GainText({ gain, unknownLabel, className }: { gain: GainFigure |
   const format = useFormat();
   const { hideBalances } = useAppCtx();
   if (!gain) return null;
-  if (gain === "unknown") return <span className={cn("gain muted", className)}>{unknownLabel ?? t("costMissing")}</span>;
+  if (gain === "unknown") return <span className={cn("gain", "muted", className)}>{unknownLabel ?? t("costMissing")}</span>;
   const up = gain.amount >= 0;
   const sign = up ? "+" : "\u2212";
   const percent = gain.cost > 0 ? format.percent((Math.abs(gain.amount) / gain.cost) * 100) : null;

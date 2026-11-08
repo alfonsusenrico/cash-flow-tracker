@@ -1,12 +1,13 @@
+import { useTranslations } from "next-intl";
 import type { AccountRole } from "./types";
 
 /** The uses a cash, bank or e-wallet account can take; credit is always Utang and a product always Investasi (D1). */
 export type CashRole = Extract<AccountRole, "harian" | "tabungan" | "dana_investasi">;
 
-const CASH_ROLES: { value: CashRole; label: string }[] = [
-  { value: "harian", label: "Uang harian" },
-  { value: "tabungan", label: "Tabungan" },
-  { value: "dana_investasi", label: "Dana investasi" },
+const CASH_ROLES: { value: CashRole; key: "harian" | "tabungan" | "dana" }[] = [
+  { value: "harian", key: "harian" },
+  { value: "tabungan", key: "tabungan" },
+  { value: "dana_investasi", key: "dana" },
 ];
 
 export function cashRoleOf(role: AccountRole | undefined): CashRole {
@@ -20,9 +21,7 @@ export function fixedRole(type: string, isProduct: boolean): AccountRole | null 
   return null;
 }
 
-const fieldClass = "w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]";
-
-/** "Kegunaan": a choice for cash accounts, a fixed line for credit and investment products. */
+/** "Kegunaan": a choice for cash accounts, a fixed line for credit and investment products (SPEC field). */
 export function RoleField({
   id,
   value,
@@ -36,20 +35,21 @@ export function RoleField({
   fixed: AccountRole | null;
   error?: string;
 }) {
+  const t = useTranslations("accounts");
   if (fixed) {
     return (
-      <div>
-        <p className="font-medium text-[var(--muted)] block mb-1">Kegunaan</p>
-        <p className="text-sm font-semibold text-[var(--text)]">{fixed === "utang" ? "Utang" : "Investasi"}</p>
-        <p className="mt-1 text-xs text-[var(--muted)]">Ditentukan oleh jenis rekening.</p>
+      <div className="field">
+        <span className="flabel">{t("form.role")}</span>
+        <p className="t-body">{fixed === "utang" ? t("groups.utang") : t("groups.investasi")}</p>
+        <p className="hint">{t("form.roleFixed")}</p>
       </div>
     );
   }
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
   return (
-    <div>
-      <label htmlFor={id} className="font-medium text-[var(--muted)] block mb-1">Kegunaan</label>
+    <div className="field">
+      <label htmlFor={id}>{t("form.role")}</label>
       <select
         id={id}
         name="role"
@@ -57,16 +57,14 @@ export function RoleField({
         onChange={(event) => onChange(event.target.value as CashRole)}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${hintId} ${errorId}` : hintId}
-        className={fieldClass}
+        className="field-control"
       >
         {CASH_ROLES.map((role) => (
-          <option key={role.value} value={role.value}>{role.label}</option>
+          <option key={role.value} value={role.value}>{t(`groups.${role.key}`)}</option>
         ))}
       </select>
-      <p id={hintId} className="mt-1 text-xs text-[var(--muted)]">
-        Uang harian dan Tabungan masuk Saldo tersedia. Dana investasi adalah uang yang belum dibelikan, misalnya RDN.
-      </p>
-      {error && <p id={errorId} className="mt-1 text-xs text-out-fg">{error}</p>}
+      <p id={hintId} className="hint">{t("form.roleHint")}</p>
+      {error && <p id={errorId} className="err">{error}</p>}
     </div>
   );
 }

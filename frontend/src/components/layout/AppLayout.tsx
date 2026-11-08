@@ -230,7 +230,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     openMovementCapture({ sourceAccountId, targetAccountId });
   };
 
-  const openMovementCapture = useCallback(({ sourceAccountId, targetAccountId, amount }: MovementCaptureDefaults) => {
+  function openMovementCapture({ sourceAccountId, targetAccountId, amount }: MovementCaptureDefaults) {
     setMovementDefaults({
       sourceAccountId: sourceAccountId ?? "",
       targetAccountId: targetAccountId ?? "",
@@ -238,7 +238,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     setQuickAddDefaultType("movement");
     setManualAmount(amount && amount > 0 ? amount : null);
     setQuickAddOpen(true);
-  }, []);
+  }
 
   // "+ Catat", N and the phone tab open the text-first dialog; "Isi manual" there opens the form.
   const openExpenseCapture = useCallback(() => setCatatOpen(true), []);
