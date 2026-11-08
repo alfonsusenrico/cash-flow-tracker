@@ -545,7 +545,8 @@
   "notices": {
     "accounts_unchanged": "Tidak ada rekening untuk diurutkan.",
     "accounts_reordered": "Urutan rekening disimpan.",
-    "account_reconciled": "Saldo rekening dicocokkan dengan penyesuaian {kind} sebesar {amount}.",
+    "account_reconciled_income": "Saldo rekening dicocokkan dengan penyesuaian pemasukan sebesar {amount}.",
+    "account_reconciled_expense": "Saldo rekening dicocokkan dengan penyesuaian pengeluaran sebesar {amount}.",
     "balance_in_sync": "Saldo sudah sesuai.",
     "account_archived_investment": "Rekening diarsipkan agar riwayat setoran investasi tetap tersimpan.",
     "account_archived_history": "Rekening dan kantongnya diarsipkan karena sudah ada transaksi.",

@@ -249,6 +249,9 @@ def attach_purpose_question(
         (Jsonb(question), user_id, str(event["id"])),
     )
     event["active_question"] = question
+    # The message key, language and count only: the rendered prompt holds an amount and account names (D8).
+    logger.info("Purpose question asked code=%s language=%s suggestions=%d",
+                prompt["code"], language, len(question["suggestions"]))
     return question
 
 

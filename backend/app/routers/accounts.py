@@ -974,7 +974,7 @@ def reconcile_account(
         "ok": True,
         "diff": diff,
         "message": (
-            notice("account_reconciled", kind=tx_type, amount=format_money(tx_amount, current_region(), "figure"))
+            notice(f"account_reconciled_{tx_type}", amount=format_money(tx_amount, current_region(), "figure"))
             if diff
             else notice("balance_in_sync")
         ),
