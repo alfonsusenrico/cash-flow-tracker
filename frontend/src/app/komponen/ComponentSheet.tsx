@@ -153,7 +153,7 @@ function PageRows() {
           <ListRow time="08.02" title="Gaji Oktober" meta="BCA · Utama" status="Uang masuk" amount={<span className="t-amt c-income">+Rp 9.518.400</span>} />
         </li>
         <li>
-          <ListRow time="07.55" title="Jago · Kantong Utama → GoPay" meta="Isi GoPay" status="Tidak dihitung" amount={<span className="t-amt c-transfer">Rp 200.000</span>} />
+          <ListRow time="07.55" title="Isi GoPay" meta="Jago · Kantong Utama → GoPay" status="—" amount={<span className="t-amt c-transfer">Rp 200.000</span>} />
         </li>
         <li>
           <ListRow time="07.40" title="Top up Investasi" meta="Stockbit · RDN" status={<Pillar color="var(--k-saving)" label="Tabungan" />}

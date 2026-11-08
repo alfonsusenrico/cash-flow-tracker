@@ -57,7 +57,7 @@ export interface ListRowProps {
   phoneMeta?: ReactNode;
   /** The category column of the full variant (Transaksi). */
   category?: ReactNode;
-  /** The status column: a pillar dot and name, or a word such as "Tidak dihitung". */
+  /** The status column: a pillar dot and name, or a word such as a transfer's saving direction ("Ditabung"). */
   status?: ReactNode;
   amount?: ReactNode;
   chevron?: boolean;

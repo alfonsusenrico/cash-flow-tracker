@@ -1344,13 +1344,13 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
 .tx { display: grid; grid-template-columns: 200px minmax(0, 1fr); align-items: start; gap: var(--sp-32); }
 .tx > * { min-width: 0; }
 .tx-rail { position: sticky; top: calc(var(--topbar-h) + var(--sp-24)); }
-.tx-types { display: none; gap: 2px; margin-bottom: var(--sp-12); }
+.tx-types { position: relative; display: none; gap: 2px; margin-bottom: var(--sp-12); }
 .tx-types button .muted { font-weight: 400; font-variant-numeric: tabular-nums lining-nums; font-feature-settings: var(--features-num); }
-.tx-providers { margin-bottom: var(--sp-12); }
+.tx-providers { position: relative; margin-bottom: var(--sp-12); }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-8); }
 .toolbar .search { flex: 1; width: auto; min-width: 200px; }
 .toolbar .search input { border-color: var(--line-strong); background: var(--window); }
-.chips { display: flex; flex-wrap: wrap; gap: var(--sp-8); margin-top: var(--sp-12); }
+.chips { position: relative; display: flex; flex-wrap: wrap; gap: var(--sp-8); margin-top: var(--sp-12); }
 .chip { display: inline-flex; align-items: center; gap: var(--sp-4); max-width: 100%; height: 28px; padding: 0 var(--sp-4) 0 var(--sp-12); border: 1px solid var(--line-strong); border-radius: var(--r-control); color: var(--text); font-size: var(--fs-12); line-height: 16px; font-weight: 500; }
 .chip .lbl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip button { display: grid; flex: none; place-items: center; width: 24px; height: 24px; border-radius: var(--r-control); color: var(--muted); }
