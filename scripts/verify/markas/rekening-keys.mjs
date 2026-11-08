@@ -116,7 +116,7 @@ try {
       await key(ESC);
       await sleep(300);
       const afterMenu = await active();
-      record(3, "Lainnya opens by ArrowDown and Esc returns to it", cell, Boolean(inMenu?.menu) && /^(Lainnya|More)/.test(afterMenu?.label ?? ""), `${inMenu?.label} → ${afterMenu?.label}`);
+      record(3, "Lainnya opens by ArrowDown and Esc returns to it", cell, Boolean(inMenu?.menu) && /^(Lainnya|More|Tindakan lain)/.test(afterMenu?.label ?? ""), `${inMenu?.label} → ${afterMenu?.label}`);
       await key(ESC);
       await sleep(600);
       const onTile = await active();
@@ -236,7 +236,7 @@ try {
       await focusOn(byText("dialog[open] .dlg-f button", "^(Jual|Sell)$"));
       await key(ENTER);
       await sleep(900);
-      const units = await browser.evaluate(`(() => { const d = [...document.querySelectorAll("dialog[open]")].pop(); const input = d?.querySelector("input[inputmode=decimal], input[inputmode=numeric]"); input?.focus(); return input?.id ?? null; })()`);
+      const units = await browser.evaluate(`(() => { const d = [...document.querySelectorAll("dialog[open]")].pop(); const input = d?.querySelector("input[name=units]"); input?.focus(); return input?.id ?? null; })()`);
       await typeText("99999");
       await focusOn(`[...[...document.querySelectorAll("dialog[open]")].pop().querySelectorAll(".dlg-f button")].pop()`);
       await key(ENTER);

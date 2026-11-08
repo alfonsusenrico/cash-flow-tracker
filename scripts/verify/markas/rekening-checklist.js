@@ -55,7 +55,8 @@
     const list = tile.closest(".tiles");
     const columns = style(list).gridTemplateColumns.split(" ").length;
     if (innerWidth === 1440) add("four tile columns at 1440", columns, 4);
-    if (innerWidth === 1024) add("three tile columns at 1024", columns, 3);
+    // 1024 − 240 sidebar − 2 × 48 padding leaves 688 px: two 240 px columns, as the prototype computes.
+    if (innerWidth === 1024) add("two tile columns at 1024", columns, 2);
     if (phone) add("one tile column on a phone", columns, 1);
     checks.push({ check: "tiles in the first row", value: row, expected: "info", pass: true });
     const inst = first(".inst", tile);

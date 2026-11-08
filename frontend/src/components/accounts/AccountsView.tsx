@@ -164,7 +164,8 @@ export function AccountsView() {
       <div className="rk-page">
         {header}
         <RekeningHeroSkeleton />
-        <div className="rk-skel" aria-busy="true" aria-label={t("states.loading")}>
+        <div className="rk-skel" aria-busy="true">
+          <p className="sr-only" role="status">{t("states.loading")}</p>
           {[0, 1].map((group) => (
             <div key={group} className="grp">
               <Skeleton style={{ width: 120, height: 12 }} />

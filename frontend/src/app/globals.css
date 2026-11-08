@@ -463,7 +463,9 @@ dialog.shell-dialog {
   color: var(--text);
   box-shadow: var(--shadow-float);
 }
-dialog.shell-dialog[open] { display: flex; flex-direction: column; animation: ws-rise var(--t-layer) both; }
+/* Backwards fill only: a transform kept after the rise would make the dialog the containing block of a fixed menu
+   inside it, which its overflow then clips. */
+dialog.shell-dialog[open] { display: flex; flex-direction: column; animation: ws-rise var(--t-layer) backwards; }
 dialog.shell-dialog::backdrop { background: var(--scrim); animation: ws-fade var(--t-layer) both; }
 .dlg-h { display: flex; align-items: flex-start; gap: var(--sp-12); padding: var(--sp-24) var(--sp-24) var(--sp-16); }
 .dlg-h .dlg-t { flex: 1; min-width: 0; }
