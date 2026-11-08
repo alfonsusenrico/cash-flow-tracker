@@ -46,7 +46,7 @@ An independent review of `git diff 0308b7b -- backend/app` (status codes, codes,
 
 | Check | Result |
 | --- | --- |
-| Backend full suite (6.3) | FINAL_BACKEND |
+| Backend full suite (6.3) | 2097 passed, 0 failed, 0 skipped, on a fresh postgres:16 migrated V1 to V53 with flyway/flyway:10 (`SKIP_TEST_MIGRATIONS=1`, `REQUIRE_TEST_DATABASE=1`), at 1ae2b31 |
 | Indonesian golden and byte identity (1.3, 2.3, 3.2, 4.1, 4.2, 5.1) | passed: 73 rendered cases, 81 catalogue cases and the four prompt renderings (SHA-256) byte-identical to the fixture frozen at 2cf8479; every base Indonesian error text kept for its code; 11 codes whose base message was English gain an Indonesian message |
 | Server catalogue parity (2.2) | passed: same keys and placeholders, English counts with `one` and `other`; planted missing key, placeholder mismatch and English count without `one` each fail and name the key |
 | Error codes in four catalogues (3.3) | passed: `ErrorCode`, server `en`/`id` and web `en`/`id` hold the same 296 codes, and no web message uses a value the server never sends; a planted missing code and a planted unknown value fail and name the code and catalogue |
@@ -59,8 +59,8 @@ An independent review of `git diff 0308b7b -- backend/app` (status codes, codes,
 | Prompts and offline evaluation (5.1, 5.2) | passed with no network (sockets refused); English output only with the flag on and an English account; "Payment" rejected like "Pembayaran" |
 | Companion compatibility (3.4) | 13 captured bodies (both languages, signed out, schema 422s); `serverMessage`, `serverErrorCode` and `PurposeAnswers.errorCode` read the server's `message` and `code` (1 test), and the 10 `PurposeAnswersTest` tests passed, in a scratch clone at companion `main` 35dfbeb |
 | Figures untouched (6.1) | API: 52 parameter-free GET endpoints, 2,368 numbers, 0 differing between `main` and this branch in Indonesian and English, 6 numbers added (the `label_params` of facts), all equal across languages. Web `parity.mjs`: 19 of 19 pages identical (650 figures). `parity-languages.mjs`: 97 figures identical in English and Indonesian |
-| Frontend | FINAL_FRONTEND |
-| `openspec validate --all --strict` | FINAL_OPENSPEC |
+| Frontend | `npm test` 94 files, 904 tests passed; `npm run type-check`, `npm run lint` (0 findings) and `npm run build` passed at 1ae2b31; `package.json` and the lockfile are unchanged (`npm@10 ci --dry-run` passed) |
+| `openspec validate --all --strict` | 85 passed, 0 failed before the archive; 84 passed, 0 failed after it (the change folder is no longer an item), no "TBD" Purpose in the five updated specs |
 | `git diff --check`, `git diff --stat origin/main -- db` | clean, empty |
 
 ## Browser spot checks (6.2)
@@ -98,4 +98,4 @@ Each upper bound is above the default cap of $0.25 per run, so the owner's OK al
 - The owner's (Indonesian) purpose and top-up questions read exactly as before.
 - `LLM_ENGLISH_OUTPUT_ENABLED` is `false`.
 
-Implementation and verification commit: FINAL_COMMIT.
+Implementation and verification commit: 1ae2b31. The archive commit follows it.
