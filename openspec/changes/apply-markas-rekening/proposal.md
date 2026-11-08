@@ -48,7 +48,7 @@ Every decision, its default and the rejected alternatives are in `design.md` (D1
 - **D12 (scope, interaction):** dragging and Alt + arrows work in "Atur urutan" mode only, as in the prototype. Outside the mode a tile only opens its detail. Today, dragging is always on at desktop width. Fallback: always-on dragging, with the hint only in the mode.
 - **D8 (scope addition, no money change):** "Bayar tagihan" in a credit detail opens Catat's Perpindahan into that account with the next bill's `left_to_pay`. It does this through a new `openMovementCapture({ targetAccountId, amount })` in the workspace context, which phase 9 reuses. Nothing is posted without the owner's confirmation.
 - **D6 (presentation of figures):** gains read "▲ +Rp 396.000 · +8,0%" with one decimal everywhere, including the detail, which shows two decimals today. The values are unchanged.
-- **D3 (presentation of figures):** the five summary figures leave the page header (every figure once). Dana investasi, Investasi and its gain become group totals. Utang becomes the Utang group total plus the Tagihan row. "Saldo tersedia" becomes the "Dana likuid" line in the Rincian, under the glossary term `terms.availableCash`.
+- **D3 (presentation of figures):** the five summary figures leave the page header (every figure once). Dana investasi, Investasi and its gain become group totals. Utang becomes the Utang group total plus the Tagihan row. "Saldo tersedia" becomes a Rincian line with the same label (kept on 2026-11-08; "Dana likuid" rejected as jargon).
 
 ## Deviations from the prototype
 
@@ -183,7 +183,7 @@ No capability in `AGENTS.md` changes.
   - `messages/en.json` and `id.json` (`accounts`, the new `terms`);
   - `lib/i18n/translatedRoutes.ts` and `components/workspace/untranslatedPages.ts`;
   - `copyRegister.test.ts` roots;
-  - `workspace.test.tsx`'s untranslated `/accounts` subtitle example, which moves to `/goals`.
+  - `workspace.test.tsx`'s untranslated `/accounts` subtitle example, which moves to `/settings`.
 - **Tooling (local only):** `scripts/verify/markas/`:
   - the Rekening scenarios in both scenario files;
   - `rekening-checklist.js` for `measure.js`;

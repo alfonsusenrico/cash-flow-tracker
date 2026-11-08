@@ -59,7 +59,7 @@ The page SHALL lead with one hero: "Kekayaan bersih" from the server's `net_wort
 #### Scenario: Hero and Rincian
 - **GIVEN** net worth Rp 45.828.280, assets Rp 58.971.280, one credit account owing Rp 893.000 and two obligations owing Rp 12.250.000
 - **WHEN** the owner opens Rekening & Kantong and activates "Rincian"
-- **THEN** the hero SHALL read Rp 45.828.280 and "dari aset Rp 58.971.280", and the dialog SHALL list Dana likuid, Dana investasi, Investasi, each obligation as "Tagihan · {name}" and the credit account as "Utang · {name}", with the total Rp 45.828.280
+- **THEN** the hero SHALL read Rp 45.828.280 and "dari aset Rp 58.971.280", and the dialog SHALL list Saldo tersedia, Dana investasi, Investasi, each obligation as "Tagihan · {name}" and the credit account as "Utang · {name}", with the total Rp 45.828.280
 
 #### Scenario: Split bar shares
 - **WHEN** the hero is shown

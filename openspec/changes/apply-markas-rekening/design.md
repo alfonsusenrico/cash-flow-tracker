@@ -130,9 +130,9 @@ The shared `HeroFigure`, without a colour mark:
 
 "Rincian" opens the shared 480 px `ExplanationDialog`:
 - the title "Kekayaan bersih" and the meta "Rincian hitungan";
-- the rule (`accounts.rincian.rule`): "Dana likuid, Dana investasi dan Investasi dikurangi utang, tagihan dan saldo minus yang perlu dicocokkan. Saldo kantong dihitung sekali.";
+- the rule (`accounts.rincian.rule`): "Saldo tersedia, Dana investasi dan Investasi dikurangi utang, tagihan dan saldo minus yang perlu dicocokkan. Saldo kantong dihitung sekali.";
 - one row per server line:
-  - `liquid` → `terms.availableCash` ("Dana likuid");
+  - `liquid` → `accounts.rincian.liquid` ("Saldo tersedia" / "Available balance"; label kept by the owner's coordinator decision of 2026-11-08);
   - `dana_investasi` → `terms.investmentCash`;
   - `investment` → `terms.investments`;
   - `reconciliation_pending` → `terms.negativeBalanceToMatch`;
@@ -144,7 +144,7 @@ The shared `HeroFigure`, without a colour mark:
 On failure of `/dashboard/net-worth`, the hero is the SPEC error box "Kekayaan bersih belum dapat dihitung." with "Coba lagi"; no Rp 0 and no browser sum. The groups still render from `/accounts`.
 
 Where the five summary figures go (every figure once, audit principle 4):
-- **Saldo tersedia:** the Rincian line "Dana likuid", under the glossary term (`ui-copy-register` "One Term per Concept"; Beranda already says "Dana likuid").
+- **Saldo tersedia:** the Rincian line "Saldo tersedia" ("Available balance"), the label kept as today (decision of 2026-11-08: "Dana likuid" is jargon and breaks the label register).
 - **Dana investasi and Investasi:** their group totals.
 - **Untung/Rugi:** the Investasi group header.
 - **Utang:** the Utang group total (credit), the Tagihan row (obligations, D5) and the Rincian (both).
@@ -469,10 +469,9 @@ The inline `styles.notice` and its 4 s timer are removed. When a product dialog 
   - `leftToPay` ("Sisa tagihan" / "Left to pay");
   - `everydayMoney` ("Uang harian" / "Everyday money");
   - `billStatus.open|upcoming|dueToday|overdue|paid|paidLate` ("Terbuka · Akan datang · Jatuh tempo hari ini · Lewat jatuh tempo · Lunas · Lunas terlambat" / "Open · Upcoming · Due today · Overdue · Paid · Paid late").
-  Existing terms used: `netWorth`, `availableCash`, `investmentCash`, `investments`, `savings` (the Tabungan use), `bills`, `plans`, `negativeBalanceToMatch`, `breakdown`.
+  Existing terms used: `netWorth`, `investmentCash`, `investments`, `savings` (the Tabungan use), `bills`, `plans`, `negativeBalanceToMatch`, `breakdown`.
 - **Use and kind labels:** `accounts.groups.*` for the use names (from `terms` where they exist) and `accounts.kinds.*` (Reksa dana, Saham, Emas, Lainnya / Mutual funds, Stocks, Gold, Other).
 - **Indonesian:** today's text for every existing string, with these intended changes, listed in `verification.md`:
-  - "Dana likuid" for "Saldo tersedia" in the Rincian (glossary);
   - "Modal belum diisi" kept, and "Modal belum lengkap" for a platform;
   - the form labels in sentence case without the bracketed long options ("Jenis: Bank · E-wallet · Tunai · Investasi · Kredit"; "Kantong bawaan untuk notifikasi");
   - "Perlu dicocokkan" for "Perlu rekonsiliasi" (neutral, non-technical label register; the button opens "Sesuaikan saldo");
@@ -486,7 +485,7 @@ The inline `styles.notice` and its 4 s timer are removed. When a product dialog 
 - **Server text:** errors render from `errors.<code>`. Account, pocket, product, platform, obligation and merchant names, notes and instrument symbols are user data: shown as stored, with no `lang` attribute.
 - **Registry and guards:**
   - `/accounts` joins `TRANSLATED_ROUTES`, and its entry leaves `untranslatedPages.ts`;
-  - the untranslated-page test example in `workspace.test.tsx` moves from `/accounts` to `/goals`, which phase 9 translates;
+  - the untranslated-page test examples in `workspace.test.tsx` move from `/accounts` to `/settings` (Pengaturan), which neither phase 6, 7, 8 nor 9 translates;
   - the copy register's translated roots gain `app/accounts`, `components/accounts` and the four `components/ui` money dialogs;
   - catalogue parity covers `accounts`.
 - **Lengths**, measured in both languages at 1440, 1024, 390 and 320 px:
@@ -497,7 +496,7 @@ The inline `styles.notice` and its 4 s timer are removed. When a product dialog 
   - the credit tile "Limit left Rp 2.107.000" and "due 11 Dec · Rp 434.000".
 
 Rejected alternatives:
-- Keeping "Saldo tersedia" beside Beranda's "Dana likuid": two terms for one concept.
+- "Dana likuid" for "Saldo tersedia": rejected on 2026-11-08 as jargon that breaks the label register; the label stays.
 - Leaving the money dialogs untranslated (they are shared with Transaksi): their only entry points are this page and the transaction dialog, which phase 5 translated.
 
 ### D17. Hidden balances
@@ -697,7 +696,7 @@ Approved under the owner's standing instruction 'complete all until finished' (2
 | --- | --- | --- | --- | --- |
 | D1 | Layout and breakpoints | One column in 1200; tiles `auto-fill minmax(240,1fr)`; viewport queries | Container measure; context panel | — |
 | D2 | Title actions | Perbarui harga, Tambah rekening; "…" Atur urutan, Rencana (in place) | Rencana as a link to `/goals`; visible Atur urutan | — (deviation 9) |
-| D3 | Hero | `net_worth` + Rincian (server lines), "dari aset", split bar by use with % | Five-figure summary; "· utang" in the line; dotted figure | **Flag: presentation of figures** (summary figures move to groups and the Rincian; "Dana likuid") |
+| D3 | Hero | `net_worth` + Rincian (server lines), "dari aset", split bar by use with % | Five-figure summary; "· utang" in the line; dotted figure | **Flag: presentation of figures** (summary figures move to groups and the Rincian; "Saldo tersedia" kept) |
 | D4 | Controls | SPEC segments; Kartu/Grafik in `?tampilan`; grouping per browser | Tablist; React state; grouping in the URL | — |
 | D5 | Groups and Utang | Rails, quiet headers, gains; Utang credit-only + Tagihan link row; Per rekening subtotals in words | Obligation tiles and "Utang lain" (prototype); summary Tagihan figure; stacked composition bars | **Flag: owner-directed scope** (Tagihan), **earlier owner choice** (composition bar) |
 | D6 | Tiles | Flat tile, institution mark, one note line, `GainText` "▲ +Rp … · +8,0%" | Coloured edges; several pills; two-decimal percent | **Flag: presentation of figures** (one-decimal percent) |
@@ -710,7 +709,7 @@ Approved under the owner's standing instruction 'complete all until finished' (2
 | D13 | Phone | Wallet for Uang harian; one tile per row; sheets | Grid on phone | — |
 | D14 | States | SPEC skeleton, error boxes, empty state | Grey blocks | — |
 | D15 | Prices | Toast | Inline notice | — |
-| D16 | Language | `accounts` namespace, new shared `terms`, `/accounts` translated, "Dana likuid", "Perlu dicocokkan" | Two terms for one concept; untranslated dialogs | — |
+| D16 | Language | `accounts` namespace, new shared `terms`, `/accounts` translated, "Saldo tersedia" kept, "Perlu dicocokkan" | Two terms for one concept; untranslated dialogs | — |
 | D17 | Hidden balances | `MaskedMoney` on every amount; percentages visible | Hide percentages | — |
 | D18 | Shared pieces | `ProgressBar`, `GainText`, `credit.ts`, standalone detail, `openMovementCapture` | Page-only copies | — |
 | D19 | Held branch | Fold the Rekening parts; delete after this phase | Merge it first | — |
@@ -721,6 +720,17 @@ Approved under the owner's standing instruction 'complete all until finished' (2
 | D24 | Dependencies | Phase 5, both language changes and the credit flow merged first; stop otherwise | Stacking on unmerged branches | — |
 
 No default changes money behaviour, a request, a total's value or what net worth counts. The flagged D3, D5 and D6 change where and how figures are shown. D8 adds a client function that prefills a form. D11 and D12 keep owner choices or change an interaction.
+
+## Deviations recorded at implementation (2026-11-08)
+
+Checked against the merged code before implementation (D24 "adapt and record"); each is also in `verification.md`.
+- **Base.** By the coordinator's instruction this phase stacks on phase 5 before it merges: `origin/feat/markas-transaksi` (PR #93) is merged into `feat/markas-rekening`, and `origin/main` replaces it once #93 merges. This replaces D24's "does not stack on unmerged branches" and task 1.2's merge-base check for phase 5. Phases 1 to 4, the language system, localized server text and `add-credit-spending-flow` (#91) are on `main`.
+- **"Saldo tersedia" kept.** The Rincian line for `liquid` keeps the label "Saldo tersedia" ("Available balance"), under `accounts.rincian.liquid`. "Dana likuid" was rejected on 2026-11-08 as jargon that breaks the label register. D3, D16 and Appendices A and B are updated.
+- **Percent formatting.** `lib/format.ts` has no `percent`; this phase adds `format.percent(value, fractionDigits)`, which always writes the fraction digits ("8,0%").
+- **Credit bill items have no purchase name.** `GET /api/credit/accounts/{id}` `items[]` carries `kind`, `transaction_id`, `date`, `due_date`, `installment`, `amount`, `left_to_pay`, `settled_on`, `days_to_settle` and `settled_on_time`, and no description. An item reads its kind ("Pembelian", "Biaya kredit", "Tarik tunai", "Saldo awal") with its date; no API change.
+- **Rincian link optional.** `ExplanationDialog` required a footer link; it becomes optional, so the Rekening Rincian shows "Buka Target & Tagihan" only when an obligation line exists.
+- **Untranslated test example.** The examples move from `/accounts` to `/settings` (Pengaturan), which phases 6, 7, 8 and 9 do not translate, instead of `/goals`, which phase 9 translates.
+- **Continuity and delivery.** `PROJECT_STATE.md` is kept by the coordinator: the items task 1.1 and 5.8 name for it are written in `verification.md` under "For PROJECT_STATE.md". The branch is pushed without a pull request, and the held branch is deleted by the owner after the merge.
 
 ## Risks / Trade-offs
 
@@ -761,7 +771,8 @@ None. The flagged decisions take their defaults under the owner's standing instr
 | `hero.splitLabel` | Pembagian aset: {parts} | Assets by use: {parts} |
 | `hero.share` | {use} {percent} | {use} {percent} |
 | `hero.failed` | Kekayaan bersih belum dapat dihitung. | Net worth cannot be calculated yet. |
-| `rincian.rule` | Dana likuid, Dana investasi dan Investasi dikurangi utang, tagihan dan saldo minus yang perlu dicocokkan. Saldo kantong dihitung sekali. | Available cash, investment cash and investments, less debts, bills and negative balances to match. Pocket balances count once. |
+| `rincian.liquid` | Saldo tersedia | Available balance |
+| `rincian.rule` | Saldo tersedia, Dana investasi dan Investasi dikurangi utang, tagihan dan saldo minus yang perlu dicocokkan. Saldo kantong dihitung sekali. | Available balance, investment cash and investments, less debts, bills and negative balances to match. Pocket balances count once. |
 | `rincian.billLine` · `rincian.debtLine` | Tagihan · {name} · Utang · {name} | Bill · {name} · Debt · {name} |
 | `rincian.openGoals` | Buka Target & Tagihan | Open Goals & Bills |
 | `controls.view` · `controls.cards` · `controls.chart` | Tampilan · Kartu · Grafik | View · Cards · Chart |
@@ -889,7 +900,7 @@ None. The flagged decisions take their defaults under the owner's standing instr
 | Utang | Debt | `terms.debt` |
 | Tagihan | Bills | `terms.bills`; obligations, and credit bills in the detail |
 | Kekayaan bersih | Net worth | `terms.netWorth` |
-| Dana likuid | Available cash | `terms.availableCash`; replaces "Saldo tersedia" |
+| Saldo tersedia | Available balance | `accounts.rincian.liquid`; kept (2026-11-08) |
 | Aset | Assets | |
 | Untung/rugi · untung · rugi | Gain or loss · gain · loss | |
 | Modal · Modal belum diisi · Modal belum lengkap | Cost · Cost not entered · Cost incomplete | |

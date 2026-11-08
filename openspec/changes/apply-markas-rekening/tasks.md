@@ -48,7 +48,7 @@ Expected Result: the pieces phase 9 needs exist with tests, and the page can be 
 
 - [ ] 3.1 Add the `accounts` namespace and the new `terms` (D16, Appendix A) to `messages/en.json` and `id.json`. Evidence: catalogue parity passes; the copy register passes for both languages; no "kamu", "Anda", "Expense", "Outflow" or "Ledger".
 - [ ] 3.2 Move every string of `components/accounts`, `app/accounts` and the four `components/ui` money dialogs to keys, with whole ICU sentences, plurals and formatted arguments, and the server errors to `errors.<code>`. Evidence: `rg` finds no Indonesian literal in those roots outside tests; `useFormat()` formats every amount, date and percent.
-- [ ] 3.3 Add `/accounts` to `TRANSLATED_ROUTES`, remove its `untranslatedPages.ts` entry, add the roots to the copy register, and move the untranslated-page test example to `/goals`. Evidence: an English `/accounts` shows "Accounts & Pockets" and no notice; `lang` is not `id` on the page; the moved test passes.
+- [ ] 3.3 Add `/accounts` to `TRANSLATED_ROUTES`, remove its `untranslatedPages.ts` entry, add the roots to the copy register, and move the untranslated-page test examples to `/settings`. Evidence: an English `/accounts` shows "Accounts & Pockets" and no notice; `lang` is not `id` on the page; the moved test passes.
 - [ ] 3.4 Check the Indonesian text against today's. Evidence: the rendered-text snapshot after the change equals `copy-before-id.json` except the intended changes listed in D16, recorded in `verification.md`.
 
 Expected Result: Rekening & Kantong and its dialogs read in either language, and the Indonesian text is unchanged except the listed intended changes.
