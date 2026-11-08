@@ -60,6 +60,7 @@ from app.services.reimbursements import (
 )
 from app.services.report_figures import possible_duplicate_sql, reportable_expense_sql, reportable_income_sql
 from app.services.report_windows import PERIOD_PATTERN, get_timeframe_window
+from app.services.saving_flow import counts_as_saving_sql, credit_row_sql, row_saving_flow_sql, saving_flow_joins
 from app.services.system_categories import (
     INTERNAL_MOVEMENT, INVESTMENT, is_system_sql, non_reportable_sql, reportable_key_sql,
 )
@@ -211,8 +212,30 @@ TYPE_FILTER_SQL = {
         f" AND NOT {is_system_sql('c', INVESTMENT)} AND NOT {TOPUP_LEG_SQL})"
     ),
     "investment": f"({TOPUP_LEG_SQL} OR {is_system_sql('c', INVESTMENT)})",
+    # Rows whose saving flow changes Beranda's "Ditabung & investasi" (apply-markas-transaksi D28).
+    "saving": counts_as_saving_sql("t", "c"),
+    "credit": credit_row_sql(),
 }
-TAB_KEYS = ("expense", "income", "movement", "investment")
+TAB_KEYS = ("expense", "income", "movement", "investment", "saving", "credit")
+# Tabs that list one row per movement under `logical_movements`, as Pindah saldo does.
+LOGICAL_MOVEMENT_TYPES = (None, "movement", "investment", "saving", "credit")
+# Tabs whose filter needs `saving_flow_joins` in the FROM clause.
+FLOW_JOIN_TYPES = ("saving", "credit")
+
+
+def ledger_saving_net(cur, user_id: str, start: datetime | None, end: datetime | None) -> int:
+    """Beranda's "Ditabung & investasi" over the window, from the function its figure comes from (D28).
+
+    Without a period or range the window spans every row. The Kakeibo inflow argument only scales its
+    percentages, so the saving total does not depend on it.
+    """
+    # Imported here: the dashboard router and the cycle summary import this router through the review queue.
+    from app.routers.dashboard import get_kakeibo_breakdown
+    from app.services.cycle_summary import savings_change
+
+    start, end = aware(start) if start else EARLIEST, aware(end) if end else LATEST
+    offsets = load_spending_offsets(cur, user_id, start, end)
+    return savings_change(get_kakeibo_breakdown(cur, user_id, start, end, 0, offsets))["total"]
 
 
 def parse_includes(value: str | None) -> set[str]:
@@ -281,7 +304,7 @@ def list_transactions(
     category_id: UUID | None = None,
     goal_id: UUID | None = None,
     obligation_id: UUID | None = None,
-    type: str | None = Query(default=None, pattern="^(expense|income|transfer|movement|investment)$"),
+    type: str | None = Query(default=None, pattern="^(expense|income|transfer|movement|investment|saving|credit)$"),
     kakeibo_type: str | None = Query(default=None, pattern=PILLAR_FILTER_PATTERN),
     source: str | None = Query(default=None, pattern=SOURCE_PATTERN),
     review_status: str | None = Query(default=None, pattern=REVIEW_STATUS_PATTERN),
@@ -363,10 +386,10 @@ def list_transactions(
                 params.extend([search_pattern] * 6)
 
             # Filtered views retain individual legs: either side may match independently. A period or date
-            # window and the Pindah saldo and Investasi tabs keep one row per movement (its outbound leg, or
-            # the only leg), so Transaksi's tab and day counts match the rows it lists.
+            # window and the Pindah saldo, Investasi, Tabungan & investasi and Kredit tabs keep one row per
+            # movement (its outbound leg, or the only leg), so Transaksi's tab and day counts match its rows.
             if logical_movements and not any((
-                account_id, category_id, goal_id, obligation_id, type not in (None, "movement", "investment"),
+                account_id, category_id, goal_id, obligation_id, type not in LOGICAL_MOVEMENT_TYPES,
                 kakeibo_type, source, review_status, q, uncategorized, possible_duplicates, waiting,
             )):
                 conditions.append(
@@ -386,6 +409,8 @@ def list_transactions(
             if type:
                 conditions.append(TYPE_FILTER_SQL[type])
             where_clause = " AND ".join(conditions)
+            # The saving and credit filters read both legs of a movement; other filters need no extra joins.
+            flow_joins = saving_flow_joins("t") if type in FLOW_JOIN_TYPES else ""
 
             # Combined total count and cash flow summary query
             cycle_start, cycle_end, _, _, cycle_label = get_timeframe_window(payday_day, "cycle", user_id=user_id, language=language_for_user(current_user))
@@ -407,6 +432,7 @@ def list_transactions(
                 LEFT JOIN categories c ON c.id = t.category_id
                 LEFT JOIN goals g ON g.id = t.goal_id
                 LEFT JOIN obligations o ON o.id = t.obligation_id
+                {flow_joins}
                 WHERE {where_clause}
             """
             cur.execute(summary_query, [cycle_start, cycle_end, cycle_start, cycle_end, cycle_start, cycle_end] + params)
@@ -426,6 +452,14 @@ def list_transactions(
                 int(agg["cycle_saving"] or 0), later_bound(cycle_start, from_date), earlier_bound(cycle_end, to_date),
                 offset_scope,
             )
+            # Beranda's figure has no per-filter form, so it is reported only for the whole window (D28).
+            saving_net = None
+            if type == "saving" and not any((
+                account_id, category_id, goal_id, obligation_id, kakeibo_type, source, review_status, q,
+                uncategorized, possible_duplicates, waiting,
+            )):
+                saving_net = ledger_saving_net(cur, user_id, from_date, to_date)
+            cumulative = {**cumulative, "saving_net": saving_net}
 
             # Select page
             select_query = f"""
@@ -467,6 +501,7 @@ def list_transactions(
                     partner_account.type AS movement_target_account_type,
                     partner_parent.name AS movement_target_account_parent_name,
                     credit_terms.installment_count AS credit_installment_count,
+                    {row_saving_flow_sql("t")} AS saving_flow,
                     t.created_at,
                     (t.date AT TIME ZONE %s)::date AS local_date,
                     {PROVENANCE_SELECT}
@@ -486,6 +521,7 @@ def list_transactions(
                 LEFT JOIN categories c ON c.id = t.category_id
                 LEFT JOIN goals g ON g.id = t.goal_id
                 LEFT JOIN obligations o ON o.id = t.obligation_id
+                {flow_joins}
                 WHERE {where_clause}
                 ORDER BY t.date DESC, t.created_at DESC, t.id DESC
                 LIMIT %s OFFSET %s
@@ -496,7 +532,9 @@ def list_transactions(
             credit_blocks = load_credit_blocks(cur, user_id, rows)
             daily_totals = None
             if "daily_totals" in includes:
-                daily_totals = load_daily_totals(cur, where_clause, params, sorted({r["local_date"] for r in rows}))
+                daily_totals = load_daily_totals(
+                    cur, where_clause, params, sorted({r["local_date"] for r in rows}), flow_joins,
+                )
             type_counts = None
             if "type_counts" in includes:
                 type_counts = load_type_counts(cur, tab_where_clause, params)
@@ -562,6 +600,7 @@ def list_transactions(
                 "created_at": r["created_at"].isoformat() if r["created_at"] else None,
                 **provenance_fields(r),
                 "credit": credit_blocks[str(r["id"])],
+                "saving_flow": r["saving_flow"],
             }
             for r in rows
         ],
@@ -617,7 +656,9 @@ LIST_FROM_SQL = """
 """
 
 
-def load_daily_totals(cur, where_clause: str, params: list[Any], days: list[date]) -> list[dict[str, Any]]:
+def load_daily_totals(
+    cur, where_clause: str, params: list[Any], days: list[date], flow_joins: str = "",
+) -> list[dict[str, Any]]:
     """Figures for each local day the page touches, over every row of that day that matches the filters.
 
     Inflow and outflow use the summary's gross rules, so over all pages they add up to the summary's
@@ -635,6 +676,7 @@ def load_daily_totals(cur, where_clause: str, params: list[Any], days: list[date
                    {reportable_expense_sql()} AND {effective_pillar_sql()} IS DISTINCT FROM 'saving' AS is_spending,
                    {waiting_row_sql("t")} AS is_waiting
             {LIST_FROM_SQL}
+            {flow_joins}
             WHERE {where_clause} AND t.date >= %s AND t.date < %s
         ), movements AS (
             SELECT day, movement_id, MAX(amount) AS amount FROM matching
@@ -672,7 +714,9 @@ def load_daily_totals(cur, where_clause: str, params: list[Any], days: list[date
 def load_type_counts(cur, tab_where_clause: str, params: list[Any]) -> dict[str, int]:
     """Rows behind each type tab under every filter except the type itself."""
     tabs = ", ".join(f"COUNT(*) FILTER (WHERE {TYPE_FILTER_SQL[key]}) AS {key}" for key in TAB_KEYS)
-    cur.execute(f"SELECT COUNT(*) AS all_rows, {tabs} {LIST_FROM_SQL} WHERE {tab_where_clause}", params)
+    cur.execute(
+        f"SELECT COUNT(*) AS all_rows, {tabs} {LIST_FROM_SQL} {saving_flow_joins('t')} WHERE {tab_where_clause}", params,
+    )
     row = cur.fetchone()
     return {"all": int(row["all_rows"]), **{key: int(row[key]) for key in TAB_KEYS}}
 
@@ -1130,6 +1174,7 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
                     partner_account.type AS movement_target_account_type,
                     partner_parent.name AS movement_target_account_parent_name,
                     credit_terms.installment_count AS credit_installment_count,
+                    {row_saving_flow_sql("t")} AS saving_flow,
                     t.created_at,
                     (t.date AT TIME ZONE %s)::date AS local_date,
                     {waiting_row_sql("t")} AS waiting,
@@ -1197,6 +1242,7 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
             "origin": origin,
             **provenance_fields(r),
             "credit": credit_block,
+            "saving_flow": r["saving_flow"],
         },
     }
 

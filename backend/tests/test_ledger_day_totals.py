@@ -133,7 +133,8 @@ def test_waiting_row_is_counted_in_its_day(client, ledger):
 def test_tab_counts(client, ledger, owner):
     manual_movement(client, owner, amount=40_000)
     page = listing(client, "include=type_counts&limit=1")
-    assert page["type_counts"] == {"all": 9, "expense": 5, "income": 2, "movement": 2, "investment": 0}
+    assert page["type_counts"] == {"all": 9, "expense": 5, "income": 2, "movement": 2, "investment": 0, "saving": 0,
+                                   "credit": 0}
     assert page["type_counts"]["all"] == page["total"]
     # The tab filter itself does not change the counts; every other filter does.
     assert listing(client, "include=type_counts&type=expense&limit=1")["type_counts"] == page["type_counts"]
