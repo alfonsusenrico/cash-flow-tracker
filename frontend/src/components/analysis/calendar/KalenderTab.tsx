@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { rowKind, rowTitle } from "@/components/beranda/activity";
-import { TransactionDrawer } from "@/components/transactions/TransactionDrawer";
+import { rowKind, rowTitle } from "@/components/transactions/rows";
+import { INDONESIAN_ROW_LABELS } from "@/lib/untranslatedRowLabels";
+import { TransactionDialog } from "@/components/transactions/TransactionDialog";
 import type { LedgerRow } from "@/components/transactions/types";
 import { useTransactionUndo } from "@/components/transactions/useTransactionUndo";
 import { Icon } from "@/components/ui/Icon";
@@ -348,7 +349,7 @@ function DaySheet({ day, data, money }: { day: CalendarDay; data: CalendarRespon
         <div className={styles.sheetRows}>
           {rows.data.transactions.map((row) => (
             <button key={row.id} type="button" className={styles.sheetRow} onClick={() => setOpenId(row.id)}>
-              <span><b>{rowTitle(row)}</b><span>{row.account_name}{row.category_name ? ` · ${row.category_name}` : ""}</span></span>
+              <span><b>{rowTitle(row, INDONESIAN_ROW_LABELS)}</b><span>{row.account_name}{row.category_name ? ` · ${row.category_name}` : ""}</span></span>
               <span className={styles.amount}>{rowKind(row) === "movement" || rowKind(row) === "topup" ? "⇄ " : row.type === "income" ? "+" : "−"}{money(row.amount)}</span>
             </button>
           ))}
@@ -359,7 +360,7 @@ function DaySheet({ day, data, money }: { day: CalendarDay; data: CalendarRespon
           <Link className="ws-linkbtn" href={ledgerHref({ from: bounds.from, to: bounds.to })}>Lihat di Transaksi</Link>
         </p>
       )}
-      <TransactionDrawer transactionId={openId} onClose={() => setOpenId(null)} record={record} />
+      <TransactionDialog transactionId={openId} onClose={() => setOpenId(null)} record={record} />
     </Card>
   );
 }

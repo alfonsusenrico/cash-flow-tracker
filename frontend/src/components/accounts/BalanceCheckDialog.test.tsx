@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axe } from "vitest-axe";
 import { api } from "@/lib/api";
+import { renderWithIntl } from "@/lib/i18n/testing";
 import { BalanceCheckDialog, canCheckBalance, type BalanceCheckResult, type BalanceCause } from "./BalanceCheckDialog";
 import type { AccountItem } from "./types";
 
@@ -139,6 +140,35 @@ describe("Cocokkan saldo", () => {
     await waitFor(() => expect(api.post).toHaveBeenNthCalledWith(2, "/accounts/main/balance-matches", { actual_balance: 920_000 }));
     await waitFor(() => expect(api.post).toHaveBeenNthCalledWith(3, "/accounts/main/balance-check", { actual_balance: 920_000 }));
     expect(await screen.findByText("Cocok")).toBeInTheDocument();
+  });
+});
+
+describe("Cocokkan saldo in English", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("reads the result and causes in English and keeps the requests", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.post).mockResolvedValueOnce(result({
+      actual_balance: 875_000, recorded_balance: 900_000, difference: -25_000, candidates: [unpaired],
+    }));
+    const qc = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const onAdjust = vi.fn();
+    renderWithIntl(
+      <QueryClientProvider client={qc}>
+        <BalanceCheckDialog account={pocket} money={money} onClose={vi.fn()} onAdjust={onAdjust} />
+      </QueryClientProvider>,
+      { language: "en" },
+    );
+    expect(screen.getByRole("dialog", { name: "Check balance" })).toHaveTextContent("Compare Kantong Utama with the balance in the bank app");
+    await user.type(screen.getByLabelText("Balance in the bank app (IDR)"), "875000");
+    await user.click(screen.getByRole("button", { name: "Check" }));
+    expect(api.post).toHaveBeenCalledWith("/accounts/main/balance-check", { actual_balance: 875_000 });
+    const region = await screen.findByRole("region", { name: "Check result" });
+    expect(region).toHaveTextContent("difference: the bank app shows less");
+    expect(within(region).getByText("Transfer without its other side")).toBeInTheDocument();
+    expect(within(region).getByRole("link", { name: "Open transaction" })).toHaveAttribute("href", "/ledger?edit=leg");
+    await user.click(screen.getByRole("button", { name: "Adjust balance" }));
+    expect(onAdjust).toHaveBeenCalledWith(875_000, expect.any(Function));
   });
 });
 

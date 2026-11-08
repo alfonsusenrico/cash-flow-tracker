@@ -144,37 +144,4 @@ export interface CycleSummary {
 }
 
 /** A row of the recent-activity list: one ledger row, or two movement legs consolidated into one. */
-export interface ActivityRow {
-  id: string;
-  account_id: string;
-  account_name: string;
-  /** The bank of a pocket; null for an account without a parent. */
-  account_parent_name?: string | null;
-  category_name: string | null;
-  /** The category's system key (investment, internal_movement, balance_adjustment); null for an ordinary one. */
-  category_system_key?: string | null;
-  type: "expense" | "income";
-  amount: number;
-  date: string;
-  notes: string | null;
-  merchant?: string | null;
-  kakeibo_type?: string | null;
-  review_status?: string | null;
-  source?: string | null;
-  classified_by?: string | null;
-  movement_id?: string | null;
-  investment_topup_id?: string | null;
-  movement_kind?: "investment_topup" | null;
-  movement_role?: "outbound" | "inbound" | null;
-  partner_id?: string | null;
-  transfer_target_account_id?: string | null;
-  transfer_target_account_name?: string | null;
-  /** The partner leg's bank when its account is a pocket. */
-  transfer_target_account_parent_name?: string | null;
-  target_account_id?: string;
-  target_account_name?: string;
-  target_account_parent_name?: string | null;
-  is_consolidated_transfer?: boolean;
-  is_inferred_transfer?: boolean;
-  is_excluded_from_budget?: boolean;
-}
+export type { RowFacts as ActivityRow } from "@/components/transactions/types";

@@ -2,9 +2,19 @@
 
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useWorkspace } from "./context";
+import type { Translate } from "@/lib/i18n/types";
+import { useWorkspace, type PageHeader } from "./context";
+import { isActivePath } from "./navigation";
 import { UntranslatedNotice, useUntranslated } from "./untranslated";
 import { untranslatedPageTitle } from "./untranslatedPages";
+
+/** The fixed title and subtitle of a page its phase translated, from the catalogue (apply-markas-tinjau D2). */
+function translatedPageTitle(pathname: string, t: Translate): PageHeader | null {
+  if (isActivePath(pathname, "/review")) return { title: t("nav.review"), subtitle: t("review.page.subtitle") };
+  if (isActivePath(pathname, "/ledger")) return { title: t("nav.transactions"), subtitle: t("transactions.page.subtitle") };
+  if (isActivePath(pathname, "/accounts")) return { title: t("nav.accounts"), subtitle: t("accounts.page.subtitle") };
+  return null;
+}
 
 /**
  * The page's title block (D4): Manrope 24/32 title, the one-line subtitle 4 px below, and the actions slot that
@@ -13,10 +23,10 @@ import { untranslatedPageTitle } from "./untranslatedPages";
  */
 export function TitleBlock() {
   const pathname = usePathname();
-  const t = useTranslations("nav");
+  const t = useTranslations();
   const { header, setActionsSlot } = useWorkspace();
   const untranslated = useUntranslated();
-  const meta = header ?? untranslatedPageTitle(pathname) ?? { title: t("home"), subtitle: "" };
+  const meta = header ?? translatedPageTitle(pathname, t) ?? untranslatedPageTitle(pathname) ?? { title: t("nav.home"), subtitle: "" };
   return (
     <header className="title-block">
       <div className="tb-text">

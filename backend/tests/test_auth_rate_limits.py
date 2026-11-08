@@ -1,7 +1,8 @@
 from dataclasses import replace
 
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
+
+from app.errors import ErrorCode, api_error
 
 
 class RecordingLimiter:
@@ -32,7 +33,7 @@ def test_login_rate_limit_is_generic_and_includes_retry_after(monkeypatch):
     monkeypatch.setattr(
         auth_router,
         "authenticate_user",
-        lambda *_: (_ for _ in ()).throw(HTTPException(status_code=401, detail="Invalid username or password")),
+        lambda *_: (_ for _ in ()).throw(api_error(401, ErrorCode.INVALID_CREDENTIALS)),
     )
 
     client = TestClient(app, base_url="https://testserver")
@@ -40,7 +41,7 @@ def test_login_rate_limit_is_generic_and_includes_retry_after(monkeypatch):
     limited = client.post("/api/auth/login", json={"username": "UnknownName", "password": "wrong-password"})
 
     assert first.status_code == 401
-    assert first.json()["detail"] == "Invalid username or password"
+    assert first.json()["detail"]["code"] == "invalid_credentials"
     assert limited.status_code == 429
     assert limited.headers.get("retry-after") == str(settings.login_rate_window), dict(limited.headers)
     assert "UnknownName" not in limited.text
@@ -84,7 +85,7 @@ def test_registration_rate_limit_is_client_scoped_and_generic(monkeypatch):
     monkeypatch.setattr(
         auth_router,
         "register_user",
-        lambda *_args, **_fields: (_ for _ in ()).throw(HTTPException(status_code=400, detail="Invalid invite code")),
+        lambda *_args, **_fields: (_ for _ in ()).throw(api_error(400, ErrorCode.INVALID_INVITE_CODE)),
     )
 
     client = TestClient(app, base_url="https://testserver")

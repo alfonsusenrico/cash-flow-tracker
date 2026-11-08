@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api, createMovement } from "@/lib/api";
+import { useWorkspace } from "@/components/workspace/context";
 import AppLayout, { useAppCtx } from "./AppLayout";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/", useRouter: () => ({ push: vi.fn() }) }));
@@ -17,6 +18,12 @@ vi.mock("@/lib/api", () => ({
 function MovementTrigger() {
   const { openMovement } = useAppCtx();
   return <button type="button" onClick={() => openMovement()}>Global movement</button>;
+}
+
+/** "Bayar tagihan" in the Rekening detail (apply-markas-rekening D8): the account and the bill's amount filled in. */
+function PayBillTrigger() {
+  const { openMovementCapture } = useWorkspace();
+  return <button type="button" onClick={() => openMovementCapture({ targetAccountId: "cash-b", amount: 434_000 })}>Pay bill</button>;
 }
 
 function renderLayout(children: React.ReactNode = <MovementTrigger />) {
@@ -91,6 +98,18 @@ describe("global movement entry point", () => {
       target_account_id: "cash-b",
       amount: 300,
     })));
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it("opens Perpindahan with the target and amount filled in and posts nothing until it is saved", async () => {
+    const user = userEvent.setup();
+    renderLayout(<PayBillTrigger />);
+    await user.click(await screen.findByRole("button", { name: "Pay bill" }));
+    expect(await screen.findByRole("dialog", { name: "Catat transaksi" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Perpindahan" })).toHaveAttribute("aria-pressed", "true");
+    expect(await screen.findByRole("combobox", { name: "Ke rekening" })).toHaveValue("cash-b");
+    expect(screen.getByRole("textbox", { name: "Nominal (IDR)" })).toHaveValue("434.000");
+    expect(createMovement).not.toHaveBeenCalled();
     expect(api.post).not.toHaveBeenCalled();
   });
 

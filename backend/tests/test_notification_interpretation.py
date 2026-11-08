@@ -7,7 +7,8 @@ import pytest
 from pydantic import ValidationError
 
 from app.services.notification_evidence import EvidenceError, collect_facts, parse_idr_amount
-from app.services.notification_interpretation import Interpretation, system_prompt, validate_interpretation
+from app.services.notification_interpretation import Interpretation, validate_interpretation
+from app.services.prompt_language import load_prompt
 
 
 ACCOUNT = "00000000-0000-4000-8000-000000000001"
@@ -46,8 +47,10 @@ def test_strict_contract_and_versioned_prompt():
     interpretation = Interpretation.model_validate_json(json.dumps(proposal()))
     assert interpretation.account_id == UUID(ACCOUNT)
     validate_interpretation(interpretation, collect_facts(event()), context())
-    assert "untrusted DATA" in system_prompt()
-    assert "No tools" in system_prompt()
+    for language in ("id", "en"):
+        prompt = load_prompt("notification_interpretation", language)
+        assert "untrusted DATA" in prompt.text
+        assert "No tools" in prompt.text
 
 
 @pytest.mark.parametrize("changes", [

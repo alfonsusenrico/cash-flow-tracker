@@ -131,7 +131,7 @@ def test_ineligible_product_conversion_changes_nothing(auth_client, case):
     elif case == "foreign":
         with db_conn() as conn:
             owner = conn.execute(
-                "INSERT INTO users (username, password_hash, invite_code) VALUES (%s, 'unused', 'fixture') RETURNING id",
+                "INSERT INTO users (username, password_hash, invite_code, language) VALUES (%s, 'unused', 'fixture', 'id') RETURNING id",
                 (f"Other fixture {uuid4().hex}",),
             ).fetchone()["id"]
             product = str(conn.execute(

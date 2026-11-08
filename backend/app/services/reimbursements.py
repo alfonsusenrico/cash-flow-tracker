@@ -14,6 +14,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
+from app.errors import ErrorCode, api_error
 from app.services.apportionment import apportion
 from app.services.system_categories import non_reportable_sql, reportable_key_sql
 
@@ -146,20 +147,8 @@ def validate_offset_category(cur, user_id: str, offset_category_id: str) -> None
         (user_id, offset_category_id),
     )
     if not cur.fetchone():
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": "invalid_offset_category",
-                "message": "Pilih kategori pengeluaran aktif milik Anda sebagai kategori yang dikurangi.",
-            },
-        )
+        raise api_error(422, ErrorCode.INVALID_OFFSET_CATEGORY)
 
 
 def offset_not_allowed() -> HTTPException:
-    return HTTPException(
-        status_code=422,
-        detail={
-            "code": "offset_not_allowed",
-            "message": "Hanya pemasukan dalam kategori ganti uang yang dapat mengurangi pengeluaran.",
-        },
-    )
+    return api_error(422, ErrorCode.OFFSET_NOT_ALLOWED)

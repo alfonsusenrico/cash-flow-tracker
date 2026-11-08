@@ -20,7 +20,7 @@ def shopper(client):
     ids = {name: str(uuid4()) for name in ("cash", "groceries", "fun", "bills", "salary")}
     with db_conn() as conn:
         conn.execute(
-            "INSERT INTO users (id, username, name, password_hash, invite_code) VALUES (%s, %s, 'Tono Contoh', 'synthetic-hash', 'TEST')",
+            "INSERT INTO users (id, username, name, password_hash, invite_code, language) VALUES (%s, %s, 'Tono Contoh', 'synthetic-hash', 'TEST', 'id')",
             (user_id, f"insights_{uuid4().hex}"),
         )
         conn.execute(

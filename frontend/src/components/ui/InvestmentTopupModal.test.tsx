@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axe } from "vitest-axe";
 import { api } from "@/lib/api";
+import { renderWithIntl } from "@/lib/i18n/testing";
 import { InvestmentTopupModal } from "./InvestmentTopupModal";
 
 vi.mock("@/lib/api", () => ({ api: { post: vi.fn(), patch: vi.fn(), del: vi.fn() } }));
@@ -29,8 +30,8 @@ describe("amount investment top-ups", () => {
     const { close } = show();
     expect(screen.getByRole("combobox", { name: "Dari rekening" })).toHaveValue("rdn");
     expect(screen.queryByLabelText(/Unit Penyertaan|NAB/)).not.toBeInTheDocument();
-    await user.type(screen.getByLabelText("Nominal top up (IDR)"), "112590");
-    await user.click(screen.getByRole("button", { name: "Catat top up" }));
+    await user.type(screen.getByLabelText("Nominal (IDR)"), "112590");
+    await user.click(screen.getByRole("button", { name: "Top up" }));
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/investment-topups", expect.objectContaining({ amount: 112590, source_account_id: "rdn", target_account_id: "fund", date: expect.any(String), idempotency_key: expect.any(String) })));
     expect(close).toHaveBeenCalledOnce();
   });
@@ -51,13 +52,13 @@ describe("amount investment top-ups", () => {
     const user = userEvent.setup();
     vi.mocked(api.post).mockRejectedValueOnce(new Error("Connection lost"));
     const { close } = show();
-    await user.type(screen.getByLabelText("Nominal top up (IDR)"), "112590");
-    await user.click(screen.getByRole("button", { name: "Catat top up" }));
+    await user.type(screen.getByLabelText("Nominal (IDR)"), "112590");
+    await user.click(screen.getByRole("button", { name: "Top up" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Connection lost");
-    expect(screen.getByLabelText("Nominal top up (IDR)")).toHaveValue("112.590");
+    expect(screen.getByLabelText("Nominal (IDR)")).toHaveValue("112.590");
     expect(close).not.toHaveBeenCalled();
     const first = vi.mocked(api.post).mock.calls[0][1];
-    await user.click(screen.getByRole("button", { name: "Catat top up" }));
+    await user.click(screen.getByRole("button", { name: "Top up" }));
     await waitFor(() => expect(api.post).toHaveBeenCalledTimes(2));
     expect(vi.mocked(api.post).mock.calls[1][1]).toEqual(first);
   });
@@ -66,7 +67,7 @@ describe("amount investment top-ups", () => {
     const user = userEvent.setup();
     const schedule = vi.fn();
     show({ onSchedule: schedule });
-    await user.type(screen.getByLabelText("Nominal top up (IDR)"), "112590");
+    await user.type(screen.getByLabelText("Nominal (IDR)"), "112590");
     await user.click(screen.getByRole("button", { name: "Buat rencana bulanan (tidak mencatat)" }));
     expect(schedule).toHaveBeenCalledWith({ sourceAccountId: "rdn", targetAccountId: "fund", amount: 112590, productName: "Bibit Fund" });
     expect(api.post).not.toHaveBeenCalled();
@@ -75,7 +76,7 @@ describe("amount investment top-ups", () => {
   it("corrects a contribution through its own endpoint without changing accounts", async () => {
     const user = userEvent.setup();
     show({ editingTopup: { id: "topup", source_account_id: "rdn", target_account_id: "fund", amount: 112590, date: "2026-10-01T00:00:27Z", notes: "DCA" } });
-    fireEvent.change(screen.getByLabelText("Nominal top up (IDR)"), { target: { value: "100000" } });
+    fireEvent.change(screen.getByLabelText("Nominal (IDR)"), { target: { value: "100000" } });
     await user.click(screen.getByRole("button", { name: "Simpan perubahan" }));
     await waitFor(() => expect(api.patch).toHaveBeenCalledWith("/investment-topups/topup", expect.objectContaining({ amount: 100000, notes: "DCA" })));
     expect(vi.mocked(api.patch).mock.calls[0][1]).not.toHaveProperty("source_account_id");
@@ -91,7 +92,18 @@ describe("amount investment top-ups", () => {
 
   it("has labeled controls and a keyboard-operable dialog", async () => {
     show();
-    const dialog = screen.getByRole("dialog", { name: "Top up Investasi" });
+    const dialog = screen.getByRole("dialog", { name: "Top up" });
     expect((await axe(dialog)).violations).toEqual([]);
+  });
+
+  it("reads in English with the product as the meta and posts the same top-up", async () => {
+    const user = userEvent.setup();
+    const qc = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    renderWithIntl(<QueryClientProvider client={qc}><InvestmentTopupModal open product={product} allAccounts={accounts} onClose={vi.fn()} /></QueryClientProvider>, { language: "en" });
+    expect(screen.getByRole("dialog", { name: "Top up" })).toHaveTextContent("Bibit Fund");
+    expect(screen.getByRole("combobox", { name: "From account" })).toHaveValue("rdn");
+    await user.type(screen.getByLabelText("Amount (IDR)"), "112590");
+    await user.click(screen.getByRole("button", { name: "Top up" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/investment-topups", expect.objectContaining({ amount: 112590, source_account_id: "rdn", target_account_id: "fund" })));
   });
 });

@@ -1,0 +1,803 @@
+{
+ "totals": {
+  "endpoints": 52,
+  "numbers": 2368,
+  "differing": 0,
+  "status_differs": 0,
+  "added": 6
+ },
+ "endpoints": {
+  "/api/accounts": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 288,
+   "differing": []
+  },
+  "/api/accounts/instruments/search": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 0,
+   "differing": []
+  },
+  "/api/api-key": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 0,
+   "differing": []
+  },
+  "/api/api-key/info": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 1,
+   "differing": []
+  },
+  "/api/auth/api-key": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 0,
+   "differing": []
+  },
+  "/api/auth/api-key/info": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 1,
+   "differing": []
+  },
+  "/api/auth/currency/rates": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "en",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 3,
+   "differing": []
+  },
+  "/api/auth/me": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 3,
+   "differing": []
+  },
+  "/api/categories": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 9,
+   "differing": []
+  },
+  "/api/classification/gaps": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 6,
+   "differing": []
+  },
+  "/api/currency/rates": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "en",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 3,
+   "differing": []
+  },
+  "/api/dashboard/analytics": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 189,
+   "differing": []
+  },
+  "/api/dashboard/calendar": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 367,
+   "differing": []
+  },
+  "/api/dashboard/cash-flow-history": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 18,
+   "differing": []
+  },
+  "/api/dashboard/cash-flow-summary": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 7,
+   "differing": []
+  },
+  "/api/dashboard/cycle-summary": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 79,
+   "differing": []
+  },
+  "/api/dashboard/flow": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 234,
+   "differing": []
+  },
+  "/api/dashboard/flow/rows": {
+   "status": {
+    "before": 422,
+    "after_id": 422,
+    "after_en": 422
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   }
+  },
+  "/api/dashboard/net-worth": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 87,
+   "differing": []
+  },
+  "/api/dashboard/overview": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 295,
+   "differing": []
+  },
+  "/api/dashboard/period-comparison": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 79,
+   "differing": []
+  },
+  "/api/dashboard/question-rate": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 72,
+   "differing": []
+  },
+  "/api/dashboard/recurring-charges": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 9,
+   "differing": []
+  },
+  "/api/devices": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 1,
+   "differing": []
+  },
+  "/api/goals": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 27,
+   "differing": []
+  },
+  "/api/habits": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 8,
+   "differing": []
+  },
+  "/api/ingest/account-links": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 0,
+   "differing": []
+  },
+  "/api/ingest/aliases": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 0,
+   "differing": []
+  },
+  "/api/ingest/notifications": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 15,
+   "differing": []
+  },
+  "/api/ingest/purpose-questions": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 3,
+   "differing": []
+  },
+  "/api/ingest/sender-aliases": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 0,
+   "differing": []
+  },
+  "/api/ingest/test-sessions": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 2,
+   "differing": []
+  },
+  "/api/ingest/test-sessions/current": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 0,
+   "differing": []
+  },
+  "/api/insights": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 64,
+   "differing": []
+  },
+  "/api/me": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 3,
+   "differing": []
+  },
+  "/api/obligations": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 15,
+   "differing": []
+  },
+  "/api/pulse": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 14,
+   "differing": []
+  },
+  "/api/recurring": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 16,
+   "differing": []
+  },
+  "/api/recurring/pending": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 28,
+   "differing": []
+  },
+  "/api/reports/monthly": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 3,
+   "numbers": 200,
+   "differing": []
+  },
+  "/api/reports/monthly/comparison": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 3,
+   "numbers": 113,
+   "differing": []
+  },
+  "/api/reports/monthly/latest": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 2,
+   "differing": []
+  },
+  "/api/reports/monthly/periods": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 4,
+   "differing": []
+  },
+  "/api/review/queue": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 21,
+   "differing": []
+  },
+  "/api/review/suggestions": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 1,
+   "differing": []
+  },
+  "/api/review/suggestions/runs/latest": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 0,
+   "differing": []
+  },
+  "/api/review/summary": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 2,
+   "differing": []
+  },
+  "/api/salary/candidates": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 3,
+   "differing": []
+  },
+  "/api/salary/cycle": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 0,
+   "differing": []
+  },
+  "/api/salary/invalidated-detections": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 0,
+   "differing": []
+  },
+  "/api/salary/receipts": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 3,
+   "differing": []
+  },
+  "/api/salary/source": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 0,
+   "differing": []
+  },
+  "/api/transactions": {
+   "status": {
+    "before": 200,
+    "after_id": 200,
+    "after_en": 200
+   },
+   "content_language": {
+    "before": null,
+    "after_id": "id",
+    "after_en": "en"
+   },
+   "added": 0,
+   "numbers": 73,
+   "differing": []
+  }
+ }
+}

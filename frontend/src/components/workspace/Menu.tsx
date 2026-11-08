@@ -51,9 +51,12 @@ export function Popover({
   onKeyDown,
   trapFocus = false,
   id,
+  container,
   children,
 }: {
   id?: string;
+  /** Where the panel renders; a menu opened inside a modal <dialog> must render in it, since the rest is inert. */
+  container?: Element | null;
   open: boolean;
   anchorRef: RefObject<HTMLElement | null>;
   /** `returnFocus` is true for Esc, false for a press outside (focus then stays where the press put it). */
@@ -114,7 +117,7 @@ export function Popover({
     >
       {children}
     </div>,
-    document.body,
+    container ?? document.body,
   );
 }
 
@@ -162,10 +165,12 @@ export function MenuPanel({
   entries,
   width,
   id,
+  container,
 }: {
   open: boolean;
   anchorRef: RefObject<HTMLElement | null>;
   onClose: () => void;
+  container?: Element | null;
   label: string;
   /** A small uppercase heading over the entries, such as TEMA. */
   heading?: string;
@@ -208,6 +213,7 @@ export function MenuPanel({
       label={label}
       panelRef={panelRef}
       id={id}
+      container={container}
       onKeyDown={(event) => menuKeys(event, () => onClose(), focusAnchor)}
     >
       {header}
@@ -273,8 +279,14 @@ export function MenuButton({
   width: number;
 }) {
   const [open, setOpen] = useState(false);
+  const [container, setContainer] = useState<Element | null>(null);
   const button = useRef<HTMLButtonElement>(null);
   const menuId = useId();
+  // Inside a modal <dialog> everything outside it is inert, so the menu renders in the dialog that holds its button.
+  const openMenu = () => {
+    setContainer(button.current?.closest("dialog") ?? null);
+    setOpen(true);
+  };
   return (
     <>
       <button
@@ -286,11 +298,11 @@ export function MenuButton({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => (open ? setOpen(false) : openMenu())}
         onKeyDown={(event) => {
           if (event.key === "ArrowDown" && !open) {
             event.preventDefault();
-            setOpen(true);
+            openMenu();
           }
         }}
       >
@@ -306,6 +318,7 @@ export function MenuButton({
         entries={entries}
         width={width}
         id={menuId}
+        container={container}
       />
     </>
   );

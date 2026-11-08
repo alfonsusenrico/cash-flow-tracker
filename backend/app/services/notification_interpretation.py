@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Literal
 from uuid import UUID
 
@@ -8,10 +7,10 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, model_validat
 
 from app.services.kakeibo import Pillar
 from app.services.notification_evidence import EvidenceError, NotificationFacts, parse_idr_amount
+from app.services.prompt_language import INDONESIAN_VERSIONS, NOTIFICATION_INTERPRETATION
 
 
-PROMPT_VERSION = "notification-interpretation-12"
-PROMPT_PATH = Path(__file__).with_name("prompts") / "notification_interpretation.md"
+PROMPT_VERSION = INDONESIAN_VERSIONS[NOTIFICATION_INTERPRETATION]
 Kakeibo = Pillar
 
 
@@ -120,7 +119,3 @@ def validate_interpretation(
         candidates = {str(candidate["id"]) for candidate in context.get("candidates", [])}
         if str(interpretation.candidate_transaction_id) not in candidates:
             raise EvidenceError("invalid_candidate_reference")
-
-
-def system_prompt() -> str:
-    return PROMPT_PATH.read_text(encoding="utf-8")

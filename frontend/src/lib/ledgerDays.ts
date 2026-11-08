@@ -78,13 +78,6 @@ export function groupByDay<T extends DayRow>(shown: T[], loaded: DayRow[], total
   return groups;
 }
 
-const DAY_NAME = new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
-
-/** "Senin, 2 November" for a local day; "hari ini" and "kemarin" are added by the caller. */
-export function dayName(day: string): string {
-  return DAY_NAME.format(new Date(`${day}T00:00:00Z`));
-}
-
 export function todayLocal(now: Date = new Date()): string {
   return JAKARTA_DAY.format(now);
 }

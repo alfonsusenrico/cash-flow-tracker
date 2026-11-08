@@ -10,12 +10,17 @@ from datetime import date, datetime
 from typing import Any
 
 from app.core.config import settings
+from app.i18n import account_language, t
 from app.services.apportionment import apportion
 from app.services.reimbursements import SpendingOffsets
 from app.services.system_categories import reportable_key_sql
 
-UNCATEGORIZED_NAME = "Tanpa kategori"
 UNCATEGORIZED_COLOR = "#64748b"
+
+
+def uncategorized_name(cur, user_id: str) -> str:
+    """The name of the bucket of uncategorised rows, "Tanpa kategori", in the owner's language."""
+    return t(account_language(cur, user_id)[0], "labels.fallback.uncategorized")
 
 
 def reportable_category_sql(category: str = "c") -> str:
@@ -108,7 +113,7 @@ def category_breakdown(cur, user_id: str, start: datetime, end: datetime, offset
     uncategorized = int(cur.fetchone()["spent"] or 0)
     if uncategorized > 0:
         rows.append({
-            "id": None, "name": UNCATEGORIZED_NAME, "icon": "tag", "color": UNCATEGORIZED_COLOR,
+            "id": None, "name": uncategorized_name(cur, user_id), "icon": "tag", "color": UNCATEGORIZED_COLOR,
             "monthly_budget": None, "is_primary": True, "kakeibo_type": None, "is_archived": False,
             "is_uncategorized": True, "gross_spent": uncategorized, "spent": uncategorized, "reimbursed": 0,
         })

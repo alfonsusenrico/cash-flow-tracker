@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
@@ -8,57 +8,45 @@ import { queryKeys } from "@/lib/queryKeys";
 import { replaceSearch } from "@/lib/urlState";
 import { listAmountInvestmentProducts } from "@/lib/investmentTopups";
 import type { ReviewQueue } from "@/lib/review";
-import { useAppCtx } from "@/components/layout/AppLayout";
 import { Icon } from "@/components/ui/Icon";
-import { ErrorState, Segmented, Skeleton } from "@/components/workspace/primitives";
 import { PageActions } from "@/components/workspace/context";
-import { useWidthAtMost } from "@/hooks/useWidthAtMost";
-import { AccountDetail } from "./AccountDetail";
+import { PHONE_QUERY, useMediaQuery } from "@/components/workspace/layers";
+import { useToast } from "@/components/workspace/overlays";
+import { EmptyState, ErrorState, Segmented, Skeleton } from "@/components/workspace/primitives";
+import { AccountDetailDialog } from "./AccountDetailDialog";
 import { useAccountDialogs } from "./AccountDialogs";
+import { useAccountText } from "./accountText";
 import { displayColours } from "./displayColours";
-import { ReorderPanel } from "./ReorderPanel";
+import { RekeningChart } from "./RekeningChart";
+import { RekeningGroups, groupHandleId } from "./RekeningGroups";
+import { RekeningHero, RekeningHeroSkeleton } from "./RekeningHero";
+import { tileDomId } from "./Tile";
 import { useGrouping, useWalletLayout } from "./useWalletLayout";
-import { WalletChart } from "./WalletChart";
-import { WalletRails, cardDomId, railHandleId, railHeadingId } from "./WalletRails";
-import { WalletSummary } from "./WalletSummary";
-import { applyLayout, billsOf, buildHoldings, isShown, layoutOf, moved, sectionsFor, type AssetUse } from "./wallet";
+import { applyLayout, buildHoldings, isShown, layoutOf, moved, obligationsOutside, sectionsFor } from "./wallet";
 import type { AccountItem, AccountsResponse, LayoutGrouping, NetWorthResponse } from "./types";
-import styles from "./money.module.css";
-import walletStyles from "./wallet.module.css";
 
-// Phones reorder in a mode: dragging would fight the page scroll (refine-workspace-layout D9).
-const PHONE_WIDTH = 767;
+type View = "kartu" | "grafik";
+const VIEW_PARAM = "tampilan";
 
-type ViewTab = "kartu" | "grafik";
-const TABS: { value: ViewTab; label: string }[] = [
-  { value: "kartu", label: "Kartu" },
-  { value: "grafik", label: "Grafik" },
-];
-const GROUPINGS: { value: LayoutGrouping; label: string }[] = [
-  { value: "use", label: "Per kegunaan" },
-  { value: "rekening", label: "Per rekening" },
-];
-
-function prefersReducedMotion(): boolean {
-  return typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
-/** Rekening & Kantong (organize-accounts-by-use D7): summary, Kartu and Grafik, by use or by rekening. */
+/**
+ * Rekening & Kantong (apply-markas-rekening): the hero "Kekayaan bersih", the two controls, then Kartu (groups by
+ * use or by rekening) or Grafik. "Atur urutan" in "…" turns on the reorder mode; a tile opens the account's
+ * detail, kept in the address as `?akun=<id>`, and Grafik as `?tampilan=grafik`.
+ */
 export function AccountsView() {
-  const { bal } = useAppCtx();
+  const { t } = useAccountText();
+  const { showToast } = useToast();
   const pathname = usePathname();
   const search = useSearchParams();
   const openId = search.get("akun");
+  const view: View = search.get(VIEW_PARAM) === "grafik" ? "grafik" : "kartu";
   const dialogs = useAccountDialogs();
-  const rootRef = useRef<HTMLDivElement>(null);
-  const phone = useWidthAtMost(rootRef, PHONE_WIDTH);
-  const reorderButton = useRef<HTMLButtonElement>(null);
-  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const [reordering, setReordering] = useState(false);
-  const [tab, setTab] = useState<ViewTab>("kartu");
+  const phone = useMediaQuery(PHONE_QUERY);
   const [grouping, setGrouping] = useGrouping();
+  const [reordering, setReordering] = useState(false);
   const [orderStatus, setOrderStatus] = useState("");
   const [focusRequest, setFocusRequest] = useState<string | null>(null);
+  const opener = useRef<HTMLElement | null>(null);
 
   const accountsQuery = useQuery<AccountsResponse>({ queryKey: queryKeys.accounts, queryFn: () => api.get("/accounts") });
   const netWorthQuery = useQuery<NetWorthResponse>({ queryKey: queryKeys.dashboard.netWorth, queryFn: () => api.get("/dashboard/net-worth") });
@@ -67,20 +55,12 @@ export function AccountsView() {
 
   const accounts = useMemo(() => (accountsQuery.data?.accounts ?? []).filter((account) => !account.is_archived), [accountsQuery.data]);
   const top = useMemo(() => accounts.filter((account) => !account.parent_id), [accounts]);
-  const byId = useMemo(() => {
-    const map = new Map<string, AccountItem>();
-    for (const account of accounts) {
-      map.set(account.id, account);
-      for (const pocket of account.children ?? []) map.set(pocket.id, pocket);
-    }
-    return map;
-  }, [accounts]);
   const amountProducts = useMemo(() => new Set(listAmountInvestmentProducts(accountsQuery.data?.accounts ?? []).map((item) => item.id)), [accountsQuery.data]);
   const colours = useMemo(() => displayColours(top), [top]);
   const holdings = useMemo(() => buildHoldings(top), [top]);
   const allSections = useMemo(() => applyLayout(sectionsFor(grouping, top, holdings), layout), [grouping, top, holdings, layout]);
-  const bills = useMemo(() => billsOf(netWorthQuery.data?.obligations), [netWorthQuery.data]);
-  const sections = useMemo(() => allSections.filter((section) => isShown(section, grouping, bills)), [allSections, grouping, bills]);
+  const sections = useMemo(() => allSections.filter(isShown), [allSections]);
+  const obligations = useMemo(() => obligationsOutside(netWorthQuery.data), [netWorthQuery.data]);
   // Awaiting outflows per account, counted from the queue; amounts stay in Tinjau (OD59).
   const awaiting = useMemo(() => {
     const counts = new Map<string, number>();
@@ -88,39 +68,62 @@ export function AccountsView() {
     return counts;
   }, [queueQuery.data]);
 
-  const openAccount = (id: string | null) => {
-    const next = new URLSearchParams(search.toString());
-    if (id) next.set("akun", id);
-    else next.delete("akun");
+  const writeParams = useCallback((change: (params: URLSearchParams) => void) => {
+    const next = new URLSearchParams(window.location.search);
+    change(next);
     const query = next.toString();
     // Replacing the address never scrolls the page (refine-workspace-layout D7); the dialog opens over the list.
     replaceSearch(query ? `${pathname}?${query}` : pathname);
+  }, [pathname]);
+  const openAccount = (id: string) => {
+    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    writeParams((params) => params.set("akun", id));
   };
-  const selected = openId ? byId.get(openId) ?? null : null;
+  const closeAccount = useCallback(() => {
+    writeParams((params) => params.delete("akun"));
+    const target = opener.current;
+    opener.current = null;
+    if (target) requestAnimationFrame(() => target.focus());
+  }, [writeParams]);
+  const chooseView = (next: View) => writeParams((params) => (next === "grafik" ? params.set(VIEW_PARAM, "grafik") : params.delete(VIEW_PARAM)));
 
   useEffect(() => {
-    if (openId && accountsQuery.data && !byId.has(openId)) openAccount(null);
-    // Only a stale ?akun= is cleared; the handler itself is stable enough for this check.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openId, accountsQuery.data, byId]);
+    if (orderFailed) showToast(t("toast.orderFailed"));
+  }, [orderFailed, showToast, t]);
 
-  // A keyboard move re-renders the rows; the moved card or handle keeps the focus.
+  // A keyboard move re-renders the groups; the moved tile or handle keeps the focus.
   useEffect(() => {
     if (!focusRequest) return;
     document.getElementById(focusRequest)?.focus();
     setFocusRequest(null);
   }, [focusRequest, allSections]);
 
+  // Esc leaves Atur urutan when no dialog or menu is open above the page.
+  useEffect(() => {
+    if (!reordering) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || document.querySelector("dialog[open], [role='menu']")) return;
+      setReordering(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [reordering]);
+
+  const titleOf = (key: string) => {
+    const section = sections.find((entry) => entry.key === key);
+    if (!section) return key;
+    return section.rekening ? section.rekening.name : t(`groups.${section.use!.labelKey}`);
+  };
   const moveSection = (key: string, destination: number, keyboard: boolean) => {
     const from = sections.findIndex((section) => section.key === key);
     const nextVisible = moved(sections, from, destination);
     if (nextVisible === sections) return;
     // Empty rows are not shown; they keep their places in the saved order.
     let visibleIndex = 0;
-    const full = allSections.map((section) => (isShown(section, grouping, bills) ? nextVisible[visibleIndex++] : section));
+    const full = allSections.map((section) => (isShown(section) ? nextVisible[visibleIndex++] : section));
     saveLayout(layoutOf(grouping, full));
-    setOrderStatus(`Baris ${sections[from].title} dipindah ke posisi ${destination + 1} dari ${sections.length}.`);
-    if (keyboard) setFocusRequest(railHandleId(key));
+    setOrderStatus(t("announce.rowMoved", { title: titleOf(key), position: String(destination + 1), total: String(sections.length) }));
+    if (keyboard) setFocusRequest(groupHandleId(key));
   };
   const moveCard = (sectionKey: string, id: string, destination: number, keyboard: boolean) => {
     const section = allSections.find((entry) => entry.key === sectionKey);
@@ -129,161 +132,135 @@ export function AccountsView() {
     const nextHoldings = moved(section.holdings, from, destination);
     if (nextHoldings === section.holdings) return;
     saveLayout(layoutOf(grouping, allSections.map((entry) => (entry === section ? { ...entry, holdings: nextHoldings } : entry))));
-    setOrderStatus(`${section.holdings[from].account.name} dipindah ke posisi ${destination + 1} dari ${nextHoldings.length}.`);
-    if (keyboard) setFocusRequest(cardDomId(id));
-  };
-  const jumpToUse = (use: AssetUse) => {
-    const heading = document.getElementById(railHeadingId(use));
-    heading?.scrollIntoView?.({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
-    heading?.focus({ preventScroll: true });
-  };
-  const finishReorder = () => {
-    setReordering(false);
-    requestAnimationFrame(() => reorderButton.current?.focus());
-  };
-  const onTabKey = (event: KeyboardEvent<HTMLDivElement>) => {
-    const index = TABS.findIndex((entry) => entry.value === tab);
-    let next = index;
-    if (event.key === "ArrowRight") next = (index + 1) % TABS.length;
-    else if (event.key === "ArrowLeft") next = (index - 1 + TABS.length) % TABS.length;
-    else if (event.key === "Home") next = 0;
-    else if (event.key === "End") next = TABS.length - 1;
-    else return;
-    event.preventDefault();
-    setTab(TABS[next].value);
-    tabRefs.current[next]?.focus();
+    const holding = section.holdings[from];
+    const name = holding.ownBalance ? holding.rekening.name : holding.account.name;
+    setOrderStatus(t("announce.cardMoved", { name, position: String(destination + 1), total: String(nextHoldings.length) }));
+    if (keyboard) setFocusRequest(tileDomId(id));
   };
 
   const syncPrices = () => dialogs.syncPricesMutation.mutate();
-  // The title block's actions in the prototype's order (apply-markas-shell D4): Perbarui harga moves into "…"
-  // on the phone, Rencana is always there.
   const header = (
     <PageActions
+      moreLabel={t("page.moreLabel")}
       more={[
-        { key: "harga", label: "Perbarui harga", icon: "refresh-cw", onSelect: syncPrices, phoneOnly: true },
-        { key: "rencana", label: "Rencana", icon: "calendar", onSelect: dialogs.openPlans },
+        { key: "harga", label: t("page.updatePrices"), icon: "refresh-cw", onSelect: syncPrices, phoneOnly: true },
+        { key: "urutan", label: reordering ? t("page.arrangeDone") : t("page.arrange"), icon: "grip-vertical", onSelect: () => setReordering((on) => !on) },
+        { key: "rencana", label: t("page.plans"), icon: "calendar", onSelect: dialogs.openPlans },
       ]}
     >
       <button type="button" className="ws-btn ph-hide" onClick={syncPrices} disabled={dialogs.syncPricesMutation.isPending}>
         <Icon name="refresh-cw" className="h-4 w-4" />
-        {dialogs.syncPricesMutation.isPending ? "Memperbarui harga…" : "Perbarui harga"}
+        {dialogs.syncPricesMutation.isPending ? t("page.updatingPrices") : t("page.updatePrices")}
       </button>
       <button type="button" className="ws-btn" onClick={dialogs.openNewAccount}>
         <Icon name="plus" className="h-4 w-4" />
-        Tambah rekening
+        {t("page.addAccount")}
       </button>
     </PageActions>
   );
 
-  if (accountsQuery.isLoading || accountsQuery.isError) {
+  if (accountsQuery.isLoading) {
     return (
-      <div className={styles.root} ref={rootRef}>
+      <div className="rk-page">
         {header}
-        {accountsQuery.isLoading ? (
-          <>
-            <Skeleton style={{ height: 160 }} />
-            <Skeleton style={{ height: 180 }} />
-          </>
-        ) : (
-          <ErrorState message="Daftar rekening gagal dimuat." onRetry={() => accountsQuery.refetch()} />
-        )}
+        <RekeningHeroSkeleton />
+        <div className="rk-skel" aria-busy="true">
+          <p className="sr-only" role="status">{t("states.loading")}</p>
+          {[0, 1].map((group) => (
+            <div key={group} className="grp">
+              <Skeleton style={{ width: 120, height: 12 }} />
+              <div className="tiles">
+                {[0, 1, 2].map((tile) => (
+                  <div key={tile} className="tile">
+                    <Skeleton style={{ width: "60%", height: 12 }} />
+                    <Skeleton style={{ width: "40%", height: 20, marginTop: "auto" }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        {dialogs.dialogs}
+      </div>
+    );
+  }
+  if (accountsQuery.isError) {
+    return (
+      <div className="rk-page">
+        {header}
+        <ErrorState message={t("states.loadFailed")} onRetry={() => accountsQuery.refetch()} />
+        {dialogs.dialogs}
+      </div>
+    );
+  }
+  if (!top.length) {
+    return (
+      <div className="rk-page">
+        {header}
+        <EmptyState
+          title={t("states.emptyTitle")}
+          action={
+            <button type="button" className="ws-btn" onClick={dialogs.openNewAccount}>
+              <Icon name="plus" className="h-4 w-4" />
+              {t("page.addAccount")}
+            </button>
+          }
+        >
+          {t("states.emptyLine")}
+        </EmptyState>
         {dialogs.dialogs}
       </div>
     );
   }
 
-  const announcement = dialogs.syncMessage ?? (orderFailed ? "" : orderStatus);
+  const groupings: { value: LayoutGrouping; label: string }[] = [
+    { value: "use", label: t("controls.byUse") },
+    { value: "rekening", label: t("controls.byAccount") },
+  ];
   return (
-    <div className={styles.root} ref={rootRef}>
+    <div className="rk-page">
       {header}
-      <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
-      {dialogs.syncMessage && <p className={styles.notice} aria-hidden="true">{dialogs.syncMessage}</p>}
-      {orderFailed && <p className={styles.alert} role="alert">Urutan gagal disimpan</p>}
-      {dialogs.accountActionError && <p className={styles.alert} role="alert">{dialogs.accountActionError}</p>}
-      <div className={walletStyles.controls}>
-        <div className={walletStyles.tabs} role="tablist" aria-label="Tampilan" onKeyDown={onTabKey}>
-          {TABS.map((entry, index) => (
-            <button
-              key={entry.value}
-              ref={(element) => { tabRefs.current[index] = element; }}
-              type="button"
-              role="tab"
-              id={`wallet-tab-${entry.value}`}
-              aria-selected={entry.value === tab}
-              aria-controls="wallet-panel"
-              tabIndex={entry.value === tab ? 0 : -1}
-              onClick={() => setTab(entry.value)}
-            >
-              {entry.label}
-            </button>
-          ))}
-        </div>
-        <Segmented label="Kelompokkan" options={GROUPINGS} value={grouping} onChange={setGrouping} />
-      </div>
-      <div id="wallet-panel" role="tabpanel" aria-labelledby={`wallet-tab-${tab}`} className={walletStyles.panelStack}>
-        <WalletSummary
-          netWorth={netWorthQuery}
-          holdings={holdings}
-          grouping={grouping}
-          money={bal}
-          colours={colours}
-          rekeningSections={sections}
-          side={tab === "kartu"}
-          onJump={jumpToUse}
+      <p className="sr-only" role="status" aria-live="polite">{orderFailed ? "" : orderStatus}</p>
+      <RekeningHero netWorth={netWorthQuery} holdings={holdings} />
+      <div className="toolbar rk-toolbar">
+        <Segmented<View>
+          label={t("controls.view")}
+          options={[{ value: "kartu", label: t("controls.cards") }, { value: "grafik", label: t("controls.chart") }]}
+          value={view}
+          onChange={chooseView}
         />
-        {tab === "grafik" ? (
-          <WalletChart
-            holdings={sections.flatMap((section) => section.holdings)}
-            grouping={grouping}
-            money={bal}
-            colours={colours}
-            total={netWorthQuery.data?.total_assets}
-            onOpen={openAccount}
-          />
-        ) : (
-          <>
-            {phone ? (
-              <div className={walletStyles.phoneReorder}>
-                <button ref={reorderButton} type="button" className="ws-btn" aria-pressed={reordering} onClick={() => (reordering ? finishReorder() : setReordering(true))}>
-                  <Icon name="arrow-up-down" className="h-4 w-4" />
-                  {reordering ? "Selesai" : "Ubah urutan"}
-                </button>
-              </div>
-            ) : (
-              <p className={walletStyles.hint}>Seret kartu dalam baris, atau seret ⋮⋮ untuk memindah baris. Dengan keyboard: Alt + panah. Urutan diingat.</p>
-            )}
-            {phone && reordering ? (
-              <ReorderPanel
-                sections={sections}
-                onMoveSection={(key, destination) => moveSection(key, destination, false)}
-                onMoveCard={(key, id, destination) => moveCard(key, id, destination, false)}
-              />
-            ) : (
-              <WalletRails
-                sections={sections}
-                grouping={grouping}
-                money={bal}
-                colours={colours}
-                draggable={!phone}
-                amountProducts={amountProducts}
-                awaiting={awaiting}
-                bills={bills}
-                actions={{ onOpen: openAccount, onReconcile: dialogs.openReconciliation, onMoveCard: moveCard, onMoveSection: moveSection }}
-              />
-            )}
-          </>
-        )}
+        {view === "kartu" && <Segmented<LayoutGrouping> label={t("controls.grouping")} options={groupings} value={grouping} onChange={setGrouping} />}
       </div>
-      <AccountDetail
-        account={selected}
-        parent={selected?.parent_id ? byId.get(selected.parent_id) ?? null : null}
-        colour={(selected && colours.get(selected.parent_id ?? selected.id)) ?? "var(--muted)"}
-        money={bal}
-        amountProducts={amountProducts}
-        dialogs={dialogs}
-        onClose={() => openAccount(null)}
-        onOpenAccount={openAccount}
-      />
+      {reordering && (
+        <div className="sel-bar rk-sel-bar">
+          <p className="t-body">{phone ? t("reorder.hintPhone") : t("reorder.hint")}</p>
+          <button type="button" className="ws-btn ws-btn-accent" onClick={() => setReordering(false)}>
+            {t("reorder.done")}
+          </button>
+        </div>
+      )}
+      {view === "grafik" ? (
+        <RekeningChart
+          holdings={sections.flatMap((section) => section.holdings)}
+          grouping={grouping}
+          colours={colours}
+          totalAssets={netWorthQuery.data?.total_assets}
+          onOpen={openAccount}
+        />
+      ) : (
+        <RekeningGroups
+          sections={sections}
+          grouping={grouping}
+          colours={colours}
+          amountProducts={amountProducts}
+          awaiting={awaiting}
+          obligations={obligations}
+          reordering={reordering}
+          phone={phone}
+          actions={{ onOpen: openAccount, onReconcile: (account: AccountItem) => dialogs.openReconciliation(account), onMoveCard: moveCard, onMoveSection: moveSection }}
+        />
+      )}
+      <AccountDetailDialog accountId={openId} onClose={closeAccount} />
       {dialogs.dialogs}
     </div>
   );

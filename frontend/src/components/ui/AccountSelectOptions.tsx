@@ -14,6 +14,27 @@ export interface AccountOptionItem {
   [key: string]: any;
 }
 
+/** The words of the options; translated pages pass the catalogue's, the rest keep today's Indonesian. */
+export interface AccountOptionLabels {
+  creditGroup: string;
+  parent: (name: string) => string;
+  parentDefault: (name: string, pocket: string) => string;
+  groupTotal: (name: string, amount: string) => string;
+  owed: (amount: string) => string;
+  noOther: string;
+  noLiquid: string;
+}
+
+export const INDONESIAN_ACCOUNT_OPTION_LABELS: AccountOptionLabels = {
+  creditGroup: "Kredit",
+  parent: (name) => `${name} (Akun Induk)`,
+  parentDefault: (name, pocket) => `${name} (Default: ${pocket})`,
+  groupTotal: (name, amount) => `${name} — Total: ${amount}`,
+  owed: (amount) => `utang ${amount}`,
+  noOther: "Tidak ada rekening lain yang tersedia",
+  noLiquid: "Tidak ada rekening likuid yang tersedia",
+};
+
 interface Props {
   accounts: AccountOptionItem[];
   formatBalance?: (n: number) => string;
@@ -25,6 +46,7 @@ interface Props {
    * the pickers that may book on credit list them (add-credit-accounts D7).
    */
   includeCredit?: boolean;
+  labels?: AccountOptionLabels;
 }
 
 export function AccountSelectOptions({
@@ -34,6 +56,7 @@ export function AccountSelectOptions({
   excludeAccountId,
   liquidOnly = false,
   includeCredit = false,
+  labels = INDONESIAN_ACCOUNT_OPTION_LABELS,
 }: Props) {
   const getId = (a: AccountOptionItem) => (a.id || a.account_id || "") as string;
   const getName = (a: AccountOptionItem) => (a.name || a.account_name || "") as string;
@@ -55,9 +78,7 @@ export function AccountSelectOptions({
   if (liquidOnly && !hasAvailableAccount) {
     return (
       <option value="">
-        {excludeAccountId
-          ? "Tidak ada rekening lain yang tersedia"
-          : "Tidak ada rekening likuid yang tersedia"}
+        {excludeAccountId ? labels.noOther : labels.noLiquid}
       </option>
     );
   }
@@ -90,15 +111,11 @@ export function AccountSelectOptions({
           return (
             <optgroup
               key={parentId}
-              label={`${parentName}${
-                formatBalance && parent.balance !== undefined
-                  ? ` — Total: ${formatBalance(parent.balance)}`
-                  : ""
-              }`}
+              label={formatBalance && parent.balance !== undefined ? labels.groupTotal(parentName, formatBalance(parent.balance)) : parentName}
             >
               {canShowParent && (
                 <option value={parentId}>
-                  {parentName} {parent.default_pocket_name ? `(Default: ${parent.default_pocket_name})` : "(Akun Induk)"}
+                  {parent.default_pocket_name ? labels.parentDefault(parentName, parent.default_pocket_name) : labels.parent(parentName)}
                   {formatBalance && parent.balance !== undefined
                     ? ` (${formatBalance(parent.balance)})`
                     : ""}
@@ -134,13 +151,13 @@ export function AccountSelectOptions({
         );
       })}
       {creditAccounts.length > 0 && (
-        <optgroup label="Kredit">
+        <optgroup label={labels.creditGroup}>
           {creditAccounts.map((account) => {
             const owed = creditOwed(account);
             return (
               <option key={getId(account)} value={getId(account)}>
                 {getName(account)}
-                {formatBalance && owed > 0 ? ` (utang ${formatBalance(owed)})` : ""}
+                {formatBalance && owed > 0 ? ` (${labels.owed(formatBalance(owed))})` : ""}
               </option>
             );
           })}

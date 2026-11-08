@@ -19,7 +19,7 @@ from app.services.notification_interpretation import Interpretation
 ids = {key: str(uuid4()) for key in ('jago', 'main', 'emergency')}
 
 class FictionalProvider:
-    async def interpret(self, context):
+    async def interpret(self, context, *, prompt):
         return Interpretation.model_validate_json(json.dumps({
             'outcome': 'record', 'direction': 'expense', 'description': 'Kedai Awan',
             'account_id': ids['main'], 'category_id': ids['expense'], 'kakeibo': 'want',

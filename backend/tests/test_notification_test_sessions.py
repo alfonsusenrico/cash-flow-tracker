@@ -127,7 +127,7 @@ def test_another_owners_session_does_not_capture_this_owner(client, notification
     other = str(uuid4())
     from app.db.pool import db_conn
     with db_conn() as conn:
-        conn.execute("INSERT INTO users (id, username, name, password_hash, invite_code) VALUES (%s, %s, 'Lain', 'x', 'TEST')",
+        conn.execute("INSERT INTO users (id, username, name, password_hash, invite_code, language) VALUES (%s, %s, 'Lain', 'x', 'TEST', 'id')",
                      (other, f"other_{uuid4().hex}"))
         conn.commit()
     try:
@@ -285,7 +285,7 @@ def test_the_companion_api_key_cannot_manage_sessions(client, notification_owner
         client.post("/api/ingest/test-sessions", json={"duration_minutes": 60}, headers=headers),
         client.delete(f"/api/ingest/test-sessions/{uuid4()}", headers=headers),
     ):
-        assert response.status_code == 403 and response.json()["detail"] == {"code": "session_required"}
+        assert response.status_code == 403 and response.json()["detail"]["code"] == "session_required"
 
 
 def test_v49_runs_twice_on_a_database_with_events(client, notification_owner):

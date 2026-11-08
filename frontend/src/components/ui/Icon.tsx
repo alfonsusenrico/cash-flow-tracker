@@ -76,6 +76,9 @@ export type IconName =
   | "help"
   | "swap"
   | "chevD"
+  | "chevL"
+  | "chevR"
+  | "archive"
   | "alert";
 
 interface IconProps extends SVGProps<SVGSVGElement> {
@@ -165,6 +168,8 @@ const PROTOTYPE_PATHS: Record<string, string> = {
   plus: "M12 5v14M5 12h14",
   x: "M6 6l12 12M18 6 6 18",
   chevR: "M9 18l6-6-6-6",
+  chevL: "M15 18l-6-6 6-6",
+  archive: "M3 4h18v4H3zM5 8v12h14V8M10 12h4",
   help: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9.2 9.2a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.6-2.8 2.6M12 16.5v.5",
   logout: "M9 20H5V4h4M15.5 16.5 20 12l-4.5-4.5M20 12H9",
   panel: "M3 4h18v16H3zM9 4v16",

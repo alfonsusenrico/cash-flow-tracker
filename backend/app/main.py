@@ -4,14 +4,19 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.core.config import settings
 from app.db.pool import close_db_pool, db_conn, open_db_pool
+from app.errors import ErrorCode, error_detail
+from app.i18n import current_language
+from app.i18n.resolve import close_request, open_request
 from app.routers.accounts import router as accounts_router
 from app.routers.auth import router as auth_router
 from app.routers.capture import router as capture_router
 from app.routers.categories import router as categories_router
+from app.routers.credit import router as credit_router
 from app.routers.classification import router as classification_router
 from app.routers.dashboard import router as dashboard_router
 from app.routers.devices import router as devices_router
@@ -242,7 +247,7 @@ async def csrf_middleware(request: Request, call_next):
     if _requires_csrf_origin_check(request):
         origin = _request_origin(request)
         if not origin or origin not in _allowed_origins(request):
-            return JSONResponse(status_code=403, content={"ok": False, "detail": "Invalid request origin"})
+            return JSONResponse(status_code=403, content={"ok": False, "detail": error_detail(ErrorCode.INVALID_REQUEST_ORIGIN)})
     return await call_next(request)
 
 
@@ -254,6 +259,20 @@ app.add_middleware(
     same_site="lax",
     https_only=settings.cookie_secure,
 )
+
+
+# Server text language (localize-server-text D1). Added last, so it wraps every other middleware: the holder
+# exists before CSRF and authentication run, and every JSON response states the language it was written in.
+@app.middleware("http")
+async def server_text_language_middleware(request: Request, call_next):
+    token = open_request(request.headers)
+    try:
+        response = await call_next(request)
+        if response.headers.get("content-type", "").startswith("application/json"):
+            response.headers["Content-Language"] = current_language()
+        return response
+    finally:
+        close_request(token)
 
 
 @app.get("/api/health")
@@ -269,6 +288,7 @@ for prefix in ("", "/api", "/v1"):
     app.include_router(accounts_router, prefix=f"{prefix}/accounts")
     app.include_router(categories_router, prefix=f"{prefix}/categories")
     app.include_router(transactions_router, prefix=f"{prefix}/transactions")
+    app.include_router(credit_router, prefix=prefix)
     app.include_router(movements_router, prefix=prefix)
     app.include_router(investment_topups_router, prefix=f"{prefix}/investment-topups")
     app.include_router(goals_router, prefix=f"{prefix}/goals")
@@ -287,10 +307,17 @@ for prefix in ("", "/api", "/v1"):
     app.include_router(classification_router, prefix=prefix)
 
 
-@app.exception_handler(HTTPException)
-def http_exc_handler(_, exc: HTTPException):
+_FRAMEWORK_CODES = {404: ErrorCode.NOT_FOUND, 405: ErrorCode.METHOD_NOT_ALLOWED}
+
+
+@app.exception_handler(StarletteHTTPException)
+def http_exc_handler(_, exc: StarletteHTTPException):
+    detail = exc.detail
+    if not isinstance(detail, dict) and exc.status_code in _FRAMEWORK_CODES:
+        # Starlette's own errors (an unknown route, a wrong method) keep the one error shape (D4).
+        detail = error_detail(_FRAMEWORK_CODES[exc.status_code])
     return JSONResponse(
         status_code=exc.status_code,
-        content={"ok": False, "detail": exc.detail},
+        content={"ok": False, "detail": detail},
         headers=exc.headers,
     )

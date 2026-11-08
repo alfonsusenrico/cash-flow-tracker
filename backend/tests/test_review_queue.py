@@ -245,7 +245,7 @@ def test_foreign_rows_reject_the_whole_batch(client, owner):
     first, _ = kedai(client, 10)
     stranger, account, foreign = str(uuid4()), str(uuid4()), str(uuid4())
     with db_conn() as conn:
-        conn.execute("INSERT INTO users (id, username, password_hash, invite_code) VALUES (%s, %s, 'x', 'TEST')",
+        conn.execute("INSERT INTO users (id, username, password_hash, invite_code, language) VALUES (%s, %s, 'x', 'TEST', 'id')",
                      (stranger, f"stranger_{uuid4().hex}"))
         conn.execute("INSERT INTO accounts (id, user_id, name, type) VALUES (%s, %s, 'Kas Lain', 'cash')", (account, stranger))
         conn.execute(
@@ -274,7 +274,7 @@ def test_movement_legs_accept_but_never_reclassify(client, owner):
     response = bulk(client, "recategorise", [first, *legs], category_id=owner["jajan"])
     assert response.status_code == 409
     assert response.json()["detail"] == {
-        "code": "movement_leg_not_editable", "message": "Pindah saldo diubah lewat detail pindah saldo.",
+        "code": "movement_leg_not_editable", "params": {}, "message": "Pindah saldo diubah lewat detail pindah saldo.",
         "transaction_ids": sorted(legs),
     }
     assert bulk(client, "rename", [first, legs[0]], notes="x").status_code == 409

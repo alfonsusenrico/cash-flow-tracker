@@ -11,6 +11,7 @@ import pytest
 from app.services.notification_interpretation import Interpretation
 from app.services.openai_notification_provider import ProviderError
 from category_keys import seeded_key
+from signed_in import signed_in
 
 
 @pytest.fixture
@@ -24,7 +25,7 @@ def notification_owner(client, monkeypatch):
     ids = {name: str(uuid4()) for name in ("bca", "jago", "main", "emergency", "gopay", "stockbit", "funding", "expense", "income", "internal_out", "internal_in")}
     with db_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("INSERT INTO users (id, username, name, password_hash, invite_code) VALUES (%s, %s, 'Raka Purnama', 'synthetic-hash', 'TEST')", (user_id, f"notify_{uuid4().hex}"))
+            cur.execute("INSERT INTO users (id, username, name, password_hash, invite_code, language) VALUES (%s, %s, 'Raka Purnama', 'synthetic-hash', 'TEST', 'id')", (user_id, f"notify_{uuid4().hex}"))
             for key, name, kind, parent in [
                 ("bca", "BCA Harian", "bank", None), ("jago", "Bank Jago", "bank", None),
                 ("main", "Kantong Utama", "bank", ids["jago"]), ("emergency", "Dana Darurat", "bank", ids["jago"]),
@@ -45,7 +46,7 @@ def notification_owner(client, monkeypatch):
             cur.execute("INSERT INTO goal_accounts (goal_id, account_id) VALUES (%s, %s)", (goal_id, ids["emergency"]))
         conn.commit()
     monkeypatch.setattr(processing, "settings", replace(processing.settings, notification_ai_enabled=False))
-    app.dependency_overrides[get_current_user] = lambda: {"id": user_id, "name": "Raka Purnama", "currency": "IDR"}
+    app.dependency_overrides[get_current_user] = signed_in({"id": user_id, "name": "Raka Purnama", "currency": "IDR"})
     yield {"user_id": user_id, **ids}
     app.dependency_overrides.clear()
     with db_conn() as conn:
@@ -196,7 +197,7 @@ def test_dry_run_session_bearer_and_foreign_event_isolation(client, auth_client,
 
     foreign_user, foreign_event = str(uuid4()), str(uuid4())
     with db_conn() as conn:
-        conn.execute("INSERT INTO users (id, username, password_hash, invite_code) VALUES (%s, %s, 'synthetic-hash', 'TEST')",
+        conn.execute("INSERT INTO users (id, username, password_hash, invite_code, language) VALUES (%s, %s, 'synthetic-hash', 'TEST', 'id')",
                      (foreign_user, f"foreign_{uuid4().hex}"))
         conn.execute("INSERT INTO notification_events (id, user_id, device_id, package_name, post_time, payload_hash) VALUES (%s, %s, 'synthetic', 'com.bca', NOW(), %s)",
                      (foreign_event, foreign_user, uuid4().hex))
@@ -281,7 +282,7 @@ def test_queued_then_worker_success_has_no_database_connection_during_inference(
             state = conn.execute("SELECT processing_state, processing_mode, attempt_count, next_attempt_at <= clock_timestamp() AS due, EXTRACT(EPOCH FROM next_attempt_at - clock_timestamp()) AS clock_delta FROM notification_events WHERE id = %s", (result["event_id"],)).fetchone()
         pytest.fail(f"Queued synthetic event was not claimed: {state}")
 
-    async def infer(context):
+    async def infer(context, *, prompt):
         from app.db.pool import DB_POOL
         assert DB_POOL.get_stats()["pool_available"] == DB_POOL.get_stats()["pool_size"]
         assert context["facts"]["timestamp"].endswith("+00:00")
@@ -334,7 +335,7 @@ def test_reference_archived_during_inference_causes_review_not_write(client, not
     event = ingest(client, notification())["results"][0]
     claim = claim_event()
 
-    async def infer(context):
+    async def infer(context, *, prompt):
         with db_conn() as conn:
             conn.execute("UPDATE accounts SET is_archived = TRUE WHERE id = %s", (notification_owner["main"],))
         return interpretation(notification_owner)
@@ -542,7 +543,7 @@ def test_registered_renames_rules_and_kakeibo_are_current(client, notification_o
         conn.execute("UPDATE categories SET name = 'Kesenangan Dinamis' WHERE id = %s", (notification_owner["expense"],))
     provider = AsyncMock()
 
-    async def infer(context):
+    async def infer(context, *, prompt):
         assert any(row["name"] == "Jago Operasional" for row in context["accounts"])
         assert any(row["name"] == "Kesenangan Dinamis" for row in context["categories"])
         return interpretation(notification_owner)
@@ -1464,6 +1465,37 @@ def test_ai_unexpected_pillar_is_recorded(client, notification_owner, monkeypatc
     assert row["kakeibo_type"] == "unexpected"
     assert row["processing_state"] == "recorded"
     assert row["prompt_version"] == PROMPT_VERSION == "notification-interpretation-12"
+
+
+@pytest.mark.parametrize("enabled,language,version", [
+    (True, "en", "notification-interpretation-12-en"),
+    (False, "en", "notification-interpretation-12"),
+    (True, "id", "notification-interpretation-12"),
+])
+def test_claim_records_and_uses_the_rendering_for_the_account(
+    client, notification_owner, monkeypatch, enabled, language, version,
+):
+    from app.core import config
+    from app.db.pool import db_conn
+    from app.services import notification_processing as processing
+
+    monkeypatch.setattr(config, "settings", replace(config.settings, llm_english_output_enabled=enabled))
+    with db_conn() as conn:
+        conn.execute("UPDATE users SET language = %s WHERE id = %s", (language, notification_owner["user_id"]))
+        conn.commit()
+    enable_ai(monkeypatch)
+    event = ingest(client, notification())["results"][0]
+    claimed = processing.claim_event()
+    assert claimed["prompt_version"] == version
+    provider = AsyncMock()
+    provider.interpret.return_value = interpretation(notification_owner)
+    asyncio.run(processing.process_claim(claimed, provider))
+    assert provider.interpret.await_args.kwargs["prompt"].version == version
+    # The bank's text reaches the model as sent, whatever language the description is asked in.
+    assert "Kedai Awan" in provider.interpret.await_args.args[0]["notification"]
+    with db_conn() as conn:
+        stored = conn.execute("SELECT prompt_version FROM notification_events WHERE id = %s", (event["event_id"],)).fetchone()
+    assert stored["prompt_version"] == version
 
 
 def test_startup_reclassifies_only_unlinked_noise_reviews(client, notification_owner):

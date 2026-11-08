@@ -1,22 +1,14 @@
 "use client";
 
-import { useRef, type PointerEvent as ReactPointerEvent } from "react";
-import {
-  RowAmount, RowAvatar, UNPAIRED_LABEL, movementDirection, routeIncomplete, rowCategory, rowKind, rowStatus, rowTitle,
-} from "@/components/beranda/activity";
-import { Pill, type Tone } from "@/components/workspace/primitives";
-import { dayName, previousDay, todayLocal, type DayGroup } from "@/lib/ledgerDays";
+import { useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useTranslations } from "next-intl";
+import { DayHeading, ListRow } from "@/components/workspace/lists";
+import type { Format } from "@/lib/format";
+import { previousDay, type DayGroup } from "@/lib/ledgerDays";
+import { RowAmount, RowStatus, maskedTag, rowCategory, rowMeta, rowPhoneLine, rowTitle, type RowLabels, type RowLine } from "./rows";
 import type { LedgerRow } from "./types";
 
-const TIME = new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
 const HOLD_MS = 600;
-
-const KIND_PILL: { [key: string]: { tone: Tone; text: string } } = {
-  expense: { tone: "out", text: "Pengeluaran" },
-  income: { tone: "in", text: "Masuk" },
-  movement: { tone: "tr", text: "Pindah saldo" },
-  topup: { tone: "inv", text: "Top up Investasi" },
-};
 
 export interface ListSelection {
   active: boolean;
@@ -24,84 +16,31 @@ export interface ListSelection {
   /** A row that cannot join a merge (already a movement, or the pair is full). */
   disabled: (row: LedgerRow) => boolean;
   toggle: (row: LedgerRow) => void;
-  /** Long-press on a phone row starts the selection with that row. */
+  /** Holding a phone row starts the selection with that row (deviation 12). */
   start: (row: LedgerRow) => void;
 }
 
-interface ListProps {
+interface LedgerListProps {
   groups: DayGroup<LedgerRow>[];
-  bal: (amount: number) => string;
   openRow: (row: LedgerRow) => void;
   selection: ListSelection;
+  /** Loads the next page; null when every row is loaded or a page is on its way. */
   loadMore: (() => void) | null;
-  /** Which row's detail is open, to mark it in the list. */
+  /** The row whose dialog is open. */
   openId: string | null;
-  /** The list is filtered to one account, so a movement says whether its money came in or left (design D3). */
+  /** The list is filtered to one account, so a movement says whether its money came in or left. */
   accountView: boolean;
+  today: string;
+  labels: RowLabels;
+  format: Format;
+  money: (amount: number) => string;
 }
 
-function dayLabel(day: string): string {
-  const today = todayLocal();
-  if (day === today) return `${dayName(day)} · hari ini`;
-  if (day === previousDay(today)) return `${dayName(day)} · kemarin`;
-  return dayName(day);
+function Line({ text, warning }: RowLine) {
+  return warning ? <span className="c-warning">{text}</span> : <>{text}</>;
 }
 
-/** The heading's figures: the whole day under the filters, from the server; nothing when it sent none. */
-function DayTotals({ group, bal }: { group: DayGroup<LedgerRow>; bal: (amount: number) => string }) {
-  const totals = group.totals;
-  if (!totals) return null;
-  const parts: React.ReactNode[] = [];
-  if (totals.spending) parts.push(<span key="out">Pengeluaran <b className="ws-amt-out">{bal(totals.spending)}</b></span>);
-  if (totals.inflow) parts.push(<span key="in">Masuk <b className="ws-amt-in">{bal(totals.inflow)}</b></span>);
-  if (totals.movements) parts.push(<span key="mv">Pindah saldo <b className="ws-amt-tr">{bal(totals.movements)}</b></span>);
-  if (totals.waiting_count) parts.push(<span key="wait" className="ws-tx-waiting">{totals.waiting_count} menunggu jawaban</span>);
-  if (!parts.length) return null;
-  return (
-    <span className="ws-tx-daytot">
-      {parts.map((part, index) => (
-        <span key={index}>
-          {index > 0 && <span aria-hidden="true"> · </span>}
-          {part}
-        </span>
-      ))}
-    </span>
-  );
-}
-
-function subLine(row: LedgerRow, accountView: boolean): string {
-  const kind = rowKind(row);
-  const checked = row.review_status === "auto" ? " · belum dicek" : "";
-  if (kind === "movement") {
-    const side = accountView ? movementDirection(row) : routeIncomplete(row) ? UNPAIRED_LABEL : null;
-    return `${[side, row.notes].filter(Boolean).join(" · ") || "Pindah saldo"}${checked}`;
-  }
-  const where = kind === "topup" ? (row.notes || row.account_name) : row.account_name;
-  return `${where}${checked}`;
-}
-
-/** The phone row's second line: the movement's direction or missing partner where the table has a column. */
-function feedStatus(row: LedgerRow, accountView: boolean): string {
-  if (rowKind(row) === "movement") {
-    if (accountView) return movementDirection(row);
-    if (routeIncomplete(row)) return UNPAIRED_LABEL;
-  }
-  return rowStatus(row).text;
-}
-
-function SelectBox({ row, selection }: { row: LedgerRow; selection: ListSelection }) {
-  return (
-    <input
-      type="checkbox"
-      className="ws-tx-check"
-      checked={selection.selectedIds.includes(row.id)}
-      disabled={selection.disabled(row)}
-      onChange={() => selection.toggle(row)}
-      aria-label={`Pilih ${rowTitle(row)} ${TIME.format(new Date(row.date))}`}
-    />
-  );
-}
-
+/** The phone's long-press, which starts a merge with the held row (today's `useHold`, kept). */
 function useHold(selection: ListSelection) {
   const timer = useRef<{ id: number; x: number; y: number; pointer: number } | null>(null);
   const fired = useRef(false);
@@ -133,156 +72,108 @@ function useHold(selection: ListSelection) {
       },
       onPointerUp: clear,
       onPointerCancel: clear,
-      onContextMenu: (event: React.MouseEvent) => {
+      onContextMenu: (event: ReactMouseEvent) => {
         if (fired.current) event.preventDefault();
       },
     }),
   };
 }
 
-function MoreOfDay({ group, loadMore, colSpan }: { group: DayGroup<LedgerRow>; loadMore: (() => void) | null; colSpan?: number }) {
-  if (!group.remaining) return null;
-  const body = (
+/** The heading's figures: the whole day under the filters from the server's `daily_totals`, muted (D10). */
+function DayTotals({ group, money }: { group: DayGroup<LedgerRow>; money: (amount: number) => string }) {
+  const t = useTranslations("transactions.day");
+  const totals = group.totals;
+  if (!totals) return null;
+  const amount = (value: number) => maskedTag(money(value));
+  const parts = [
+    totals.inflow ? t.rich("income", { amount: amount(totals.inflow) }) : null,
+    totals.spending ? t.rich("spending", { amount: amount(totals.spending) }) : null,
+    totals.movements ? t.rich("transfer", { amount: amount(totals.movements) }) : null,
+    totals.waiting_count ? <span className="c-warning">{t("waiting", { count: totals.waiting_count })}</span> : null,
+  ].filter(Boolean);
+  if (!parts.length) return null;
+  return (
     <>
-      {group.remaining} lagi di hari ini
-      {loadMore && (
-        <>
-          {" · "}
-          <button type="button" className="ws-linkbtn" onClick={loadMore}>Muat lagi</button>
-        </>
-      )}
+      {parts.map((part, index) => (
+        <span key={index}>
+          {index > 0 && " · "}
+          {part}
+        </span>
+      ))}
     </>
   );
-  return colSpan ? (
-    <tr className="ws-tx-more">
-      <td colSpan={colSpan}>{body}</td>
-    </tr>
-  ) : (
-    <li className="ws-tx-more">{body}</li>
-  );
 }
 
-/** Desktop and wide tablet: one table, one `tbody` per day whose first row is the day heading (D1). */
-export function LedgerTable({ groups, bal, openRow, selection, loadMore, openId, accountView }: ListProps) {
-  return (
-    <table className="ws-tbl ws-tx-tbl">
-      <caption className="sr-only">Transaksi, dikelompokkan per hari, terbaru di atas</caption>
-      <thead>
-        <tr>
-          <th scope="col">Transaksi</th>
-          <th scope="col" className="ws-tx-col-time">Jam</th>
-          <th scope="col" className="ws-tx-col-kind">Jenis</th>
-          <th scope="col" className="ws-tx-col-pillar">Pilar</th>
-          <th scope="col" className="ws-tx-col-category">Kategori</th>
-          <th scope="col" className="r">Jumlah</th>
-        </tr>
-      </thead>
-      {groups.map((group) => (
-        <tbody key={group.date}>
-          <tr className="ws-tx-day">
-            <th scope="rowgroup" colSpan={6}>
-              <span className="ws-tx-dname">{dayLabel(group.date)}</span>
-              <DayTotals group={group} bal={bal} />
-            </th>
-          </tr>
-          {group.rows.map((row) => {
-            const kind = rowKind(row);
-            const status = rowStatus(row);
-            const category = rowCategory(row);
-            return (
-              <tr
-                key={row.id}
-                className="ws-tx-row"
-                data-open={openId === row.id || undefined}
-                data-selected={selection.selectedIds.includes(row.id) || undefined}
-                onClick={(event) => {
-                  if ((event.target as HTMLElement).closest("button, input, a")) return;
-                  if (selection.active) {
-                    if (!selection.disabled(row)) selection.toggle(row);
-                  } else openRow(row);
-                }}
-              >
-                <td>
-                  <div className="ws-who">
-                    {selection.active ? <SelectBox row={row} selection={selection} /> : <RowAvatar row={row} />}
-                    <div className="ws-who-t">
-                      <button type="button" className="ws-rowbtn" data-tx-row={row.id} onClick={() => (selection.active ? !selection.disabled(row) && selection.toggle(row) : openRow(row))}>
-                        {rowTitle(row)}
-                      </button>
-                      <span>{subLine(row, accountView)}</span>
-                    </div>
-                  </div>
-                </td>
-                <td className="ws-tx-col-time tabular-nums">{TIME.format(new Date(row.date))}</td>
-                <td className="ws-tx-col-kind">
-                  <Pill tone={KIND_PILL[kind].tone}>{KIND_PILL[kind].text}</Pill>
-                </td>
-                <td className="ws-tx-col-pillar">
-                  <span className="ws-kk" data-bucket={status.bucket} style={status.color ? ({ "--kc": status.color } as React.CSSProperties) : undefined}>
-                    {status.text}
-                  </span>
-                </td>
-                <td className="ws-tx-col-category">
-                  <span className="ws-tx-category" title={category}>{category}</span>
-                </td>
-                <td className="r tabular-nums">
-                  <RowAmount row={row} bal={bal} />
-                </td>
-              </tr>
-            );
-          })}
-          <MoreOfDay group={group} loadMore={loadMore} colSpan={6} />
-        </tbody>
-      ))}
-    </table>
-  );
-}
-
-/** Phone: a purpose-built feed with a sticky heading per day and rows of at least 56 px (D1). */
-export function LedgerFeed({ groups, bal, openRow, selection, loadMore, openId, accountView }: ListProps) {
+/**
+ * Transaksi's list (D10 to D12): day groups under sticky headings, one-line rows from 768 px and two lines on the
+ * phone, each row one button that opens the dialog, or one label with a checkbox while merging.
+ */
+export function LedgerList({ groups, openRow, selection, loadMore, openId, accountView, today, labels, format, money }: LedgerListProps) {
+  const t = useTranslations("transactions");
   const hold = useHold(selection);
+  const yesterday = previousDay(today);
+  const dayLabel = (day: string) => {
+    const name = format.weekdayDate(day);
+    if (day === today) return t("day.today", { day: name });
+    if (day === yesterday) return t("day.yesterday", { day: name });
+    return name;
+  };
   return (
-    <div className="ws-tx-feed">
+    <>
       {groups.map((group) => (
-        <section key={group.date} aria-labelledby={`tx-day-${group.date}`}>
-          <h2 id={`tx-day-${group.date}`} className="ws-tx-feed-h">
-            <span className="ws-tx-dname">{dayLabel(group.date)}</span>
-            <DayTotals group={group} bal={bal} />
-          </h2>
-          <ul className="ws-ph-list">
-            {group.rows.map((row) => (
-              <li key={row.id} className="ws-tx-feed-row" data-open={openId === row.id || undefined} data-selected={selection.selectedIds.includes(row.id) || undefined}>
-                {selection.active && <SelectBox row={row} selection={selection} />}
-                <button
-                  type="button"
-                  className="ws-ph-row"
-                  data-tx-row={row.id}
-                  {...hold.handlers(row)}
-                  onClick={() => {
-                    if (hold.fired.current) {
-                      hold.fired.current = false;
-                      return;
+        <div key={group.date} className="day-group">
+          <DayHeading label={dayLabel(group.date)} totals={group.totals ? <DayTotals group={group} money={money} /> : undefined} />
+          <ul className="list">
+            {group.rows.map((row) => {
+              const time = format.time(row.date);
+              const title = rowTitle(row, labels);
+              const meta = rowMeta(row, labels, format, accountView);
+              const phone = rowPhoneLine(row, labels, format, accountView);
+              const checked = selection.selectedIds.includes(row.id);
+              return (
+                <li key={row.id}>
+                  <ListRow
+                    rowKey={row.id}
+                    time={time}
+                    title={title}
+                    meta={meta.text ? <Line {...meta} /> : undefined}
+                    phoneMeta={
+                      <>
+                        {time} · <Line {...phone} />
+                      </>
                     }
-                    if (selection.active) {
-                      if (!selection.disabled(row)) selection.toggle(row);
-                    } else openRow(row);
-                  }}
-                >
-                  <RowAvatar row={row} />
-                  <span className="ws-who-t">
-                    <b>{rowTitle(row)}</b>
-                    <span>
-                      {TIME.format(new Date(row.date))} · {feedStatus(row, accountView)}
-                    </span>
-                  </span>
-                  <RowAmount row={row} bal={bal} />
-                </button>
-              </li>
-            ))}
-            <MoreOfDay group={group} loadMore={loadMore} />
+                    category={rowCategory(row, labels)}
+                    status={<RowStatus row={row} labels={labels} />}
+                    amount={<RowAmount row={row} money={money} />}
+                    selected={openId === row.id}
+                    selectable={selection.active ? {
+                      checked,
+                      disabled: !checked && selection.disabled(row),
+                      onToggle: () => selection.toggle(row),
+                      label: t("merge.select", { title, time }),
+                    } : undefined}
+                    pressHandlers={selection.active ? undefined : hold.handlers(row)}
+                    onClick={() => {
+                      if (hold.fired.current) {
+                        hold.fired.current = false;
+                        return;
+                      }
+                      openRow(row);
+                    }}
+                  />
+                </li>
+              );
+            })}
           </ul>
-        </section>
+          {group.remaining > 0 && loadMore && (
+            <div className="list-foot">
+              <button type="button" className="ws-btn ws-btn-quiet" onClick={loadMore}>
+                {t("more.inDay", { remaining: format.integer(group.remaining) })}
+              </button>
+            </div>
+          )}
+        </div>
       ))}
-    </div>
+    </>
   );
 }
