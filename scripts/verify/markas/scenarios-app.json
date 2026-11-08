@@ -50,28 +50,217 @@
  },
  {
   "name": "analisis",
-  "path": "/insights"
+  "path": "/insights",
+  "analisis": true
+ },
+ {
+  "name": "analisis-bulan",
+  "path": "/insights",
+  "analisis": true,
+  "full": true,
+  "steps": [
+   {
+    "click": "^(Bulan kalender|Calendar month)$",
+    "after": 1500
+   }
+  ]
+ },
+ {
+  "name": "analisis-lalu",
+  "path": "/insights",
+  "analisis": true,
+  "full": true,
+  "steps": [
+   {
+    "click": "^(Bulan kalender|Calendar month)$",
+    "after": 1500
+   },
+   {
+    "click": "^(Bulan sebelumnya|Previous month)$",
+    "after": 2000
+   }
+  ]
+ },
+ {
+  "name": "analisis-siklus-lalu",
+  "path": "/insights",
+  "analisis": true,
+  "full": true,
+  "steps": [
+   {
+    "click": "^(Siklus sebelumnya|Previous cycle)$",
+    "after": 2000
+   }
+  ]
+ },
+ {
+  "name": "analisis-tabel",
+  "path": "/insights",
+  "analisis": true,
+  "full": true,
+  "steps": [
+   {
+    "click": "^(Lihat sebagai tabel|Show as table)$"
+   }
+  ]
  },
  {
   "name": "analisis-kalender",
-  "path": "/insights",
+  "path": "/insights?tab=kalender",
+  "analisis": true
+ },
+ {
+  "name": "analisis-kalender-hari",
+  "path": "/insights?tab=kalender",
+  "analisis": true,
+  "full": true,
   "steps": [
    {
-    "click": "^Kalender$"
+    "eval": "(() => { const cell = document.querySelector('.cal-cell .mark.is-outline')?.closest('.cal-cell'); if (!cell) return 'no waiting day'; cell.click(); return 'clicked ' + cell.dataset.day; })()",
+    "after": 1500
    }
-  ],
-  "full": true
+  ]
  },
  {
   "name": "analisis-peta-aliran",
-  "path": "/insights",
+  "path": "/insights?tab=aliran",
+  "analisis": true
+ },
+ {
+  "name": "analisis-peta-aliran-peta",
+  "path": "/insights?tab=aliran&view=peta",
+  "analisis": true
+ },
+ {
+  "name": "analisis-peta-aliran-tabel",
+  "path": "/insights?tab=aliran&view=tabel",
+  "analisis": true
+ },
+ {
+  "name": "analisis-sorot",
+  "path": "/insights?tab=aliran&view=peta",
+  "analisis": true,
+  "full": true,
   "steps": [
    {
-    "click": "^Peta Aliran$",
-    "after": 2000
+    "eval": "(() => { const group = document.querySelector('[role=group][aria-label=\"Sorot aliran\"], [role=group][aria-label=\"Highlight\"]'); const button = group && group.querySelectorAll('button')[1]; if (!button) return 'NOT FOUND'; button.click(); return 'clicked ' + button.textContent; })()"
    }
-  ],
-  "full": true
+  ]
+ },
+ {
+  "name": "analisis-sembunyi",
+  "path": "/insights",
+  "analisis": true,
+  "storage": {
+   "hideBalances": "1"
+  }
+ },
+ {
+  "name": "analisis-kalender-sembunyi",
+  "path": "/insights?tab=kalender",
+  "analisis": true,
+  "storage": {
+   "hideBalances": "1"
+  }
+ },
+ {
+  "name": "analisis-peta-aliran-sembunyi",
+  "path": "/insights?tab=aliran&view=peta",
+  "analisis": true,
+  "storage": {
+   "hideBalances": "1"
+  }
+ },
+ {
+  "name": "dlg-rincian-pengeluaran",
+  "path": "/insights",
+  "analisis": true,
+  "steps": [
+   {
+    "click": "^(Rincian pengeluaran|Spending breakdown)"
+   }
+  ]
+ },
+ {
+  "name": "dlg-kategori",
+  "path": "/insights",
+  "analisis": true,
+  "steps": [
+   {
+    "click": "^(Kelola kategori|Manage categories)$",
+    "after": 1500
+   }
+  ]
+ },
+ {
+  "name": "dlg-kategori-ubah",
+  "path": "/insights",
+  "analisis": true,
+  "steps": [
+   {
+    "click": "^(Kelola kategori|Manage categories)$",
+    "after": 1500
+   },
+   {
+    "click": "^(Ubah|Edit) Makanan",
+    "after": 800
+   }
+  ]
+ },
+ {
+  "name": "dlg-anggaran",
+  "path": "/insights",
+  "analisis": true,
+  "steps": [
+   {
+    "click": "^(Atur anggaran|Set budgets)$",
+    "after": 1500
+   }
+  ]
+ },
+ {
+  "name": "dlg-tagihan",
+  "path": "/insights",
+  "analisis": true,
+  "steps": [
+   {
+    "click": "^(Lihat semua|See all)$",
+    "after": 1000
+   }
+  ]
+ },
+ {
+  "name": "dlg-aliran-node",
+  "path": "/insights?tab=aliran&view=peta",
+  "analisis": true,
+  "steps": [
+   {
+    "eval": "(() => { const node = document.querySelector('.flow-node'); if (!node) return 'NOT FOUND'; node.dispatchEvent(new MouseEvent('click', { bubbles: true })); return 'clicked ' + node.getAttribute('aria-label').slice(0, 40); })()",
+    "after": 1200
+   }
+  ]
+ },
+ {
+  "name": "dlg-aliran-link",
+  "path": "/insights?tab=aliran&view=tabel",
+  "analisis": true,
+  "steps": [
+   {
+    "eval": "(() => { const button = [...document.querySelectorAll('.tbl-link')].find((b) => /Kebutuhan|Needs|Keinginan|Wants/.test(b.textContent)) || document.querySelector('.tbl-link'); if (!button) return 'NOT FOUND'; button.click(); return 'clicked ' + button.textContent.slice(0, 40); })()",
+    "after": 1500
+   }
+  ]
+ },
+ {
+  "name": "dlg-transaksi-hari",
+  "path": "/insights?tab=kalender",
+  "analisis": true,
+  "steps": [
+   {
+    "eval": "(async () => { for (let i = 0; i < 20; i++) { const row = document.querySelector('.day-rows .row'); if (row) { row.click(); return 'clicked'; } await new Promise((r) => setTimeout(r, 300)); } return 'NOT FOUND'; })()",
+    "after": 1500
+   }
+  ]
  },
  {
   "name": "laporan",
