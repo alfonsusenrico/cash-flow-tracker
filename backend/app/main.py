@@ -16,6 +16,7 @@ from app.routers.accounts import router as accounts_router
 from app.routers.auth import router as auth_router
 from app.routers.capture import router as capture_router
 from app.routers.categories import router as categories_router
+from app.routers.credit import router as credit_router
 from app.routers.classification import router as classification_router
 from app.routers.dashboard import router as dashboard_router
 from app.routers.devices import router as devices_router
@@ -287,6 +288,7 @@ for prefix in ("", "/api", "/v1"):
     app.include_router(accounts_router, prefix=f"{prefix}/accounts")
     app.include_router(categories_router, prefix=f"{prefix}/categories")
     app.include_router(transactions_router, prefix=f"{prefix}/transactions")
+    app.include_router(credit_router, prefix=prefix)
     app.include_router(movements_router, prefix=prefix)
     app.include_router(investment_topups_router, prefix=f"{prefix}/investment-topups")
     app.include_router(goals_router, prefix=f"{prefix}/goals")

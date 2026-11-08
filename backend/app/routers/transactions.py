@@ -21,7 +21,9 @@ from app.services.debt_allocations import (
     validate_allocation_request,
     validate_debt_capacity,
 )
+from app.services import credit_bills
 from app.services.credit_accounts import ensure_not_credit, is_credit, over_limit, refuse
+from app.services.credit_terms import is_credit_purchase, lock_purchase, set_purchase_terms, terms_after_edit
 from app.services.entity_names import resolve_account_name, resolve_category_name
 from app.services.kakeibo import PILLAR_FILTER_PATTERN, PILLAR_PATTERN, effective_pillar, effective_pillar_sql, pillar_bucket_sql
 from app.services.report_figures import cash_flow_totals
@@ -230,6 +232,12 @@ def local_day_bounds(days: list[date]) -> tuple[datetime, datetime]:
     return datetime.combine(min(days), time.min, zone), datetime.combine(max(days) + timedelta(days=1), time.min, zone)
 
 
+class CreditTermsInput(BaseModel):
+    # The range is checked by the service so the refusal carries `credit_terms_count_range`.
+    installment_count: int = 1
+    first_due_date: date | None = None
+
+
 class TransactionCreate(TransactionClassificationInput):
     account_id: UUID | None = None
     account_name: str | None = Field(default=None, max_length=100)
@@ -250,6 +258,8 @@ class TransactionCreate(TransactionClassificationInput):
     investment_action: str | None = Field(default=None, pattern="^(buy|sell)$")
     units: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     price_per_unit: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    # Terms of a purchase on a credit account (add-credit-spending-flow D1); omitted means paid in full.
+    credit_terms: CreditTermsInput | None = None
 
 
 class TransactionUpdate(TransactionClassificationInput):
@@ -423,6 +433,7 @@ def list_transactions(
                     t.id,
                     t.account_id,
                     sa.name AS account_name,
+                    sa.type AS account_type,
                     sa_parent.name AS account_parent_name,
                     t.category_id,
                     c.name AS category_name,
@@ -453,7 +464,9 @@ def list_transactions(
                     partner.id AS partner_id,
                     partner.account_id AS movement_target_account_id,
                     partner_account.name AS movement_target_account_name,
+                    partner_account.type AS movement_target_account_type,
                     partner_parent.name AS movement_target_account_parent_name,
+                    credit_terms.installment_count AS credit_installment_count,
                     t.created_at,
                     (t.date AT TIME ZONE %s)::date AS local_date,
                     {PROVENANCE_SELECT}
@@ -469,6 +482,7 @@ def list_transactions(
                 LEFT JOIN accounts partner_parent ON partner_parent.id = partner_account.parent_id
                 {FEE_LINK_JOINS}
                 LEFT JOIN investment_topups topup ON topup.id = t.movement_id AND topup.user_id = t.user_id
+                LEFT JOIN credit_purchase_terms credit_terms ON credit_terms.transaction_id = t.id
                 LEFT JOIN categories c ON c.id = t.category_id
                 LEFT JOIN goals g ON g.id = t.goal_id
                 LEFT JOIN obligations o ON o.id = t.obligation_id
@@ -479,6 +493,7 @@ def list_transactions(
             cur.execute(select_query, [settings.tz] + params + [limit, offset])
             rows = cur.fetchall()
             allocation_breakdowns = load_allocation_breakdowns(cur, rows)
+            credit_blocks = load_credit_blocks(cur, user_id, rows)
             daily_totals = None
             if "daily_totals" in includes:
                 daily_totals = load_daily_totals(cur, where_clause, params, sorted({r["local_date"] for r in rows}))
@@ -546,10 +561,52 @@ def list_transactions(
                 "receipt_path": r["receipt_path"],
                 "created_at": r["created_at"].isoformat() if r["created_at"] else None,
                 **provenance_fields(r),
+                "credit": credit_blocks[str(r["id"])],
             }
             for r in rows
         ],
     }
+
+
+def credit_side(row: dict[str, Any]) -> tuple[str, str, str] | None:
+    """The row's role toward a credit account and that account's id and name, or None (D12, H5)."""
+    if row["account_type"] == "credit":
+        role = credit_bills.row_role({
+            "type": row["type"], "movement_id": row["movement_id"],
+            "fee_for_movement_id": row["fee_for_movement_id"], "system_key": row["category_system_key"],
+        })
+        return role, str(row["account_id"]), row["account_name"]
+    if row["movement_id"] and row.get("movement_target_account_type") == "credit":
+        # The cash leg of a credit movement: paying into it, or a cash advance out of it.
+        role = credit_bills.PAYMENT if row["movement_role"] == "outbound" else credit_bills.CASH_ADVANCE
+        return role, str(row["movement_target_account_id"]), row["movement_target_account_name"]
+    return None
+
+
+def load_credit_blocks(
+    cur, user_id: str, rows: list[dict[str, Any]], *, with_installments: bool = False,
+) -> dict[str, dict[str, Any] | None]:
+    """Each row's `credit` block; schedules are built once per credit account on the page."""
+    sides = {str(row["id"]): credit_side(row) for row in rows}
+    purchase_accounts = sorted({side[1] for side in sides.values() if side and side[0] == credit_bills.PURCHASE})
+    schedules = credit_bills.load_schedules(
+        cur, user_id, credit_bills.local_today(), purchase_accounts, include_archived=True,
+    ) if purchase_accounts else {}
+    blocks: dict[str, dict[str, Any] | None] = {}
+    for row in rows:
+        side = sides[str(row["id"])]
+        if side is None:
+            blocks[str(row["id"])] = None
+            continue
+        role, account_id, account_name = side
+        block: dict[str, Any] = {"role": role, "account_id": account_id, "account_name": account_name}
+        if role == credit_bills.PURCHASE:
+            schedule = schedules.get(account_id)
+            block.update(credit_bills.purchase_facts(schedule, str(row["id"]), int(row["credit_installment_count"] or 1)))
+            if with_installments:
+                block["installments"] = credit_bills.purchase_installments(schedule, str(row["id"]))
+        blocks[str(row["id"])] = block
+    return blocks
 
 
 LIST_FROM_SQL = """
@@ -764,6 +821,12 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
             if effective_source:
                 matched_source = effective_source
                 account_id = str(effective_source["id"])
+
+            if payload.credit_terms is not None and (
+                payload.type != "expense" or not is_credit(matched_source) or payload.investment_action
+                or payload.target_account_id or payload.target_account_name
+            ):
+                raise api_error(422, ErrorCode.CREDIT_TERMS_NOT_CREDIT_PURCHASE)
 
             # Resolve target account for investment tracking if provided
             target_account_id = None
@@ -982,6 +1045,11 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                 ),
             )
             created = cur.fetchone()
+            if payload.credit_terms is not None:
+                set_purchase_terms(
+                    cur, user_id, lock_purchase(cur, user_id, str(created["id"])),
+                    payload.credit_terms.installment_count, payload.credit_terms.first_due_date,
+                )
 
             if allocation_values:
                 for debt_id, allocated_amount in allocation_values:
@@ -1046,7 +1114,8 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
             cur.execute(
                 f"""
                 SELECT
-                    t.id, t.account_id, sa.name AS account_name, sa_parent.name AS account_parent_name,
+                    t.id, t.account_id, sa.name AS account_name, sa.type AS account_type,
+                    sa_parent.name AS account_parent_name,
                     t.category_id, c.name AS category_name, c.system_key AS category_system_key,
                     c.icon AS category_icon, c.color AS category_color,
                     t.goal_id, g.name AS goal_name,
@@ -1058,7 +1127,9 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
                     partner.id AS partner_id,
                     partner.account_id AS movement_target_account_id,
                     partner_account.name AS movement_target_account_name,
+                    partner_account.type AS movement_target_account_type,
                     partner_parent.name AS movement_target_account_parent_name,
+                    credit_terms.installment_count AS credit_installment_count,
                     t.created_at,
                     (t.date AT TIME ZONE %s)::date AS local_date,
                     {waiting_row_sql("t")} AS waiting,
@@ -1073,6 +1144,7 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
                 LEFT JOIN accounts sa_parent ON sa_parent.id = sa.parent_id
                 LEFT JOIN accounts partner_parent ON partner_parent.id = partner_account.parent_id
                 LEFT JOIN investment_topups topup ON topup.id = t.movement_id AND topup.user_id = t.user_id
+                LEFT JOIN credit_purchase_terms credit_terms ON credit_terms.transaction_id = t.id
                 LEFT JOIN categories c ON c.id = t.category_id
                 LEFT JOIN goals g ON g.id = t.goal_id
                 LEFT JOIN obligations o ON o.id = t.obligation_id
@@ -1085,6 +1157,7 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
                 raise api_error(404, ErrorCode.TRANSACTION_NOT_FOUND)
             allocation_breakdowns = load_allocation_breakdowns(cur, [r])
             origin = load_origin(cur, user_id, tid, r.get("movement_id"))
+            credit_block = load_credit_blocks(cur, user_id, [r], with_installments=True)[tid]
 
     return {
         "ok": True,
@@ -1123,6 +1196,7 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
             "waiting": bool(r["waiting"]),
             "origin": origin,
             **provenance_fields(r),
+            "credit": credit_block,
         },
     }
 
@@ -1420,6 +1494,11 @@ def update_transaction(
             )
             if classification_changed:
                 record_owner_corrections(cur, user_id, before_classification)
+            edited = lock_purchase(cur, user_id, tid)
+            credit_terms_reset = terms_after_edit(
+                cur, user_id, tid, still_credit_purchase=is_credit_purchase(edited),
+                old_date=credit_bills.local_day(old_tx["date"]), new_date=edited["local_date"],
+            )
 
             if old_allocations or new_allocations:
                 cur.execute(
@@ -1465,7 +1544,7 @@ def update_transaction(
             conn.commit()
 
     request_plan_linking(user_id)
-    return {"ok": True, "message": notice("transaction_updated")}
+    return {"ok": True, "message": notice("transaction_updated"), "credit_terms_reset": credit_terms_reset}
 
 
 def classification_change(old_tx: dict[str, Any], new_values: dict[str, Any]) -> bool:

@@ -30,7 +30,7 @@ from app.services.notification_resolution import (
     observed_endpoint_with_basis, pocket_endpoint, root_account_id, transfer_signature,
 )
 from app.services.notification_sender import sender_gate
-from app.services.system_categories import hint_key, is_movement
+from app.services.system_categories import hint_key, is_movement, is_name_matchable
 from app.services.habits import HabitDecision
 from app.services.provenance import (
     MERCHANT_MAX_LENGTH, Provenance, habit_provenance, normalize_merchant, notification_provenance,
@@ -69,7 +69,7 @@ def hinted_categories(context: dict, categories: list[dict], hint: str | None) -
         return [row for row in categories if category_system_key(context, row) == key]
     # A name never reaches a system category: an English account's movement category is named "Transfer",
     # which the "account transfer" alias would otherwise file transfers to other people under.
-    named = [row for row in categories if category_system_key(context, row) is None]
+    named = [row for row in categories if is_name_matchable(category_system_key(context, row))]
     exact = [row for row in named if row["name"].casefold() == hint.casefold()]
     if exact:
         return exact
