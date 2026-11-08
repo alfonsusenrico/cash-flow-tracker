@@ -235,6 +235,24 @@ On `a8d879d`:
 - No package file changed, so no lockfile step was needed.
 
 
+## Owner-set first due date (fix after the gate, coordinator request)
+
+The first gate recorded that changing only the instalment count of a purchase sent `first_due_date: null`, which
+dropped a first due date the owner had set. Fixed in `fix(transactions): keep owner-set first due date on terms edit`:
+- `GET /api/transactions/{id}`'s `credit` block of a purchase now carries `first_due_date` and `first_due_date_set_by`
+  from `credit_purchase_terms` (additive; list rows unchanged). Pytest
+  `test_detail_carries_the_stored_first_due_date_and_who_set_it` (none stored → both null; after `PUT` with a date →
+  the date and `owner`; list rows without the keys).
+- "Ubah transaksi" starts "Jatuh tempo pertama" from the stored owner-set date. The terms request compares with it:
+  same count and same date → no request; only the count changed → `PUT` with the stored date kept; the field cleared →
+  `PUT` with `first_due_date: null` (follow the account), or `DELETE` when that leaves paid in full. The hint copy still
+  fits in both languages (it names the derived date only while the field is empty), so no message changed.
+- Frontend tests (`TransactionEditDialog.test.tsx`): starts from the stored date and sends nothing when unchanged;
+  count-only change keeps the date; clearing sends `null`.
+- Checks on the fix revision: `npm test` 95 files, **970 passed**; type-check, lint (0 warnings) and build pass; backend
+  credit, ledger saving-flow, day-totals, cycle-summary, transactions, public contract and provenance tests on a fresh
+  `postgres:16` migrated V1 → V54 (`cft-transaksi-pytest`, removed afterwards): **112 passed**.
+
 ## Deviations and notes for the owner's end review
 
 The proposal's seventeen deviations hold. Further:
@@ -243,9 +261,10 @@ The proposal's seventeen deviations hold. Further:
    every type; with a provider chosen it can differ from the header's "Pengeluaran pakai kredit", which is the credit
    overview's figure over whole local days (a purchase timed later today is counted there but not yet in the cycle
    list). Both are server figures; nothing is computed in the browser.
-2. **First due date:** the edit's "Jatuh tempo pertama" starts empty and names the current first due date in its hint;
-   changing only the instalment count sends `first_due_date: null`, so a date the owner set earlier is replaced by the
-   derived one (stated by the hint "Kosongkan agar mengikuti tanggal tagihan rekening").
+2. **First due date (fixed after the gate, see "Owner-set first due date" below):** the edit keeps a date the owner set
+   unless the owner clears it. A date the system kept (`first_due_date_set_by = 'system'`) is not shown in the field, so
+   changing only the count of such a purchase still sends `first_due_date: null`; keeping it would relabel it as the
+   owner's.
 3. `lib/movementFormSchema.ts` keeps its Indonesian messages because Catat (phase 11) shares it; the movement dialog maps
    each schema issue to a `transactions.movement.errors.*` key, so the rules stay in one place.
 4. The Filter button and the "…" item use the `sliders` icon; the app has no `filter` icon.

@@ -203,6 +203,21 @@ def test_changing_and_resetting_terms_moves_no_figure(owner):
     assert differences(baseline, figures(owner)) == []
 
 
+def test_detail_carries_the_stored_first_due_date_and_who_set_it(owner):
+    """`GET /transactions/{id}` exposes the stored terms so an edit can keep an owner-set date (apply-markas-transaksi)."""
+    add_credit(owner)
+    tx = purchase(owner, 300_000)
+    credit = owner.session.get(f"/api/transactions/{tx}").json()["transaction"]["credit"]
+    assert (credit["first_due_date"], credit["first_due_date_set_by"]) == (None, None)
+    due = (today() + timedelta(days=40)).isoformat()
+    assert put_terms(owner, tx, installment_count=3, first_due_date=due).status_code == 200
+    credit = owner.session.get(f"/api/transactions/{tx}").json()["transaction"]["credit"]
+    assert (credit["first_due_date"], credit["first_due_date_set_by"], credit["installment_count"]) == (due, "owner", 3)
+    # The list rows stay as they were: the stored terms are the detail's only.
+    listed = next(row for row in owner.session.get("/api/transactions?limit=50").json()["transactions"] if row["id"] == tx)
+    assert "first_due_date" not in listed["credit"] and "first_due_date_set_by" not in listed["credit"]
+
+
 def test_terms_refusals_carry_codes_and_change_nothing(owner):
     add_credit(owner)
     bank_expense = owner.expense(50_000, "makan")

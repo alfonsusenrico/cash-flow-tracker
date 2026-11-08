@@ -644,6 +644,10 @@ def load_credit_blocks(
             block.update(credit_bills.purchase_facts(schedule, str(row["id"]), int(row["credit_installment_count"] or 1)))
             if with_installments:
                 block["installments"] = credit_bills.purchase_installments(schedule, str(row["id"]))
+                # The stored first due date and who set it, so an edit can keep an owner-set date (H5).
+                first_due = row.get("credit_first_due_date")
+                block["first_due_date"] = first_due.isoformat() if first_due else None
+                block["first_due_date_set_by"] = row.get("credit_first_due_date_set_by")
         blocks[str(row["id"])] = block
     return blocks
 
@@ -1174,6 +1178,8 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
                     partner_account.type AS movement_target_account_type,
                     partner_parent.name AS movement_target_account_parent_name,
                     credit_terms.installment_count AS credit_installment_count,
+                    credit_terms.first_due_date AS credit_first_due_date,
+                    credit_terms.first_due_date_set_by AS credit_first_due_date_set_by,
                     {row_saving_flow_sql("t")} AS saving_flow,
                     t.created_at,
                     (t.date AT TIME ZONE %s)::date AS local_date,

@@ -49,6 +49,9 @@ export interface CreditBlock {
   due_dates_unavailable?: boolean;
   /** Only on `GET /transactions/{id}`. */
   installments?: CreditInstallment[];
+  /** Only on `GET /transactions/{id}`: the stored first due date and who set it ("owner" or "system"), or null. */
+  first_due_date?: string | null;
+  first_due_date_set_by?: "owner" | "system" | null;
 }
 
 /** The facts a list row describes itself with: one ledger row, or two movement legs consolidated into one. */

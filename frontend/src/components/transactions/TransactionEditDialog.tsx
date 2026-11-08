@@ -100,7 +100,9 @@ export function TransactionEditDialog({
   const originalCount = tx.credit?.role === "purchase" ? tx.credit.installment_count ?? 1 : 1;
   const [plan, setPlan] = useState<PlanChoice>(initialPlan(originalCount));
   const [otherCount, setOtherCount] = useState(initialPlan(originalCount) === "other" ? String(originalCount) : "");
-  const [firstDue, setFirstDue] = useState("");
+  // A first due date the owner set is kept unless the owner clears it; a derived one is never stored from here.
+  const ownerFirstDue = tx.credit?.role === "purchase" && tx.credit.first_due_date_set_by === "owner" ? tx.credit.first_due_date ?? null : null;
+  const [firstDue, setFirstDue] = useState(ownerFirstDue ?? "");
   const [error, setError] = useState("");
   const errorRef = useRef<HTMLParagraphElement>(null);
 
@@ -125,8 +127,9 @@ export function TransactionEditDialog({
   const termsRequest = (): { method: "put" | "del"; body?: { installment_count: number; first_due_date: string | null } } | null => {
     if (!creditPurchase) return null;
     const firstDueDate = firstDue || null;
-    if (chosenCount === originalCount && !firstDueDate) return null;
-    if (chosenCount === 1 && !firstDueDate) return originalCount > 1 ? { method: "del" } : null;
+    if (chosenCount === originalCount && firstDueDate === ownerFirstDue) return null;
+    // Paid in full following the account's days is the default, which the server keeps as no stored terms.
+    if (chosenCount === 1 && !firstDueDate) return originalCount > 1 || ownerFirstDue ? { method: "del" } : null;
     return { method: "put", body: { installment_count: chosenCount, first_due_date: firstDueDate } };
   };
 
@@ -316,7 +319,7 @@ export function TransactionEditDialog({
                   <input id="tx-edit-credit-due" type="date" value={firstDue} onChange={(event) => setFirstDue(event.target.value)}
                     className="field-control" aria-describedby="tx-edit-credit-due-hint" />
                   <p id="tx-edit-credit-due-hint" className="hint">
-                    {tx.credit?.installments?.[0]
+                    {!firstDue && tx.credit?.installments?.[0]
                       ? t("creditFirstDueHintDate", { date: format.shortDate(tx.credit.installments[0].due_date) })
                       : t("creditFirstDueHint")}
                   </p>
