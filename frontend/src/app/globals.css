@@ -470,6 +470,8 @@ dialog.shell-dialog::backdrop { background: var(--scrim); animation: ws-fade var
 .dlg-h .ws-icon-btn { margin: -6px -8px 0 0; }
 .dlg-b { padding: 0 var(--sp-24) var(--sp-24); overflow-y: auto; }
 .dlg-b > * + * { margin-top: var(--sp-24); }
+/* An empty live region keeps its place for announcements without adding a gap. */
+.dlg-b > [aria-live]:empty { margin-top: 0; }
 .sheet-grab { display: none; }
 .more-list { margin: 0 calc(-1 * var(--sp-16)); }
 .more-row {
@@ -1298,6 +1300,8 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
 .tj-status:not(:empty) { margin-top: var(--sp-8); }
 .tj-after { margin-top: var(--sp-12); }
 .tj-rows { margin-top: var(--sp-24); }
+/* The item's own rows keep the 56 px list row; only the list pane's rows are 64 px with 12 px padding. */
+.tj-rows .row.is-stacked { align-items: center; min-height: 56px; padding: 0 var(--sp-12); }
 .tj-other { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-12); margin-top: var(--sp-16); }
 .tj-other .field { flex: 1 1 12rem; }
 .answers { margin-top: var(--sp-24); border-top: 1px solid var(--line); }

@@ -142,6 +142,7 @@ function GroupTransactions({ group, automatic, ctx }: { group: ReviewGroup; auto
         {rows.map((row) => (
           <li key={row.id}>
             <ListRow
+              layout="stacked"
               href={transaksiHref(row.id, automatic ? "otomatis" : "jawab")}
               title={row.notes || row.merchant || row.category_name || t("terms.noDescription")}
               meta={[

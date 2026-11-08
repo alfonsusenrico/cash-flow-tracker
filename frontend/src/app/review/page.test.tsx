@@ -1175,6 +1175,8 @@ describe("Tinjau", () => {
       await screen.findByRole("list", { name: "Daftar Semua" });
       expect(rail()).toHaveClass("rail", "is-chips");
       expect(document.getElementById("triage-item-heading")).toBeNull();
+      // Nothing is marked current until an item opens, as in the prototype's phone list.
+      expect(document.querySelector("[data-row][aria-current]")).toBeNull();
       const length = window.history.length;
       await user.click(row("Toko Serba Ada"));
       const sheet = await screen.findByRole("dialog", { name: "Perlu jawaban" });

@@ -817,7 +817,7 @@ export function TriageInbox() {
           triage={triage}
           folder={folder}
           items={items}
-          selectedId={selectedId}
+          selectedId={phone && !sheetOpen ? null : selectedId}
           onOpen={open}
           listRef={listRef}
           words={words}
