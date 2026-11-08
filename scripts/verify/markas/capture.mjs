@@ -47,8 +47,9 @@ const shellSource = readFileSync(path.join(here, "shell-checklist.js"), "utf8");
 const berandaSource = readFileSync(path.join(here, "beranda-checklist.js"), "utf8");
 const tinjauSource = readFileSync(path.join(here, "tinjau-checklist.js"), "utf8");
 const transaksiSource = readFileSync(path.join(here, "transaksi-checklist.js"), "utf8");
+const rekeningSource = readFileSync(path.join(here, "rekening-checklist.js"), "utf8");
 // Settings a scenario may set (`storage`); every capture starts without them, so no scenario leaks into the next.
-const STORAGE_KEYS = { app: ["hideBalances", "sidebarCollapsed"], prototype: ["markas6-hide"] };
+const STORAGE_KEYS = { app: ["hideBalances", "sidebarCollapsed", "rekening-grouping"], prototype: ["markas6-hide"] };
 mkdirSync(args.out, { recursive: true });
 const reportFile = path.join(args.out, "checklist.json");
 
@@ -171,6 +172,7 @@ try {
       const beranda = scenario.beranda ? await browser.evaluate(berandaSource).catch((error) => ({ error: String(error).slice(0, 200) })) : undefined;
       const tinjau = scenario.tinjau ? await browser.evaluate(tinjauSource).catch((error) => ({ error: String(error).slice(0, 200) })) : undefined;
       const transaksi = scenario.transaksi ? await browser.evaluate(transaksiSource).catch((error) => ({ error: String(error).slice(0, 200) })) : undefined;
+      const rekening = scenario.rekening ? await browser.evaluate(rekeningSource).catch((error) => ({ error: String(error).slice(0, 200) })) : undefined;
       // The document language and every interface part that declares its own (WCAG 3.1.1 and 3.1.2).
       const lang = await browser.evaluate(`({
         root: document.documentElement.lang,
@@ -194,6 +196,7 @@ try {
         beranda,
         tinjau,
         transaksi,
+        rekening,
         lang,
       };
       const flags = report[key].axeSeriousOrCritical.length + report[key].consoleErrors.length;
