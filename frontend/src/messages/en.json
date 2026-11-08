@@ -678,7 +678,6 @@
       "heading": "{provider} · {range}",
       "owed": "Owed",
       "nextBill": "Next bill",
-      "nextBillValue": "{date} · <amount></amount>",
       "noBill": "No bill",
       "spentOnCredit": "Spending on credit",
       "paidToCredit": "Credit bills paid",

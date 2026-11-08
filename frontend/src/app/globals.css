@@ -1380,7 +1380,7 @@ html:has(.tx-list.is-selecting) { scroll-padding-top: calc(var(--topbar-h) + 48p
 .tx-credit .err { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-12); color: var(--muted); }
 
 /* Dialog parts: the label and value list, a bordered note box, the amount block and the instalment list. */
-.dl { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: var(--sp-12) var(--sp-16); margin: 0; }
+.dl { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: var(--sp-12) var(--sp-16); }
 .dl dt { color: var(--muted); font-size: var(--fs-12); line-height: 20px; }
 .dl dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
 .dl .ws-linkbtn { display: inline-flex; align-items: center; min-height: 24px; }

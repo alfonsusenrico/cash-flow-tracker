@@ -21,6 +21,7 @@ export function ShellDialog({
   footer,
   untranslated: untranslatedContent,
   fullHeight = false,
+  scrollFocusable = false,
   children,
 }: {
   open: boolean;
@@ -37,6 +38,11 @@ export function ShellDialog({
   untranslated?: boolean;
   /** Below 768 px the whole screen, square and without the grab (Tinjau's item, apply-markas-tinjau D13). */
   fullHeight?: boolean;
+  /**
+   * The body is a tab stop, so a long body without controls of its own can still be scrolled by keyboard (WCAG
+   * 2.1.1; Transaksi's delete confirmation on a short screen).
+   */
+  scrollFocusable?: boolean;
   children: ReactNode;
 }) {
   const untranslated = useUntranslated(untranslatedContent);
@@ -88,7 +94,14 @@ export function ShellDialog({
               <Icon name="x" className="h-4 w-4" />
             </button>
           </div>
-          <div ref={bodyRef} className="dlg-b" lang={untranslated ? "id" : undefined}>
+          <div
+            ref={bodyRef}
+            className="dlg-b"
+            lang={untranslated ? "id" : undefined}
+            tabIndex={scrollFocusable ? 0 : undefined}
+            role={scrollFocusable ? "region" : undefined}
+            aria-labelledby={scrollFocusable ? titleId : undefined}
+          >
             {children}
           </div>
           {footer && <div className="dlg-f">{footer}</div>}

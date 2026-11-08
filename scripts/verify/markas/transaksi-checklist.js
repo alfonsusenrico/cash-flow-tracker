@@ -96,7 +96,8 @@
     const heading = first(".day-h");
     if (heading) {
       add("day heading height", Math.round(box(heading).height), 40);
-      add("day heading sticky top", px(style(heading).top), phone ? 56 : 56);
+      // While merging, headings stick below the 48 px selection bar (D9).
+      add("day heading sticky top", px(style(heading).top), first(".tx-list.is-selecting") ? 104 : 56);
       const totals = first(".tot", heading);
       if (totals) add("day totals 12 muted", `${px(style(totals).fontSize)} ${style(totals).color}`, `12 ${style(first(".muted") ?? totals).color}`);
     }
@@ -154,7 +155,7 @@
   add("sizes within 12 14 16 20 24 32 44", sizes.filter((size) => ![12, 14, 16, 20, 24, 32, 44].includes(size)).join(" "), "");
   const weights = [...new Set(texts.map((element) => style(element).fontWeight))];
   add("weights within 400 500 600", weights.filter((weight) => !["400", "500", "600"].includes(weight)).join(" "), "");
-  const big = texts.filter((element) => parseFloat(style(element).fontSize) >= 33 && !element.classList.contains("t-hero"));
+  const big = texts.filter((element) => parseFloat(style(element).fontSize) >= 33 && !element.closest(".t-hero"));
   add("no other text >= 33 px", big.length, 0);
   const thick = all("main *, dialog *").filter((element) => ["Top", "Right", "Bottom", "Left"].some((side) => parseFloat(style(element)[`border${side}Width`]) >= 2));
   add("no border >= 2 px", thick.length, 0);

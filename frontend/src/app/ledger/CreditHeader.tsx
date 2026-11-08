@@ -38,6 +38,7 @@ export function CreditHeader({
 }) {
   const t = useTranslations("transactions.provider");
   const common = useTranslations("common");
+  const row = useTranslations("transactions.row");
   const query = new URLSearchParams();
   if (from) query.set("from", from);
   if (to) query.set("to", to);
@@ -65,10 +66,9 @@ export function CreditHeader({
             bar={false}
             label={t("nextBill")}
             figure={data
-              ? data.next_due
-                ? t.rich("nextBillValue", { date: format.shortDate(data.next_due.due_date), amount: () => figure(data.next_due!.left_to_pay) })
-                : t("noBill")
+              ? data.next_due ? figure(data.next_due.left_to_pay) : <span className="is-words">{t("noBill")}</span>
               : <span className="skel is-fig" aria-hidden="true" />}
+            caption={data?.next_due ? row("due", { date: format.shortDate(data.next_due.due_date) }) : undefined}
           />
           <FigureBlock bar={false} label={t("spentOnCredit")} figure={data ? figure(data.totals.spent_on_credit) : <span className="skel is-fig" aria-hidden="true" />} />
           <FigureBlock bar={false} label={t("paidToCredit")} figure={data ? figure(data.totals.paid_to_credit) : <span className="skel is-fig" aria-hidden="true" />} />

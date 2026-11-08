@@ -697,7 +697,7 @@ describe("Credit (H5)", () => {
     const header = await screen.findByRole("region", { name: "SPayLater · 25 Okt – 24 Nov" });
     expect(vi.mocked(api.get)).toHaveBeenCalledWith(`/credit/accounts/${SPL}?from=2026-10-25&to=2026-11-24`);
     expect(header).toHaveTextContent("UtangRp 470.000");
-    expect(header).toHaveTextContent("Tagihan berikutnya11 Des · Rp 470.000");
+    expect(header).toHaveTextContent("Tagihan berikutnyaRp 470.000jatuh tempo 11 Des");
     expect(header).toHaveTextContent("Pengeluaran pakai kreditRp 120.000");
     expect(header).toHaveTextContent("Tagihan kredit dibayarRp 350.000");
   });

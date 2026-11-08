@@ -211,7 +211,7 @@ export function TransactionDialog({
 
   return (
     <UntranslatedRegion active={false}>
-      <ShellDialog open={open} onClose={onClose} title={title} meta={when} width={560} closeLabel={t("transactions.dialog.close")} footer={footer} className="tx-dialog">
+      <ShellDialog open={open} onClose={onClose} title={title} meta={when} width={560} closeLabel={t("transactions.dialog.close")} footer={footer} className="tx-dialog" scrollFocusable>
         {detail.isLoading && (
           <div aria-busy="true" aria-label={t("transactions.dialog.loading")}>
             <span className="skel is-hero" />

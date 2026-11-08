@@ -678,7 +678,6 @@
       "heading": "{provider} · {range}",
       "owed": "Utang",
       "nextBill": "Tagihan berikutnya",
-      "nextBillValue": "{date} · <amount></amount>",
       "noBill": "Tidak ada tagihan",
       "spentOnCredit": "Pengeluaran pakai kredit",
       "paidToCredit": "Tagihan kredit dibayar",
