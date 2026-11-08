@@ -49,10 +49,6 @@
   ]
  },
  {
-  "name": "tinjau",
-  "path": "/review"
- },
- {
   "name": "transaksi",
   "path": "/ledger"
  },
@@ -307,20 +303,6 @@
   ]
  },
  {
-  "name": "dlg-tinjau-item",
-  "path": "/review",
-  "steps": [
-   {
-    "click": "Pembayaran QRIS ?3 Nov"
-   }
-  ],
-  "cells": [
-   "1440-light",
-   "1440-dark",
-   "390-light"
-  ]
- },
- {
   "name": "dlg-notifikasi",
   "path": "/",
   "steps": [
@@ -435,23 +417,6 @@
   ]
  },
  {
-  "name": "dlg-tinjau-ubah-kategori",
-  "path": "/review",
-  "steps": [
-   {
-    "click": "Pembayaran QRIS ?3 Nov"
-   },
-   {
-    "click": "^Ubah kategori"
-   }
-  ],
-  "cells": [
-   "1440-light",
-   "1440-dark",
-   "390-light"
-  ]
- },
- {
   "name": "dlg-laporan-tak-terduga",
   "path": "/laporan",
   "steps": [
@@ -482,6 +447,191 @@
   "steps": [
    {
     "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "tinjau",
+  "path": "/review",
+  "tinjau": true
+ },
+ {
+  "name": "tinjau-sembunyi",
+  "path": "/review",
+  "tinjau": true,
+  "storage": {
+   "hideBalances": "1"
+  }
+ },
+ {
+  "name": "tinjau-perlu-jawaban",
+  "path": "/review?folder=jawab",
+  "tinjau": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-topup",
+  "path": "/review?folder=pindah",
+  "tinjau": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = [...document.querySelectorAll('.tj-list [data-row]')].find((element) => new RegExp(\"(Utama).*750\").test(element.textContent)); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 900
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-ambigu",
+  "path": "/review?folder=pindah",
+  "tinjau": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = [...document.querySelectorAll('.tj-list [data-row]')].find((element) => new RegExp(\"Dana Darurat\").test(element.textContent)); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 900
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-belum-dikenali-masuk",
+  "path": "/review?folder=apa",
+  "tinjau": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-otomatis",
+  "path": "/review?folder=otomatis",
+  "tinjau": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-saran",
+  "path": "/review?folder=saran",
+  "tinjau": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-dua-kali",
+  "path": "/review?folder=dua",
+  "tinjau": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-dilewati",
+  "path": "/review?folder=lewat",
+  "tinjau": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-sheet",
+  "path": "/review",
+  "tinjau": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = [...document.querySelectorAll('.tj-list [data-row]')].find((element) => new RegExp(\"Pembayaran QRIS\").test(element.textContent)); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 900
+   }
+  ],
+  "cells": [
+   "390-light",
+   "390-dark",
+   "320-light",
+   "320-dark"
+  ]
+ },
+ {
+  "name": "dlg-ubah-kategori",
+  "path": "/review?folder=jawab",
+  "tinjau": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = document.querySelector('.tj-list [data-row]'); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 900
+   },
+   {
+    "click": "^\\d?(Ubah kategori|Change category)"
+   }
+  ]
+ },
+ {
+  "name": "dlg-ganti-nama",
+  "path": "/review?folder=jawab",
+  "tinjau": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = document.querySelector('.tj-list [data-row]'); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 900
+   },
+   {
+    "click": "^\\d?(Ganti nama|Rename)"
+   }
+  ]
+ },
+ {
+  "name": "dlg-jawab-sendiri",
+  "path": "/review?folder=apa",
+  "tinjau": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = document.querySelector('.tj-list [data-row]'); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 900
+   },
+   {
+    "click": "^(Jawab sendiri|Type an answer)$"
+   }
+  ]
+ },
+ {
+  "name": "dlg-saran-riwayat",
+  "path": "/review",
+  "tinjau": true,
+  "steps": [
+   {
+    "click": "^(Tindakan lain untuk Tinjau|More actions for Review)$"
+   },
+   {
+    "click": "^(Cari saran dari riwayat|Find suggestions from history)$"
+   }
+  ]
+ },
+ {
+  "name": "menu-tinjau",
+  "path": "/review",
+  "tinjau": true,
+  "steps": [
+   {
+    "click": "^(Tindakan lain untuk Tinjau|More actions for Review)$"
    }
   ]
  },

@@ -164,3 +164,23 @@ def test_reset_is_refused_outside_a_markas_database():
 def test_accepts_loopback_markas_targets():
     for url in (GOOD_URL, "postgresql://ledger@localhost/cft_markas_audit", "postgresql://ledger@[::1]:5432/cft_markas_x"):
         assert seed_parity.database_target(url).name.startswith("cft_markas_")
+
+
+TINJAU_SCRIPT = Path(__file__).with_name("seed_tinjau.py")
+tinjau_spec = importlib.util.spec_from_file_location("seed_tinjau", TINJAU_SCRIPT)
+seed_tinjau = importlib.util.module_from_spec(tinjau_spec)
+tinjau_spec.loader.exec_module(seed_tinjau)
+
+
+@pytest.mark.parametrize("url", [
+    "postgresql://ledger:not-a-secret@10.0.0.5:5432/cft_markas_parity",
+    "postgresql://ledger:not-a-secret@127.0.0.1:5432/ledger",
+])
+def test_tinjau_seed_refuses_a_database_that_is_not_a_local_markas_one(url, capsys):
+    assert seed_tinjau.main(["--database-url", url, "--username", "dimas_contoh", "--kinds"]) == 2
+    assert "refused" in capsys.readouterr().err
+
+
+def test_tinjau_seed_stress_merchant_is_sixty_characters():
+    assert len(seed_tinjau.LONG_MERCHANT) == 60
+    assert seed_tinjau.STRESS_WAITING_ROWS + seed_tinjau.STRESS_GROUP_ROWS > 1000
