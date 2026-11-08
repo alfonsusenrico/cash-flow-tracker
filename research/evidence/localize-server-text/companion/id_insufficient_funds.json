@@ -1,0 +1,18 @@
+{
+  "status": 409,
+  "content_language": "id",
+  "body": {
+    "ok": false,
+    "detail": {
+      "required_amount": 1001,
+      "available_amount": 1000,
+      "account_id": "a90afc1c-ff1b-4616-ae1d-6e2e0266cfbd",
+      "code": "insufficient_funds",
+      "params": {
+        "required_amount": 1001,
+        "available_amount": 1000
+      },
+      "message": "Saldo tidak mencukupi. Tersedia Rp 1.000 dari Rp 1.001 yang dibutuhkan."
+    }
+  }
+}

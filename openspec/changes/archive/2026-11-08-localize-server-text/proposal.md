@@ -21,7 +21,12 @@ Phases 4 to 12 of the Markas+ plan carry a "backend untouched" gate. All server 
 
 ## Plan approval
 
-Plan approval pending. Nothing is implemented until the owner approves this change in the session; the approval and its date are then recorded here and in `PROJECT_STATE.md`.
+Approved by the owner on 2026-11-06. The owner approved the three-change plan (`add-category-system-keys`, `add-language-system`, `localize-server-text`) with every recommended default ("ok to all") and gave the standing instruction "complete all until finished". The decisions:
+- **OD1, money shape in server sentences:** keep today's three shapes, so Indonesian stays byte-identical (the purpose question keeps "Rp187.500").
+- **OD2, when English AI output turns on:** only after the owner-approved paid benchmark passes on the held-out partition. `LLM_ENGLISH_OUTPUT_ENABLED` stays `false` until then.
+- **OD3, the paid benchmark run:** not covered by the approval. Task 5.3 prepares the English cases, the command and the cost estimate and waits for the owner's explicit OK (paid).
+
+Work stopped on 2026-11-06 when the owner paused. On 2026-11-08 the owner renewed the standing instruction with "continue all", under the same defaults.
 
 ## What Changes
 

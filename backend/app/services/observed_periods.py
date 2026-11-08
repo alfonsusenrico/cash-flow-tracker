@@ -12,7 +12,8 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.core.config import settings
-from app.services.report_windows import MONTH_NAMES_ID, shift_month, short_local_date
+from app.i18n import account_language, t
+from app.services.report_windows import month_label, shift_month, short_local_date
 from app.services.salary_receipts import receipts as confirmed_receipts
 
 COMPLETED_PERIOD_LIMIT = 6
@@ -58,20 +59,20 @@ def _local_midnight(day: date) -> datetime:
     return datetime.combine(day, time.min, tzinfo=ZoneInfo(settings.tz)).astimezone(timezone.utc)
 
 
-def month_period(year: int, month: int, *, now: datetime) -> ObservedPeriod:
+def month_period(year: int, month: int, *, now: datetime, language: str) -> ObservedPeriod:
     start = _local_midnight(date(year, month, 1))
     next_year, next_month = shift_month(year, month, 1)
     end = _local_midnight(date(next_year, next_month, 1))
     complete = end <= now
-    return ObservedPeriod("month", start, end if complete else now, f"{MONTH_NAMES_ID[month - 1]} {year}", complete)
+    return ObservedPeriod("month", start, end if complete else now, month_label(language, year, month), complete)
 
 
-def cycle_label(start: datetime, last: datetime, *, open_cycle: bool) -> str:
+def cycle_label(start: datetime, last: datetime, *, open_cycle: bool, language: str) -> str:
     zone = ZoneInfo(settings.tz)
-    first_day = short_local_date(start.astimezone(zone).date())
+    first_day = short_local_date(language, start.astimezone(zone).date())
     if open_cycle:
-        return f"Siklus sejak {first_day}"
-    return f"Siklus {first_day} – {short_local_date(last.astimezone(zone).date())}"
+        return t(language, "periods.cycle_since", start=first_day)
+    return t(language, "periods.cycle_range", start=first_day, end=short_local_date(language, last.astimezone(zone).date()))
 
 
 def first_recorded_day(cur, user_id: str) -> date | None:
@@ -93,7 +94,9 @@ def salary_boundaries(cur, user_id: str, now: datetime) -> tuple[list[datetime],
     return instants, "confirmed"
 
 
-def _months_before(limit_end: datetime, *, now: datetime, first_day: date, count: int) -> list[ObservedPeriod]:
+def _months_before(
+    limit_end: datetime, *, now: datetime, first_day: date, count: int, language: str,
+) -> list[ObservedPeriod]:
     """Complete calendar months ending on or before `limit_end`, newest first, after tracking began."""
     zone = ZoneInfo(settings.tz)
     anchor = limit_end.astimezone(zone).date()
@@ -101,7 +104,7 @@ def _months_before(limit_end: datetime, *, now: datetime, first_day: date, count
     months: list[ObservedPeriod] = []
     # Walk back from the month containing `limit_end`; it qualifies only if it ended by then.
     for _ in range(count + 1):
-        period = month_period(year, month, now=now)
+        period = month_period(year, month, now=now, language=language)
         if period.complete and period.end <= limit_end:
             if period.start.astimezone(zone).date() < first_day:
                 break
@@ -123,21 +126,25 @@ def load_period_history(
     now = now or datetime.now(timezone.utc)
     zone = ZoneInfo(settings.tz)
     first_day = first_recorded_day(cur, user_id)
+    language, _region = account_language(cur, user_id)
     today = now.astimezone(zone).date()
     boundaries, cycle_status = ([], "not_configured") if basis == "month" else salary_boundaries(cur, user_id, now)
     if first_day is None:
         return PeriodHistory([], None, cycle_status)
     if boundaries:
-        current = ObservedPeriod("cycle", boundaries[-1], now, cycle_label(boundaries[-1], now, open_cycle=True), False)
+        current = ObservedPeriod("cycle", boundaries[-1], now,
+                                 cycle_label(boundaries[-1], now, open_cycle=True, language=language), False)
         completed = [
-            ObservedPeriod("cycle", start, end, cycle_label(start, end - timedelta(microseconds=1), open_cycle=False), True)
+            ObservedPeriod("cycle", start, end,
+                           cycle_label(start, end - timedelta(microseconds=1), open_cycle=False, language=language), True)
             for start, end in zip(boundaries[:-1], boundaries[1:])
         ]
         completed.reverse()
         completed = completed[:limit]
         if len(completed) < limit:
-            completed += _months_before(boundaries[0], now=now, first_day=first_day, count=limit - len(completed))
+            completed += _months_before(boundaries[0], now=now, first_day=first_day, count=limit - len(completed),
+                                        language=language)
         return PeriodHistory(completed, current, cycle_status)
-    current = month_period(today.year, today.month, now=now)
-    completed = _months_before(current.start, now=now, first_day=first_day, count=limit)
+    current = month_period(today.year, today.month, now=now, language=language)
+    completed = _months_before(current.start, now=now, first_day=first_day, count=limit, language=language)
     return PeriodHistory(completed, current, cycle_status)

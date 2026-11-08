@@ -47,6 +47,11 @@ Everything else the server writes is still Indonesian or English regardless of t
 - `language_for_request(request)` parses `Accept-Language` with the parser from `add-language-system`. It is used only on unauthenticated endpoints (login, register, device pairing exchange, health).
 - Middleware sets `Content-Language` on every response that carries server text.
 
+Implementation (task 2.1):
+- A middleware opens a per-request language holder from `Accept-Language`. The auth dependencies (`get_current_user`, `get_session_user`) bind the account's `language` and `region` to it, so every later error in the request renders in the account's language. A request that never authenticates keeps the header's language.
+- Composed text takes the language explicitly: routes pass `user["language"]`, services that only hold a `user_id` read the owner's row (`account_language(cur, user_id)`), and the notification worker and the cron jobs read each owner's row before composing.
+- `Content-Language` is set on every JSON response, from the holder.
+
 Rejected:
 - `Accept-Language` for signed-in requests: a shared device or the companion (which sends none) would flip the account's language.
 - A per-request language parameter: it gives two sources of truth.
@@ -87,6 +92,12 @@ This keeps every Indonesian string byte-identical, which follows the owner's rul
 
 The web's `errors` namespace gains every code in both languages. A pytest reads `ErrorCode`, both server catalogues and `frontend/src/messages/{en,id}.json`, and fails on any code missing from one of the four, and on any `params` name a message uses that the server never sends.
 
+Implementation notes (tasks 3.1 and 3.2):
+- `api_error(status, code, *, language=None, params=None, extra=None, variant=None, headers=None)`. Without `language` the message follows the request's holder (D1), so a raise site deep in a service needs no language argument.
+- **Variants:** six codes carry two different Indonesian messages today (`debt_unavailable`, `invalid_scheduled_occurrence`, `movement_leg_not_editable`, `pillar_not_allowed`, `scheduled_posting_retired`, `category_not_found`), and the entity-name codes carry one per `reason`. Their sites pass a `variant`, whose message is `error_variants.<code>.<variant>`, so the Indonesian bytes stay. `code` is unchanged, and the web renders the code's one `errors.<code>` text.
+- **Codes without a message today:** the companion shows `detail.message` first and otherwise its own Indonesian text for the code (`ProcessingReasons`). Where it has one, the server's Indonesian message is that text, so the companion shows the same words. Other codes get a new Indonesian message, which replaces the companion's "Perlu diperiksa (kode: …)." fallback.
+- **Starlette's own 404 and 405** for unknown routes become `not_found` and `method_not_allowed`.
+
 Rejected:
 - Server-rendered messages only, without codes: the web would show the account's language even when the interface language differs before reconciliation, and clients could not branch on an error.
 - RFC 9457 `application/problem+json` bodies: correct, but they would change the top-level body shape that every client reads (`detail`). The chosen shape follows its spirit, with a stable code, parameters and a human message, inside `detail`, as AIP-193's `ErrorInfo` does.
@@ -108,6 +119,12 @@ Every composed text keeps its field (`prompt`, `text`, `label`, `reason`, `expla
 | Dashboard narrative and cash-flow summary | `routers/dashboard.py` | `labels.dashboard.*` |
 | Cycle summary system lines | `cycle_summary` `label`, `note` | `labels.summary.*`, `notes.summary.*` |
 | Review and waiting fallbacks | "Tanpa keterangan", "Tanpa kategori" | `labels.fallback.*` |
+| Capture moment labels and suggestion reasons (added by task 1.2) | `capture_time.moment_label`, `capture_suggestions` reasons | `labels.moment.*`, `reasons.capture.*` |
+| Habit list and habit labels (added by task 1.2) | `habit_list` "Tanpa nama toko · …", `habits` basis and labels | `labels.fallback.unnamed_merchant`, `reasons.habit.*` |
+| Calendar and observed-period labels (added by task 1.2) | `calendar`, `observed_periods` | `periods.*` |
+| Success messages of mutations (added by task 1.2) | `message` of 18 successful responses | `notices.*` |
+
+Questions, suggestion reasons and facts carry `code` and `params`. Period labels and system labels are nested renderings (a month name inside a range) or already carry their structure, so they carry no message code: a period label sits next to its window's start and end dates, and a system line keeps the `key` and `label_source` that `add-language-system` added. A client that renders periods itself uses the dates (decided during task 4.2, 2026-11-08).
 
 Questions stored in `notification_events.active_question` and `text_captures.question` are stored in the account's language at creation, like any generated text (D6). A question created before a language switch keeps its language, and so does its code.
 
@@ -121,6 +138,8 @@ Rejected:
 Notes written by templates or by the LLM ("Pindah saldo ke {account}" / "Transfer to {account}", "Pindah saldo masuk" / "Transfer in", generic descriptions, AI descriptions) are written once, in the account's language at creation, and never rewritten. Old rows stay as they are, and a language switch affects new rows only.
 
 The movement default note stays "Internal Movement" for Indonesian accounts (byte-identical) and is "Transfer" for English ones.
+
+Task 1.2 found more stored notes, which follow the same rule (`notes.*`): the transfer fee ("Biaya transfer"), the sender income notes ("Transfer masuk", "Transfer masuk dari {name}"), the recurring note ("Rutin: {plan}"), the top-up note ("Top up Investasi"), cash deposit and withdrawal ("Setor tunai", "Tarik tunai"), the stock trade notes ("Beli {lots} lot {symbol}"), the reconciliation note ("Balance Adjustment (Reconciliation)") and the investment trade note ("Investment buy"). The last two are English today and stay byte-identical for Indonesian accounts too, because changing an Indonesian account's stored wording is out of scope.
 
 ### D7. LLM output language, English evaluation first
 

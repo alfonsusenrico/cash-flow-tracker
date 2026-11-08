@@ -523,7 +523,7 @@ export function useAccountDialogs() {
       setAccError(message);
       if (/nama rekening|account name/i.test(message)) {
         document.getElementById("account-name")?.focus();
-      } else if (/kantong default|default pocket/i.test(message)) {
+      } else if (/kantong default|kantong utama|default pocket/i.test(message)) {
         document.getElementById("account-default-pocket")?.focus();
       } else if (/^kegunaan/i.test(message)) {
         document.getElementById("account-role")?.focus();
@@ -552,7 +552,7 @@ export function useAccountDialogs() {
 
   const accountNameError = /nama rekening|account name/i.test(accError) ? accError : undefined;
   const accountBalanceError = /saldo|initial_balance/i.test(accError) ? accError : undefined;
-  const defaultPocketError = /kantong default|default pocket/i.test(accError) ? accError : undefined;
+  const defaultPocketError = /kantong default|kantong utama|default pocket/i.test(accError) ? accError : undefined;
   const creditLimitError = /^limit/i.test(accError) ? accError : undefined;
   const paymentDayError = !creditLimitError && /tanggal bayar/i.test(accError) ? accError : undefined;
   const roleError = /^kegunaan/i.test(accError) ? accError : undefined;

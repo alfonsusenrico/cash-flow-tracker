@@ -13,19 +13,21 @@ from psycopg.types.json import Jsonb
 
 from app.core.config import settings
 from app.db.pool import db_conn
+from app.errors import ErrorCode, api_error
+from app.i18n import account_language, t
 from app.services.notification_application import (
     apply_broker_trade, apply_interpretation, apply_manual_resolution, classify_without_model, committed_snapshot,
 )
 from app.services.habits import basis_text, habit_applies, habit_label
 from app.services.notification_context import load_context, sanitize_text
 from app.services.notification_evidence import EvidenceError, collect_facts
-from app.services.notification_interpretation import PROMPT_VERSION
 from app.services.notification_mapping import (
     mapping_decision, mark_automatic_mapping, proposal_view, request_confirmation, store_aliases,
     supports_confirmation,
 )
 from app.services.openai_notification_provider import ProviderError, configuration_error
 from app.services.plan_occurrences import request_plan_linking
+from app.services.prompt_language import NOTIFICATION_INTERPRETATION, prompt_for_version, select_prompt
 from app.services.notification_sender import (
     accept_sender_answer, attach_sender_context, supports_sender_confirmation,
 )
@@ -100,8 +102,9 @@ def compact_result(cur, event: dict) -> dict:
                         result["question"] = question
                     basis = (event.get("interpretation") or {}).get("habit")
                     if transaction["classified_by"] == "habit" and basis:
-                        result["habit"] = {"label": habit_label(transaction["category_name"]),
-                                           "basis": basis_text(basis["agreeing"], basis["support"])}
+                        language, _region = account_language(cur, str(event["user_id"]))
+                        result["habit"] = {"label": habit_label(language, transaction["category_name"]),
+                                           "basis": basis_text(language, basis["agreeing"], basis["support"])}
     elif event.get("error_code"):
         result["error_code"] = event["error_code"]
     if status == "needs_confirmation":
@@ -148,7 +151,8 @@ def materialize_legacy_result(cur, event: dict):
         incoming = next((row for row in transactions if row.get("movement_role") == "inbound"), None)
         if outgoing and incoming:
             kind, source, target = "internal_movement", label(outgoing), label(incoming)
-    snapshot = committed_snapshot(key=key, kind=kind, description=anchor.get("notes") or "Transaksi",
+    language, _region = account_language(cur, str(event["user_id"]))
+    snapshot = committed_snapshot(key=key, kind=kind, description=anchor.get("notes") or t(language, "notes.transaction"),
                                   amount=int(anchor["amount"]), source=source, target=target)
     cur.execute(
         """UPDATE notification_events SET processing_state = 'recorded', result_key = %s,
@@ -296,6 +300,8 @@ def claim_event(*, include_ai: bool = True) -> dict | None:
             if not event:
                 return None
             token = str(uuid4())
+            # The owner's account decides the model's output language; the version records the rendering used.
+            prompt = select_prompt(NOTIFICATION_INTERPRETATION, account_language(cur, str(event["user_id"]))[0])
             cur.execute(
                 """UPDATE notification_events SET processing_state = 'processing', attempt_count = attempt_count + 1,
                    processing_generation = processing_generation + 1, lease_token = %s,
@@ -303,7 +309,7 @@ def claim_event(*, include_ai: bool = True) -> dict | None:
                    prompt_version = %s, updated_at = NOW() WHERE id = %s RETURNING *""",
                 (token, "openai" if event["processing_mode"] == "ai" else None,
                  settings.notification_ai_model if event["processing_mode"] == "ai" else None,
-                 PROMPT_VERSION, event["id"]),
+                 prompt.version, event["id"]),
             )
             claimed = cur.fetchone()
         conn.commit()
@@ -483,7 +489,7 @@ async def process_claim(event: dict, provider):
         # An unusable model answer is occasional and usually not repeated, so ask once more first.
         for _ in range(2):
             try:
-                proposal = await provider.interpret(context)
+                proposal = await provider.interpret(context, prompt=prompt_for_version(event["prompt_version"]))
                 provider_error = None
                 break
             except ProviderError as exc:
@@ -510,35 +516,29 @@ def resolve_event(event_id: str, user_id: str, resolution: dict) -> dict:
             cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s FOR UPDATE", (user_id, event_id))
             event = cur.fetchone()
             if not event:
-                raise HTTPException(status_code=404, detail="Notification event not found")
+                raise api_error(404, ErrorCode.EVENT_NOT_FOUND)
             current = compact_result(cur, event)
             if current["status"] == "recorded" and (event.get("interpretation") or {}).get("source") == "manual":
                 conn.commit()
                 return current
             if current["status"] not in {"needs_review", "failed", "needs_confirmation"}:
-                raise HTTPException(status_code=409, detail="Only unresolved notifications can be recorded manually")
+                raise api_error(409, ErrorCode.EVENT_NOT_RECORDABLE)
             facts = collect_facts(source_event(event))
             if source_pocket_gate(cur, event, facts):
-                raise HTTPException(status_code=409, detail={"code": "source_pocket_confirmation_required"})
+                raise api_error(409, ErrorCode.SOURCE_POCKET_CONFIRMATION_REQUIRED)
             facts = resolved_facts(cur, event, facts)
             amount = resolution.get("amount")
             if facts.amount is not None:
                 if amount is not None and amount != facts.amount:
-                    raise HTTPException(status_code=422, detail={
-                        "code": "conflicting_amount",
-                        "message": "Nominal harus sama dengan nominal pada notifikasi.",
-                    })
+                    raise api_error(422, ErrorCode.CONFLICTING_AMOUNT)
                 amount = facts.amount
             elif amount is None:
-                raise HTTPException(status_code=422, detail={
-                    "code": "amount_required",
-                    "message": "Notifikasi tidak memuat satu nominal yang pasti; isi nominal secara manual.",
-                })
+                raise api_error(422, ErrorCode.AMOUNT_REQUIRED)
             context = load_context(cur, user_id, facts, history_limit=settings.notification_ai_history_limit)
             if context["incomplete"]:
-                raise HTTPException(status_code=409, detail={"code": "incomplete_context", "message": "Data akun terlalu besar untuk diproses."})
+                raise api_error(409, ErrorCode.INCOMPLETE_CONTEXT)
             description = resolution.get("notes") or sanitize_text(
-                facts.parsed.counterparty or event.get("title") or "Transaksi"
+                facts.parsed.counterparty or event.get("title") or t(account_language(cur, user_id)[0], "notes.transaction")
             )[:160]
             try:
                 apply_manual_resolution(
@@ -547,7 +547,7 @@ def resolve_event(event_id: str, user_id: str, resolution: dict) -> dict:
                     description=description, kakeibo=resolution.get("kakeibo"),
                 )
             except EvidenceError as exc:
-                raise HTTPException(status_code=422, detail={"code": exc.code, "message": "Pilihan akun atau kategori tidak valid."}) from None
+                raise api_error(422, exc.code, message_key="invalid_manual_choice") from None
             cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s", (user_id, event_id))
             result = compact_result(cur, cur.fetchone())
         conn.commit()
@@ -563,15 +563,15 @@ def confirm_mapping(event_id: str, user_id: str, account_id: str, question_id: s
             cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s FOR UPDATE", (user_id, event_id))
             event = cur.fetchone()
             if not event:
-                raise HTTPException(status_code=404, detail="Notification event not found")
+                raise api_error(404, ErrorCode.EVENT_NOT_FOUND)
             if (event.get("active_question") or {}).get("type") == "source_pocket":
-                raise HTTPException(status_code=409, detail={"code": "source_pocket_confirmation_required"})
+                raise api_error(409, ErrorCode.SOURCE_POCKET_CONFIRMATION_REQUIRED)
             proposal = (event.get("interpretation") or {}).get("mapping_proposal")
             if event["processing_state"] != "needs_confirmation" or not proposal:
-                raise HTTPException(status_code=409, detail="Notifikasi ini tidak menunggu konfirmasi rekening")
+                raise api_error(409, ErrorCode.SOURCE_CONFIRMATION_NOT_PENDING)
             question = event.get("active_question") or {}
             if question_id is not None and question.get("question_id") != question_id:
-                raise HTTPException(status_code=409, detail={"code": "stale_confirmation"})
+                raise api_error(409, ErrorCode.STALE_CONFIRMATION)
             cur.execute(
                 """SELECT id, type, instrument_type FROM accounts
                    WHERE user_id = %s AND id = %s AND is_archived = FALSE""",
@@ -579,9 +579,7 @@ def confirm_mapping(event_id: str, user_id: str, account_id: str, question_id: s
             )
             account = cur.fetchone()
             if not account or account["type"] not in {"bank", "cash", "wallet", "ewallet"} or account.get("instrument_type"):
-                raise HTTPException(status_code=422, detail={
-                    "code": "invalid_account_reference", "message": "Pilih rekening atau kantong yang aktif.",
-                })
+                raise api_error(422, ErrorCode.INVALID_ACCOUNT_REFERENCE)
             store_aliases(cur, user_id, [{**proposal, "account_id": account_id}], "owner")
             mode = event["processing_mode"]
             if mode == "ai" and configuration_error(settings):
@@ -606,7 +604,7 @@ def confirm_source_pocket(event_id: str, user_id: str, answer: dict) -> dict:
             cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s FOR UPDATE", (user_id, event_id))
             event = cur.fetchone()
             if not event:
-                raise HTTPException(status_code=404, detail="Notification event not found")
+                raise api_error(404, ErrorCode.EVENT_NOT_FOUND)
             facts = collect_facts(source_event(event))
             if accept_source_answer(cur, event, facts, answer):
                 mode = event["processing_mode"]
@@ -632,7 +630,7 @@ def confirm_sender(event_id: str, user_id: str, answer: dict) -> dict:
             cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s FOR UPDATE", (user_id, event_id))
             event = cur.fetchone()
             if not event:
-                raise HTTPException(status_code=404, detail="Notification event not found")
+                raise api_error(404, ErrorCode.EVENT_NOT_FOUND)
             if accept_sender_answer(cur, event, answer):
                 mode = event["processing_mode"]
                 if mode == "ai" and configuration_error(settings):

@@ -7,7 +7,7 @@ breakdowns that add up to total outflow, and links from every figure to the ledg
 ## Requirements
 
 ### Requirement: Calendar Month Window
-Dashboard overview and analytics SHALL accept `timeframe=month`, meaning the calendar month of today shifted by `cycle_offset` months, labelled in Indonesian (for example "Oktober 2026"), compared with the previous calendar month.
+Dashboard overview and analytics SHALL accept `timeframe=month`, meaning the calendar month of today shifted by `cycle_offset` months, labelled in the account's language (for example "Oktober 2026" in Indonesian, "October 2026" in English), compared with the previous calendar month.
 
 #### Scenario: Month boundaries
 - **WHEN** the month window is computed for 10 February 2026, for 31 January 2026 with offset −1, and for 29 February 2024
@@ -17,6 +17,10 @@ Dashboard overview and analytics SHALL accept `timeframe=month`, meaning the cal
 - **GIVEN** expenses of Rp 45.000 inside last month and Rp 99.000 and Rp 11.000 one minute outside it
 - **WHEN** analytics are requested with `timeframe=month&cycle_offset=-1` and the ledger with `period=month&period_offset=-1` for that category
 - **THEN** both SHALL show only the Rp 45.000 row, with the same label.
+
+#### Scenario: English label
+- **WHEN** an English account requests analytics for February 2026
+- **THEN** the window SHALL be the same dates, labelled "February 2026"
 
 ### Requirement: Complete Category Breakdown
 Overview `categories` and analytics `category_variance` SHALL list active expense categories, archived categories with spending in the window (`is_archived: true`) and, when uncategorised spending exists, a "Tanpa kategori" bucket (`id: null`, `is_uncategorized: true`). Spending in categories reports exclude (keys `internal_movement` and `investment`, whatever the name, or excluded from budget) SHALL count neither in the breakdown nor in total outflow, so the breakdown sums to `total_outflow`.

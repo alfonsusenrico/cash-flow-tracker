@@ -87,9 +87,11 @@ def test_morning_habit_ranks_first_and_time_of_day_changes_the_order(client, own
 
     first, second = suggestions(client, morning)
     assert first == {"text": "parkir ptc 10rb", "label": "Parkir PTC", "amount": 10_000, "category_name": "Parkir",
-                     "account_name": "Tunai", "reason": "biasanya jam segini"}
+                     "account_name": "Tunai", "reason": "biasanya jam segini",
+                     "reason_code": "reasons.capture.time"}
     assert second == {"text": "kopi senja 32rb", "label": "Kopi Senja", "amount": 32_000,
-                      "category_name": "Jajan & Nongkrong", "account_name": "GoPay", "reason": "sering"}
+                      "category_name": "Jajan & Nongkrong", "account_name": "GoPay", "reason": "sering",
+                      "reason_code": "reasons.capture.frequent"}
     later = suggestions(client, afternoon)
     assert labels(later) == ["Kopi Senja", "Parkir PTC"] and later[0]["reason"] == "biasanya jam segini"
 
@@ -251,7 +253,7 @@ def test_another_owners_history_is_never_used(client, owner):
     reference = latest_past(WEEKDAYS, time(11, 0))
     foreign_user, foreign_account = str(uuid4()), str(uuid4())
     with db_conn() as conn:
-        conn.execute("INSERT INTO users (id, username, password_hash, invite_code) VALUES (%s, %s, 'synthetic-hash', 'TEST')",
+        conn.execute("INSERT INTO users (id, username, password_hash, invite_code, language) VALUES (%s, %s, 'synthetic-hash', 'TEST', 'id')",
                      (foreign_user, f"foreign_{uuid4().hex}"))
         conn.execute("INSERT INTO accounts (id, user_id, name, type, initial_balance) VALUES (%s, %s, 'Dompet', 'cash', 0)",
                      (foreign_account, foreign_user))

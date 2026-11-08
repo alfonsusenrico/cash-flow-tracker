@@ -1,12 +1,14 @@
 """Fictional fixtures only; this module has no runtime database/configuration imports."""
 
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from uuid import UUID
 
 
 FIXTURE_VERSION = "synthetic-notifications-5"
+# The same notifications with English model output expected (localize-server-text D7).
+ENGLISH_FIXTURE_VERSION = "synthetic-notifications-5-en"
 
 
 def fixture_id(number: int) -> str:
@@ -52,6 +54,8 @@ class SyntheticCase:
     event: dict
     context: dict
     expected: dict
+    # The language the prompt asks the description in; the notification text itself stays as the bank wrote it.
+    output_language: str = "id"
 
 
 def synthetic_cases() -> list[SyntheticCase]:
@@ -153,6 +157,14 @@ def synthetic_cases() -> list[SyntheticCase]:
         ))
     cases.extend(arrival_sequence_cases())
     return cases
+
+
+def english_output_cases() -> list[SyntheticCase]:
+    """Every synthetic case again, asking for an English description; facts, references and gates are unchanged."""
+    return [
+        replace(case, output_language="en", expected={**case.expected, "description_language": "en"})
+        for case in synthetic_cases()
+    ]
 
 
 SEQUENCE_START = datetime.fromisoformat("2026-09-28T10:15:27+07:00")

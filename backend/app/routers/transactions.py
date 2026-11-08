@@ -3,11 +3,13 @@ from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Query, UploadFile
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.config import settings
 from app.db.pool import db_conn
+from app.errors import ErrorCode, api_error
+from app.i18n import language_for_user, notice, t
 from app.services.auth import get_current_user
 from app.services.debt_allocations import (
     DebtAllocation,
@@ -222,7 +224,7 @@ def parse_includes(value: str | None) -> set[str]:
     parts = {part.strip() for part in value.split(",") if part.strip()}
     unknown = sorted(parts - set(LIST_INCLUDES))
     if unknown:
-        raise HTTPException(status_code=422, detail={"code": "unknown_include", "message": "Nilai include tidak dikenal.", "values": unknown})
+        raise api_error(422, ErrorCode.UNKNOWN_INCLUDE, extra={"values": unknown})
     return parts
 
 
@@ -303,12 +305,12 @@ def list_transactions(
     includes = parse_includes(include)
     payday_day = current_user.get("payday_day") or 25
     if period and (from_date or to_date):
-        raise HTTPException(status_code=422, detail={"code": "period_with_dates", "message": "Gunakan periode atau rentang tanggal, bukan keduanya."})
+        raise api_error(422, ErrorCode.PERIOD_WITH_DATES)
     if uncategorized and category_id:
-        raise HTTPException(status_code=422, detail={"code": "uncategorized_with_category", "message": "Pilih satu kategori atau tanpa kategori."})
+        raise api_error(422, ErrorCode.UNCATEGORIZED_WITH_CATEGORY)
     period_label = None
     if period:
-        from_date, to_date, _, _, period_label = get_timeframe_window(payday_day, period, cycle_offset=period_offset, user_id=user_id)
+        from_date, to_date, _, _, period_label = get_timeframe_window(payday_day, period, cycle_offset=period_offset, user_id=user_id, language=language_for_user(current_user))
     with db_conn() as conn:
         with conn.cursor() as cur:
             conditions = ["t.user_id = %s"]
@@ -388,7 +390,7 @@ def list_transactions(
             where_clause = " AND ".join(conditions)
 
             # Combined total count and cash flow summary query
-            cycle_start, cycle_end, _, _, cycle_label = get_timeframe_window(payday_day, "cycle", user_id=user_id)
+            cycle_start, cycle_end, _, _, cycle_label = get_timeframe_window(payday_day, "cycle", user_id=user_id, language=language_for_user(current_user))
 
             summary_query = f"""
                 SELECT
@@ -748,7 +750,7 @@ def resolve_effective_account(
 @router.post("")
 def create_transaction(payload: TransactionCreate, current_user: dict = Depends(get_current_user)):
     if payload.receipt_path is not None:
-        raise HTTPException(status_code=422, detail="Upload receipts through the owned transaction receipt endpoint")
+        raise api_error(422, ErrorCode.RECEIPT_UPLOAD_ENDPOINT)
     user_id = current_user["id"]
     tx_date = payload.date or datetime.now(timezone.utc)
 
@@ -778,7 +780,7 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                         "amount": existing_tx["amount"],
                         "type": existing_tx["type"],
                         "idempotent": True,
-                        "message": "Transaction already recorded (idempotent)",
+                        "message": notice("transaction_duplicate"),
                     }
 
             # Pre-fetch user accounts & categories for name resolution
@@ -809,12 +811,12 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                     if inactive_source and not inactive_source["is_archived"]:
                         matched_source = inactive_source
                 if not matched_source:
-                    raise HTTPException(status_code=404, detail="Source account not found")
+                    raise api_error(404, ErrorCode.SOURCE_ACCOUNT_NOT_FOUND)
             elif payload.account_name:
                 matched_source = resolve_account_name(payload.account_name, accounts, field="account_name")
                 account_id = str(matched_source["id"])
             else:
-                raise HTTPException(status_code=422, detail="Either account_id or account_name must be provided")
+                raise api_error(422, ErrorCode.ACCOUNT_REQUIRED)
 
             # Route to effective pocket if source is a parent account with child pockets
             effective_source = resolve_effective_account(cur, user_id, matched_source, accounts)
@@ -834,7 +836,7 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                 target_account_id = str(payload.target_account_id)
                 matched_target = next((a for a in accounts if str(a["id"]) == target_account_id), None)
                 if not matched_target:
-                    raise HTTPException(status_code=404, detail="Target account not found")
+                    raise api_error(404, ErrorCode.TARGET_ACCOUNT_NOT_FOUND)
                 effective_target = resolve_effective_account(cur, user_id, matched_target, accounts)
                 if effective_target:
                     matched_target = effective_target
@@ -856,28 +858,28 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                 )
                 category = cur.fetchone()
                 if not category:
-                    raise HTTPException(status_code=404, detail="Category not found")
+                    raise api_error(404, ErrorCode.CATEGORY_NOT_FOUND)
                 if not payload.investment_action and category["kind"] != payload.type:
-                    raise HTTPException(status_code=400, detail="Category is incompatible with transaction type")
+                    raise api_error(400, ErrorCode.CATEGORY_TYPE_MISMATCH)
             elif payload.category_name:
                 matched_cat = resolve_category_name(payload.category_name, categories, transaction_type=payload.type)
                 if not payload.investment_action and matched_cat["kind"] != payload.type:
-                    raise HTTPException(status_code=400, detail="Category is incompatible with transaction type")
+                    raise api_error(400, ErrorCode.CATEGORY_TYPE_MISMATCH)
                 category_id = str(matched_cat["id"])
 
             if not payload.investment_action and (payload.target_account_id or payload.target_account_name):
-                raise HTTPException(status_code=400, detail="A target account is only valid for an investment trade")
+                raise api_error(400, ErrorCode.TARGET_ACCOUNT_TRADE_ONLY)
             if not payload.investment_action and (
                 matched_source.get("type") == "investment" or matched_source.get("instrument_type")
             ):
-                raise HTTPException(status_code=422, detail="Investment positions can only be changed through a Beli/Jual trade")
+                raise api_error(422, ErrorCode.INVESTMENT_TRADE_REQUIRED)
 
             # Validate goal if provided
             goal_id = str(payload.goal_id) if payload.goal_id else None
             if goal_id:
                 cur.execute("SELECT id FROM goals WHERE user_id = %s AND id = %s AND is_archived = FALSE", (user_id, goal_id))
                 if not cur.fetchone():
-                    raise HTTPException(status_code=404, detail="Goal not found")
+                    raise api_error(404, ErrorCode.GOAL_NOT_FOUND)
 
             # Validate obligation if provided
             obligation_id = str(payload.obligation_id) if payload.obligation_id else None
@@ -894,7 +896,7 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
             if obligation_id:
                 cur.execute("SELECT id FROM obligations WHERE user_id = %s AND id = %s AND is_archived = FALSE AND remaining_amount > 0", (user_id, obligation_id))
                 if not cur.fetchone():
-                    raise HTTPException(status_code=404, detail="Obligation not found")
+                    raise api_error(404, ErrorCode.OBLIGATION_NOT_FOUND)
 
             # Determine kakeibo_type
             kakeibo_val = payload.kakeibo_type
@@ -920,20 +922,17 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
 
             if payload.investment_action:
                 if payload.merchant or payload.review_status or payload.offset_category_id:
-                    raise HTTPException(
-                        status_code=422,
-                        detail="Merchant, review status and offset category are not supported for investment trades",
-                    )
+                    raise api_error(422, ErrorCode.TRADE_FIELDS_NOT_ALLOWED)
                 if target_account_id is None:
-                    raise HTTPException(status_code=400, detail="Investment trades require a target account")
+                    raise api_error(400, ErrorCode.TRADE_TARGET_REQUIRED)
                 if account_id == target_account_id:
-                    raise HTTPException(status_code=400, detail="Funding and investment accounts must be different")
+                    raise api_error(400, ErrorCode.DISTINCT_ACCOUNTS_REQUIRED)
 
                 trade_units = float(payload.units or 0)
                 trade_price = float(payload.price_per_unit or 0)
                 expected_amount = int(round(trade_units * trade_price))
                 if expected_amount <= 0 or expected_amount != payload.amount:
-                    raise HTTPException(status_code=400, detail="Trade amount must equal units multiplied by price per unit")
+                    raise api_error(400, ErrorCode.TRADE_AMOUNT_MISMATCH)
 
                 if payload.investment_action == "buy":
                     funding_id = account_id
@@ -946,25 +945,17 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                 funding = locked[funding_id]
                 position = locked[position_id]
                 if position.get("investment_tracking_mode") == "amount":
-                    raise HTTPException(status_code=409, detail={"code": "amount_product_trade_not_supported"})
+                    raise api_error(409, ErrorCode.AMOUNT_PRODUCT_TRADE_NOT_SUPPORTED)
                 ensure_not_credit(funding)
                 if funding.get("type") not in {"cash", "bank", "wallet", "ewallet"} or funding.get("instrument_type"):
-                    raise HTTPException(status_code=400, detail="Funding account must be a liquid account")
+                    raise api_error(400, ErrorCode.FUNDING_NOT_LIQUID)
                 if position.get("type") != "investment" and not position.get("instrument_type"):
-                    raise HTTPException(status_code=400, detail="Position account must be an investment account")
+                    raise api_error(400, ErrorCode.POSITION_NOT_INVESTMENT)
 
                 old_units = float(position.get("units") or 0)
                 old_avg = float(position.get("avg_buy_price") or 0)
                 if payload.investment_action == "sell" and trade_units > old_units:
-                    raise HTTPException(
-                        status_code=409,
-                        detail={
-                            "code": "insufficient_units",
-                            "required_units": trade_units,
-                            "available_units": old_units,
-                            "account_id": position_id,
-                        },
-                    )
+                    raise api_error(409, ErrorCode.INSUFFICIENT_UNITS, {"required_units": trade_units, "available_units": old_units}, extra={"required_units": trade_units, "available_units": old_units, "account_id": position_id})
 
                 from app.routers.movements import _ensure_internal_movement_categories
                 from app.services.ledger_mutations import create_bilateral_movement
@@ -978,7 +969,7 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                     source_id=source_id,
                     target_id=destination_id,
                     amount=payload.amount,
-                    notes=payload.notes or f"Investment {payload.investment_action}",
+                    notes=payload.notes or t(language_for_user(current_user), "notes.investment_trade", action=payload.investment_action),
                     tx_date=tx_date,
                     expense_category_id=expense_category_id,
                     income_category_id=income_category_id,
@@ -1006,11 +997,11 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                     "ok": True,
                     "transaction_id": result["expense_transaction_id"],
                     **result,
-                    "message": "Investment trade recorded successfully",
+                    "message": notice("trade_recorded"),
                 }
 
             if payload.target_account_id or payload.target_account_name:
-                raise HTTPException(status_code=400, detail="Use the movement endpoint for account transfers")
+                raise api_error(400, ErrorCode.MOVEMENT_ENDPOINT_REQUIRED)
 
             offset_category_id = str(payload.offset_category_id) if payload.offset_category_id else None
             if offset_category_id:
@@ -1112,7 +1103,7 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
         "ok": True,
         "transaction_id": str(created["id"]),
         "over_limit": credit_over_limit,
-        "message": "Transaction recorded successfully",
+        "message": notice("transaction_recorded"),
     }
 
 
@@ -1165,7 +1156,7 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
             )
             r = cur.fetchone()
             if not r:
-                raise HTTPException(status_code=404, detail="Transaction not found")
+                raise api_error(404, ErrorCode.TRANSACTION_NOT_FOUND)
             allocation_breakdowns = load_allocation_breakdowns(cur, [r])
             origin = load_origin(cur, user_id, tid, r.get("movement_id"))
             credit_block = load_credit_blocks(cur, user_id, [r], with_installments=True)[tid]
@@ -1259,11 +1250,11 @@ def update_transaction(
             )
             old_tx = cur.fetchone()
             if not old_tx:
-                raise HTTPException(status_code=404, detail="Transaction not found")
+                raise api_error(404, ErrorCode.TRANSACTION_NOT_FOUND)
             if payload.model_fields_set == {"review_status"}:
                 return mark_review_status(conn, cur, user_id, tid, payload.review_status)
             if old_tx.get("movement_id"):
-                raise HTTPException(status_code=409, detail="Linked movements must be edited through the movement endpoint")
+                raise api_error(409, ErrorCode.LINKED_MOVEMENT_ENDPOINT)
             old_allocation_rows = load_allocation_rows(cur, tid)
             old_allocations = [
                 (str(row["obligation_id"]), int(row["amount"]))
@@ -1281,7 +1272,7 @@ def update_transaction(
                 user_accounts = cur.fetchall()
                 target_acc = next((a for a in user_accounts if str(a["id"]) == new_acc_id_str), None)
                 if not target_acc:
-                    raise HTTPException(status_code=404, detail="Account not found")
+                    raise api_error(404, ErrorCode.ACCOUNT_NOT_FOUND)
                 effective_acc = resolve_effective_account(cur, user_id, target_acc, user_accounts)
                 new_account_id = str(effective_acc["id"]) if effective_acc else new_acc_id_str
             else:
@@ -1308,10 +1299,7 @@ def update_transaction(
                 new_obligation_id = str(old_tx["obligation_id"]) if old_tx["obligation_id"] else None
 
             if allocation_field_set and payload.obligation_allocations is None:
-                raise HTTPException(
-                    status_code=422,
-                    detail={"code": "invalid_debt_allocations", "message": "Kirim daftar pembagian tagihan atau daftar kosong untuk menghapusnya."},
-                )
+                raise api_error(422, ErrorCode.INVALID_DEBT_ALLOCATIONS)
             if allocation_field_set:
                 requested_allocations = payload.obligation_allocations
             elif legacy_field_set:
@@ -1414,17 +1402,17 @@ def update_transaction(
                 )
                 category = cur.fetchone()
                 if not category:
-                    raise HTTPException(status_code=404, detail="Category not found")
+                    raise api_error(404, ErrorCode.CATEGORY_NOT_FOUND)
                 if category["kind"] != new_type:
-                    raise HTTPException(status_code=400, detail="Category is incompatible with transaction type")
+                    raise api_error(400, ErrorCode.CATEGORY_TYPE_MISMATCH)
             if new_goal_id:
                 cur.execute("SELECT id FROM goals WHERE user_id = %s AND id = %s AND is_archived = FALSE", (user_id, new_goal_id))
                 if not cur.fetchone() and new_goal_id != (str(old_tx["goal_id"]) if old_tx.get("goal_id") else None):
-                    raise HTTPException(status_code=404, detail="Goal not found")
+                    raise api_error(404, ErrorCode.GOAL_NOT_FOUND)
             if new_obligation_id:
                 cur.execute("SELECT id FROM obligations WHERE user_id = %s AND id = %s AND is_archived = FALSE AND remaining_amount > 0", (user_id, new_obligation_id))
                 if not cur.fetchone() and new_obligation_id != (str(old_tx["obligation_id"]) if old_tx.get("obligation_id") else None):
-                    raise HTTPException(status_code=404, detail="Obligation not found")
+                    raise api_error(404, ErrorCode.OBLIGATION_NOT_FOUND)
                 if is_credit(locked_account):
                     raise refuse("credit_account_not_allowed")
 
@@ -1434,15 +1422,7 @@ def update_transaction(
                     if old_tx["type"] == "expense" and str(old_tx["account_id"]) == new_account_id:
                         available += int(old_tx["amount"])
                     if available < new_amount:
-                        raise HTTPException(
-                            status_code=409,
-                            detail={
-                                "code": "insufficient_funds",
-                                "required_amount": new_amount,
-                                "available_amount": available,
-                                "account_id": new_account_id,
-                            },
-                        )
+                        raise api_error(409, ErrorCode.INSUFFICIENT_FUNDS, {"required_amount": new_amount, "available_amount": available}, extra={"required_amount": new_amount, "available_amount": available, "account_id": new_account_id})
 
             new_category_pillar = old_tx.get("category_kakeibo_type")
             if new_category_id != (str(old_tx["category_id"]) if old_tx["category_id"] else None):
@@ -1566,7 +1546,7 @@ def update_transaction(
             conn.commit()
 
     request_plan_linking(user_id)
-    return {"ok": True, "message": "Transaction updated successfully", "credit_terms_reset": credit_terms_reset}
+    return {"ok": True, "message": notice("transaction_updated"), "credit_terms_reset": credit_terms_reset}
 
 
 def classification_change(old_tx: dict[str, Any], new_values: dict[str, Any]) -> bool:
@@ -1590,13 +1570,13 @@ def classification_change(old_tx: dict[str, Any], new_values: dict[str, Any]) ->
 def mark_review_status(conn, cur, user_id: str, transaction_id: str, review_status: str | None) -> dict[str, Any]:
     """Review action: confirms or flags the current classification without changing it."""
     if review_status is None:
-        raise HTTPException(status_code=422, detail="review_status must be reviewed or needs_review")
+        raise api_error(422, ErrorCode.INVALID_REVIEW_STATUS)
     cur.execute(
         "UPDATE transactions SET review_status = %s, updated_at = NOW() WHERE user_id = %s AND id = %s",
         (review_status, user_id, transaction_id),
     )
     conn.commit()
-    return {"ok": True, "message": "Transaction review status updated", "review_status": review_status}
+    return {"ok": True, "message": notice("review_status_updated"), "review_status": review_status}
 
 
 @router.delete("/{transaction_id}")
@@ -1610,7 +1590,7 @@ def delete_transaction(transaction_id: UUID, current_user: dict = Depends(get_cu
 
     remove_receipt_file(tx.get("receipt_path"))
 
-    return {"ok": True, "message": "Transaction deleted"}
+    return {"ok": True, "message": notice("transaction_deleted")}
 
 
 @router.post("/{transaction_id}/receipt")
@@ -1628,7 +1608,7 @@ async def upload_receipt(
                 (tid, user_id),
             )
             if not cur.fetchone():
-                raise HTTPException(status_code=404, detail="Transaction not found")
+                raise api_error(404, ErrorCode.TRANSACTION_NOT_FOUND)
 
     max_bytes = max(1, settings.receipt_max_mb) * 1024 * 1024
     chunks = []
@@ -1640,10 +1620,7 @@ async def upload_receipt(
         chunks.append(chunk)
         total_bytes += len(chunk)
     if total_bytes > max_bytes:
-        raise HTTPException(
-            status_code=413,
-            detail=f"Receipt file too large (max {settings.receipt_max_mb}MB)",
-        )
+        raise api_error(413, ErrorCode.RECEIPT_TOO_LARGE, {"max_mb": settings.receipt_max_mb})
     content = b"".join(chunks)
     prepared = prepare_receipt_payload(
         raw=content,
@@ -1666,14 +1643,14 @@ async def upload_receipt(
                 )
                 owned_transaction = cur.fetchone()
                 if not owned_transaction:
-                    raise HTTPException(status_code=404, detail="Transaction not found")
+                    raise api_error(404, ErrorCode.TRANSACTION_NOT_FOUND)
                 store_receipt(rel_path, prepared.content)
                 cur.execute(
                     "UPDATE transactions SET receipt_path = %s, updated_at = NOW() WHERE id = %s AND user_id = %s RETURNING id",
                     (rel_path, tid, user_id),
                 )
                 if not cur.fetchone():
-                    raise HTTPException(status_code=404, detail="Transaction not found")
+                    raise api_error(404, ErrorCode.TRANSACTION_NOT_FOUND)
                 conn.commit()
     except Exception:
         remove_receipt_file(rel_path)
@@ -1681,4 +1658,4 @@ async def upload_receipt(
 
     remove_receipt_file(owned_transaction.get("receipt_path"))
 
-    return {"ok": True, "receipt_path": rel_path, "message": "Receipt uploaded successfully"}
+    return {"ok": True, "receipt_path": rel_path, "message": notice("receipt_uploaded")}

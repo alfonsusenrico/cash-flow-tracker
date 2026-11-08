@@ -1,0 +1,65 @@
+{
+ "differing": 0,
+ "scenes": {
+  "beranda": {
+   "lang": {
+    "en": "en",
+    "id": "id"
+   },
+   "steps": {
+    "en": [],
+    "id": []
+   },
+   "figures": 42,
+   "money": 25,
+   "same": true,
+   "moneyByteIdentical": true
+  },
+  "rincian": {
+   "lang": {
+    "en": "en",
+    "id": "id"
+   },
+   "steps": {
+    "en": [
+     "clicked"
+    ],
+    "id": [
+     "clicked"
+    ]
+   },
+   "figures": 12,
+   "money": 10,
+   "same": true,
+   "moneyByteIdentical": true
+  },
+  "rincian-lines-open": {
+   "lang": {
+    "en": "en",
+    "id": "id"
+   },
+   "steps": {
+    "en": [
+     "clicked",
+     "clicked",
+     "clicked",
+     "clicked",
+     "clicked",
+     "clicked"
+    ],
+    "id": [
+     "clicked",
+     "clicked",
+     "clicked",
+     "clicked",
+     "clicked",
+     "clicked"
+    ]
+   },
+   "figures": 43,
+   "money": 35,
+   "same": true,
+   "moneyByteIdentical": true
+  }
+ }
+}

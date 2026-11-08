@@ -4,8 +4,8 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
-from fastapi import HTTPException
 
+from app.errors import ErrorCode, api_error
 from app.services.account_roles import TABUNGAN
 from app.services.debt_allocations import load_allocation_rows, lock_debts, reverse_allocations
 from app.services.provenance import Provenance
@@ -42,7 +42,7 @@ def lock_owned_accounts(
     rows = cur.fetchall()
     accounts = {str(row["id"]): row for row in rows}
     if len(accounts) != len(ordered_ids):
-        raise HTTPException(status_code=404, detail="Account not found")
+        raise api_error(404, ErrorCode.ACCOUNT_NOT_FOUND)
     return accounts
 
 
@@ -69,7 +69,7 @@ def get_locked_ledger_balance(
     )
     row = cur.fetchone()
     if not row:
-        raise HTTPException(status_code=404, detail="Account not found")
+        raise api_error(404, ErrorCode.ACCOUNT_NOT_FOUND)
     return int(row["balance"] or 0)
 
 
@@ -90,15 +90,7 @@ def ensure_sufficient_funds(
         exclude_movement_id=exclude_movement_id,
     )
     if available < required:
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "code": "insufficient_funds",
-                "required_amount": required,
-                "available_amount": available,
-                "account_id": str(account["id"]),
-            },
-        )
+        raise api_error(409, ErrorCode.INSUFFICIENT_FUNDS, {"required_amount": required, "available_amount": available}, extra={"required_amount": required, "available_amount": available, "account_id": str(account['id'])})
     return available
 
 
@@ -111,16 +103,10 @@ def ensure_generic_movement_accounts(
         for account in (source_account, target_account)
     )
     if investment_position:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": "investment_trade_required",
-                "message": "Investment positions can only be changed through a Beli/Jual trade.",
-            },
-        )
+        raise api_error(422, ErrorCode.INVESTMENT_TRADE_REQUIRED)
     if source_account.get("type") == "credit" and target_account.get("type") == "credit":
         # A payment or an advance moves cash; one credit account cannot pay another (add-credit-accounts D6).
-        raise HTTPException(status_code=422, detail={"code": "credit_movement_needs_cash"})
+        raise api_error(422, ErrorCode.CREDIT_MOVEMENT_NEEDS_CASH)
 
 
 def is_savings_destination(account: dict[str, Any]) -> bool:
@@ -168,7 +154,7 @@ def create_bilateral_movement(
     provenance: Provenance,
 ) -> dict[str, str]:
     if source_id == target_id:
-        raise HTTPException(status_code=400, detail="Source and target accounts must be different")
+        raise api_error(400, ErrorCode.SAME_ACCOUNT)
     if is_investment_topup:
         from app.services.investment_topups import validate_topup_accounts
 
@@ -233,9 +219,9 @@ def delete_transaction_rows(cur, user_id: str, transaction_id: str) -> dict[str,
     )
     tx = cur.fetchone()
     if not tx:
-        raise HTTPException(status_code=404, detail="Transaction not found")
+        raise api_error(404, ErrorCode.TRANSACTION_NOT_FOUND)
     if tx.get("movement_id"):
-        raise HTTPException(status_code=409, detail="Linked movements must be deleted through the movement endpoint")
+        raise api_error(409, ErrorCode.LINKED_MOVEMENT_ENDPOINT)
 
     allocation_rows = load_allocation_rows(cur, transaction_id)
     allocations = [
@@ -285,7 +271,7 @@ def delete_movement_rows(cur, user_id: str, movement_id: str) -> None:
         (user_id, movement_id),
     )
     if len(cur.fetchall()) != 2:
-        raise HTTPException(status_code=404, detail="Movement not found")
+        raise api_error(404, ErrorCode.MOVEMENT_NOT_FOUND)
     cur.execute(
         """DELETE FROM transactions
            WHERE user_id = %s AND fee_for_movement_id = %s AND movement_id IS NULL AND type = 'expense'""",

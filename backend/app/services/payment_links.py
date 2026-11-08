@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 from fastapi import HTTPException
 
 from app.core.config import settings
+from app.errors import ErrorCode, api_error
 from app.services.debt_allocations import apply_allocations, lock_debts, validate_debt_capacity
 
 CANDIDATE_WINDOW_DAYS = 7
@@ -21,8 +22,8 @@ CANDIDATE_LIMIT = 10
 OBLIGATION_CANDIDATE_DAYS = 45
 
 
-def _conflict(code: str, message: str, **extra: Any) -> HTTPException:
-    return HTTPException(status_code=409, detail={"code": code, "message": message, **extra})
+def _conflict(code: str, **extra: Any) -> HTTPException:
+    return api_error(409, code, extra=extra)
 
 
 def _local_start(day: date) -> datetime:
@@ -43,7 +44,7 @@ def lock_payment(cur, user_id: str, transaction_id: str) -> dict[str, Any]:
     )
     row = cur.fetchone()
     if not row:
-        raise HTTPException(status_code=404, detail={"code": "transaction_not_found", "message": "Transaksi tidak ditemukan."})
+        raise api_error(404, ErrorCode.TRANSACTION_NOT_FOUND)
     return row
 
 
@@ -55,10 +56,7 @@ def link_payment_to_obligation(cur, user_id: str, transaction: dict[str, Any], o
         or transaction["fee_for_movement_id"] is not None
         or transaction["account_type"] in {"investment", "credit"}
     ):
-        raise HTTPException(
-            status_code=422,
-            detail={"code": "invalid_debt_payment", "message": "Hanya pengeluaran biasa yang dapat dikaitkan ke tagihan."},
-        )
+        raise api_error(422, ErrorCode.INVALID_DEBT_PAYMENT)
     transaction_id = str(transaction["id"])
     cur.execute(
         "SELECT obligation_id, amount FROM transaction_obligation_allocations WHERE transaction_id = %s",
@@ -69,7 +67,7 @@ def link_payment_to_obligation(cur, user_id: str, transaction: dict[str, Any], o
     if legacy_link == obligation_id or allocations.get(obligation_id) == int(transaction["amount"]):
         return False
     if legacy_link or allocations:
-        raise _conflict("transaction_already_linked", "Transaksi ini sudah dikaitkan ke tagihan lain.")
+        raise _conflict("transaction_already_linked")
     amount = int(transaction["amount"])
     debts = lock_debts(cur, user_id, [obligation_id])
     validate_debt_capacity(debts, [(obligation_id, amount)])

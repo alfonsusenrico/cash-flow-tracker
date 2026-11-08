@@ -1,0 +1,17 @@
+{
+  "status": 422,
+  "content_language": "id",
+  "body": {
+    "detail": [
+      {
+        "type": "missing",
+        "loc": [
+          "body",
+          "account_id"
+        ],
+        "msg": "Field required",
+        "input": {}
+      }
+    ]
+  }
+}

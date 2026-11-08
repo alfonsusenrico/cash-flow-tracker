@@ -12,6 +12,8 @@ from typing import Any
 
 from fastapi import HTTPException
 
+from app.errors import api_error
+
 CANDIDATE_LIMIT = 5
 # Below this similarity a name is not offered as a candidate for an unknown name.
 CANDIDATE_MIN_SIMILARITY = 0.6
@@ -56,10 +58,11 @@ def _closest(wanted: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [row for _, _, row in scored[:CANDIDATE_LIMIT]]
 
 
-def _unresolved(code: str, field: str, reason: str, message: str, candidates: list[dict[str, Any]]) -> HTTPException:
-    return HTTPException(
-        status_code=422,
-        detail={"code": code, "field": field, "reason": reason, "message": message, "candidates": candidates[:CANDIDATE_LIMIT]},
+def _unresolved(code: str, field: str, reason: str, candidates: list[dict[str, Any]]) -> HTTPException:
+    # Each reason keeps its own message: `account_name_ambiguous`, `category_name_not_found` and so on.
+    return api_error(
+        422, code, extra={"field": field, "reason": reason, "candidates": candidates[:CANDIDATE_LIMIT]},
+        message_key=f"{code.removesuffix('_unresolved')}_{reason}",
     )
 
 
@@ -84,12 +87,10 @@ def resolve_account_name(raw_name: str, accounts: list[dict[str, Any]], *, field
         ordered = pockets + [account for account in matches if not account.get("parent_id")]
         raise _unresolved(
             "account_name_unresolved", field, "ambiguous",
-            "Nama rekening cocok dengan lebih dari satu rekening. Kirim ID rekening.",
             [_account_candidate(account, accounts) for account in ordered],
         )
     raise _unresolved(
         "account_name_unresolved", field, "not_found",
-        "Rekening dengan nama ini tidak ditemukan. Gunakan nama persis atau ID rekening.",
         [_account_candidate(account, accounts) for account in _closest(wanted, accounts)],
     )
 
@@ -117,11 +118,9 @@ def resolve_category_name(
     if matches:
         raise _unresolved(
             "category_name_unresolved", field, "ambiguous",
-            "Nama kategori cocok dengan lebih dari satu kategori. Kirim ID kategori.",
             [_category_candidate(category) for category in matches],
         )
     raise _unresolved(
         "category_name_unresolved", field, "not_found",
-        "Kategori dengan nama ini tidak ditemukan. Gunakan nama persis atau ID kategori.",
         [_category_candidate(category) for category in _closest(wanted, categories)],
     )
