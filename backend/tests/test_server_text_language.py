@@ -677,3 +677,42 @@ def test_period_label_for_an_english_account(browser):
     month = datetime.now(timezone.utc).astimezone(ZoneInfo(settings.tz))
     assert body["label"] == f"{t('en', f'periods.month.{month.month}')} {month.year}"
     assert {"start_date", "end_date"} <= set(body["current"])
+
+
+def evidence_codes() -> set[str]:
+    """Codes a notification refusal can carry: EvidenceError literals and the evidence module's error codes."""
+    codes = set()
+    for path in python_sources():
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and call_name(node) == "EvidenceError":
+                for arg in node.args:
+                    # `EvidenceError("code")` and a fallback such as `EvidenceError(found or "code")`.
+                    for item in arg.values if isinstance(arg, ast.BoolOp) else [arg]:
+                        if isinstance(item, ast.Constant) and isinstance(item.value, str):
+                            codes.add(item.value)
+            if path.name == "notification_evidence.py" and isinstance(node, ast.Assign):
+                if any(isinstance(target, ast.Name) and target.id == "error" for target in node.targets):
+                    codes |= {item.value for item in ast.walk(node.value)
+                              if isinstance(item, ast.Constant) and isinstance(item.value, str)}
+            if isinstance(node, ast.keyword) and node.arg == "error_code" and isinstance(node.value, ast.Constant):
+                if isinstance(node.value.value, str):
+                    codes.add(node.value.value)
+    return codes
+
+
+def test_every_notification_refusal_code_is_an_error_code():
+    """`api_error(422, exc.code)` re-raises evidence codes, so each must be a contract code (else a 500)."""
+    found = evidence_codes()
+    assert {"direction_unproven", "ambiguous_amount", "unsupported_seen_twice", "legacy_review_required",
+            "model_uncertain"} <= found
+    assert found - error_codes() == set()
+
+
+def test_settings_change_answers_in_the_new_language(browser):
+    session = browser("id")
+    response = session.patch("/api/auth/settings", json={"language": "en", "payday_day": 25})
+    assert response.status_code == 200, response.text
+    assert response.headers["content-language"] == "en"
+    assert response.json()["deprecations"][0]["message"] == (
+        "A fixed payday no longer sets the cycle. Confirm the received salary in Settings.")

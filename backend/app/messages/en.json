@@ -282,7 +282,20 @@
     "device_health_rate_limited": "Too many status reports. Try again later.",
     "test_session_not_found": "The test session was not found.",
     "test_session_open": "A test session is already running.",
-    "movement_pairing_configuration_invalid": "Transfer pairing is not configured correctly."
+    "movement_pairing_configuration_invalid": "Transfer pairing is not configured correctly.",
+    "ambiguous_amount": "The notification holds more than one amount, such as a fee and a total. Enter the right amount and record it manually.",
+    "conflicting_mobile_amount": "The amount the phone read differs from the server's. Check the amount and record it manually.",
+    "conflicting_mobile_direction": "The direction the phone read differs from the server's. Check it and record it manually.",
+    "direction_unproven": "The notification is not clear enough to record automatically. Check the amount and direction, then record it manually.",
+    "legacy_review_required": "This older notification arrived before the current processing. Check it and record it manually if it is missing.",
+    "message_too_large": "The notification is not clear enough to record automatically. Check the amount and direction, then record it manually.",
+    "missing_amount": "The notification has no amount. Enter the amount and record it manually if this is a transaction.",
+    "settlement_unproven": "The notification does not say the transaction succeeded. Record it manually only if it happened.",
+    "timestamp_timezone_required": "The notification is not clear enough to record automatically. Check the amount and direction, then record it manually.",
+    "uncertain_mapping": "The account or category could not be determined automatically. Choose them and record it manually.",
+    "unsafe_instructions": "The notification holds suspicious text, so it was not processed automatically. Check it and record it manually if it is right.",
+    "unsupported_currency": "Currencies other than rupiah are not supported yet. Record it manually in rupiah if needed.",
+    "model_uncertain": "The automatic interpreter is not sure about this notification. Retry, or choose the account and category and record it manually."
   },
   "error_messages": {
     "product_not_found": "Product not found.",
