@@ -44,6 +44,8 @@ export function createFormat({ language, region, currency = "IDR", rate }: Forma
   const longDay = dayFormat({ day: "numeric", month: "long" });
   const weekdayDay = dayFormat({ weekday: "long", day: "numeric", month: "long" });
   const monthName = dayFormat({ month: "long" });
+  const shortMonth = dayFormat({ month: "short" });
+  const weekdayShort = dayFormat({ weekday: "short" });
   const monthYear = dayFormat({ month: "long", year: "numeric" });
   const shortMonthYear = dayFormat({ month: "short", year: "numeric" });
   const weekdayInstant = zoneFormat({ weekday: "long", day: "numeric", month: "long" });
@@ -86,6 +88,10 @@ export function createFormat({ language, region, currency = "IDR", rate }: Forma
     weekdayDate: (iso: string) => weekdayDay.format(calendarDay(iso)),
     /** The month's name of a calendar date. */
     monthName: (iso: string) => monthName.format(calendarDay(iso)),
+    /** "Sen" (ID) or "Mon" (EN) for a calendar date. */
+    weekdayShort: (iso: string) => weekdayShort.format(calendarDay(iso)),
+    /** "Agu" (ID) or "Aug" (EN) for a calendar date. */
+    shortMonth: (iso: string) => shortMonth.format(calendarDay(iso)),
     /** "November 2026" for a calendar date. */
     monthYear: (iso: string) => monthYear.format(calendarDay(iso)),
     /** "Nov 2026" for a calendar date. */
@@ -109,6 +115,33 @@ export function createFormat({ language, region, currency = "IDR", rate }: Forma
     },
     /** "18.23" (ID) or "6:23 PM" (US) for an instant in the app's time zone. */
     time: (value: Date | string) => clock.format(instant(value)),
+    /**
+     * A short amount for a calendar cell or a chart tick (apply-markas-analisis D22): "79rb", "1,3jt" in Indonesian,
+     * "79K", "1.3M" in English, the decimal mark by region. `narrow` drops the decimal ("1jt") for a 45 px cell;
+     * `hidden` returns the mask "••" while balances are hidden. The USD display converts first and writes "$1.3K".
+     */
+    compactMoney(amountInIdr: number, { narrow = false, hidden = false }: { narrow?: boolean; hidden?: boolean } = {}): string {
+      if (hidden) return "••";
+      const usd = currency === "USD";
+      const value = usd ? amountInIdr / ((rate ?? getCurrencyConfig().rate) || 16500) : amountInIdr;
+      const sign = value < 0 ? "-" : "";
+      const units = usd || language === "en" ? ["K", "M", "B"] : ["rb", "jt", "M"];
+      const prefix = usd ? "$" : "";
+      // The USD display keeps en-US digits, as `money` does.
+      const marks = usd ? "en-US" : digits;
+      let scaled = Math.abs(value);
+      let step = -1;
+      // Step up while the rounded figure would read 1000 of the unit, so 999.600 reads "1jt", never "1000rb".
+      while (step < units.length - 1 && Math.round(scaled) >= 1000) {
+        scaled /= 1000;
+        step += 1;
+      }
+      if (step < 0) return `${sign}${prefix}${Math.round(scaled).toLocaleString(marks)}`;
+      // One decimal below 10 of a unit ("1,3jt", "1,5rb"); whole units above it ("81rb", "12jt").
+      const decimals = narrow || scaled >= 10 ? 0 : 1;
+      const text = scaled.toLocaleString(marks, { maximumFractionDigits: decimals });
+      return `${sign}${prefix}${text}${units[step]}`;
+    },
   };
 }
 

@@ -93,3 +93,34 @@ describe("amount input grouping", () => {
     expect(groupDigits("abc", "ID")).toBe("");
   });
 });
+
+describe("compactMoney (apply-markas-analisis D22)", () => {
+  const idID = createFormat({ language: "id", region: "ID" });
+  const enID = createFormat({ language: "en", region: "ID" });
+  const enUS = createFormat({ language: "en", region: "US" });
+
+  it("writes thousands and millions short in each language", () => {
+    expect(idID.compactMoney(80_500)).toBe("81rb");
+    expect(enID.compactMoney(80_500)).toBe("81K");
+    expect(idID.compactMoney(1_303_500)).toBe("1,3jt");
+    expect(enUS.compactMoney(1_303_500)).toBe("1.3M");
+    expect(enID.compactMoney(1_303_500)).toBe("1,3M");
+    expect(idID.compactMoney(1_000_000)).toBe("1jt");
+    expect(enID.compactMoney(1_000_000)).toBe("1M");
+    expect(idID.compactMoney(999_600)).toBe("1jt");
+    expect(idID.compactMoney(500)).toBe("500");
+    expect(idID.compactMoney(1_234_567_890)).toBe("1,2M");
+    expect(enUS.compactMoney(1_234_567_890)).toBe("1.2B");
+  });
+
+  it("drops the decimal in the narrow form and masks hidden amounts", () => {
+    expect(idID.compactMoney(1_303_500, { narrow: true })).toBe("1jt");
+    expect(idID.compactMoney(1_303_500, { hidden: true })).toBe("••");
+  });
+
+  it("converts the USD display before shortening", () => {
+    const usd = createFormat({ language: "id", region: "ID", currency: "USD", rate: 1000 });
+    expect(usd.compactMoney(1_300_000)).toBe("$1.3K");
+    expect(usd.compactMoney(50_000)).toBe("$50");
+  });
+});

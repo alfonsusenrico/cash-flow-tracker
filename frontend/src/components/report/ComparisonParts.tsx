@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { compactMoney } from "@/components/analysis/format";
+import { useAppCtx } from "@/components/layout/AppLayout";
+import { createFormat, useRegion } from "@/lib/format";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { Card, CardHeader } from "@/components/workspace/primitives";
 import { kakeiboBucketInfo } from "@/lib/kakeibo";
@@ -196,6 +197,9 @@ const STACK_ORDER = ["need", "want", "culture", "unexpected", "unclassified"] as
 /** "Pengeluaran per bulan": stacked pillar bars, the viewed period outlined, the running one marked (D8, OD93). */
 export function MonthlyHistory({ comparison, money, basis }: { comparison: ReportComparison; money: Money; basis: ReportBasis }) {
   const history = comparison.history;
+  // Laporan stays Indonesian until phase 7, so its short amounts keep Indonesian units ("1,2jt", never "1.2M").
+  const format = createFormat({ language: "id", region: useRegion() });
+  const { hideBalances } = useAppCtx();
   if (history.length === 0) return null;
   const peak = Math.max(1, ...history.map((item) => item.spending));
   const unit = basis === "cycle" ? "siklus" : "bulan";
@@ -206,7 +210,7 @@ export function MonthlyHistory({ comparison, money, basis }: { comparison: Repor
       <div className={styles.bars} aria-hidden="true">
         {history.map((item) => (
           <div key={item.start} className={styles.bar}>
-            <span className={styles.barValue}>{compactMoney(item.spending, money)}</span>
+            <span className={styles.barValue}>{format.compactMoney(item.spending, { hidden: hideBalances })}</span>
             <div
               className={styles.barStack}
               data-viewed={item.viewed}

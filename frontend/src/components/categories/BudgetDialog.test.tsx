@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";
-import { BudgetEditorDialog } from "./BudgetPanel";
+import { BudgetDialog } from "./BudgetDialog";
 
 vi.mock("@/lib/api", () => ({ api: { get: vi.fn(), patch: vi.fn() } }));
 vi.mock("@/components/layout/AppLayout", () => ({
@@ -22,7 +22,7 @@ describe("budget editor", () => {
     vi.mocked(api.get).mockResolvedValue({ categories });
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <BudgetEditorDialog open onClose={() => {}} />
+        <BudgetDialog open onClose={() => {}} />
       </QueryClientProvider>,
     );
     expect(await screen.findByLabelText("Makanan & Minuman")).toHaveValue("1.500.000");

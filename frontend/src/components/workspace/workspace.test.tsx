@@ -979,11 +979,11 @@ describe("pages not translated yet (add-language-system D10)", () => {
     );
   }
 
-  it("shows English Analisis' Indonesian title block and content marked lang=id, with the notice in English", async () => {
-    showPage("/insights", "en");
+  it("shows English Laporan's Indonesian title block and content marked lang=id, with the notice in English", async () => {
+    showPage("/laporan", "en");
     const main = await screen.findByRole("main");
     expect(main).toHaveAttribute("lang", "id");
-    expect(within(main).getByRole("heading", { level: 1, name: "Analisis" })).toHaveAttribute("lang", "id");
+    expect(within(main).getByRole("heading", { level: 1, name: "Laporan" })).toHaveAttribute("lang", "id");
     const notice = within(main).getByText("This page is in Indonesian for now.");
     expect(notice).toHaveAttribute("lang", "en");
     expect(screen.getByRole("navigation", { name: "Main menu" })).toHaveTextContent("Review");
@@ -998,12 +998,22 @@ describe("pages not translated yet (add-language-system D10)", () => {
     expect(document.querySelector("[lang='id']")).toBeNull();
   });
 
-  it("shows no notice on an Indonesian Analisis", async () => {
-    showPage("/insights", "id");
+  it("shows no notice on an Indonesian Laporan", async () => {
+    showPage("/laporan", "id");
     const main = await screen.findByRole("main");
     expect(main).not.toHaveAttribute("lang");
-    expect(within(main).getByRole("heading", { level: 1, name: "Analisis" })).not.toHaveAttribute("lang");
+    expect(within(main).getByRole("heading", { level: 1, name: "Laporan" })).not.toHaveAttribute("lang");
     expect(screen.queryByText("This page is in Indonesian for now.")).not.toBeInTheDocument();
+  });
+
+  it("shows no notice and no lang=id on an English Analisis, which apply-markas-analisis translated", async () => {
+    showPage("/insights", "en");
+    const main = await screen.findByRole("main");
+    expect(main).not.toHaveAttribute("lang");
+    expect(within(main).getByRole("heading", { level: 1, name: "Analysis" })).not.toHaveAttribute("lang");
+    expect(within(main).getByText("Where the money went, compared with the last period")).toBeInTheDocument();
+    expect(screen.queryByText("This page is in Indonesian for now.")).not.toBeInTheDocument();
+    expect(document.querySelector("main [lang='id']")).toBeNull();
   });
 
   it("shows no notice and no lang=id on an English Transaksi, which apply-markas-transaksi translated", async () => {

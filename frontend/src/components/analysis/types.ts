@@ -1,6 +1,7 @@
 /** Response shapes of the Analisis endpoints (redesign-analysis-and-reports D3, D6, D8, D9). Amounts are integer rupiah. */
 
 export type AnalysisTab = "ringkasan" | "kalender" | "aliran";
+export type FlowView = "peta" | "tabel";
 export type PeriodBasis = "cycle" | "month";
 export type KakeiboBucket = "need" | "want" | "culture" | "unexpected" | "saving" | "unclassified";
 
@@ -60,17 +61,6 @@ export interface CategoryVariance {
   percentage_used?: number | null;
   status: string;
 }
-
-export interface ComparisonWindow {
-  start: string;
-  end: string;
-  start_date: string;
-  end_date: string;
-  inflow: number;
-  outflow: number;
-  net: number;
-}
-
 
 export interface CalendarPlan {
   rule_id: string;
