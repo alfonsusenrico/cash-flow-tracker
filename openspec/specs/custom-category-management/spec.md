@@ -47,7 +47,7 @@ The `/insights` category budget matrix SHALL strictly filter and display categor
 - **THEN** the table SHALL list categories with their spending only, without "Tanpa Batas" chips, budget columns or "Atur batas" buttons
 
 ### Requirement: Snack and Café Default Category
-Every user SHALL have the expense category "Jajan & Nongkrong" with the Kakeibo pillar `want`, separate from daily meals. The migration SHALL create it only where the user has no expense category of that name, SHALL leave an existing one unchanged, and SHALL NOT move any existing transaction into it.
+Every user SHALL have an expense category for snacks and cafés with the Kakeibo pillar `want`, separate from daily meals: "Jajan & Nongkrong" for Indonesian accounts and "Snacks & going out" for accounts created in English. The migration SHALL create it only where the user has no expense category of that name, SHALL leave an existing one unchanged, and SHALL NOT move any existing transaction into it.
 
 #### Scenario: Existing user without the category
 - **GIVEN** a user whose food spending is all in "Makanan & Minuman"
@@ -62,7 +62,7 @@ Every user SHALL have the expense category "Jajan & Nongkrong" with the Kakeibo 
 
 #### Scenario: New user defaults
 - **WHEN** a new user registers
-- **THEN** the default categories SHALL include "Jajan & Nongkrong" with pillar `want`.
+- **THEN** the default categories SHALL include "Jajan & Nongkrong" with pillar `want`, or "Snacks & going out" with pillar `want` for an English account.
 
 ### Requirement: New User Movement Categories
 At registration, the seeded expense and income "Internal Movement" categories SHALL be excluded from budget and SHALL carry no Kakeibo pillar, so that movement legs never count as spending, income or a pillar from the first movement on.
@@ -84,11 +84,15 @@ The web icon set SHALL draw every icon that seeded or system categories use (`co
 - **THEN** the tag fallback SHALL be drawn.
 
 ### Requirement: Starter Category Pillars
-At registration, the seeded expense categories SHALL carry default Kakeibo pillars: "Makanan & Minuman", "Belanja Harian", "Transportasi", "Tagihan & Utilitas" and "Kesehatan" `need`; "Jajan & Nongkrong", "Belanja" and "Hiburan" `want`. "Investasi", both "Internal Movement" categories and the income categories SHALL carry none. Seeding SHALL apply only to a user without categories and SHALL NOT change any existing user's categories or transactions.
+At registration, the seeded expense categories SHALL carry default Kakeibo pillars: "Makanan & Minuman", "Belanja Harian", "Transportasi", "Tagihan & Utilitas" and "Kesehatan" `need`; "Jajan & Nongkrong", "Belanja" and "Hiburan" `want`. "Investasi", both "Internal Movement" categories and the income categories SHALL carry none. An English account's starter categories SHALL carry the same pillars under their English names. Seeding SHALL apply only to a user without categories.
 
 #### Scenario: New user starter pillars
 - **WHEN** a new user registers
 - **THEN** the seeded categories SHALL carry exactly these pillars, and an expense in "Transportasi" SHALL count as `need` without any classification step
+
+#### Scenario: English starter pillars
+- **WHEN** a new English account registers
+- **THEN** "Food & drinks", "Groceries", "Transport", "Bills & utilities" and "Health" SHALL carry `need`, "Snacks & going out", "Shopping" and "Entertainment" `want`, and "Investments", both "Transfer" categories and the income categories none
 
 #### Scenario: Existing user unchanged
 - **GIVEN** an existing user whose "Makanan & Minuman" category has no pillar
@@ -96,7 +100,7 @@ At registration, the seeded expense categories SHALL carry default Kakeibo pilla
 - **THEN** the category SHALL keep no pillar and no category SHALL be added
 
 ### Requirement: System Category Identity
-Each owner's investment, movement and balance-adjustment categories SHALL carry a stable system key (`investment`, `internal_movement`, `balance_adjustment`), at most one per owner, key and kind. Every rule that treats a category specially SHALL read the key, never the category's name. Seeded and automatically created system categories SHALL carry their key. Every other category SHALL carry none.
+Each owner's investment, movement, balance-adjustment and credit-fee categories SHALL carry a stable system key (`investment`, `internal_movement`, `balance_adjustment`, `credit_fee`), at most one per owner, key and kind. Every rule that treats a category specially SHALL read the key, never the category's name. Seeded and automatically created system categories SHALL carry their key. Every other category SHALL carry none.
 
 #### Scenario: Seeded system categories carry keys
 - **WHEN** a new user registers
@@ -111,6 +115,15 @@ Each owner's investment, movement and balance-adjustment categories SHALL carry 
 - **GIVEN** an owner who renamed "Investasi" to "Investments" after the migration
 - **WHEN** the owner creates a new expense category named "Investasi" and records Rp 100.000 in it
 - **THEN** the Rp 100.000 SHALL count as spending, and an investment buy in "Investments" SHALL still not count as spending
+
+#### Scenario: Credit fee category
+- **GIVEN** an owner with an expense "Biaya kredit" holding Rp 10.000 and an income named "Biaya kredit"
+- **WHEN** the credit-fee migration runs
+- **THEN** only the expense SHALL carry `credit_fee`, its Rp 10.000 SHALL still count as spending, and every figure SHALL equal its value before the migration
+
+#### Scenario: Credit fee category in English
+- **WHEN** an English account without a credit-fee category books its first credit fee
+- **THEN** the category SHALL be created as "Credit fee" with `credit_fee`, and a renamed credit-fee category SHALL still be found by its key
 
 ### Requirement: Renaming a System Category Keeps Figures
 Renaming a system category SHALL change only its displayed name. Spending, income, movement, investment, pairing, review and report results SHALL stay exactly as before the rename.
@@ -135,3 +148,19 @@ Renaming a system category SHALL change only its displayed name. Spending, incom
 #### Scenario: Key cannot be set by a client
 - **WHEN** a client sends `system_key: "investment"` when creating or updating "Hobi"
 - **THEN** "Hobi" SHALL keep `system_key` `null`, and its spending SHALL still count as spending
+
+### Requirement: Starter Names Follow the Account Language
+At registration, starter categories and accounts SHALL be named in the account's language, with the same icons, colours, kinds, pillars, flags and system keys in every language. Categories the system creates later (movement, balance adjustment) SHALL be named in the account's language at creation. Existing names SHALL never be renamed.
+
+#### Scenario: English starter data
+- **WHEN** a new English account registers
+- **THEN** it SHALL have the accounts "Cash" and "Main account", "Investments" with key `investment`, and two "Transfer" categories with key `internal_movement` excluded from budget
+
+#### Scenario: Switching language renames nothing
+- **GIVEN** an Indonesian account with its starter categories
+- **WHEN** the owner switches the interface to English
+- **THEN** every category and account SHALL keep its Indonesian name
+
+#### Scenario: Bank hints still resolve
+- **WHEN** a myBCA notification with the category "Shopping" is processed for an English account
+- **THEN** it SHALL be offered or filed under that account's "Shopping" category, as "Belanja" is for an Indonesian account

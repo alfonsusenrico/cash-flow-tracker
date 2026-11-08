@@ -1,0 +1,51 @@
+{
+ "results": [
+  {
+   "check": "the page language is English",
+   "pass": true,
+   "detail": "en"
+  },
+  {
+   "check": "skip link is the first stop, named in English, and moves focus to main",
+   "pass": true,
+   "detail": "Skip to content → main"
+  },
+  {
+   "check": "tab order after the skip link follows the reading order",
+   "pass": true,
+   "detail": "Breakdown of safe to spend until payday › Open Review · 4 › TRF BIFAST 88213 ANDI SNot recognized ·  › Kelas YogaOverdue · PlanRp 150.000 › Tagihan SPayLaterDue today · PlanRp 434. › 12.37Warung Bu TiniJago · Makan & Jajan1 › 11.19Teh Tarik CornerShopeePay11.19 · Wa › 08.33Nasi Padang SederhanaJago · Makan & › 20.47Nasi Padang SederhanaJago · Makan & › 13.35Mie Ayam Pak KumisTunai13.35 · Need › 07.55Jago · Kantong Utama → GoPayIsi GoP › 07.55Biaya adminJago · Kantong Utama07.5 › All transactions › Net worthRp 45.828.280assets Rp 58.971.2"
+  },
+  {
+   "check": "Breakdown opens the dialog with focus inside",
+   "pass": true,
+   "detail": "Safe to spend until payday | focus inside: true"
+  },
+  {
+   "check": "Escape closes the Breakdown and returns focus to its button",
+   "pass": true,
+   "detail": "Breakdown of safe to spend until payday"
+  },
+  {
+   "check": "→ in the Language group switches to Bahasa Indonesia in place, saved, focus kept",
+   "pass": true,
+   "detail": "{\"before\":\"English\",\"lang\":\"id\",\"focus\":\"Bahasa Indonesia\",\"url\":\"/settings/tampilan\",\"sidebar\":\"Beranda\",\"saved\":\"id\"}"
+  },
+  {
+   "check": "← switches back to English the same way",
+   "pass": true,
+   "detail": "{\"lang\":\"en\",\"focus\":\"English\",\"sidebar\":\"Home\",\"savedBack\":\"en\"}"
+  },
+  {
+   "check": "the browser remembers the account's language",
+   "pass": true,
+   "detail": "cft_language=en"
+  },
+  {
+   "check": "cft_language is Path=/, SameSite=Lax, a year long, readable by the page and not Secure over plain-HTTP loopback",
+   "pass": false,
+   "detail": "{\"path\":\"/\",\"sameSite\":\"Lax\",\"secure\":false,\"httpOnly\":false,\"days\":180}"
+  }
+ ],
+ "passed": 8,
+ "failed": 1
+}

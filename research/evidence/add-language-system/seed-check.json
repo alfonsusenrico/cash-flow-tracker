@@ -1,0 +1,238 @@
+{
+  "data_js_sha256": "c1d9a98f743416cfaf8d40106819cbdfd1781e8e2b33b29103e514437832f089",
+  "data_js_today": "2026-11-05",
+  "seed_today": "2026-11-06",
+  "shift_days": 1,
+  "row_counts": {
+    "users": 1,
+    "salary_sources": 1,
+    "categories": 20,
+    "accounts": 22,
+    "transactions": 188,
+    "investment_topups": 2,
+    "salary_receipts": 3,
+    "salary_receipt_events": 3,
+    "obligations": 3,
+    "transaction_obligation_allocations": 2,
+    "recurring_rules": 8,
+    "recurring_executions": 7,
+    "recurring_link_events": 7,
+    "goals": 4,
+    "goal_accounts": 3,
+    "api_keys": 2,
+    "device_health": 1,
+    "notification_events": 12,
+    "classification_feedback": 5,
+    "notification_sender_aliases": 2,
+    "notification_account_aliases": 2,
+    "notification_test_sessions": 1
+  },
+  "added_rows": [
+    {
+      "row": "categories: Internal Movement (expense, income)",
+      "reason": "the app books movement legs in these excluded categories"
+    },
+    {
+      "row": "transaction 2026-08-25 PT Kreasi Nusantara 9500000 (salary receipt)",
+      "reason": "the app's expected-salary rule needs three receipts; the opening balance of bca-utama is lowered by the same amount so every stated balance holds"
+    },
+    {
+      "row": "notification text for review.items[rv-5]: 'Pembayaran Rp23.000 ke Ojek Daring berhasil.'",
+      "reason": "constructed so the app can read the amount and direction of the second report"
+    },
+    {
+      "row": "7 test-session notifications",
+      "reason": "data.js states only the count; the app counts the session's captured events"
+    }
+  ],
+  "unmapped": [
+    {
+      "field": "user.initials",
+      "reason": "browser preference or derived text; the schema stores no such column"
+    },
+    {
+      "field": "user.theme",
+      "reason": "browser preference or derived text; the schema stores no such column"
+    },
+    {
+      "field": "user.hideBalances",
+      "reason": "browser preference or derived text; the schema stores no such column"
+    },
+    {
+      "field": "settings.currencyDisplay",
+      "reason": "kept in the browser or chosen per page; no user column"
+    },
+    {
+      "field": "settings.singleKeyShortcuts",
+      "reason": "kept in the browser or chosen per page; no user column"
+    },
+    {
+      "field": "settings.reportBasis",
+      "reason": "kept in the browser or chosen per page; no user column"
+    },
+    {
+      "field": "products[inv-bnus].unitLabel",
+      "reason": "display text the app derives from units"
+    },
+    {
+      "field": "products[inv-enry].unitLabel",
+      "reason": "display text the app derives from units"
+    },
+    {
+      "field": "products[inv-rdpu].unitLabel",
+      "reason": "display text the app derives from units"
+    },
+    {
+      "field": "products[inv-indeks].unitLabel",
+      "reason": "display text the app derives from units"
+    },
+    {
+      "field": "products[inv-emas].unitLabel",
+      "reason": "display text the app derives from units"
+    },
+    {
+      "field": "accounts[].institution",
+      "reason": "no institution column; the parent account name carries it"
+    },
+    {
+      "field": "credit[].statementDay",
+      "reason": "the schema stores only the payment day of a credit account"
+    },
+    {
+      "field": "credit[].dueAmount, credit[].minPayment",
+      "reason": "stated as the Tagihan SPayLater plan (recurring r-spaylater, 434000)"
+    },
+    {
+      "field": "credit[].note",
+      "reason": "free text; no column"
+    },
+    {
+      "field": "transactions[].trade",
+      "reason": "a Beli/Jual trade is stored as a movement into the product; lots and price live on the product, not on the row"
+    },
+    {
+      "field": "obligations[].lender",
+      "reason": "stored in obligations.notes; no lender column"
+    },
+    {
+      "field": "obligations[].kind, obligations[].dueDay, obligations[].endsOn",
+      "reason": "no column; the due day follows from due_date and the plan"
+    },
+    {
+      "field": "obligations[].paidOffOn",
+      "reason": "no column; stored as updated_at of the archived debt"
+    },
+    {
+      "field": "recurring[].mode",
+      "reason": "plans never post (chk_recurring_rules_non_posting); otomatis is kept as link_method 'auto' on its paid occurrences"
+    },
+    {
+      "field": "recurring[].status",
+      "reason": "derived by the app from next_due_date and linked occurrences"
+    },
+    {
+      "field": "recurring[].estimate",
+      "reason": "no column for an estimated plan amount"
+    },
+    {
+      "field": "recurring[].cadence",
+      "reason": "every data.js plan is monthly; stored as schedule_type monthly_day"
+    },
+    {
+      "field": "goals[].contributions",
+      "reason": "no per-goal contribution rows without ledger rows; current_amount holds the saved total"
+    },
+    {
+      "field": "goals[].achieved, goals[].pct, goals[].monthlyNeeded, goals[].autoFromBalance",
+      "reason": "derived by the app from the target, the saved amount, the date and the links"
+    },
+    {
+      "field": "devices[].health['Mulai otomatis']",
+      "reason": "the app's device health has no autostart field"
+    },
+    {
+      "field": "devices[].status",
+      "reason": "derived from the key and its last report; stored as listener_connected"
+    },
+    {
+      "field": "review.items[rv-1].options",
+      "reason": "Tinjau offers suggestions from the owner's history and a free answer; the prototype's three generic options are not stored suggestions"
+    },
+    {
+      "field": "review.items[rv-2].suggestion",
+      "reason": "a group's category guess comes from the habit learner, not a stored row"
+    },
+    {
+      "field": "review.items[rv-3].candidates",
+      "reason": "the app offers counterpart candidates only from recorded opposite legs; none exist"
+    },
+    {
+      "field": "review.items[rv-3] notification text",
+      "reason": "data.js gives no raw notification text"
+    },
+    {
+      "field": "review.items[rv-4]",
+      "reason": "the six 'old Makanan & Minuman' Kopi Senja rows do not exist in data.js (every Kopi Senja row is already Jajan & Nongkrong), so no history suggestion can point at them"
+    },
+    {
+      "field": "review.items[rv-5].pair[0]",
+      "reason": "the first report's transaction (GoPay, 23,000) is not among data.js's transactions, so the item has no kept row"
+    },
+    {
+      "field": "review.items[rv-6] folder",
+      "reason": "stored as an ignored non-financial notification; the app's 'Dilewati otomatis' lists reports skipped by an account link, so it does not list promos or codes"
+    },
+    {
+      "field": "review.items[rv-7] folder",
+      "reason": "stored as an ignored non-financial notification; the app's 'Dilewati otomatis' lists reports skipped by an account link, so it does not list promos or codes"
+    },
+    {
+      "field": "review.items[rv-8]",
+      "reason": "duplicates t017, which data.js already records as the top-up of the same 750,000 at the same minute; loading both would debit BCA twice"
+    },
+    {
+      "field": "review.folders, review.keyboard",
+      "reason": "Tinjau's own labels and shortcuts, not data"
+    },
+    {
+      "field": "habits[h-2].answers",
+      "reason": "the top-up habit is learned from the converted top-ups t008 and t017 (2 in data.js, 3 stated)"
+    },
+    {
+      "field": "habits[h-3]",
+      "reason": "needs 2 labelled rows of 'QRIS NMID ID10239'; data.js has 0"
+    },
+    {
+      "field": "habits[].match, habits[].active, habits[].note",
+      "reason": "derived by the app from the labels' agreement and count"
+    },
+    {
+      "field": "senderAliases[] receiving account",
+      "reason": "data.js names none; stored for bca-utama (BCA), where the salary arrives"
+    },
+    {
+      "field": "reports",
+      "reason": "the app computes monthly reports from the rows"
+    },
+    {
+      "field": "notifications",
+      "reason": "the app derives its notifications"
+    },
+    {
+      "field": "netWorth",
+      "reason": "computed by the app"
+    },
+    {
+      "field": "ketahananDana",
+      "reason": "computed by the app"
+    },
+    {
+      "field": "cycle, previousCycle, threeMonthAverage",
+      "reason": "computed by the app from the rows"
+    },
+    {
+      "field": "explanations, captureExamples, pillars",
+      "reason": "page text and examples, not data"
+    }
+  ]
+}

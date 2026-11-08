@@ -70,7 +70,7 @@ def test_incomplete_provider_response_usage_is_counted_without_stale_usage():
     class IncompleteProvider:
         last_usage = None
 
-        async def interpret(self, context):
+        async def interpret(self, context, *, prompt):
             self.last_usage = {"input_tokens": 1000, "output_tokens": 500}
             raise ProviderError("provider_timeout")
 
@@ -166,3 +166,54 @@ def test_sequence_cases_score_as_ordinary_observed_legs():
     report = summarize(rows)
     assert report["validated_safety_gate_pass"] is True and "same_money" not in report
     assert all(row["sequence"] and row["references"] and not row["unsafe_validated_write"] for row in rows)
+
+
+ENGLISH_MODEL_CASES = [
+    case for case in __import__("evaluation.notification_cases", fromlist=["english_output_cases"]).english_output_cases()
+    if evaluation_route(case) == "model"
+]
+
+
+def english_proposal(case, description):
+    return correct_proposal(case).model_copy(update={"description": description})
+
+
+def test_english_cases_score_an_english_description_and_reject_placeholders():
+    case = next(case for case in ENGLISH_MODEL_CASES if case.name == "jago-coffee")
+    assert score_case(case, english_proposal(case, "Coffee at Kedai Awan"), latency=0.1)["description_rubric_pass"]
+    for rejected in ("Payment", "Pembayaran", "Transfer in", "Bayar Kedai Awan"):
+        assert not score_case(case, english_proposal(case, rejected), latency=0.1)["description_rubric_pass"], rejected
+    indonesian = next(case for case in MODEL_CASES if case.name == "jago-coffee")
+    assert score_case(indonesian, correct_proposal(indonesian), latency=0.1)["description_rubric_pass"]
+
+
+def test_english_quality_gate_requires_english_descriptions():
+    rows = [score_case(case, english_proposal(case, "Coffee at Kedai Awan"), latency=0.1) for case in ENGLISH_MODEL_CASES]
+    for row in rows:
+        row["unambiguous_classification"] = True
+    assert summarize(rows)["quality_gate_pass"] is True
+    rows = [score_case(case, correct_proposal(case), latency=0.1) for case in ENGLISH_MODEL_CASES]
+    for row in rows:
+        row["unambiguous_classification"] = True
+    report = summarize(rows)
+    assert report["description_rubric_percent"] == 0 and report["quality_gate_pass"] is False
+
+
+def test_english_evaluation_sends_the_en_rendering_offline():
+    from app.services.prompt_language import load_prompt
+
+    provider = AsyncMock()
+    provider.interpret.side_effect = [english_proposal(case, "Coffee at Kedai Awan") for case in ENGLISH_MODEL_CASES]
+    report = asyncio.run(evaluate_model(provider, ENGLISH_MODEL_CASES, repeats=1, interval=0))
+    assert report["requests_attempted"] == len(ENGLISH_MODEL_CASES)
+    prompts = {call.kwargs["prompt"].version for call in provider.interpret.await_args_list}
+    assert prompts == {load_prompt("notification_interpretation", "en").version} == {"notification-interpretation-12-en"}
+
+
+@pytest.mark.parametrize("partition", ["development", "held_out"])
+def test_english_benchmark_costs_about_what_the_indonesian_one_does(partition):
+    from evaluation.notification_benchmark import benchmark_cases
+
+    indonesian = estimated_run_cost(benchmark_cases("id", partition), repeats=3, configurations=1)
+    english = estimated_run_cost(benchmark_cases("en", partition), repeats=3, configurations=1)
+    assert 0 < english <= indonesian * 1.05

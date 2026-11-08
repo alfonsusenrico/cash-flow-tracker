@@ -1,17 +1,19 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
+import type { RowLabels } from "@/components/transactions/rowLabels";
 import { DayHeading, ListRow, SectionHeader } from "@/components/workspace/lists";
 import { MaskedMoney } from "@/components/workspace/money";
 import { activityMeta, activityPhoneStatus, groupByDay, rowKind, rowStatus, rowTime, rowTitle } from "./activity";
+import type { Words } from "@/lib/i18n/types";
 import type { ActivityRow } from "./types";
+import { rowLabelsFor, useWords } from "./words";
 
-const WEEKDAY_DATE = new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
-
-function dayLabel(day: string, today: string, yesterday: string): string {
-  const name = WEEKDAY_DATE.format(new Date(`${day}T00:00:00Z`));
-  if (day === today) return `${name} · hari ini`;
-  if (day === yesterday) return `${name} · kemarin`;
+function dayLabel(day: string, today: string, yesterday: string, { t, format }: Words): string {
+  const name = format.weekdayDate(day);
+  if (day === today) return t("home.dayToday", { day: name });
+  if (day === yesterday) return t("home.dayYesterday", { day: name });
   return name;
 }
 
@@ -24,8 +26,8 @@ function ActivityAmount({ row, bal }: { row: ActivityRow; bal: (amount: number) 
   return <MaskedMoney text={`−${bal(row.amount)}`} className="t-amt" />;
 }
 
-function Status({ row }: { row: ActivityRow }) {
-  const status = rowStatus(row);
+function Status({ row, labels }: { row: ActivityRow; labels: RowLabels }) {
+  const status = rowStatus(row, labels);
   const kind = rowKind(row);
   if (kind === "income" || kind === "movement") return <span>{status.text}</span>;
   return (
@@ -56,36 +58,40 @@ export function ActivitySection({
   onSelect: (row: ActivityRow) => void;
   error: boolean;
 }) {
+  const words = useWords();
+  const t = useTranslations("home");
+  const labels = rowLabelsFor(words.t);
   return (
     <section aria-labelledby="beranda-activity">
       <SectionHeader
         id="beranda-activity"
-        label="Aktivitas terbaru"
-        aside={rows ? <span className="aside">hari ini dan kemarin · {rows.length}</span> : undefined}
+        label={t("recentActivity")}
+        aside={rows ? <span className="aside">{t("activityAside", { n: String(rows.length) })}</span> : undefined}
       />
-      {error && <p className="t-meta">Aktivitas belum bisa dimuat.</p>}
-      {rows && rows.length === 0 && <p className="t-body muted">Belum ada transaksi hari ini dan kemarin.</p>}
+      {error && <p className="t-meta">{t("activityLoadError")}</p>}
+      {rows && rows.length === 0 && <p className="t-body muted">{t("noActivity")}</p>}
       {rows &&
         groupByDay(rows).map((group) => (
           <div key={group.day} className="day-group">
-            <DayHeading label={dayLabel(group.day, today, yesterday)} />
+            <DayHeading label={dayLabel(group.day, today, yesterday, words)} />
             <ul className="list">
               {group.rows.map((row) => {
-                const meta = activityMeta(row);
-                const phone = activityPhoneStatus(row);
+                const meta = activityMeta(row, labels);
+                const phone = activityPhoneStatus(row, labels);
+                const time = rowTime(row, words.format);
                 return (
                   <li key={row.id}>
                     <ListRow
                       onClick={() => onSelect(row)}
-                      time={rowTime(row)}
-                      title={rowTitle(row)}
+                      time={time}
+                      title={rowTitle(row, labels)}
                       meta={meta.text ? <Warning {...meta} /> : undefined}
                       phoneMeta={
                         <>
-                          {rowTime(row)} · <Warning {...phone} />
+                          {time} · <Warning {...phone} />
                         </>
                       }
-                      status={<Status row={row} />}
+                      status={<Status row={row} labels={labels} />}
                       amount={<ActivityAmount row={row} bal={bal} />}
                     />
                   </li>
@@ -96,7 +102,7 @@ export function ActivitySection({
         ))}
       <div className="list-foot">
         <Link href="/ledger" className="ws-btn">
-          Semua transaksi
+          {t("allTransactions")}
         </Link>
       </div>
     </section>

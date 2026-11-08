@@ -145,7 +145,7 @@ def test_only_the_owners_rows(client, ledger, notification_owner):
     from app.services.auth import get_current_user
     other = str(uuid4())
     with db() as conn:
-        conn.execute("INSERT INTO users (id, username, name, password_hash, invite_code) VALUES (%s, %s, 'Dewi Lain', 'x', 'TEST')",
+        conn.execute("INSERT INTO users (id, username, name, password_hash, invite_code, language) VALUES (%s, %s, 'Dewi Lain', 'x', 'TEST', 'id')",
                      (other, f"lain_{uuid4().hex}"))
         account = conn.execute("INSERT INTO accounts (user_id, name, type, initial_balance) VALUES (%s, 'Dompet Lain', 'cash', 0) RETURNING id",
                                (other,)).fetchone()["id"]

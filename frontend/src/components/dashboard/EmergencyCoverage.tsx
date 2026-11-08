@@ -1,4 +1,9 @@
+"use client";
+
 import Link from "next/link";
+import { useTranslations } from "next-intl";
+import { useFormat, type Format } from "@/lib/format";
+import type { Translate } from "@/lib/i18n/types";
 import { ledgerHref } from "@/lib/ledgerFilters";
 
 export interface EssentialCostPeriod {
@@ -40,14 +45,12 @@ export interface EmergencyRunway {
   essential_cost?: EssentialCost;
 }
 
-export const ALL_LIQUID_NOTICE = "Belum ada dana darurat khusus — dihitung dari seluruh saldo kas";
-
 /** The coverage figure, or a plain statement that it cannot be calculated yet. */
-export function coverageText(runway: EmergencyRunway): string {
+export function coverageText(runway: EmergencyRunway, t: Translate, format: Format): string {
   const months = runway.coverage_months ?? runway.runway_months;
-  if (months == null || runway.runway_days == null) return "Belum dapat dihitung";
-  if (runway.status === "zero") return "0 hari";
-  return `${months.toLocaleString("id-ID")}x biaya pokok · ${runway.runway_days.toLocaleString("id-ID")} hari`;
+  if (months == null || runway.runway_days == null) return t("breakdown.coverageUnknown");
+  if (runway.status === "zero") return t("breakdown.coverageZero");
+  return t("breakdown.coverage", { monthsText: format.decimal(months, 3), days: runway.runway_days, daysText: format.integer(runway.runway_days) });
 }
 
 export function coverageTone(status: EmergencyRunway["status"]): string {
@@ -58,13 +61,11 @@ export function coverageTone(status: EmergencyRunway["status"]): string {
 }
 
 /** How the essential monthly cost was obtained, in one sentence. */
-export function essentialBasisText(cost: EssentialCost | undefined): string {
-  if (!cost || cost.method === "unknown") {
-    return "Belum diketahui: belum ada periode lengkap dan belum ada anggaran kategori Kebutuhan.";
-  }
-  const debt = cost.debt_minimum > 0 ? " + cicilan minimum" : "";
-  if (cost.method === "need_budget") return `Dari anggaran kategori Kebutuhan (belum ada periode lengkap)${debt}`;
-  return `Median ${cost.period_count} periode, kebutuhan (need) dan yang belum diklasifikasi${debt}`;
+export function essentialBasisText(cost: EssentialCost | undefined, t: Translate): string {
+  if (!cost || cost.method === "unknown") return t("breakdown.essentialUnknown");
+  const debt = cost.debt_minimum > 0 ? t("breakdown.plusMinimumInstallments") : "";
+  if (cost.method === "need_budget") return t("breakdown.essentialFromBudget", { debt });
+  return t("breakdown.essentialMedian", { count: cost.period_count, debt });
 }
 
 interface Props {
@@ -74,45 +75,47 @@ interface Props {
 
 /** The basis of Ketahanan Dana: the reserve, the essential cost and the periods behind it. */
 export function EmergencyCoverageBasis({ runway, bal }: Props) {
+  const t = useTranslations();
+  const format = useFormat();
   const cost = runway.essential_cost;
   const periods = cost?.periods_used ?? [];
   return (
     <section aria-labelledby="coverage-basis-title" className="ws-card space-y-3 text-xs">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 id="coverage-basis-title" className="text-sm font-semibold text-[var(--text)]">Dasar Ketahanan Dana</h2>
-          <p className="mt-0.5 text-[var(--text-2)]">Saldo cadangan dibagi biaya hidup pokok bulanan.</p>
+          <h2 id="coverage-basis-title" className="text-sm font-semibold text-[var(--text)]">{t("breakdown.safetyNetBasis")}</h2>
+          <p className="mt-0.5 text-[var(--text-2)]">{t("breakdown.safetyNetRule")}</p>
         </div>
         <span className={`inline-flex items-center rounded-full border px-2.5 py-1 font-semibold tabular-nums ${coverageTone(runway.status)}`}>
-          {coverageText(runway)}
+          {coverageText(runway, t, format)}
         </span>
       </div>
 
       <dl className="grid gap-3 sm:grid-cols-2">
         <div className="min-w-0 space-y-0.5">
-          <dt className="font-semibold text-[var(--muted)]">Saldo cadangan</dt>
+          <dt className="font-semibold text-[var(--muted)]">{t("breakdown.reserveBalance")}</dt>
           <dd className="text-base font-semibold tabular-nums text-[var(--text)]">{bal(runway.emergency_fund_balance)}</dd>
           <dd className="text-[var(--text-2)]">
             {runway.balance_basis === "all_liquid"
-              ? ALL_LIQUID_NOTICE
-              : `Dari target dana darurat: ${(runway.emergency_goal_names ?? []).join(", ")}`}
+              ? t("breakdown.noDedicatedFund")
+              : t("breakdown.fromEmergencyGoals", { names: (runway.emergency_goal_names ?? []).join(", ") })}
           </dd>
         </div>
         <div className="min-w-0 space-y-0.5">
-          <dt className="font-semibold text-[var(--muted)]">Biaya hidup pokok bulanan</dt>
+          <dt className="font-semibold text-[var(--muted)]">{t("breakdown.monthlyEssentialCosts")}</dt>
           <dd className="text-base font-semibold tabular-nums text-[var(--text)]">
-            {runway.monthly_primary_expense == null ? "Belum diketahui" : `${bal(runway.monthly_primary_expense)}/bln`}
+            {runway.monthly_primary_expense == null ? t("breakdown.unknown") : t("breakdown.perMonth", { amount: bal(runway.monthly_primary_expense) })}
           </dd>
-          <dd className="text-[var(--text-2)]">{essentialBasisText(cost)}</dd>
+          <dd className="text-[var(--text-2)]">{essentialBasisText(cost, t)}</dd>
           {cost?.limited_history && (
             <dd>
               <span className="inline-flex rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-2 py-0.5 font-semibold text-warn-fg">
-                Riwayat terbatas ({cost.period_count} periode)
+                {t("breakdown.limitedHistory", { count: cost.period_count })}
               </span>
             </dd>
           )}
           {cost && cost.debt_minimum > 0 && (
-            <dd className="tabular-nums text-[var(--text-2)]">Termasuk cicilan minimum {bal(cost.debt_minimum)}</dd>
+            <dd className="tabular-nums text-[var(--text-2)]">{t("breakdown.includesMinimumInstallments", { amount: bal(cost.debt_minimum) })}</dd>
           )}
         </div>
       </dl>
@@ -120,12 +123,9 @@ export function EmergencyCoverageBasis({ runway, bal }: Props) {
       {periods.length > 0 && (
         <details className="border-t border-[var(--line)] pt-2">
           <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-[var(--text)]">
-            Lihat {periods.length} periode yang dipakai
+            {t("breakdown.viewPeriodsUsed", { count: periods.length })}
           </summary>
-          <p className="mb-2 text-[var(--text-2)]">
-            Pengeluaran berpilar Kebutuhan dan yang belum diklasifikasi, dikurangi ganti uang. Pindah saldo, investasi,
-            kategori di luar anggaran dan pembayaran cicilan tidak dihitung; cicilan masuk lewat nilai minimumnya.
-          </p>
+          <p className="mb-2 text-[var(--text-2)]">{t("breakdown.periodsRule")}</p>
           <ul className="space-y-1">
             {periods.map((period) => {
               const unclassified = period.unclassified_amount ?? 0;
@@ -133,11 +133,11 @@ export function EmergencyCoverageBasis({ runway, bal }: Props) {
                 <li key={period.start} className="min-w-0">
                   <div className="flex min-w-0 items-center justify-between gap-2">
                     <span className="min-w-0 truncate">
-                      {period.label} <span className="text-[var(--muted)]">({period.days} hari)</span>
+                      {period.label} <span className="text-[var(--muted)]">{t("breakdown.periodDays", { count: period.days })}</span>
                     </span>
                     <Link
                       href={ledgerHref({ from: period.start, to: period.end, kakeibo: "need", type: "expense" })}
-                      aria-label={`${bal(period.amount - unclassified)}, lihat transaksi kebutuhan ${period.label}`}
+                      aria-label={t("breakdown.viewNeedsTransactions", { amount: bal(period.amount - unclassified), period: period.label })}
                       className="inline-flex min-h-11 shrink-0 items-center font-semibold tabular-nums text-[var(--text)] underline underline-offset-2"
                     >
                       {bal(period.amount - unclassified)}
@@ -145,10 +145,10 @@ export function EmergencyCoverageBasis({ runway, bal }: Props) {
                   </div>
                   {unclassified > 0 && (
                     <div className="flex min-w-0 items-center justify-between gap-2 pl-3 text-[var(--text-2)]">
-                      <span className="min-w-0 truncate">+ belum diklasifikasi</span>
+                      <span className="min-w-0 truncate">{t("breakdown.plusNoPillarYet")}</span>
                       <Link
                         href={ledgerHref({ from: period.start, to: period.end, kakeibo: "unclassified", type: "expense" })}
-                        aria-label={`${bal(unclassified)}, lihat transaksi belum diklasifikasi ${period.label}`}
+                        aria-label={t("breakdown.viewNoPillarTransactions", { amount: bal(unclassified), period: period.label })}
                         className="inline-flex min-h-11 shrink-0 items-center tabular-nums underline underline-offset-2"
                       >
                         {bal(unclassified)}

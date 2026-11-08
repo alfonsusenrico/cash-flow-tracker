@@ -18,7 +18,7 @@
   "beranda": true,
   "steps": [
    {
-    "click": "^(Rincian aman dipakai sampai gajian|Aman dipakai sampai gajian [−-]?Rp)"
+    "click": "^(Rincian aman dipakai sampai gajian|Aman dipakai sampai gajian [−-]?Rp|Breakdown of safe to spend until payday|Safe to spend until payday [−-]?Rp)"
    }
   ]
  },
@@ -28,10 +28,10 @@
   "beranda": true,
   "steps": [
    {
-    "click": "^(Rincian aman dipakai sampai gajian|Aman dipakai sampai gajian [−-]?Rp)"
+    "click": "^(Rincian aman dipakai sampai gajian|Aman dipakai sampai gajian [−-]?Rp|Breakdown of safe to spend until payday|Safe to spend until payday [−-]?Rp)"
    },
    {
-    "click": "^Pengeluaran"
+    "click": "^(Pengeluaran|Spending)"
    }
   ]
  },
@@ -44,13 +44,9 @@
   "beranda": true,
   "steps": [
    {
-    "click": "^(Rincian aman dipakai sampai gajian|Aman dipakai sampai gajian [−-]?Rp)"
+    "click": "^(Rincian aman dipakai sampai gajian|Aman dipakai sampai gajian [−-]?Rp|Breakdown of safe to spend until payday|Safe to spend until payday [−-]?Rp)"
    }
   ]
- },
- {
-  "name": "tinjau",
-  "path": "/review"
  },
  {
   "name": "transaksi",
@@ -307,20 +303,6 @@
   ]
  },
  {
-  "name": "dlg-tinjau-item",
-  "path": "/review",
-  "steps": [
-   {
-    "click": "Pembayaran QRIS ?3 Nov"
-   }
-  ],
-  "cells": [
-   "1440-light",
-   "1440-dark",
-   "390-light"
-  ]
- },
- {
   "name": "dlg-notifikasi",
   "path": "/",
   "steps": [
@@ -435,23 +417,6 @@
   ]
  },
  {
-  "name": "dlg-tinjau-ubah-kategori",
-  "path": "/review",
-  "steps": [
-   {
-    "click": "Pembayaran QRIS ?3 Nov"
-   },
-   {
-    "click": "^Ubah kategori"
-   }
-  ],
-  "cells": [
-   "1440-light",
-   "1440-dark",
-   "390-light"
-  ]
- },
- {
   "name": "dlg-laporan-tak-terduga",
   "path": "/laporan",
   "steps": [
@@ -482,6 +447,191 @@
   "steps": [
    {
     "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "tinjau",
+  "path": "/review",
+  "tinjau": true
+ },
+ {
+  "name": "tinjau-sembunyi",
+  "path": "/review",
+  "tinjau": true,
+  "storage": {
+   "hideBalances": "1"
+  }
+ },
+ {
+  "name": "tinjau-perlu-jawaban",
+  "path": "/review?folder=jawab",
+  "tinjau": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-topup",
+  "path": "/review?folder=pindah",
+  "tinjau": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = [...document.querySelectorAll('.tj-list [data-row]')].find((element) => new RegExp(\"(Utama).*750\").test(element.textContent)); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 900
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-ambigu",
+  "path": "/review?folder=pindah",
+  "tinjau": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = [...document.querySelectorAll('.tj-list [data-row]')].find((element) => new RegExp(\"Dana Darurat\").test(element.textContent)); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 900
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-belum-dikenali-masuk",
+  "path": "/review?folder=apa",
+  "tinjau": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-otomatis",
+  "path": "/review?folder=otomatis",
+  "tinjau": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-saran",
+  "path": "/review?folder=saran",
+  "tinjau": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-dua-kali",
+  "path": "/review?folder=dua",
+  "tinjau": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-dilewati",
+  "path": "/review?folder=lewat",
+  "tinjau": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-sheet",
+  "path": "/review",
+  "tinjau": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = [...document.querySelectorAll('.tj-list [data-row]')].find((element) => new RegExp(\"Pembayaran QRIS\").test(element.textContent)); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 900
+   }
+  ],
+  "cells": [
+   "390-light",
+   "390-dark",
+   "320-light",
+   "320-dark"
+  ]
+ },
+ {
+  "name": "dlg-ubah-kategori",
+  "path": "/review?folder=jawab",
+  "tinjau": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = document.querySelector('.tj-list [data-row]'); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 900
+   },
+   {
+    "click": "^\\d?(Ubah kategori|Change category)"
+   }
+  ]
+ },
+ {
+  "name": "dlg-ganti-nama",
+  "path": "/review?folder=jawab",
+  "tinjau": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = document.querySelector('.tj-list [data-row]'); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 900
+   },
+   {
+    "click": "^\\d?(Ganti nama|Rename)"
+   }
+  ]
+ },
+ {
+  "name": "dlg-jawab-sendiri",
+  "path": "/review?folder=apa",
+  "tinjau": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = document.querySelector('.tj-list [data-row]'); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 900
+   },
+   {
+    "click": "^(Jawab sendiri|Type an answer)$"
+   }
+  ]
+ },
+ {
+  "name": "dlg-saran-riwayat",
+  "path": "/review",
+  "tinjau": true,
+  "steps": [
+   {
+    "click": "^(Tindakan lain untuk Tinjau|More actions for Review)$"
+   },
+   {
+    "click": "^(Cari saran dari riwayat|Find suggestions from history)$"
+   }
+  ]
+ },
+ {
+  "name": "menu-tinjau",
+  "path": "/review",
+  "tinjau": true,
+  "steps": [
+   {
+    "click": "^(Tindakan lain untuk Tinjau|More actions for Review)$"
    }
   ]
  },
@@ -582,7 +732,7 @@
   "shell": true,
   "steps": [
    {
-    "click": "^Notifikasi"
+    "click": "^(Notifikasi|Notifications)"
    }
   ]
  },
@@ -592,7 +742,7 @@
   "shell": true,
   "steps": [
    {
-    "click": "^Tema$"
+    "click": "^(Tema|Theme)$"
    }
   ],
   "cells": [
@@ -606,10 +756,10 @@
   "shell": true,
   "steps": [
    {
-    "click": "^Lainnya$"
+    "click": "^(Lainnya|More)$"
    },
    {
-    "click": "^Tema"
+    "click": "^(Tema|Theme)"
    }
   ],
   "cells": [
@@ -623,7 +773,7 @@
   "shell": true,
   "steps": [
    {
-    "click": "^Akun "
+    "click": "^(Akun |Profile, )"
    }
   ],
   "cells": [
@@ -637,7 +787,7 @@
   "shell": true,
   "steps": [
    {
-    "click": "^Lainnya$"
+    "click": "^(Lainnya|More)$"
    }
   ],
   "cells": [
@@ -694,6 +844,23 @@
     "eval": "fetch('/api/ingest/test-sessions/current',{credentials:'include'}).then((r)=>r.json()).then((d)=> d.session && d.session.status==='open' ? 'open' : fetch('/api/ingest/test-sessions',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({duration_minutes:60})}).then((r)=>r.status)).then((s)=>{ location.reload(); return String(s); })",
     "after": 3500
    }
-  ]
+  ],
+  "cleanup": "fetch('/api/ingest/test-sessions/current',{credentials:'include'}).then((r)=>r.json()).then((d)=> d.session && d.session.status==='open' ? fetch('/api/ingest/test-sessions/'+d.session.id+'/end',{method:'POST',credentials:'include'}).then((r)=>'ended '+r.status) : 'none')"
+ },
+ {
+  "name": "masuk",
+  "path": "/auth/login",
+  "signedOut": true
+ },
+ {
+  "name": "daftar",
+  "path": "/auth/login",
+  "signedOut": true,
+  "steps": [
+   {
+    "click": "^(Daftar sekarang|Create one)$"
+   }
+  ],
+  "full": true
  }
 ]

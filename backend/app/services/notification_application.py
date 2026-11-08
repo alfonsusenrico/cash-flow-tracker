@@ -7,6 +7,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from app.core.config import settings
+from app.i18n import account_language, t
 from app.services.account_colours import INVESTMENT_ACCOUNT_COLOR
 from app.services.ledger_mutations import (
     LIQUID_ACCOUNT_TYPES, create_bilateral_movement, get_locked_ledger_balance, lock_owned_accounts,
@@ -15,7 +16,7 @@ from app.services.ledger_mutations import (
 from app.services.merchant_memory import (
     PLACEHOLDER_COUNTERPARTIES, count_memory_hit, learn_from_model, normalize_key_text, stored_key_fields,
 )
-from app.services.movement_linkage import SELF_TRANSFER_NOTES, movement_note
+from app.services.movement_linkage import movement_note, self_transfer_note
 from app.services.movement_pairing import (
     COMPLETION_KEY_PREFIX, PairingDecision, drop_observation, find_counterpart, flag_ambiguous,
     keeps_new_observation, leg_evidence, link_pair, load_accounts, mark_duplicate_observation,
@@ -29,7 +30,7 @@ from app.services.notification_resolution import (
     observed_endpoint_with_basis, pocket_endpoint, root_account_id, transfer_signature,
 )
 from app.services.notification_sender import sender_gate
-from app.services.system_categories import hint_key, is_movement
+from app.services.system_categories import hint_key, is_movement, is_name_matchable
 from app.services.habits import HabitDecision
 from app.services.provenance import (
     MERCHANT_MAX_LENGTH, Provenance, habit_provenance, normalize_merchant, notification_provenance,
@@ -40,18 +41,20 @@ from app.services.provenance import (
 ROLE_CONFIRMATION_WINDOW_SECONDS = 30
 
 # myBCA "Financial Diary" uses a fixed English category taxonomy; map it to the
-# Indonesian category names this app seeds so deterministic processing can resolve them.
+# category names this app seeds so deterministic processing can resolve them.
 BANK_CATEGORY_HINT_ALIASES = {
-    "shopping": ("Belanja",),
-    "salary": ("Gaji",),
-    "food & beverage": ("Makanan & Minuman", "Makanan"),
-    "food & beverages": ("Makanan & Minuman", "Makanan"),
-    "transportation": ("Transportasi",),
-    "entertainment": ("Hiburan",),
-    "health": ("Kesehatan",),
+    # Indonesian starter names first, then the English ones (add-language-system D15), so a hint resolves
+    # for an account seeded in either language.
+    "shopping": ("Belanja", "Shopping"),
+    "salary": ("Gaji", "Salary"),
+    "food & beverage": ("Makanan & Minuman", "Makanan", "Food & drinks"),
+    "food & beverages": ("Makanan & Minuman", "Makanan", "Food & drinks"),
+    "transportation": ("Transportasi", "Transport"),
+    "entertainment": ("Hiburan", "Entertainment"),
+    "health": ("Kesehatan", "Health"),
     "education": ("Pendidikan",),
-    "bills": ("Tagihan & Utilitas", "Tagihan"),
-    "payment": ("Tagihan & Utilitas", "Pembayaran"),
+    "bills": ("Tagihan & Utilitas", "Tagihan", "Bills & utilities"),
+    "payment": ("Tagihan & Utilitas", "Pembayaran", "Bills & utilities"),
     "account transfer": ("Transfer Keluar", "Transfer Masuk", "Transfer"),
     "transfer rekening": ("Transfer Keluar", "Transfer Masuk", "Transfer"),
     "miscellaneous": ("Lainnya", "Lain-lain"),
@@ -64,28 +67,36 @@ def hinted_categories(context: dict, categories: list[dict], hint: str | None) -
         return []
     if key := hint_key(hint):
         return [row for row in categories if category_system_key(context, row) == key]
-    exact = [row for row in categories if row["name"].casefold() == hint.casefold()]
+    # A name never reaches a system category: an English account's movement category is named "Transfer",
+    # which the "account transfer" alias would otherwise file transfers to other people under.
+    named = [row for row in categories if is_name_matchable(category_system_key(context, row))]
+    exact = [row for row in named if row["name"].casefold() == hint.casefold()]
     if exact:
         return exact
     for alias in BANK_CATEGORY_HINT_ALIASES.get(hint.strip().casefold(), ()):
-        matches = [row for row in categories if row["name"].casefold() == alias.casefold()]
+        matches = [row for row in named if row["name"].casefold() == alias.casefold()]
         if matches:
             return matches
     return []
 
 
-def generic_description(facts: NotificationFacts) -> str:
-    """Indonesian description for a notification that names no merchant, never a parser placeholder."""
+def generic_description(facts: NotificationFacts, language: str) -> str:
+    """The description of a notification that names no merchant, never a parser placeholder.
+
+    Written in the account's language at creation (D6); the bank's own hint text is kept as sent.
+    """
     hint = " ".join((facts.parsed.category_hint or "").split())
     folded = hint.casefold()
     if folded in {"transfer masuk", "transfer keluar"}:
-        return hint[:1].upper() + hint[1:].lower()
-    base = "Pengeluaran" if facts.direction == "expense" else "Pemasukan"
+        if language == "id":
+            return hint[:1].upper() + hint[1:].lower()
+        return t(language, "notes.generic_transfer_in" if folded == "transfer masuk" else "notes.generic_transfer_out")
+    kind = "expense" if facts.direction == "expense" else "income"
     if not hint or folded in {"pengeluaran", "pemasukan"} or folded in PLACEHOLDER_COUNTERPARTIES:
-        return base
+        return t(language, f"notes.generic_{kind}")
     if folded.startswith("pembayaran"):
         return hint
-    return f"{base} {hint}"
+    return t(language, f"notes.generic_{kind}_hint", hint=hint)
 
 
 def notification_description(facts: NotificationFacts, context: dict) -> str:
@@ -95,7 +106,7 @@ def notification_description(facts: NotificationFacts, context: dict) -> str:
     counterparty = " ".join((facts.parsed.counterparty or "").split())
     if counterparty and normalize_key_text(counterparty) not in PLACEHOLDER_COUNTERPARTIES:
         return sanitize_text(counterparty)[:160]
-    return generic_description(facts)
+    return generic_description(facts, context["_language"])
 
 
 def memory_interpretation(facts: NotificationFacts, context: dict) -> Interpretation | None:
@@ -145,7 +156,7 @@ def deterministic_interpretation(facts: NotificationFacts, context: dict) -> Int
         target = pocket_endpoint(facts.parsed.target_pocket, parent, accounts, institution="jago")
         if str(source["id"]) == str(target["id"]):
             raise EvidenceError("same_movement_endpoint")
-        description = f"Pindah saldo ke {target['name']}"
+        description = t(context["_language"], "notes.movement_to", account=target["name"])
     else:
         observed = observed_endpoint(facts, accounts)
         categories = [row for row in context["categories"] if row["kind"] == facts.direction]
@@ -159,7 +170,7 @@ def deterministic_interpretation(facts: NotificationFacts, context: dict) -> Int
         # No single category: the row is still recorded, uncategorised and flagged (design D1).
         category = matches[0] if len(matches) == 1 else None
         if self_transfer or (context.get("facts") or {}).get("counterparty_is_owner"):
-            description = SELF_TRANSFER_NOTES[facts.direction]
+            description = self_transfer_note(context["_language"], facts.direction)
         else:
             description = notification_description(facts, context)
             merchant = (context.get("_classification_key") or {}).get("merchant")
@@ -233,7 +244,8 @@ def confirm_completed_movement(cur, event: dict, facts: NotificationFacts, accou
     by_id = {str(account["id"]): account for account in accounts}
     snapshot = committed_snapshot(
         key=f"notification:{event['id']}", kind="internal_movement",
-        description=legs["expense"]["notes"] or "Pindah saldo", amount=int(legs["expense"]["amount"]),
+        description=legs["expense"]["notes"] or t(account_language(cur, str(event["user_id"]))[0], "notes.movement"),
+        amount=int(legs["expense"]["amount"]),
         source=account_label(by_id[str(legs["expense"]["account_id"])], accounts),
         target=account_label(by_id[str(legs["income"]["account_id"])], accounts),
     )
@@ -297,9 +309,9 @@ def resolve_record(facts: NotificationFacts, proposal: Interpretation, context: 
         expense_category, income_category = movement_categories(context)
         category_id = expense_category if facts.direction == "expense" else income_category
         kakeibo = None
-        description = SELF_TRANSFER_NOTES[facts.direction]
+        description = self_transfer_note(context["_language"], facts.direction)
     elif (context.get("facts") or {}).get("counterparty_is_owner"):
-        description = SELF_TRANSFER_NOTES[facts.direction]
+        description = self_transfer_note(context["_language"], facts.direction)
     return {
         "description": description,
         "observed": observed, "signature": signature, "category_id": category_id,
@@ -746,7 +758,8 @@ def apply_broker_trade(cur, event: dict, facts: NotificationFacts, context: dict
         reconciliation_flag(cur, user_id, event_id, str(funding_id), amount)
     cur.execute("UPDATE accounts SET units = %s, avg_buy_price = %s, last_price = %s, last_price_at = NOW(), updated_at = NOW() WHERE user_id = %s AND id = %s", (updated_units, average, price, user_id, position["id"]))
     key = f"notification:{event_id}"
-    description = f"{'Beli' if parsed.investment_action == 'buy' else 'Jual'} {parsed.lots} lot {parsed.symbol}"
+    trade_note = "notes.stock_buy" if parsed.investment_action == "buy" else "notes.stock_sell"
+    description = t(context["_language"], trade_note, count=parsed.lots, symbol=parsed.symbol)
     result = create_bilateral_movement(
         cur, user_id=user_id, source_id=str(source["id"]), target_id=str(target["id"]), amount=amount,
         notes=description, tx_date=facts.timestamp, expense_category_id=exp_category, income_category_id=inc_category,

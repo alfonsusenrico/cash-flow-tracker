@@ -327,7 +327,7 @@ def test_transaction_rejects_archived_source_and_incompatible_category(auth_clie
         },
     )
     assert incompatible_category.status_code == 400
-    assert "incompatible" in incompatible_category.json()["detail"].lower()
+    assert incompatible_category.json()["detail"]["code"] == "category_type_mismatch"
 
 
 def test_obligation_combined_update_and_currency_validation(auth_client):
@@ -489,7 +489,7 @@ def test_transaction_create_rejects_client_supplied_receipt_path(auth_client):
         },
     )
     assert response.status_code == 422
-    assert "receipt endpoint" in response.json()["detail"]
+    assert response.json()["detail"]["code"] == "receipt_upload_endpoint"
 
 
 def test_concurrent_receipt_replacements_leave_only_the_committed_file(auth_client, tmp_path, monkeypatch):
@@ -1692,7 +1692,7 @@ def test_account_backed_goal_follows_transactions_without_adjustment_record(auth
 
     rejected_adjustment = auth_client.post(f"/api/goals/{goal_id}/adjust", json={"amount": 1_000})
     assert rejected_adjustment.status_code == 409
-    assert "cannot be adjusted directly" in rejected_adjustment.json()["detail"]
+    assert rejected_adjustment.json()["detail"]["code"] == "goal_progress_not_adjustable"
 
 
 def test_account_backed_goal_edit_changes_target_and_refuses_manual_progress(auth_client):
@@ -1724,7 +1724,7 @@ def test_account_backed_goal_edit_changes_target_and_refuses_manual_progress(aut
 
     manual_progress = auth_client.patch(f"/api/goals/{goal_id}", json={"current_amount": 0})
     assert manual_progress.status_code == 409
-    assert "derived from linked account balances" in manual_progress.json()["detail"]
+    assert manual_progress.json()["detail"]["code"] == "goal_progress_derived"
 
 
 def test_settled_external_movement_marks_negative_source_for_reconciliation(

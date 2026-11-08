@@ -1,10 +1,12 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from app.db.pool import db_conn
+from app.errors import ErrorCode, api_error
+from app.i18n import notice
 from app.services.auth import get_current_user
 from app.services.classification_gaps import category_followers, lock_owner
 from app.services.kakeibo import PILLAR_PATTERN
@@ -95,7 +97,7 @@ def create_category(payload: CategoryCreate, current_user: dict = Depends(get_cu
     user_id = current_user["id"]
     name = payload.name.strip()
     if payload.kind == "income" and (payload.monthly_budget is not None or payload.kakeibo_type is not None):
-        raise HTTPException(status_code=422, detail="Income categories cannot have an expense budget or Kakeibo pillar")
+        raise api_error(422, ErrorCode.INCOME_CATEGORY_BUDGET)
     # A category created without a pillar stays unclassified; is_primary never derives one.
     kakeibo_type = payload.kakeibo_type if payload.kind == "expense" else None
 
@@ -106,7 +108,7 @@ def create_category(payload: CategoryCreate, current_user: dict = Depends(get_cu
                 (user_id, name, payload.kind),
             )
             if cur.fetchone():
-                raise HTTPException(status_code=409, detail="Category already exists for this type")
+                raise api_error(409, ErrorCode.CATEGORY_NAME_TAKEN)
 
             cur.execute(
                 """
@@ -176,7 +178,7 @@ def update_category(
         assignments["is_archived"] = payload.is_archived
 
     if not assignments:
-        raise HTTPException(status_code=400, detail="No fields to update")
+        raise api_error(400, ErrorCode.NO_FIELDS_TO_UPDATE)
 
     # is_primary never derives a pillar: an update without kakeibo_type keeps the stored one.
     pillar_may_change = pillar_sent or payload.kind is not None
@@ -193,16 +195,16 @@ def update_category(
             )
             current_category = cur.fetchone()
             if not current_category:
-                raise HTTPException(status_code=404, detail="Category not found")
+                raise api_error(404, ErrorCode.CATEGORY_NOT_FOUND)
             if payload.kind and payload.kind != current_category["kind"]:
                 if current_category["offsets_spending"]:
-                    raise HTTPException(status_code=409, detail="A reimbursement category must stay an income category")
+                    raise api_error(409, ErrorCode.REIMBURSEMENT_CATEGORY_KIND)
                 cur.execute(
                     "SELECT EXISTS (SELECT 1 FROM transactions WHERE user_id = %s AND offset_category_id = %s) AS is_offset",
                     (user_id, cid),
                 )
                 if cur.fetchone()["is_offset"]:
-                    raise HTTPException(status_code=409, detail="Category type cannot change while reimbursements offset it")
+                    raise api_error(409, ErrorCode.CATEGORY_KIND_HAS_OFFSETS)
                 if current_category["system_key"]:
                     # One system category per key and kind (uq_category_user_system_key_kind).
                     cur.execute(
@@ -210,11 +212,11 @@ def update_category(
                         (user_id, current_category["system_key"], payload.kind),
                     )
                     if cur.fetchone()["taken"]:
-                        raise HTTPException(status_code=409, detail="A system category of this type already exists")
+                        raise api_error(409, ErrorCode.SYSTEM_CATEGORY_EXISTS)
             final_kind = payload.kind or current_category["kind"]
             if final_kind == "income":
                 if payload.monthly_budget is not None or payload.kakeibo_type is not None:
-                    raise HTTPException(status_code=422, detail="Income categories cannot have an expense budget or Kakeibo pillar")
+                    raise api_error(422, ErrorCode.INCOME_CATEGORY_BUDGET)
                 if payload.kind == "income":
                     assignments["monthly_budget"] = None
                     assignments["kakeibo_type"] = None
@@ -224,7 +226,7 @@ def update_category(
                     (cid, payload.kind, cid, payload.kind),
                 )
                 if cur.fetchone()["has_incompatible_usage"]:
-                    raise HTTPException(status_code=409, detail="Category type cannot change while incompatible transactions or rules use it")
+                    raise api_error(409, ErrorCode.CATEGORY_KIND_IN_USE)
             # A pillar change teaches habit learning exactly as "Lengkapi klasifikasi" does: one
             # feedback row per following expense whose effective pillar changed, purpose questions kept.
             before = {}
@@ -242,7 +244,7 @@ def update_category(
             )
             cat = cur.fetchone()
             if not cat:
-                raise HTTPException(status_code=404, detail="Category not found")
+                raise api_error(404, ErrorCode.CATEGORY_NOT_FOUND)
             corrections = record_owner_corrections(cur, user_id, before, close_questions=False)
             conn.commit()
 
@@ -286,14 +288,14 @@ def delete_category(category_id: UUID, current_user: dict = Depends(get_current_
                     (user_id, cid),
                 )
                 conn.commit()
-                return {"ok": True, "message": "Category archived because it is referenced by ledger or recurring activity"}
+                return {"ok": True, "message": notice("category_archived")}
 
             cur.execute(
                 "DELETE FROM categories WHERE user_id = %s AND id = %s RETURNING id",
                 (user_id, cid),
             )
             if not cur.fetchone():
-                raise HTTPException(status_code=404, detail="Category not found")
+                raise api_error(404, ErrorCode.CATEGORY_NOT_FOUND)
             conn.commit()
 
-    return {"ok": True, "message": "Category deleted"}
+    return {"ok": True, "message": notice("category_deleted")}

@@ -17,10 +17,12 @@ from statistics import mean
 
 import httpx2 as httpx
 
-from evaluation.notification_cases import FIXTURE_VERSION, SyntheticCase, synthetic_cases
+from evaluation.notification_cases import (
+    ENGLISH_FIXTURE_VERSION, FIXTURE_VERSION, SyntheticCase, english_output_cases, synthetic_cases,
+)
 from app.services.notification_context import sanitize_text
 from app.services.notification_evidence import EvidenceError, collect_facts
-from app.services.notification_interpretation import Interpretation, PROMPT_VERSION, validate_interpretation, system_prompt
+from app.services.notification_interpretation import Interpretation, validate_interpretation
 from app.services.notification_resolution import (
     endpoint_context, institution_parent, observed_endpoint, pocket_endpoint, signatures_compatible, transfer_signature,
 )
@@ -30,6 +32,7 @@ from app.services.openai_notification_provider import (
     OpenAINotificationProvider,
     ProviderError,
 )
+from app.services.prompt_language import NOTIFICATION_INTERPRETATION, Prompt, is_placeholder_description, load_prompt
 
 
 WEIGHTS = {"schema": 10, "facts": 25, "references": 20, "classification": 20, "movement": 15, "abstention": 10}
@@ -37,8 +40,14 @@ MODEL_ID = "gpt-5.6-luna"
 REASONING_ORDER = ["low", "none"]
 MAX_OUTPUT_TOKENS = 2048
 DEFAULT_MAX_ESTIMATED_USD = 0.25
+ENGLISH_DESCRIPTION_MIN_PERCENT = 90
 INPUT_USD_PER_MILLION_TOKENS = 0.20
 OUTPUT_USD_PER_MILLION_TOKENS = 1.20
+# Indonesian words that should not appear in an English description outside a proper name.
+INDONESIAN_WORDS = re.compile(
+    r"\b(dari|ke|untuk|dan|yang|di|dengan|bayar|pembayaran|pengeluaran|pemasukan|transaksi|belanja|masuk|keluar)\b",
+    re.IGNORECASE,
+)
 
 
 class BenchmarkBudgetExceeded(ValueError):
@@ -112,12 +121,16 @@ def deterministic_route_summary(rows: list[dict]) -> dict:
     }
 
 
-def request_cost_upper_bound(context: dict) -> float:
+def case_prompt(case: SyntheticCase) -> Prompt:
+    return load_prompt(NOTIFICATION_INTERPRETATION, case.output_language)
+
+
+def request_cost_upper_bound(context: dict, prompt: Prompt) -> float:
     schema = Interpretation.model_json_schema()
     input_bytes = sum(
         len(value.encode("utf-8"))
         for value in (
-            system_prompt(),
+            prompt.text,
             json.dumps(context, ensure_ascii=False, separators=(",", ":"), default=str),
             json.dumps(schema, ensure_ascii=False, separators=(",", ":"), sort_keys=True),
         )
@@ -132,7 +145,7 @@ def estimated_run_cost(cases: list[SyntheticCase], *, repeats: int, configuratio
     if repeats < 1 or configurations < 1:
         raise ValueError("Benchmark repeats and configurations must be positive")
     return sum(
-        request_cost_upper_bound(benchmark_input(case)[1]) * repeats * configurations
+        request_cost_upper_bound(benchmark_input(case)[1], case_prompt(case)) * repeats * configurations
         for case in cases
         if evaluation_route(case) == "model"
     )
@@ -228,6 +241,12 @@ def score_case(case: SyntheticCase, interpretation, *, latency: float, error_cod
     description = raw.get("description", "")
     description_quality = bool(actual_record and 3 <= len(description.strip()) <= 160
                                and not re.search(r"\[SELF\]|\[REDACTED\]|ignore previous|\b\d{6,}\b", description, re.I))
+    if expected.get("description_language") == "en":
+        # An English description is neither a placeholder ("Payment" like "Pembayaran") nor Indonesian prose.
+        description_quality = description_quality and not (
+            is_placeholder_description(description, "en") or is_placeholder_description(description, "id")
+            or INDONESIAN_WORDS.search(description)
+        )
     return {
         "case": case.name, "partition": case.partition, "latency_seconds": latency,
         "error_code": error_code, "schema": bool(interpretation), "facts": raw_fact_valid,
@@ -241,6 +260,7 @@ def score_case(case: SyntheticCase, interpretation, *, latency: float, error_cod
         "expected_movement": bool(expected.get("candidate_transaction_id") or expected.get("direction") == "internal_movement" and expected_record),
         "proposed_movement": bool(raw.get("candidate_transaction_id") or raw.get("direction") == "internal_movement" and actual_record),
         "description_rubric_pass": description_quality,
+        "description_language": expected.get("description_language", "id"),
         "sequence": bool(expected.get("sequence")),
         "synthetic_description": sanitize_text(description)[:160] if actual_record else None,
         "raw_proposal": raw or None,
@@ -262,6 +282,12 @@ def summarize(rows: list[dict]) -> dict:
     movement_proposed = [row for row in rows if row["proposed_movement"]]
     safe = not any(row["unsafe_validated_write"] for row in rows)
     quality = bool(rows and positives and metrics["schema"] >= 98 and classification_accuracy >= 90)
+    described = [row for row in rows if row["proposed_record"]]
+    description_percent = 100 * mean(int(row["description_rubric_pass"]) for row in described) if described else 0
+    english = [row for row in rows if row.get("description_language") == "en"]
+    if english:
+        # English output also has to read as English and name the purpose (localize-server-text D7).
+        quality = quality and description_percent >= ENGLISH_DESCRIPTION_MIN_PERCENT
     return {
         "offered": len(rows), "completed": sum(row["schema"] for row in rows),
         "failed_requests": sum(bool(row["error_code"]) for row in rows),
@@ -269,6 +295,7 @@ def summarize(rows: list[dict]) -> dict:
         "validated_safety_gate_pass": safe, "quality_gate_pass": quality,
         "eligible_by_evaluation": safe and quality,
         "unambiguous_classification_percent": classification_accuracy,
+        "description_rubric_percent": description_percent,
         "validation_rejections": sum(row["validation_rejected"] for row in rows),
         "record_recall_percent": 100 * mean(int(row["proposed_record"]) for row in positives) if positives else 0,
         "movement_precision_percent": 100 * mean(int(row["movement"]) for row in movement_proposed) if movement_proposed else 0,
@@ -300,7 +327,7 @@ async def evaluate_model(provider, cases: list[SyntheticCase], *, repeats: int =
             if attempted:
                 provider.last_usage = None
                 try:
-                    interpretation = await provider.interpret(context)
+                    interpretation = await provider.interpret(context, prompt=case_prompt(case))
                 except ProviderError as exc:
                     error = exc.code
                     if exc.code in {
@@ -374,20 +401,28 @@ def provider_credential() -> str:
     return credential
 
 
+def benchmark_cases(output_language: str, partition: str) -> list[SyntheticCase]:
+    corpus = english_output_cases() if output_language == "en" else synthetic_cases()
+    return [case for case in corpus if partition == "all" or case.partition == partition]
+
+
 async def run_live(reasoning_efforts: list[str], *, repeats: int, partition: str,
                    model: str = MODEL_ID,
-                   max_estimated_usd: float = DEFAULT_MAX_ESTIMATED_USD):
+                   max_estimated_usd: float = DEFAULT_MAX_ESTIMATED_USD,
+                   output_language: str = "id"):
     reasoning_efforts = selected_reasoning_efforts(reasoning_efforts)
     if max_estimated_usd <= 0:
         raise ValueError("Benchmark cost cap must be positive")
     credential = provider_credential()
-    cases = [case for case in synthetic_cases() if partition == "all" or case.partition == partition]
+    cases = benchmark_cases(output_language, partition)
+    prompt = load_prompt(NOTIFICATION_INTERPRETATION, output_language)
     estimated_usd = estimated_run_cost(cases, repeats=repeats, configurations=len(reasoning_efforts))
     enforce_cost_cap(estimated_usd, max_estimated_usd)
     report = {
         "synthetic_only": True, "timestamp": datetime.now(timezone.utc).isoformat(),
-        "prompt_version": PROMPT_VERSION, "prompt_hash": hashlib.sha256(system_prompt().encode()).hexdigest(),
-        "fixture_version": FIXTURE_VERSION,
+        "output_language": output_language,
+        "prompt_version": prompt.version, "prompt_hash": hashlib.sha256(prompt.text.encode()).hexdigest(),
+        "fixture_version": ENGLISH_FIXTURE_VERSION if output_language == "en" else FIXTURE_VERSION,
         "fixture_hash": hashlib.sha256(json.dumps([{"event": case.event, "context": case.context, "expected": case.expected} for case in cases], default=str, sort_keys=True).encode()).hexdigest(),
         "partition": partition, **revision_identity(), "model": model, "configurations": {},
         "settings": {"max_output_tokens": MAX_OUTPUT_TOKENS, "store": False, "tools": [], "interval_seconds": 0.5},
@@ -424,6 +459,8 @@ def main():
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--partition", choices=("all", "development", "held_out"), default="all")
     parser.add_argument("--max-estimated-usd", type=float, default=DEFAULT_MAX_ESTIMATED_USD)
+    parser.add_argument("--output-language", choices=("id", "en"), default="id",
+                        help="Prompt rendering to measure; en is the gate for LLM_ENGLISH_OUTPUT_ENABLED")
     arguments = parser.parse_args()
     if not arguments.live:
         parser.error("Use --live only after rechecking OpenAI project access, spend limits, and retention controls")
@@ -436,6 +473,7 @@ def main():
             partition=arguments.partition,
             model=arguments.model,
             max_estimated_usd=arguments.max_estimated_usd,
+            output_language=arguments.output_language,
         ))
     except (ProviderError, BenchmarkBudgetExceeded, ValueError) as exc:
         error_code = exc.code if isinstance(exc, ProviderError) else str(exc)

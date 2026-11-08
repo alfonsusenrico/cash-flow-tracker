@@ -96,30 +96,17 @@ export interface SuggestionDecisionResult {
   corrections?: number;
 }
 
-const SOURCE_LABELS: Record<SuggestionSource, string> = {
-  memory: "Dari riwayat jawaban",
-  rule: "Aturan",
-  ai: "Saran AI",
-};
+/** Why a run made fewer suggestions than it could, as a `review.dialog.history.notice` key; null when nothing needs saying. */
+export type RunNotice = { key: "aiDisabled" | "interrupted" | "failed" | "provider" | "other"; code: string };
 
-export function suggestionSourceLabel(source: SuggestionSource): string {
-  return SOURCE_LABELS[source] ?? source;
-}
-
-/** Why a run made fewer suggestions than it could; null when nothing needs saying. */
-export function runNotice(run: SuggestionRun): string | null {
+export function runNotice(run: SuggestionRun): RunNotice | null {
   const code = run.error_code;
   if (!code) return null;
-  if (code === "ai_disabled") return "AI tidak aktif, jadi hanya saran dari ingatan dan aturan yang dibuat.";
-  if (code === "run_interrupted") return "Proses terhenti sebelum selesai. Saran yang sudah dibuat tetap tersimpan; jalankan lagi untuk sisanya.";
-  if (code === "run_failed") return "Proses gagal. Saran yang sudah dibuat tetap tersimpan; coba lagi nanti.";
-  if (code.startsWith("provider_")) return `AI tidak dapat dihubungi (${code}). Saran dari ingatan dan aturan tetap tersimpan.`;
-  return `Sebagian saran tidak dibuat (${code}).`;
-}
-
-export function aiUnavailableLabel(reason: string | null): string {
-  if (!reason || reason === "ai_disabled") return "AI tidak aktif: hanya saran dari ingatan dan aturan.";
-  return `AI tidak tersedia (${reason}): hanya saran dari ingatan dan aturan.`;
+  if (code === "ai_disabled") return { key: "aiDisabled", code };
+  if (code === "run_interrupted") return { key: "interrupted", code };
+  if (code === "run_failed") return { key: "failed", code };
+  if (code.startsWith("provider_")) return { key: "provider", code };
+  return { key: "other", code };
 }
 
 export function chunkSuggestionIds(ids: readonly string[], size = SUGGESTION_DECISION_LIMIT): string[][] {
@@ -141,25 +128,18 @@ export function defaultWindow(today = new Date()): { from: string; to: string } 
   return { from: isoDate(start), to: isoDate(today) };
 }
 
-export function shortDate(value: string): string {
-  return new Date(value).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
-}
-
-export function dateOnlyLabel(value: string): string {
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
-}
-
 const MAX_WINDOW_DAYS = 366;
 
-/** Indonesian message for a window the backend would reject, or null when it is valid. */
-export function windowError(from: string, to: string, today = new Date()): string | null {
-  if (!from || !to) return "Isi tanggal awal dan akhir.";
-  if (to < from) return "Tanggal akhir tidak boleh sebelum tanggal awal.";
-  if (to > defaultWindow(today).to) return "Tanggal akhir tidak boleh melewati hari ini.";
+/** Why the backend would reject a window, as a `review.dialog.history.window` key, or null when it is valid. */
+export type WindowProblem = "empty" | "order" | "future" | "tooLong";
+
+export function windowError(from: string, to: string, today = new Date()): WindowProblem | null {
+  if (!from || !to) return "empty";
+  if (to < from) return "order";
+  if (to > defaultWindow(today).to) return "future";
   const [fromYear, fromMonth, fromDay] = from.split("-").map(Number);
   const [toYear, toMonth, toDay] = to.split("-").map(Number);
   const days = Math.round((Date.UTC(toYear, toMonth - 1, toDay) - Date.UTC(fromYear, fromMonth - 1, fromDay)) / 86_400_000) + 1;
-  if (days > MAX_WINDOW_DAYS) return "Periode paling panjang 366 hari.";
+  if (days > MAX_WINDOW_DAYS) return "tooLong";
   return null;
 }

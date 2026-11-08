@@ -45,7 +45,7 @@ export function PanelBlock({ heading, href, children }: { heading?: string; href
 }
 
 export interface ListRowProps {
-  /** A link row; otherwise the row is a button. */
+  /** A link row; with `onClick` a button; with neither a plain row that is not a target (SPEC `is-plain`). */
   href?: string;
   onClick?: () => void;
   time?: string;
@@ -62,13 +62,23 @@ export interface ListRowProps {
   amount?: ReactNode;
   chevron?: boolean;
   selected?: boolean;
+  /** The item shown beside the list (Tinjau): `aria-current="true"` with the selection bar. */
+  current?: boolean;
+  /** Title over meta at every width, padding 12 and 64 px high (apply-markas-tinjau D6). */
+  layout?: "stacked";
+  /** `data-row`, which focus returns to when the item's sheet or dialog closes. */
+  rowKey?: string;
+  /** Controls at the end of a plain row, such as Tinjau's "Terima" and "Tolak" for one suggestion. */
+  actions?: ReactNode;
 }
 
 /**
  * One list row (SPEC §7): time · icon · title with its meta · category · status · amount · chevron. Below 768 px
  * the row has two lines, the title and the meta, and only the amount stays beside them.
  */
-export function ListRow({ href, onClick, time, icon, title, meta, phoneMeta, category, status, amount, chevron, selected }: ListRowProps) {
+export function ListRow({
+  href, onClick, time, icon, title, meta, phoneMeta, category, status, amount, chevron, selected, current, layout, rowKey, actions,
+}: ListRowProps) {
   const content = (
     <>
       {time !== undefined && <span className="r-time">{time}</span>}
@@ -92,8 +102,20 @@ export function ListRow({ href, onClick, time, icon, title, meta, phoneMeta, cat
       )}
     </>
   );
-  const className = cn("row", "ws-select-row");
-  const selection = selected ? { "data-selected": "" } : {};
+  if (!href && !onClick) {
+    return (
+      <div className={cn("row", "is-plain", layout === "stacked" && "is-stacked")}>
+        {content}
+        {actions && <span className="r-actions">{actions}</span>}
+      </div>
+    );
+  }
+  const className = cn("row", "ws-select-row", layout === "stacked" && "is-stacked");
+  const selection = {
+    ...(selected ? { "data-selected": "" } : {}),
+    ...(current ? { "aria-current": "true" as const } : {}),
+    ...(rowKey ? { "data-row": rowKey } : {}),
+  };
   if (href) {
     return (
       <Link href={href} className={className} {...selection}>

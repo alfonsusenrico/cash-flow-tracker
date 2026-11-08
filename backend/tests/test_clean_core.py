@@ -369,6 +369,8 @@ def test_user_settings_and_currency_rates():
             "name": "Raka Purnama",
             "payday_day": 28,
             "currency": "USD",
+            "language": "id",
+            "region": "ID",
             "emergency_fund_multiplier": 8,
             "monthly_spending_budget": 12000000,
         }

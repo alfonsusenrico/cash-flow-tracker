@@ -13,9 +13,11 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { useLocale, useTranslations } from "next-intl";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/utils";
 import { PHONE_QUERY, useEscapeLayer, useFocusTrap, useOutsidePress, useScrollLock } from "./layers";
+import { useUntranslated } from "./untranslated";
 
 /**
  * "Rincian hitungan": any figure marked explainable opens the lines that make it up. The content comes from
@@ -45,11 +47,13 @@ interface OpenState {
   id: string;
   trigger: HTMLElement;
   data: ExplanationData;
+  /** The content's language when it comes from a page not translated yet (add-language-system D10). */
+  contentLang?: string;
 }
 
 interface ExplainContextValue {
   openId: string | null;
-  open: (id: string, trigger: HTMLElement, data: ExplanationData) => void;
+  open: (id: string, trigger: HTMLElement, data: ExplanationData, contentLang?: string) => void;
   close: () => void;
 }
 
@@ -68,8 +72,8 @@ export function ExplainProvider({ children }: { children: ReactNode }) {
     setState(null);
   }, []);
 
-  const open = useCallback((id: string, trigger: HTMLElement, data: ExplanationData) => {
-    setState({ id, trigger, data });
+  const open = useCallback((id: string, trigger: HTMLElement, data: ExplanationData, contentLang?: string) => {
+    setState({ id, trigger, data, contentLang });
   }, []);
 
   const value = useMemo(() => ({ openId: state?.id ?? null, open, close }), [state?.id, open, close]);
@@ -107,6 +111,8 @@ export function ExplainableFigure({
   className?: string;
 }) {
   const id = useId();
+  const t = useTranslations("home");
+  const contentLang = useUntranslated() ? "id" : undefined;
   const { openId, open, close } = useExplain();
   const expanded = openId === id;
   return (
@@ -115,9 +121,9 @@ export function ExplainableFigure({
       className={cn("ws-xn", className)}
       aria-haspopup="dialog"
       aria-expanded={expanded}
-      aria-label={`${label} ${amountText}: lihat rincian`}
+      aria-label={t("viewBreakdownLabel", { label, amount: amountText })}
       data-explain-trigger={id}
-      onClick={(event) => (expanded ? close() : open(id, event.currentTarget, explanation))}
+      onClick={(event) => (expanded ? close() : open(id, event.currentTarget, explanation, contentLang))}
     >
       {children ?? amountText}
     </button>
@@ -132,6 +138,8 @@ function ExplanationPanel({ state, onClose }: { state: OpenState; onClose: () =>
   const [sheet] = useState(() => typeof window.matchMedia === "function" && window.matchMedia(PHONE_QUERY).matches);
   const [position, setPosition] = useState<{ left: number; top: number; maxHeight?: number } | null>(null);
   const { data } = state;
+  const t = useTranslations();
+  const locale = useLocale();
 
   useEscapeLayer(true, onClose);
   useOutsidePress([panelRef, triggerRef], true, onClose);
@@ -185,15 +193,19 @@ function ExplanationPanel({ state, onClose }: { state: OpenState; onClose: () =>
         }
       >
         <div className="ws-x-head">
-          <span className="ws-x-kick">Rincian hitungan</span>
-          <h2 id={titleId} ref={headingRef} tabIndex={-1}>
+          <span className="ws-x-kick" lang={state.contentLang ? locale : undefined}>
+            {t("breakdown.calculation")}
+          </span>
+          <h2 id={titleId} ref={headingRef} tabIndex={-1} lang={state.contentLang}>
             {data.title}
           </h2>
-          <button type="button" className="ws-close" aria-label="Tutup penjelasan" onClick={onClose}>
+          <button type="button" className="ws-close" aria-label={t("home.closeExplanation")} onClick={onClose}>
             <Icon name="x" className="h-4 w-4" />
           </button>
         </div>
-        <ExplanationBody data={data} />
+        <div lang={state.contentLang} className="contents">
+          <ExplanationBody data={data} />
+        </div>
       </div>
     </>
   );
@@ -201,13 +213,14 @@ function ExplanationPanel({ state, onClose }: { state: OpenState; onClose: () =>
 }
 
 export function ExplanationBody({ data }: { data: ExplanationData }) {
+  const t = useTranslations("home");
   return (
     <div className="ws-x-body">
       <p>{data.rule}</p>
       {data.unavailable ? (
         <>
           <p>
-            <strong className="font-medium text-[var(--text)]">Kenapa belum ada: </strong>
+            <strong className="font-medium text-[var(--text)]">{t("whyUnavailable")}</strong>
             {data.unavailable.reason}
           </p>
           <p>{data.unavailable.fix}</p>

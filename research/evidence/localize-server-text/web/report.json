@@ -1,0 +1,60 @@
+[
+  {
+    "name": "en-review-question-1440-light",
+    "lang": "en",
+    "prompts": [
+      "What was this for? Rp187.500 from BCA Harian · bank category: Groceries"
+    ],
+    "overflow": false,
+    "axe": [],
+    "console": []
+  },
+  {
+    "name": "en-review-question-390-dark",
+    "lang": "en",
+    "prompts": [
+      "What was this for? Rp187.500 from BCA Harian · bank category: Groceries"
+    ],
+    "overflow": false,
+    "axe": [],
+    "console": []
+  },
+  {
+    "name": "en-error-account-name-taken-1440-light",
+    "shown": true,
+    "text": "Account with this name already exists.",
+    "axe": [],
+    "console": [
+      "log: Failed to load resource: the server responded with a status of 409 (Conflict)"
+    ]
+  },
+  {
+    "name": "id-review-question-1440-light",
+    "lang": "id",
+    "prompts": [
+      "Apa ini? Rp187.500 dari BCA Harian · kategori bank: Groceries"
+    ],
+    "overflow": false,
+    "axe": [],
+    "console": []
+  },
+  {
+    "name": "id-review-question-390-dark",
+    "lang": "id",
+    "prompts": [
+      "Apa ini? Rp187.500 dari BCA Harian · kategori bank: Groceries"
+    ],
+    "overflow": false,
+    "axe": [],
+    "console": []
+  },
+  {
+    "name": "id-error-account-name-taken-1440-light",
+    "shown": true,
+    "text": "Rekening dengan nama ini sudah ada.",
+    "axe": [],
+    "console": [
+      "log: Failed to load resource: the server responded with a status of 409 (Conflict)"
+    ]
+  }
+]

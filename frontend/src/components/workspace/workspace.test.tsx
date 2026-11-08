@@ -9,18 +9,23 @@ import { api, getDevices } from "@/lib/api";
 import type { DueExpectation, RecurringRule } from "@/types/recurring";
 import { PageActions, WorkspaceContext, useWorkspace, type WorkspaceValue } from "./context";
 import { PHONE_QUERY } from "./layers";
-import { MORE_LINKS, NAV_GROUPS, NAV_LINKS, isActivePath, pageMeta } from "./navigation";
+import { renderWithIntl, testWords } from "@/lib/i18n/testing";
+import { HelpDialog } from "./shortcuts";
+import { MORE_LINKS, NAV_GROUPS, NAV_LINKS, frameWidth, isActivePath } from "./navigation";
+import { untranslatedPageTitle } from "./untranslatedPages";
+
+const { t } = testWords();
 import { PhoneHeader, PhoneTabBar } from "./PhoneNav";
 import { SideNav } from "./SideNav";
 import { ShortcutProvider, useShortcut } from "./shortcuts";
 import { TitleBlock } from "./TitleBlock";
 import { TopBar } from "./TopBar";
 
-const navigation = vi.hoisted(() => ({ pathname: "/", push: vi.fn() }));
+const navigation = vi.hoisted(() => ({ pathname: "/", push: vi.fn(), refresh: vi.fn() }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => navigation.pathname,
-  useRouter: () => ({ push: navigation.push }),
+  useRouter: () => ({ push: navigation.push, refresh: navigation.refresh }),
 }));
 vi.mock("@/lib/api", () => ({
   api: { get: vi.fn(), post: vi.fn() },
@@ -134,7 +139,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("navigation model", () => {
   it("groups the seven pages under HARIAN, RINGKASAN and SIMPANAN with every href unchanged", () => {
-    expect(NAV_GROUPS.map((group) => [group.label, group.links.map((link) => link.label)])).toEqual([
+    expect(NAV_GROUPS.map((group) => [t(`nav.groups.${group.key}`), group.links.map((link) => t(`nav.${link.key}`))])).toEqual([
       ["Harian", ["Beranda", "Tinjau", "Transaksi"]],
       ["Ringkasan", ["Analisis", "Laporan"]],
       ["Simpanan", ["Rekening & Kantong", "Target & Tagihan"]],
@@ -143,7 +148,7 @@ describe("navigation model", () => {
   });
 
   it("orders Lainnya like the sidebar, then Pengaturan", () => {
-    expect(MORE_LINKS.map((link) => link.label)).toEqual(["Analisis", "Laporan", "Rekening & Kantong", "Target & Tagihan", "Pengaturan"]);
+    expect(MORE_LINKS.map((link) => t(`nav.${link.key}`))).toEqual(["Analisis", "Laporan", "Rekening & Kantong", "Target & Tagihan", "Pengaturan"]);
   });
 
   it("keeps isActivePath", () => {
@@ -154,11 +159,11 @@ describe("navigation model", () => {
   });
 
   it("gives Transaksi and Pengaturan the 1040 frame and the prototype's subtitles", () => {
-    expect(pageMeta("/ledger")).toEqual({ title: "Transaksi", subtitle: "Semua uang masuk, pengeluaran, dan pindah saldo", width: 1040 });
-    expect(pageMeta("/settings/profil")).toEqual({ title: "Pengaturan", subtitle: "", width: 1040 });
-    expect(pageMeta("/accounts").subtitle).toBe("Saldo rekening, kantong, investasi dan utang");
-    expect(pageMeta("/goals").subtitle).toBe("Dana darurat, tagihan, utang dan target tabungan");
-    expect(pageMeta("/").width).toBe(1200);
+    expect({ ...untranslatedPageTitle("/ledger"), width: frameWidth("/ledger") }).toEqual({ title: "Transaksi", subtitle: "Semua uang masuk, pengeluaran, dan pindah saldo", width: 1040 });
+    expect({ ...untranslatedPageTitle("/settings/profil"), width: frameWidth("/settings/profil") }).toEqual({ title: "Pengaturan", subtitle: "", width: 1040 });
+    expect(untranslatedPageTitle("/accounts")?.subtitle).toBe("Saldo rekening, kantong, investasi dan utang");
+    expect(untranslatedPageTitle("/goals")?.subtitle).toBe("Dana darurat, tagihan, utang dan target tabungan");
+    expect(frameWidth("/")).toBe(1200);
   });
 
   it("switches the phone layouts below 768 px", () => {
@@ -445,7 +450,7 @@ describe("planNotifications", () => {
 
   it("No duplicate plan item: a plan due today in both sources is listed once and opens the due-plan view", () => {
     const spaylater = rule("r1", "Tagihan SPayLater", "2026-11-05");
-    const items = planNotifications([spaylater], [pending(spaylater)], [], now);
+    const items = planNotifications([spaylater], [pending(spaylater)], [], testWords(), now);
     expect(items).toEqual([
       { id: "plan-r1-2026-11-05", title: "Tagihan SPayLater Rp 434.000 hari ini", detail: "Rencana · jatuh tempo 5 Nov", opensDuePlans: true },
     ]);
@@ -456,6 +461,7 @@ describe("planNotifications", () => {
       [rule("r2", "Internet", "2026-11-06"), rule("r3", "Listrik", "2026-11-07"), rule("r4", "Gaji", "2026-11-05", { type: "income" }), rule("r5", "Sewa", "2026-11-20")],
       [pending(rule("r6", "Kelas Yoga", "2026-11-02", { amount: 150_000 }))],
       [],
+      testWords(),
       now,
     );
     expect(items.map((item) => [item.title, item.opensDuePlans ?? false, item.href ?? null])).toEqual([
@@ -469,7 +475,7 @@ describe("planNotifications", () => {
     const items = planNotifications([], [], [
       { rule_id: "r1", scheduled_for: "2026-11-03" },
       { rule_id: "r2", scheduled_for: "2026-11-04" },
-    ] as never, now);
+    ] as never, testWords(), now);
     expect(items).toEqual([
       { id: "autolink-r1-2026-11-03,r2-2026-11-04", title: "2 rencana ditautkan otomatis", detail: "Rencana · jatuh tempo 4 Nov", opensDuePlans: true },
     ]);
@@ -811,5 +817,201 @@ describe("AppLayout wiring", () => {
     } finally {
       error.mockRestore();
     }
+  });
+});
+
+describe("the shell in English (add-language-system)", () => {
+  function renderEnglish(children: ReactNode, overrides: Partial<WorkspaceValue> = {}) {
+    const value = workspaceValue(overrides);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = renderWithIntl(
+      <QueryClientProvider client={client}>
+        <ShortcutProvider>
+          <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>
+        </ShortcutProvider>
+      </QueryClientProvider>,
+      { language: "en" },
+    );
+    return { ...view, value, user: userEvent.setup() };
+  }
+
+  beforeEach(() => {
+    navigation.pathname = "/";
+  });
+
+  it("names the sidebar groups, pages, badges and the profile button in English", async () => {
+    const { container } = renderEnglish(<SideNav />);
+    const nav = screen.getByRole("navigation", { name: "Main menu" });
+    const groupNames = within(nav).getAllByRole("group").map((group) => document.getElementById(group.getAttribute("aria-labelledby") ?? "")?.textContent);
+    expect(groupNames).toEqual(["Daily", "Overview", "Money"]);
+    expect(within(nav).getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
+    expect(within(nav).getByRole("link", { name: "Review, 3 need review" })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: "Transactions" })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: "Reports, new report ready" })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: "Accounts & Pockets" })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: "Goals & Bills" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Sidebar navigation" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Collapse sidebar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Profile, enrico" })).toBeInTheDocument();
+    expect((await axe(container)).violations).toHaveLength(0);
+  });
+
+  it("uses the singular badge for one item to review", () => {
+    renderEnglish(<SideNav />, { reviewAttention: 1 });
+    expect(screen.getByRole("link", { name: "Review, 1 needs review" })).toBeInTheDocument();
+  });
+
+  it("offers Profile and Sign out in the account menu", async () => {
+    const { user, value } = renderEnglish(<SideNav />);
+    await user.click(screen.getByRole("button", { name: "Profile, enrico" }));
+    const menu = screen.getByRole("menu", { name: "Profile menu" });
+    expect(within(menu).getByRole("menuitem", { name: "Profile" })).toBeInTheDocument();
+    await user.click(within(menu).getByRole("menuitem", { name: "Sign out" }));
+    expect(value.logout).toHaveBeenCalled();
+  });
+
+  it("words the top bar, the theme menu and the bell in English", async () => {
+    const { user } = renderEnglish(<TopBar />);
+    expect(screen.getByRole("searchbox", { name: "Search transactions" })).toHaveAttribute("placeholder", "Search transactions…");
+    expect(screen.getByRole("button", { name: "Hide balances" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Theme" }));
+    const menu = screen.getByRole("menu", { name: "Theme" });
+    expect(within(menu).getAllByRole("menuitemradio").map((item) => item.textContent)).toEqual(["Light", "Dark", "Match system"]);
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Notifications, 2 new" }));
+    const panel = screen.getByRole("dialog", { name: "Notifications" });
+    expect(within(panel).getByRole("button", { name: "Close notifications" })).toBeInTheDocument();
+    expect(panel).toHaveTextContent("(new)");
+  });
+
+  it("says nothing new on an empty bell", async () => {
+    const { user } = renderEnglish(<TopBar />, { notifications: [], unreadIds: new Set() });
+    await user.click(screen.getByRole("button", { name: "Notifications, nothing new" }));
+    expect(screen.getByRole("dialog", { name: "Notifications" })).toHaveTextContent("Nothing new yet.");
+  });
+
+  it("words the phone header, tab bar and More in English", async () => {
+    stubMatchMedia(true);
+    const { user } = renderEnglish(
+      <>
+        <PhoneHeader />
+        <PhoneTabBar />
+      </>,
+    );
+    expect(screen.getByRole("link", { name: "Search transactions" })).toBeInTheDocument();
+    const tabs = screen.getByRole("navigation", { name: "Phone navigation" });
+    expect(within(tabs).getByRole("link", { name: "Home" })).toBeInTheDocument();
+    expect(within(tabs).getByRole("link", { name: "Review, 3 need review" })).toBeInTheDocument();
+    expect(within(tabs).getByRole("button", { name: "Add transaction" })).toBeInTheDocument();
+    expect(within(tabs).getByRole("link", { name: "Transactions" })).toBeInTheDocument();
+    await user.click(within(tabs).getByRole("button", { name: "More" }));
+    const more = screen.getByRole("dialog", { name: "More" });
+    expect(within(more).getByRole("link", { name: "Reports, new report ready" })).toHaveTextContent("1 new");
+    expect(within(more).getByRole("button", { name: /Notifications/ })).toHaveTextContent("2 new");
+    expect(within(more).getByRole("button", { name: /Theme/ })).toHaveTextContent("Match system");
+    expect(within(more).getByRole("button", { name: "Sign out" })).toBeInTheDocument();
+    expect(within(more).getByRole("button", { name: "Close More" })).toBeInTheDocument();
+  });
+
+  it("shows Help & shortcuts in English, with page keys still Indonesian and marked as such", () => {
+    renderEnglish(<HelpDialog open onClose={() => {}} />);
+    const dialog = screen.getByRole("dialog", { name: "Help & shortcuts" });
+    expect(dialog).toHaveTextContent("The phone forwards bank notifications, and transactions are recorded automatically.");
+    expect(dialog).toHaveTextContent("Home shows how much is safe to spend until payday.");
+    expect(within(dialog).getByRole("table", { name: "Keyboard shortcuts" })).toBeInTheDocument();
+    expect(within(dialog).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Key", "Action"]);
+    expect(dialog).toHaveTextContent("Close the top layer");
+    expect(dialog).toHaveTextContent("Single-key shortcuts can be turned off in Settings › Appearance.");
+    expect(within(dialog).getByRole("button", { name: "Close help" })).toBeInTheDocument();
+  });
+
+  it("names the plan notifications in English from the same dates", () => {
+    const words = testWords("en");
+    const plan = {
+      id: "r1", name: "Tagihan SPayLater", amount: 434_000, type: "expense", next_due_date: "2026-11-05", is_active: true,
+    } as unknown as RecurringRule;
+    const items = planNotifications([plan], [], [], words, new Date("2026-11-05T03:00:00Z"));
+    expect(items[0]).toMatchObject({ title: "Tagihan SPayLater Rp 434.000 due today", detail: "Plan · due 5 Nov" });
+  });
+});
+
+describe("pages not translated yet (add-language-system D10)", () => {
+  function mockProfile() {
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === "/auth/me") return { ok: true, user: { id: "qa-user", username: "enrico", currency: "IDR", language: "en", region: "ID" } };
+      if (path === "/auth/currency/rates") return { ok: true, usdidr: 16000 };
+      if (path === "/review/summary") return { ok: true, attention: 0 };
+      if (path === "/reports/monthly/latest") return { ready: false, period: null, url: null };
+      if (path === "/recurring") return { rules: [] };
+      if (path === "/recurring/pending") return { ok: true, pending_count: 0, rules: [], recent_auto_links: [] };
+      if (path === "/ingest/test-sessions/current") return { ok: true, session: null };
+      throw new Error(`Unexpected GET ${path}`);
+    });
+  }
+
+  function showPage(pathname: string, language: "en" | "id") {
+    navigation.pathname = pathname;
+    if (language === "id") {
+      vi.mocked(api.get).mockImplementation(async (path: string) => {
+        if (path === "/auth/me") return { ok: true, user: { id: "qa-user", username: "enrico", currency: "IDR", language: "id", region: "ID" } };
+        if (path === "/review/summary") return { ok: true, attention: 0 };
+        if (path === "/reports/monthly/latest") return { ready: false, period: null, url: null };
+        if (path === "/recurring") return { rules: [] };
+        if (path === "/recurring/pending") return { ok: true, pending_count: 0, rules: [], recent_auto_links: [] };
+        if (path === "/ingest/test-sessions/current") return { ok: true, session: null };
+        if (path === "/auth/currency/rates") return { ok: true, usdidr: 16000 };
+        throw new Error(`Unexpected GET ${path}`);
+      });
+    } else {
+      mockProfile();
+    }
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return renderWithIntl(
+      <QueryClientProvider client={client}>
+        <AppLayout>
+          <p>Isi halaman</p>
+        </AppLayout>
+      </QueryClientProvider>,
+      { language },
+    );
+  }
+
+  it("shows English Transaksi's Indonesian title block and content marked lang=id, with the notice in English", async () => {
+    showPage("/ledger", "en");
+    const main = await screen.findByRole("main");
+    expect(main).toHaveAttribute("lang", "id");
+    expect(within(main).getByRole("heading", { level: 1, name: "Transaksi" })).toHaveAttribute("lang", "id");
+    const notice = within(main).getByText("This page is in Indonesian for now.");
+    expect(notice).toHaveAttribute("lang", "en");
+    expect(screen.getByRole("navigation", { name: "Main menu" })).toHaveTextContent("Review");
+    expect(screen.getByRole("link", { name: "Skip to content" })).toBeInTheDocument();
+  });
+
+  it("shows no notice and no lang=id on an English Beranda", async () => {
+    showPage("/", "en");
+    const main = await screen.findByRole("main");
+    expect(main).not.toHaveAttribute("lang");
+    expect(screen.queryByText("This page is in Indonesian for now.")).not.toBeInTheDocument();
+    expect(document.querySelector("[lang='id']")).toBeNull();
+  });
+
+  it("shows no notice on an Indonesian Transaksi", async () => {
+    showPage("/ledger", "id");
+    const main = await screen.findByRole("main");
+    expect(main).not.toHaveAttribute("lang");
+    expect(within(main).getByRole("heading", { level: 1, name: "Transaksi" })).not.toHaveAttribute("lang");
+    expect(screen.queryByText("This page is in Indonesian for now.")).not.toBeInTheDocument();
+  });
+
+  it("shows no notice and no lang=id on an English Tinjau, which apply-markas-tinjau translated", async () => {
+    showPage("/review", "en");
+    const main = await screen.findByRole("main");
+    expect(main).not.toHaveAttribute("lang");
+    expect(within(main).getByRole("heading", { level: 1, name: "Review" })).not.toHaveAttribute("lang");
+    expect(within(main).getByText("What needs an answer and what was recorded automatically")).toBeInTheDocument();
+    expect(screen.queryByText("This page is in Indonesian for now.")).not.toBeInTheDocument();
+    expect(document.querySelector("main [lang='id']")).toBeNull();
   });
 });

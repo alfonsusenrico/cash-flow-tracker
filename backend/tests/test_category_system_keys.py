@@ -153,7 +153,7 @@ def bare_owner(client):
     user_id = str(uuid4())
     with db_conn() as conn:
         conn.execute(
-            "INSERT INTO users (id, username, name, password_hash, invite_code) VALUES (%s, %s, 'Sari Contoh', 'synthetic', 'TEST')",
+            "INSERT INTO users (id, username, name, password_hash, invite_code, language) VALUES (%s, %s, 'Sari Contoh', 'synthetic', 'TEST', 'id')",
             (user_id, f"ensure_{uuid4().hex}"),
         )
         conn.commit()
@@ -306,7 +306,7 @@ def test_categories_and_transactions_return_the_read_only_key(client, seeded_own
 def test_kind_change_into_an_existing_system_category_is_refused(client, seeded_owner):
     owner = seeded_owner
     response = client.patch(f"/api/categories/{owner['Internal Movement/expense']}", json={"name": "Pindah", "kind": "income"})
-    assert response.status_code == 409 and "system category" in response.json()["detail"]
+    assert response.status_code == 409 and response.json()["detail"]["code"] == "system_category_exists"
 
 
 # --- Renames keep every figure ------------------------------------------------------------------------------

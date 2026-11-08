@@ -19,6 +19,8 @@ from app.services.capture_normalization import (
     CaptureNormalization, InvalidCaptureNormalization, validate_capture_normalization,
 )
 from app.services.openai_notification_provider import OpenAINotificationProvider, ProviderError
+from app.services.prompt_language import load_prompt
+from signed_in import leaked, rendered_texts, switch_account_language
 from test_notification_processing_database import enable_ai, notification_owner  # noqa: F401 - fixture
 from test_openai_notification_provider import envelope
 
@@ -657,16 +659,19 @@ def test_capture_rate_limit(client, owner, monkeypatch):
     assert limited.status_code == 429 and limited.json()["detail"]["code"] == "capture_rate_limited"
 
 
-def test_logs_hold_no_text_or_amounts(client, owner, caplog):
+@pytest.mark.parametrize("language", ["id", "en"])
+def test_logs_hold_no_text_or_amounts(client, owner, caplog, language):
+    """Neither the owner's text nor the rendered follow-up question reaches the logs, in either language (D8)."""
+    switch_account_language(owner["user_id"], language)
     caplog.set_level(logging.DEBUG)
     capture = captured(client, "kopi rahasiaku 123rb tunai")
+    rendered = rendered_texts(capture)
+    assert rendered, "the capture asked no follow-up question"
     capture = answered(client, capture, option_id="c1")
     client.post(f"/api/capture/{capture['id']}/undo")
     messages = [record.getMessage() for record in caplog.records]
     assert any("Text capture" in message for message in messages)
-    for message in messages:
-        assert "rahasiaku" not in message.casefold()
-        assert "123" not in message
+    assert leaked(messages, {"rahasiaku", "123", *rendered}) == []
 
 
 # --- Schema validation and provider -----------------------------------------------------------
@@ -703,7 +708,7 @@ def run_capture_normalizer(handler, context):
             provider = OpenAINotificationProvider(
                 transport, api_key="synthetic-test-credential", model="gpt-5.6-luna", reasoning_effort="low",
             )
-            return await provider.normalize_capture(context)
+            return await provider.normalize_capture(context, prompt=load_prompt("capture_normalization", "id"))
     return asyncio.run(run())
 
 
@@ -737,3 +742,28 @@ def test_capture_threshold_setting(monkeypatch):
     assert load_settings().capture_confidence_threshold == 0.9
     monkeypatch.setenv("CAPTURE_CONFIDENCE_THRESHOLD", "1.5")
     assert load_settings().capture_configuration_error == "capture_configuration_invalid"
+
+
+@pytest.mark.parametrize("enabled,language,version", [
+    (True, "en", "capture-normalization-2-en"),
+    (False, "en", "capture-normalization-2"),
+    (True, "id", "capture-normalization-2"),
+])
+def test_english_output_is_asked_only_for_an_english_account_with_the_flag(
+    client, owner, monkeypatch, enabled, language, version,
+):
+    from app.core import config
+
+    monkeypatch.setattr(config, "settings", replace(config.settings, llm_english_output_enabled=enabled))
+    from app.db.pool import db_conn
+    with db_conn() as conn:
+        conn.execute("UPDATE users SET language = %s WHERE id = %s", (language, owner["user_id"]))
+        conn.commit()
+    provider = use_provider(monkeypatch, provider_with(model_result(owner, description="Sweet iced tea")))
+    capture = captured(client, "es teh manis 5rb tunai")
+    prompt = provider.normalize_capture.await_args.kwargs["prompt"]
+    assert prompt.version == version and prompt.language == ("en" if version.endswith("-en") else "id")
+    # The owner's text is passed on as typed, whatever language the description is asked in.
+    assert provider.normalize_capture.await_args.args[0]["text"] == "es teh manis 5rb tunai"
+    stored = query("SELECT prompt_version FROM text_captures WHERE id = %s", (capture["id"],))[0]
+    assert stored["prompt_version"] == version

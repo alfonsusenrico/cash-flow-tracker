@@ -36,8 +36,8 @@ def restructured_owner(client, monkeypatch):
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                """INSERT INTO users (id, username, name, password_hash, invite_code)
-                   VALUES (%s, %s, 'Raka Purnama', 'synthetic-hash', 'TEST')""",
+                """INSERT INTO users (id, username, name, password_hash, invite_code, language)
+                   VALUES (%s, %s, 'Raka Purnama', 'synthetic-hash', 'TEST', 'id')""",
                 (user_id, f"restructured_{uuid4().hex}"),
             )
             for key, name, kind, parent, balance, role in [

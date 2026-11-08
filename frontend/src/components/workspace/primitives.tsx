@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+import { useInterfaceLang } from "./untranslated";
 import type { ReactNode } from "react";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { cn } from "@/lib/utils";
@@ -62,7 +64,7 @@ export function CardHeader({
           {count !== undefined && (
             <span className="ws-cnt">
               <span aria-hidden="true">{count}</span>
-              <span className="sr-only">{countLabel ?? `${count} item`}</span>
+              <span className="sr-only">{countLabel ?? <ItemCount count={count} />}</span>
             </span>
           )}
           {extra}
@@ -156,35 +158,6 @@ export function Segmented<T extends string>({
   );
 }
 
-export function ChipGroup<T extends string>({
-  label,
-  options,
-  selected,
-  onToggle,
-}: {
-  label: string;
-  options: { value: T; label: string; count?: number }[];
-  selected: readonly T[];
-  onToggle: (value: T) => void;
-}) {
-  return (
-    <div className="ws-chips" role="group" aria-label={label}>
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          className="ws-chip"
-          aria-pressed={selected.includes(option.value)}
-          onClick={() => onToggle(option.value)}
-        >
-          {option.label}
-          {option.count !== undefined && <span className="ws-cnt">{option.count}</span>}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export function Skeleton({ className, style }: { className?: string; style?: React.CSSProperties }) {
   return <div className={cn("ws-skeleton", className)} style={style} aria-hidden="true" />;
 }
@@ -206,9 +179,7 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
     <div className="ws-error" role="alert">
       <p>{message}</p>
       {onRetry && (
-        <button type="button" className="ws-btn" onClick={onRetry}>
-          Coba lagi
-        </button>
+        <RetryButton onRetry={onRetry} />
       )}
     </div>
   );
@@ -239,5 +210,22 @@ export function KpiCard({
       <div className={valueIsWords ? "ws-kcard-v is-words" : "ws-kcard-v"}>{value}</div>
       <div className="ws-kcard-c">{caption}</div>
     </div>
+  );
+}
+
+/** "{count} item" for a section count, in the interface language (add-language-system D17). */
+function ItemCount({ count }: { count: number }) {
+  const t = useTranslations("home");
+  const lang = useInterfaceLang();
+  return <span lang={lang}>{t("itemCount", { count })}</span>;
+}
+
+function RetryButton({ onRetry }: { onRetry: () => void }) {
+  const t = useTranslations("common");
+  const lang = useInterfaceLang();
+  return (
+    <button type="button" className="ws-btn" onClick={onRetry} lang={lang}>
+      {t("tryAgain")}
+    </button>
   );
 }

@@ -3,16 +3,18 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useAppCtx } from "@/components/layout/AppLayout";
+import { useTranslations } from "next-intl";
 import { PendingScheduledBanner } from "@/components/recurring/PendingScheduledBanner";
 import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
 import { TransactionDrawer } from "@/components/transactions/TransactionDrawer";
 import { useTransactionUndo } from "@/components/transactions/useTransactionUndo";
 import { Icon } from "@/components/ui/Icon";
 import { usePageHeader } from "@/components/workspace/context";
+import { useMoney } from "@/components/workspace/money";
 import { Drawer } from "@/components/workspace/overlays";
 import { api } from "@/lib/api";
 import { consolidateLedgerMovements } from "@/lib/ledgerMovements";
+import type { Words } from "@/lib/i18n/types";
 import { queryKeys } from "@/lib/queryKeys";
 import type { ReviewQueue } from "@/lib/review";
 import type { AutoLinkedOccurrence, DueExpectation, RecurringRule } from "@/types/recurring";
@@ -21,30 +23,26 @@ import { BerandaHero } from "./BerandaHero";
 import { ContextPanel, type Overview } from "./ContextPanel";
 import { TodoSection, todoItems } from "./TodoSection";
 import { jakartaDay, recentActivity } from "./activity";
-import { shortDate } from "./explanations";
 import type { ActivityRow, CycleSummary } from "./types";
+import { useWords } from "./words";
 
 const SUMMARY_REFRESH_MS = 30_000;
 // Plans due today, overdue, or due within this many days appear in "Perlu tindakan".
 const PLAN_NOTICE_DAYS = 2;
 
-const WEEKDAY_DATE = new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Jakarta" });
-const MONTH_NAME = new Intl.DateTimeFormat("id-ID", { month: "long", timeZone: "UTC" });
-
 /** The title block (D2): today's date and the period line, with the cycle's span when the salary date is known. */
-export function headerFor(summary: CycleSummary | undefined, now: Date) {
-  const title = WEEKDAY_DATE.format(now);
+export function headerFor(summary: CycleSummary | undefined, now: Date, { t, format }: Words) {
+  const title = format.weekdayAt(now);
   if (!summary) return { title, subtitle: "" };
   const { period, scheduled } = summary;
   if (period.basis === "cycle") {
     const span =
       scheduled.window_basis === "expected_salary"
-        ? `${shortDate(period.start_date)} – ${shortDate(scheduled.window_end)}`
-        : `sejak ${shortDate(period.start_date)}`;
-    return { title, subtitle: `Siklus gaji ${span} · hari ke-${period.day_index}` };
+        ? t("home.cycleSpanRange", { start: format.shortDate(period.start_date), end: format.shortDate(scheduled.window_end) })
+        : t("home.cycleSpanSince", { start: format.shortDate(period.start_date) });
+    return { title, subtitle: t("home.titleCycle", { span, day: String(period.day_index) }) };
   }
-  const month = MONTH_NAME.format(new Date(`${period.start_date}T00:00:00Z`));
-  return { title, subtitle: `${month} · siklus gaji belum tersedia` };
+  return { title, subtitle: t("home.titleMonth", { month: format.monthName(period.start_date) }) };
 }
 
 function dayBefore(day: string): string {
@@ -109,22 +107,25 @@ function PanelSkeleton() {
 
 /** The summary's failure in the hero's place (D13): the SPEC error box, no amount, and a retry. */
 function SummaryError({ onRetry }: { onRetry: () => void }) {
+  const t = useTranslations();
   return (
     <div className="error-box" role="alert">
       <Icon name="alert" className="h-5 w-5" />
       <div className="grow">
-        <p className="t-strong">Angka Beranda belum dapat dimuat</p>
-        <p className="t-meta">Saldo dan transaksi tetap aman; coba muat lagi.</p>
+        <p className="t-strong">{t("home.loadError")}</p>
+        <p className="t-meta">{t("home.loadErrorDetail")}</p>
       </div>
       <button type="button" className="ws-btn" onClick={onRetry}>
-        Coba lagi
+        {t("common.tryAgain")}
       </button>
     </div>
   );
 }
 
 export default function BerandaView() {
-  const { bal } = useAppCtx();
+  const words = useWords();
+  const { t } = words;
+  const bal = useMoney();
   const [now] = useState(() => new Date());
   const today = jakartaDay(now);
   const [selectedTx, setSelectedTx] = useState<ActivityRow | null>(null);
@@ -184,10 +185,11 @@ export default function BerandaView() {
     autoLinks: pendingQuery.data?.recent_auto_links ?? [],
     today,
     bal,
+    words,
     onOpenPlans: () => setPlansOpen(true),
   });
 
-  usePageHeader(headerFor(summary, now));
+  usePageHeader(headerFor(summary, now, words));
 
   const loading = summaryQuery.isLoading;
   const todoLoading = queueQuery.isLoading || rulesQuery.isLoading || pendingQuery.isLoading;
@@ -196,9 +198,9 @@ export default function BerandaView() {
     <>
       {summary?.period.basis === "month" && (
         <p className="t-meta beranda-note">
-          Siklus gaji belum tersedia, jadi Beranda memakai bulan kalender.{" "}
+          {t("home.monthNote")}{" "}
           <Link href="/settings/gaji" className="ws-linkbtn">
-            Atur gaji di Pengaturan
+            {t("home.setUpSalary")}
           </Link>
         </p>
       )}
@@ -219,10 +221,10 @@ export default function BerandaView() {
       </div>
 
       <TransactionDrawer transactionId={selectedTx?.id ?? null} onClose={() => setSelectedTx(null)} record={record} onDeleted={(row) => setDeletedId(row.id)} />
-      <Drawer open={plansOpen} onClose={() => setPlansOpen(false)} title="Rencana jatuh tempo" subtitle="Tautkan, lewati, atau catat manual">
+      <Drawer open={plansOpen} onClose={() => setPlansOpen(false)} title={t("shell.duePlans.title")} subtitle={t("shell.duePlans.subtitle")}>
         <PendingScheduledBanner onOpenRulesManager={() => setRulesOpen(true)} />
         {!(pendingQuery.data?.rules ?? []).length && !(pendingQuery.data?.recent_auto_links ?? []).length && (
-          <p className="ws-caption">Tidak ada rencana yang jatuh tempo hari ini.</p>
+          <p className="ws-caption">{t("shell.duePlans.noneToday")}</p>
         )}
       </Drawer>
       <RecurringRulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />

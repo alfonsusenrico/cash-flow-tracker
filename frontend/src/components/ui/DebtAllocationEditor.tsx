@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { formatNumberWithDots } from "@/lib/utils";
+import { formatNumberWithDots, stripGrouping } from "@/lib/utils";
 import { InfoHelp } from "@/components/ui/InfoHelp";
 
 export interface DebtChoice {
@@ -18,7 +18,7 @@ export interface DebtAllocationValue {
 }
 
 export function totalDebtPayments(rows: DebtAllocationValue[]): number {
-  return rows.reduce((sum, row) => sum + (Number(row.amount.replace(/\./g, "")) || 0), 0);
+  return rows.reduce((sum, row) => sum + (Number(stripGrouping(row.amount)) || 0), 0);
 }
 
 export function allocationError(
@@ -28,7 +28,7 @@ export function allocationError(
   originalAmounts: Record<string, number> = {},
 ): string | null {
   if (rows.length === 0) return null;
-  const values = rows.map((row) => Number(row.amount.replace(/\./g, "")));
+  const values = rows.map((row) => Number(stripGrouping(row.amount)));
   if (values.some((value) => !Number.isSafeInteger(value) || value <= 0)) {
     return "Isi nominal positif untuk setiap tagihan.";
   }
@@ -68,7 +68,7 @@ export function DebtAllocationEditor({
   const [editingAmounts, setEditingAmounts] = useState(false);
   const allocated = totalDebtPayments(rows);
   const hasIncompleteAmount = rows.some((row) => {
-    const amount = Number(row.amount.replace(/\./g, ""));
+    const amount = Number(stripGrouping(row.amount));
     return Boolean(row.obligation_id) && (!Number.isSafeInteger(amount) || amount <= 0);
   });
   const canAdd = rows.every((row) => row.obligation_id) && debts.some(
@@ -130,7 +130,7 @@ export function DebtAllocationEditor({
                 <input id={`${selectId}-amount`} name={`${idPrefix}-payment-${index}`} type="text" inputMode="numeric" autoComplete="off" value={row.amount} onChange={(event) => updateAmount(index, event.target.value)} className="min-h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm tabular-nums text-[var(--text)]" />
               </div>
             ) : (
-              <p className="text-sm tabular-nums text-[var(--text)]">Dibayar {currency(Number(row.amount.replace(/\./g, "")) || 0)}</p>
+              <p className="text-sm tabular-nums text-[var(--text)]">Dibayar {currency(Number(stripGrouping(row.amount)) || 0)}</p>
             ))}
           </div>
         );

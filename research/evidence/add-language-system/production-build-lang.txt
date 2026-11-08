@@ -1,0 +1,16 @@
+Accept-Language: id-ID,id;q=0.9,en;q=0.8
+<html lang="id"
+name="description" content="Catatan uang harian: berapa yang keluar, berapa yang aman dipakai, dan apa yang perlu dijawab."
+Accept-Language: en-US,id;q=0.5
+<html lang="en"
+name="description" content="Everyday money notes: what went out, what is safe to spend, and what needs an answer."
+Accept-Language: ms, fr
+<html lang="en"
+name="description" content="Everyday money notes: what went out, what is safe to spend, and what needs an answer."
+Accept-Language: (none)
+<html lang="en"
+name="description" content="Everyday money notes: what went out, what is safe to spend, and what needs an answer."
+Cookie cft_language=id with Accept-Language: en
+<html lang="id"
+Cookie cft_language=fr with Accept-Language: id
+<html lang="id"

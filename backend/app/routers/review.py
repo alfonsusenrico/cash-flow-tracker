@@ -10,6 +10,8 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.config import settings
 from app.db.pool import db_conn
+from app.errors import api_error
+from app.i18n import language_for_user, region_for_user, t
 from app.routers.transactions import classification_change
 from app.services.auth import get_current_user
 from app.services.kakeibo import PILLAR_PATTERN, effective_pillar
@@ -106,35 +108,41 @@ def queue_item(row: dict) -> dict[str, Any]:
     }
 
 
-def group_identity(row: dict) -> tuple[str, str, str]:
-    """(kind, key, label) of the group a queue row belongs to.
+def group_identity(row: dict, language: str) -> tuple[str, str, str, str | None]:
+    """(kind, key, label, label_key) of the group a queue row belongs to.
 
     Rows group by merchant; without one, by the notification's text signature (phase 3 match key),
     then by notes, then by category. The key includes the type, so every group can be recategorised
-    into one category kind.
+    into one category kind. `label_key` names the fixed fallback when the label is not user data.
     """
     merchant_key = merchant_match_key(row["merchant"])
     if merchant_key:
-        return "merchant", f"{row['type']}|{merchant_key}", row["merchant"]
+        return "merchant", f"{row['type']}|{merchant_key}", row["merchant"], None
     notes = (row["notes"] or "").strip()
     match_key = row.get("match_key") or ""
     if match_key.startswith("signature:"):
-        return "signature", f"{row['type']}|{match_key}", notes or "Tanpa keterangan"
+        if notes:
+            return "signature", f"{row['type']}|{match_key}", notes, None
+        return "signature", f"{row['type']}|{match_key}", t(language, "labels.fallback.undescribed"), "undescribed"
     if notes:
-        return "notes", f"{row['type']}|" + f"notes:{normalize_key_text(notes)}"[:MATCH_KEY_MAX_LENGTH], notes
+        return "notes", f"{row['type']}|" + f"notes:{normalize_key_text(notes)}"[:MATCH_KEY_MAX_LENGTH], notes, None
     category = str(row["category_id"]) if row["category_id"] else "none"
-    return "category", f"{row['type']}|category:{category}", row["category_name"] or "Tanpa kategori"
+    if row["category_name"]:
+        return "category", f"{row['type']}|category:{category}", row["category_name"], None
+    return "category", f"{row['type']}|category:{category}", t(language, "labels.fallback.uncategorized"), "uncategorized"
 
 
-def build_groups(rows: list[dict]) -> list[dict[str, Any]]:
+def build_groups(rows: list[dict], language: str) -> list[dict[str, Any]]:
     groups: dict[str, dict[str, Any]] = {}
     for row in rows:
-        kind, key, label = group_identity(row)
+        # The fixed fallback labels carry `label_key`, which the web renders from (add-language-system D7).
+        kind, key, label, label_key = group_identity(row, language)
         group = groups.get(key)
         if group is None:
             group = groups[key] = {
                 "key": key, "kind": kind, "type": row["type"],
-                "label": label, "count": 0, "total": 0, "needs_review_count": 0, "auto_count": 0,
+                "label": label, "label_source": "system" if label_key else "user", "label_key": label_key,
+                "count": 0, "total": 0, "needs_review_count": 0, "auto_count": 0,
                 "first_date": None, "last_date": None, "reasons": [], "category_ids": set(),
                 "transactions": [],
             }
@@ -196,6 +204,7 @@ def review_summary(current_user: dict = Depends(get_current_user)):
 @router.get("/queue")
 def review_queue(current_user: dict = Depends(get_current_user)):
     user_id = current_user["id"]
+    language, region = language_for_user(current_user), region_for_user(current_user)
     questions = list_open_questions(user_id, QUESTION_LIMIT)
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -220,14 +229,15 @@ def review_queue(current_user: dict = Depends(get_current_user)):
                 # Only legs the pairing flagged wait for a counterpart; older one-sided rows the owner left
                 # as they are stay ordinary rows to accept.
                 elif row["movement_category"] and "awaiting_counterpart" in review_reasons(row):
-                    suggestion = topup_suggestion(cur, user_id, row, row["account_type"], patterns)
+                    suggestion = topup_suggestion(cur, user_id, row, row["account_type"], patterns,
+                                                  language=language, region=region)
                     awaiting.append({**queue_item(row), "topup_suggestion": suggestion})
                 else:
                     grouped.append(row)
             totals = review_counts(cur, user_id)
             seen_twice = seen_twice_items(cur, user_id)
             skipped = skipped_items(cur, user_id)
-    groups = build_groups(grouped)
+    groups = build_groups(grouped, language)
     return {
         "ok": True,
         "truncated": truncated,
@@ -296,8 +306,8 @@ BULK_UNDO_KINDS = {
 }
 
 
-def bulk_error(status: int, code: str, message: str, **extra: Any) -> HTTPException:
-    return HTTPException(status_code=status, detail={"code": code, "message": message, **extra})
+def bulk_error(status: int, code: str, *, message_key: str | None = None, **extra: Any) -> HTTPException:
+    return api_error(status, code, extra=extra, message_key=message_key)
 
 
 def locked_rows(cur, user_id: str, ids: list[str]) -> dict[str, dict]:
@@ -312,14 +322,14 @@ def locked_rows(cur, user_id: str, ids: list[str]) -> dict[str, dict]:
     rows = {str(row["id"]): row for row in cur.fetchall()}
     missing = [value for value in ids if value not in rows]
     if missing:
-        raise bulk_error(404, "transactions_not_found", "Sebagian transaksi tidak ditemukan.", transaction_ids=missing)
+        raise bulk_error(404, "transactions_not_found", transaction_ids=missing)
     return rows
 
 
-def reject_movement_legs(rows: dict[str, dict], code: str, message: str) -> None:
+def reject_movement_legs(rows: dict[str, dict], code: str) -> None:
     legs = sorted(row_id for row_id, row in rows.items() if row["movement_id"])
     if legs:
-        raise bulk_error(409, code, message, transaction_ids=legs)
+        raise bulk_error(409, code, transaction_ids=legs)
 
 
 def mark_reviewed(cur, user_id: str, ids: list[str]) -> None:
@@ -332,7 +342,7 @@ def mark_reviewed(cur, user_id: str, ids: list[str]) -> None:
 
 
 def recategorise(cur, user_id: str, rows: dict[str, dict], payload: BulkReview) -> int:
-    reject_movement_legs(rows, "movement_leg_not_editable", "Pindah saldo diubah lewat detail pindah saldo.")
+    reject_movement_legs(rows, "movement_leg_not_editable")
     cur.execute(
         """SELECT id, kind, kakeibo_type, offsets_spending FROM categories
            WHERE user_id = %s AND id = %s AND is_archived = FALSE""",
@@ -340,11 +350,11 @@ def recategorise(cur, user_id: str, rows: dict[str, dict], payload: BulkReview) 
     )
     category = cur.fetchone()
     if not category:
-        raise bulk_error(404, "category_not_found", "Kategori tidak ditemukan atau sudah diarsipkan.")
+        raise bulk_error(404, "category_not_found", message_key="category_not_found_or_archived")
     if any(row["type"] != category["kind"] for row in rows.values()):
-        raise bulk_error(422, "category_type_mismatch", "Jenis kategori harus sama dengan jenis semua transaksi.")
+        raise bulk_error(422, "category_type_mismatch", message_key="category_type_mismatch_bulk")
     if payload.kakeibo_type and category["kind"] != "expense":
-        raise bulk_error(422, "pillar_not_allowed", "Pilar Kakeibo hanya untuk pengeluaran.")
+        raise bulk_error(422, "pillar_not_allowed")
 
     category_id = str(category["id"])
     keeps_offset = category["kind"] == "income" and bool(category["offsets_spending"])
@@ -373,7 +383,7 @@ def recategorise(cur, user_id: str, rows: dict[str, dict], payload: BulkReview) 
 
 
 def rename(cur, user_id: str, rows: dict[str, dict], payload: BulkReview) -> int:
-    reject_movement_legs(rows, "movement_leg_not_editable", "Pindah saldo diubah lewat detail pindah saldo.")
+    reject_movement_legs(rows, "movement_leg_not_editable")
     set_merchant = "merchant" in payload.model_fields_set
     set_notes = "notes" in payload.model_fields_set
     changed = [
@@ -402,7 +412,7 @@ def rename(cur, user_id: str, rows: dict[str, dict], payload: BulkReview) -> int
 
 
 def keep_separate(cur, user_id: str, rows: dict[str, dict]) -> None:
-    reject_movement_legs(rows, "already_linked", "Transaksi ini sudah tertaut sebagai pindah saldo.")
+    reject_movement_legs(rows, "already_linked")
     # The owner's decision that no automatic pairing should link these legs (movement pairing D7).
     cur.execute(
         """UPDATE transactions

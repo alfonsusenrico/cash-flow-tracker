@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useId, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Icon } from "@/components/ui/Icon";
 import type { ExplanationLine } from "./explain";
 import { MaskedMoney } from "./money";
@@ -115,14 +116,15 @@ function WaitingDisclosure({ waiting }: { waiting: NonNullable<RincianData["wait
  * calculation lines, the total, its notes and a link to the rows behind it; a bottom sheet below 768 px.
  */
 export function ExplanationDialog({ open, onClose, data }: { open: boolean; onClose: () => void; data: RincianData | null }) {
+  const t = useTranslations("breakdown");
   return (
     <ShellDialog
       open={open && data !== null}
       onClose={onClose}
       title={data?.title ?? ""}
-      meta="Rincian hitungan"
+      meta={t("calculation")}
       width={480}
-      closeLabel="Tutup rincian"
+      closeLabel={t("close")}
       className="rincian"
       footer={
         data && (

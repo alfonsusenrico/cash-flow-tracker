@@ -13,7 +13,9 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { useLocale, useTranslations } from "next-intl";
 import { Icon } from "@/components/ui/Icon";
+import { UntranslatedNotice, useInterfaceLang, useUntranslated } from "./untranslated";
 import { PHONE_QUERY, useEscapeLayer, useFocusTrap, useMediaQuery, useScrollLock } from "./layers";
 
 /* ---------------------------------------------------------------------------------------------
@@ -33,14 +35,20 @@ export function Drawer({
   onClose,
   title,
   subtitle,
+  untranslated: untranslatedContent,
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   subtitle?: string;
+  /** Content a later phase translates: Indonesian with `lang="id"` and the notice line in an English interface. */
+  untranslated?: boolean;
   children: ReactNode;
 }) {
+  const t = useTranslations("common");
+  const locale = useLocale();
+  const untranslated = useUntranslated(untranslatedContent);
   const mode = useDrawerMode();
   const ref = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -75,15 +83,21 @@ export function Drawer({
       <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={titleId} className="ws-drawer" data-mode={mode}>
         {mode === "sheet" && <div className="ws-grab" aria-hidden="true" />}
         <div className="ws-drawer-h">
+          {/* The title may be the user's own text (a row's name), so only the fixed subtitle is marked. */}
           <h2 id={titleId} ref={headingRef} tabIndex={-1}>
             {title}
-            {subtitle && <span className="block text-sm font-normal text-[var(--muted)]">{subtitle}</span>}
+            {subtitle && (
+              <span className="block text-sm font-normal text-[var(--muted)]" lang={untranslated ? "id" : undefined}>
+                {subtitle}
+              </span>
+            )}
+            {untranslated && <UntranslatedNotice className="block text-sm font-normal text-[var(--muted)]" />}
           </h2>
-          <button type="button" className="ws-close" aria-label="Tutup detail" onClick={onClose}>
+          <button type="button" className="ws-close" aria-label={t("closeDetails")} lang={untranslated ? locale : undefined} onClick={onClose}>
             <Icon name="x" className="h-4 w-4" />
           </button>
         </div>
-        {children}
+        {untranslated ? <div lang="id" className="contents">{children}</div> : children}
       </div>
     </>,
     document.body,
@@ -149,6 +163,8 @@ function Toast({ toast, onDone }: { toast: ToastMessage; onDone: () => void }) {
       remaining.current -= Date.now() - startedAt.current;
     };
   }, [paused, onDone]);
+  const t = useTranslations("common");
+  const lang = useInterfaceLang();
 
   return (
     <div
@@ -167,7 +183,7 @@ function Toast({ toast, onDone }: { toast: ToastMessage; onDone: () => void }) {
             onDone();
           }}
         >
-          {toast.actionLabel ?? "Urungkan"}
+          {toast.actionLabel ?? <span lang={lang}>{t("undo")}</span>}
         </button>
       )}
     </div>

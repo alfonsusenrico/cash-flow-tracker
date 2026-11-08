@@ -2,8 +2,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { describe, expect, it } from "vitest";
+import { createTranslator } from "next-intl";
+import { createFormat } from "@/lib/format";
+import { CATALOGUES } from "@/lib/i18n/testing";
+import type { Translate } from "@/lib/i18n/types";
 import {
-  ALL_LIQUID_NOTICE,
   EmergencyCoverageBasis,
   coverageText,
   essentialBasisText,
@@ -11,6 +14,9 @@ import {
 } from "./EmergencyCoverage";
 
 const bal = (amount: number) => `Rp ${amount.toLocaleString("id-ID")}`;
+const t = createTranslator({ locale: "id", messages: CATALOGUES.id }) as unknown as Translate;
+const format = createFormat({ language: "id", region: "ID" });
+const ALL_LIQUID_NOTICE = "Belum ada dana darurat khusus — dihitung dari seluruh saldo kas";
 
 const period = (label: string, start: string, end: string, amount: number) => ({
   kind: "month" as const, label, start, end, start_date: start.slice(0, 10), end_date: end.slice(0, 10), days: 30,
@@ -69,9 +75,9 @@ describe("Ketahanan Dana basis", () => {
   });
 
   it("describes the budget basis and a zero balance", () => {
-    expect(essentialBasisText({ ...known.essential_cost!, method: "need_budget", basis: "budget", debt_minimum: 0 }))
+    expect(essentialBasisText({ ...known.essential_cost!, method: "need_budget", basis: "budget", debt_minimum: 0 }, t))
       .toBe("Dari anggaran kategori Kebutuhan (belum ada periode lengkap)");
-    expect(coverageText({ ...known, status: "zero", runway_days: 0, coverage_months: 0, runway_months: 0 })).toBe("0 hari");
+    expect(coverageText({ ...known, status: "zero", runway_days: 0, coverage_months: 0, runway_months: 0 }, t, format)).toBe("0 hari");
   });
 });
 

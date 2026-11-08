@@ -1,0 +1,12 @@
+{
+  "status": 404,
+  "content_language": "en",
+  "body": {
+    "ok": false,
+    "detail": {
+      "code": "category_not_found",
+      "params": {},
+      "message": "Category not found"
+    }
+  }
+}

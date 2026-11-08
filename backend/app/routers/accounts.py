@@ -2,10 +2,12 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
 from app.db.pool import db_conn
+from app.errors import ErrorCode, api_error
+from app.i18n import current_region, format_money, language_for_user, notice, t
 from app.services.account_colours import default_account_color
 from app.services.account_layouts import (
     GROUPING_PATTERN, AccountLayoutBody, load_layout, normalize_layout, save_layout, validate_layout_body,
@@ -18,6 +20,8 @@ from app.services.balance_check import check_balance, record_match
 from app.services.credit_accounts import (
     CREDIT_TYPE, credit_owed, is_credit, over_limit, refuse, validate_credit_fields,
 )
+from app.services import credit_bills
+from app.services.credit_bills import keep_past_due_dates, load_schedules, next_due_summary
 from app.services.ledger_mutations import get_locked_ledger_balance, lock_owned_accounts
 from app.services.investment_topups import convert_product_to_amount, initialize_amount_tracking
 from app.services.provenance import system_provenance
@@ -38,6 +42,8 @@ class AccountCreate(BaseModel):
     initial_balance: int = Field(default=0, ge=-(10**15), le=10**15)
     credit_limit: int | None = Field(default=None, gt=0, le=10**15)
     payment_day: int | None = Field(default=None, ge=1, le=31)
+    # The day the credit bill is issued (add-credit-spending-flow D2); 1 is assumed when empty.
+    statement_day: int | None = Field(default=None, ge=1, le=31)
     parent_id: UUID | None = None
     default_funding_account_id: UUID | None = None
     default_pocket_id: UUID | None = None
@@ -58,6 +64,8 @@ class AccountUpdate(BaseModel):
     is_archived: bool | None = None
     credit_limit: int | None = Field(default=None, gt=0, le=10**15)
     payment_day: int | None = Field(default=None, ge=1, le=31)
+    # The day the credit bill is issued (add-credit-spending-flow D2); 1 is assumed when empty.
+    statement_day: int | None = Field(default=None, ge=1, le=31)
     parent_id: UUID | None = None
     default_funding_account_id: UUID | None = None
     default_pocket_id: UUID | None = None
@@ -123,6 +131,7 @@ def get_accounts_with_balances(user_id: str, include_archived: bool = False) -> 
                     a.created_at,
                     a.credit_limit,
                     a.payment_day,
+                    a.statement_day,
                     a.role,
                     (
                         a.initial_balance 
@@ -226,8 +235,14 @@ def get_accounts_with_balances(user_id: str, include_archived: bool = False) -> 
             "reconciliation_discrepancy": 0 if r.get("type") == CREDIT_TYPE else min(0, ledger_balance),
             "credit_limit": int(r["credit_limit"]) if r.get("credit_limit") is not None else None,
             "payment_day": r.get("payment_day"),
+            "statement_day": r.get("statement_day"),
             "credit_owed": credit_owed(balance) if r.get("type") == CREDIT_TYPE else None,
             "over_limit": over_limit(balance, r.get("credit_limit")) if r.get("type") == CREDIT_TYPE else False,
+            # May be negative over the limit (add-credit-spending-flow D12, H8).
+            "limit_left": (
+                int(r["credit_limit"]) - credit_owed(balance)
+                if r.get("type") == CREDIT_TYPE and r.get("credit_limit") is not None else None
+            ),
             "role": r.get("role"),
             "kind": account_kind(r),
             "is_archived": r.get("is_archived", False),
@@ -330,7 +345,7 @@ async def get_instrument_quote_endpoint(
 ):
     quote = await get_instrument_quote(symbol)
     if not quote:
-        raise HTTPException(status_code=404, detail=f"No quote found for symbol {symbol}")
+        raise api_error(404, ErrorCode.QUOTE_NOT_FOUND, {"symbol": symbol})
     return {"ok": True, "quote": quote}
 
 
@@ -344,6 +359,7 @@ async def sync_prices_endpoint(_: dict = Depends(get_current_user)):
 @router.get("")
 def list_accounts(include_archived: bool = False, current_user: dict = Depends(get_current_user)):
     accounts = get_accounts_with_balances(current_user["id"], include_archived)
+    attach_next_due(current_user["id"], accounts, include_archived)
     # Total balance sums only top-level accounts (parent_id IS NULL) to prevent duplicate counting
     total_balance = sum(a["balance"] for a in accounts if not a["is_archived"] and a["parent_id"] is None)
     return {
@@ -351,6 +367,17 @@ def list_accounts(include_archived: bool = False, current_user: dict = Depends(g
         "accounts": accounts,
         "total_balance": total_balance,
     }
+
+
+def attach_next_due(user_id: str, accounts: list[dict[str, Any]], include_archived: bool) -> None:
+    """Each credit row's next bill with something left to pay, or None; other rows get None."""
+    schedules = {}
+    if any(is_credit(account) for account in accounts):
+        with db_conn() as conn, conn.cursor() as cur:
+            schedules = load_schedules(cur, user_id, credit_bills.local_today(), include_archived=include_archived)
+    for account in accounts:
+        schedule = schedules.get(account["id"])
+        account["next_due"] = next_due_summary(schedule) if schedule else None
 
 
 @router.post("/list")
@@ -365,7 +392,7 @@ def reorder_accounts(
 ):
     user_id = current_user["id"]
     if not payload.account_ids:
-        return {"ok": True, "message": "No accounts to reorder"}
+        return {"ok": True, "message": notice("accounts_unchanged")}
 
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -380,7 +407,7 @@ def reorder_accounts(
                 )
             conn.commit()
 
-    return {"ok": True, "message": "Accounts reordered successfully"}
+    return {"ok": True, "message": notice("accounts_reordered")}
 
 
 # Declared before "/{account_id}" so "layout" is never read as an account id.
@@ -430,15 +457,15 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
     default_pocket_id = str(payload.default_pocket_id) if payload.default_pocket_id else None
 
     if default_pocket_id:
-        raise HTTPException(status_code=400, detail="A new account cannot select a default pocket before its child pockets exist")
+        raise api_error(400, ErrorCode.DEFAULT_POCKET_BEFORE_POCKETS)
     validate_credit_fields(
         account_type=payload.type, parent_id=parent_id, initial_balance=payload.initial_balance,
-        credit_limit=payload.credit_limit, payment_day=payload.payment_day,
+        credit_limit=payload.credit_limit, payment_day=payload.payment_day, statement_day=payload.statement_day,
     )
     if payload.type == CREDIT_TYPE and (payload.instrument_type or payload.instrument_symbol or payload.units):
         raise refuse("credit_fields_not_allowed")
     if default_funding_account_id and payload.type != "investment" and not payload.instrument_type:
-        raise HTTPException(status_code=400, detail="A default funding account is only valid for an investment account")
+        raise api_error(400, ErrorCode.DEFAULT_FUNDING_INVESTMENT_ONLY)
     role = payload.role or default_role(payload.type, payload.instrument_type)
     validate_role(payload.type, payload.instrument_type, role)
 
@@ -465,7 +492,7 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
                 (user_id, name),
             )
             if cur.fetchone():
-                raise HTTPException(status_code=409, detail="Account with this name already exists")
+                raise api_error(409, ErrorCode.ACCOUNT_NAME_TAKEN)
 
             # 2-level depth validation
             if parent_id:
@@ -475,16 +502,13 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
                 )
                 parent_row = cur.fetchone()
                 if not parent_row:
-                    raise HTTPException(status_code=404, detail="Parent account not found")
+                    raise api_error(404, ErrorCode.PARENT_ACCOUNT_NOT_FOUND)
                 if is_credit(parent_row):
                     raise refuse("credit_parent_not_allowed")
                 if parent_row.get("investment_tracking_mode") == "amount":
-                    raise HTTPException(status_code=409, detail={"code": "amount_product_must_remain_leaf"})
+                    raise api_error(409, ErrorCode.AMOUNT_PRODUCT_MUST_REMAIN_LEAF)
                 if parent_row["parent_id"] is not None:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Child pockets cannot have sub-pockets (maximum 2 levels allowed)",
-                    )
+                    raise api_error(400, ErrorCode.POCKET_DEPTH_EXCEEDED)
 
             if default_funding_account_id:
                 cur.execute(
@@ -493,9 +517,9 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
                 )
                 funding_account = cur.fetchone()
                 if not funding_account:
-                    raise HTTPException(status_code=404, detail="Default funding account not found")
+                    raise api_error(404, ErrorCode.DEFAULT_FUNDING_NOT_FOUND)
                 if funding_account["type"] not in {"cash", "bank", "wallet", "ewallet"} or funding_account.get("instrument_type"):
-                    raise HTTPException(status_code=400, detail="Default funding account must be liquid")
+                    raise api_error(400, ErrorCode.DEFAULT_FUNDING_NOT_LIQUID)
 
             if default_pocket_id:
                 cur.execute(
@@ -503,20 +527,20 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
                     (user_id, default_pocket_id),
                 )
                 if not cur.fetchone():
-                    raise HTTPException(status_code=404, detail="Default pocket account not found")
+                    raise api_error(404, ErrorCode.DEFAULT_POCKET_NOT_FOUND)
 
             cur.execute(
                 """
                 INSERT INTO accounts (
                     user_id, parent_id, default_funding_account_id, default_pocket_id, name, type, initial_balance,
                     instrument_type, instrument_symbol, units, avg_buy_price,
-                    last_price, last_price_at, color, display_order, credit_limit, payment_day, role
+                    last_price, last_price_at, color, display_order, credit_limit, payment_day, statement_day, role
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id, parent_id, default_funding_account_id, default_pocket_id, name, type, initial_balance,
                           instrument_type, instrument_symbol, units, avg_buy_price,
                           last_price, last_price_at, color, display_order, is_archived, created_at,
-                          credit_limit, payment_day, role
+                          credit_limit, payment_day, statement_day, role
                 """,
                 (
                     user_id,
@@ -536,6 +560,7 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
                     payload.display_order or 0,
                     payload.credit_limit,
                     payload.payment_day,
+                    payload.statement_day,
                     role,
                 ),
             )
@@ -599,8 +624,13 @@ async def create_account(payload: AccountCreate, current_user: dict = Depends(ge
             "cost_basis": total_cost,
             "credit_limit": int(row["credit_limit"]) if row.get("credit_limit") is not None else None,
             "payment_day": row.get("payment_day"),
+            "statement_day": row.get("statement_day"),
             "credit_owed": credit_owed(bal) if row.get("type") == CREDIT_TYPE else None,
             "over_limit": over_limit(bal, row.get("credit_limit")) if row.get("type") == CREDIT_TYPE else False,
+            "limit_left": (
+                int(row["credit_limit"]) - credit_owed(bal)
+                if row.get("type") == CREDIT_TYPE and row.get("credit_limit") is not None else None
+            ),
             "color": row.get("color") or "#3b82f6",
             "display_order": int(row.get("display_order") or 0),
             "role": row.get("role"),
@@ -640,7 +670,7 @@ async def update_account(
     if "default_funding_account_id" in payload.model_fields_set:
         dfid = str(payload.default_funding_account_id) if payload.default_funding_account_id else None
         if dfid and dfid == aid:
-            raise HTTPException(status_code=400, detail="Account cannot be its own funding account")
+            raise api_error(400, ErrorCode.ACCOUNT_OWN_FUNDING)
         updates.append("default_funding_account_id = %s")
         params.append(dfid)
     if "instrument_type" in payload.model_fields_set:
@@ -678,9 +708,12 @@ async def update_account(
     if "payment_day" in payload.model_fields_set:
         updates.append("payment_day = %s")
         params.append(payload.payment_day)
+    if "statement_day" in payload.model_fields_set:
+        updates.append("statement_day = %s")
+        params.append(payload.statement_day)
 
     if not updates and "default_pocket_id" not in payload.model_fields_set and payload.role is None:
-        raise HTTPException(status_code=400, detail="No fields to update")
+        raise api_error(400, ErrorCode.NO_FIELDS_TO_UPDATE)
 
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -691,7 +724,7 @@ async def update_account(
             locked = lock_owned_accounts(cur, user_id, lock_ids, include_archived=True)
             curr_acc = locked[aid]
             if payload.parent_id and locked[str(payload.parent_id)].get("investment_tracking_mode") == "amount":
-                raise HTTPException(status_code=409, detail={"code": "amount_product_must_remain_leaf"})
+                raise api_error(409, ErrorCode.AMOUNT_PRODUCT_MUST_REMAIN_LEAF)
             if curr_acc.get("investment_tracking_mode") == "amount":
                 financial_fields = {"units", "avg_buy_price", "last_price", "instrument_symbol"}
                 has_financial_edit = any(
@@ -701,7 +734,7 @@ async def update_account(
                 changed_type = payload.type is not None and payload.type != curr_acc["type"]
                 changed_instrument = "instrument_type" in payload.model_fields_set and payload.instrument_type != curr_acc["instrument_type"]
                 if has_financial_edit or changed_type or changed_instrument:
-                    raise HTTPException(status_code=409, detail={"code": "amount_valuation_required"})
+                    raise api_error(409, ErrorCode.AMOUNT_VALUATION_REQUIRED)
 
             # Validate default_funding_account_id if provided
             final_type = payload.type if payload.type is not None else curr_acc["type"]
@@ -720,10 +753,17 @@ async def update_account(
             final_payment_day = (
                 payload.payment_day if "payment_day" in payload.model_fields_set else curr_acc.get("payment_day")
             )
+            final_statement_day = (
+                payload.statement_day if "statement_day" in payload.model_fields_set else curr_acc.get("statement_day")
+            )
             validate_credit_fields(
                 account_type=final_type, parent_id=final_parent_id, initial_balance=int(curr_acc["initial_balance"]),
-                credit_limit=final_limit, payment_day=final_payment_day,
+                credit_limit=final_limit, payment_day=final_payment_day, statement_day=final_statement_day,
             )
+            days_change = (final_payment_day, final_statement_day) != (curr_acc.get("payment_day"), curr_acc.get("statement_day"))
+            if is_credit(curr_acc) and days_change:
+                # Bills already due keep their dates; only bills not yet due move (add-credit-spending-flow D2).
+                keep_past_due_dates(cur, user_id, curr_acc, credit_bills.local_today())
             if final_type == CREDIT_TYPE and final_instrument_type:
                 raise refuse("credit_fields_not_allowed")
             final_role = resolve_role_on_update(
@@ -748,53 +788,50 @@ async def update_account(
             if "default_funding_account_id" in payload.model_fields_set and payload.default_funding_account_id is not None:
                 dfid = str(payload.default_funding_account_id)
                 if dfid == aid:
-                    raise HTTPException(status_code=400, detail="Account cannot be its own funding account")
+                    raise api_error(400, ErrorCode.ACCOUNT_OWN_FUNDING)
                 cur.execute(
                     "SELECT id, type, instrument_type FROM accounts WHERE user_id = %s AND id = %s AND is_archived = false",
                     (user_id, dfid),
                 )
                 funding_account = cur.fetchone()
                 if not funding_account:
-                    raise HTTPException(status_code=404, detail="Default funding account not found")
+                    raise api_error(404, ErrorCode.DEFAULT_FUNDING_NOT_FOUND)
                 if funding_account["type"] not in {"cash", "bank", "wallet", "ewallet"} or funding_account.get("instrument_type"):
-                    raise HTTPException(status_code=400, detail="Default funding account must be liquid")
+                    raise api_error(400, ErrorCode.DEFAULT_FUNDING_NOT_LIQUID)
             elif final_type != "investment" and not final_instrument_type and curr_acc.get("default_funding_account_id") and "default_funding_account_id" not in payload.model_fields_set:
-                raise HTTPException(status_code=400, detail="Clear the default funding account before changing this account to a non-investment type")
+                raise api_error(400, ErrorCode.DEFAULT_FUNDING_BLOCKS_TYPE_CHANGE)
 
             # Validate and update default_pocket_id if provided
             if "default_pocket_id" in payload.model_fields_set:
                 if payload.default_pocket_id is not None:
                     if final_parent_id is not None:
-                        raise HTTPException(status_code=400, detail="Only a parent account can have a default pocket")
+                        raise api_error(400, ErrorCode.DEFAULT_POCKET_PARENT_ONLY)
                     dpid = str(payload.default_pocket_id)
                     cur.execute(
                         "SELECT id FROM accounts WHERE user_id = %s AND id = %s AND parent_id = %s AND is_archived = false",
                         (user_id, dpid, aid),
                     )
                     if not cur.fetchone():
-                        raise HTTPException(status_code=400, detail="Default pocket must be an active child pocket of this account")
+                        raise api_error(400, ErrorCode.DEFAULT_POCKET_INVALID)
                     updates.append("default_pocket_id = %s")
                     params.append(dpid)
                 else:
                     updates.append("default_pocket_id = NULL")
             elif curr_acc.get("default_pocket_id") and final_parent_id is not None:
-                raise HTTPException(status_code=400, detail="Clear the default pocket before making this account a child pocket")
+                raise api_error(400, ErrorCode.DEFAULT_POCKET_BLOCKS_NESTING)
 
             # Validate parent_id if being updated
             if "parent_id" in payload.model_fields_set and payload.parent_id is not None:
                 pid = str(payload.parent_id)
                 if pid == aid:
-                    raise HTTPException(status_code=400, detail="Account cannot be its own parent")
+                    raise api_error(400, ErrorCode.ACCOUNT_OWN_PARENT)
 
                 cur.execute(
                     "SELECT COUNT(*) AS c FROM accounts WHERE user_id = %s AND parent_id = %s AND id != %s",
                     (user_id, aid, aid),
                 )
                 if cur.fetchone()["c"] > 0:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="An account with child pockets cannot become a child pocket",
-                    )
+                    raise api_error(400, ErrorCode.PARENT_CANNOT_NEST)
 
                 cur.execute(
                     "SELECT id, parent_id FROM accounts WHERE user_id = %s AND id = %s",
@@ -802,12 +839,9 @@ async def update_account(
                 )
                 parent_row = cur.fetchone()
                 if not parent_row:
-                    raise HTTPException(status_code=404, detail="Parent account not found")
+                    raise api_error(404, ErrorCode.PARENT_ACCOUNT_NOT_FOUND)
                 if parent_row["parent_id"] is not None:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Child pockets cannot have sub-pockets (maximum 2 levels allowed)",
-                    )
+                    raise api_error(400, ErrorCode.POCKET_DEPTH_EXCEEDED)
 
             if payload.is_archived is True:
                 cur.execute(
@@ -941,14 +975,14 @@ def reconcile_account(
                 raise refuse("credit_account_not_allowed")
             cur.execute("SELECT investment_tracking_mode FROM accounts WHERE id = %s", (aid,))
             if cur.fetchone().get("investment_tracking_mode") == "amount":
-                raise HTTPException(status_code=409, detail={"code": "amount_valuation_required"})
+                raise api_error(409, ErrorCode.AMOUNT_VALUATION_REQUIRED)
             current_balance = get_locked_ledger_balance(cur, user_id, aid)
             diff = payload.actual_balance - current_balance
             tx_type = "income" if diff > 0 else "expense"
             tx_amount = abs(diff)
             if diff:
                 category_id = ensure_adjustment_category(cur, user_id, tx_type)
-                tx_notes = payload.notes or "Balance Adjustment (Reconciliation)"
+                tx_notes = payload.notes or t(language_for_user(current_user), "notes.reconciliation")
                 cur.execute(
                     """
                     INSERT INTO transactions (
@@ -981,9 +1015,9 @@ def reconcile_account(
         "ok": True,
         "diff": diff,
         "message": (
-            f"Account reconciled with {tx_type} adjustment of {tx_amount}"
+            notice(f"account_reconciled_{tx_type}", amount=format_money(tx_amount, current_region(), "figure"))
             if diff
-            else "Balance is already in sync"
+            else notice("balance_in_sync")
         ),
         "account": updated_account,
     }
@@ -1026,7 +1060,7 @@ def delete_account(account_id: UUID, current_user: dict = Depends(get_current_us
             cur.execute("SELECT id FROM accounts WHERE user_id = %s AND (id = %s OR parent_id = %s)", (user_id, aid, aid))
             account_ids = [str(row["id"]) for row in cur.fetchall()]
             if aid not in account_ids:
-                raise HTTPException(status_code=404, detail="Account not found")
+                raise api_error(404, ErrorCode.ACCOUNT_NOT_FOUND)
             lock_owned_accounts(cur, user_id, account_ids, include_archived=True)
             cur.execute(
                 """SELECT 1 FROM investment_topups WHERE user_id = %s
@@ -1036,7 +1070,7 @@ def delete_account(account_id: UUID, current_user: dict = Depends(get_current_us
             if cur.fetchone():
                 cur.execute("UPDATE accounts SET is_archived = TRUE, updated_at = NOW() WHERE user_id = %s AND id = ANY(%s)", (user_id, account_ids))
                 conn.commit()
-                return {"ok": True, "message": "Account archived to preserve investment contribution history"}
+                return {"ok": True, "message": notice("account_archived_investment")}
             # Check if account or its child pockets have transactions
             cur.execute(
                 """
@@ -1055,14 +1089,14 @@ def delete_account(account_id: UUID, current_user: dict = Depends(get_current_us
                     (user_id, aid, aid),
                 )
                 conn.commit()
-                return {"ok": True, "message": "Account and pockets archived because of existing transactions"}
+                return {"ok": True, "message": notice("account_archived_history")}
 
             cur.execute(
                 "DELETE FROM accounts WHERE user_id = %s AND id = %s RETURNING id",
                 (user_id, aid),
             )
             if not cur.fetchone():
-                raise HTTPException(status_code=404, detail="Account not found")
+                raise api_error(404, ErrorCode.ACCOUNT_NOT_FOUND)
             conn.commit()
 
-    return {"ok": True, "message": "Account deleted"}
+    return {"ok": True, "message": notice("account_deleted")}

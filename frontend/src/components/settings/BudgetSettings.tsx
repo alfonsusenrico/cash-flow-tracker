@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
+import { useInterfaceLang } from "@/components/workspace/untranslated";
+import { parseRegion } from "@/i18n/language";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
 import { formatNumberWithDots } from "@/lib/utils";
@@ -12,6 +15,7 @@ import {
 
 interface BudgetUser {
   currency?: string | null;
+  region?: string | null;
   emergency_fund_multiplier?: number | null;
   monthly_spending_budget?: number | null;
 }
@@ -37,6 +41,8 @@ function validate(currency: string, months: number) {
 /** Display currency, emergency-fund target and the monthly operational limit; saved together and nothing else. */
 export function BudgetSettings() {
   const qc = useQueryClient();
+  const regionText = useTranslations("settings.region");
+  const islandLang = useInterfaceLang();
   const { data, isError } = useQuery<{ ok: boolean; user: BudgetUser }>({
     queryKey: queryKeys.auth.me,
     queryFn: () => api.get("/auth/me"),
@@ -48,10 +54,12 @@ export function BudgetSettings() {
   const user = data?.user;
   const loaded = Boolean(user);
   const savedCurrency = (user?.currency || "IDR").toUpperCase();
+  const savedRegion = parseRegion(user?.region) ?? "ID";
   const savedMonths = String(user?.emergency_fund_multiplier || 6);
   const savedBudget = user?.monthly_spending_budget != null ? formatNumberWithDots(user.monthly_spending_budget) : "";
 
   const [currency, setCurrency] = useState("IDR");
+  const [region, setRegion] = useState<string>("ID");
   const [months, setMonths] = useState("6");
   const [budget, setBudget] = useState("");
   const [error, setError] = useState("");
@@ -60,12 +68,13 @@ export function BudgetSettings() {
   useEffect(() => {
     if (!loaded) return;
     setCurrency(savedCurrency);
+    setRegion(savedRegion);
     setMonths(savedMonths);
     setBudget(savedBudget);
-  }, [loaded, savedCurrency, savedMonths, savedBudget]);
+  }, [loaded, savedCurrency, savedRegion, savedMonths, savedBudget]);
 
   const save = useMutation({
-    mutationFn: (body: { currency: string; emergency_fund_multiplier: number; monthly_spending_budget: number | null }) =>
+    mutationFn: (body: { currency: string; region: string; emergency_fund_multiplier: number; monthly_spending_budget: number | null }) =>
       api.patch("/auth/settings", body),
     onSuccess: () => {
       setError("");
@@ -79,7 +88,7 @@ export function BudgetSettings() {
     setSaved(false);
     setter(value);
   };
-  const dirty = loaded && (currency !== savedCurrency || months !== savedMonths || budget !== savedBudget);
+  const dirty = loaded && (currency !== savedCurrency || region !== savedRegion || months !== savedMonths || budget !== savedBudget);
   const monthCount = Number.parseInt(months, 10);
 
   return (
@@ -98,6 +107,7 @@ export function BudgetSettings() {
         const digits = budget.replace(/[^0-9]/g, "");
         save.mutate({
           currency,
+          region,
           emergency_fund_multiplier: multiplier,
           monthly_spending_budget: digits ? Number.parseInt(digits, 10) : null,
         });
@@ -117,6 +127,17 @@ export function BudgetSettings() {
         {isError && <SettingsAlert>Pengaturan tidak dapat dimuat. Muat ulang halaman untuk mencoba lagi.</SettingsAlert>}
         {error && <SettingsAlert>{error}</SettingsAlert>}
         <div className={`space-y-4 ${SETTINGS_FIELD_WIDTH}`}>
+          {/* A translated island ahead of phase 10 (add-language-system D11), marked with its own language. */}
+          <div lang={islandLang}>
+            <SettingsField id="settings-region" label={regionText("label")} help={regionText("hint")}>
+              {(field) => (
+                <select {...field} name="region" value={region} onChange={(event) => edit(setRegion)(event.target.value)} className={settingsControlClass}>
+                  <option value="ID">{regionText("indonesia")}</option>
+                  <option value="US">{regionText("unitedStates")}</option>
+                </select>
+              )}
+            </SettingsField>
+          </div>
           <SettingsField
             id="settings-currency"
             label="Mata uang tampilan"

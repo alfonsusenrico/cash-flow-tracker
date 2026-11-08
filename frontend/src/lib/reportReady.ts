@@ -1,6 +1,8 @@
 export interface ReportReadiness {
+  /** The report's period basis; absent from an API older than the language change's bell. */
+  basis?: "cycle" | "month";
   ready: boolean;
-  period: { label: string; end_date: string } | null;
+  period: { label: string; start_date?: string; end_date: string } | null;
   url: string | null;
 }
 
@@ -18,5 +20,11 @@ function daysSince(isoDate: string, today: Date): number {
 export function freshReport(data: ReportReadiness | undefined, today = new Date()) {
   if (!data?.ready || !data.period || !data.url) return null;
   if (daysSince(data.period.end_date, today) > REPORT_FRESH_DAYS) return null;
-  return { label: data.period.label, endDate: data.period.end_date, url: data.url };
+  return {
+    label: data.period.label,
+    basis: data.basis ?? "month",
+    startDate: data.period.start_date,
+    endDate: data.period.end_date,
+    url: data.url,
+  };
 }

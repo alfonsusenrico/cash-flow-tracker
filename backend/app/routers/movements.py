@@ -3,10 +3,12 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field, model_validator
 
 from app.db.pool import db_conn
+from app.errors import ErrorCode, api_error
+from app.i18n import current_region, format_money, language_for_user, notice, t
 from app.services.ledger_mutations import (
     LIQUID_ACCOUNT_TYPES,
     create_bilateral_movement,
@@ -81,10 +83,10 @@ def create_movement(payload: MovementCreate, current_user: dict = Depends(get_cu
     from app.routers.transactions import resolve_effective_account
 
     if payload.source_account_id and payload.target_account_id and payload.source_account_id == payload.target_account_id:
-        raise HTTPException(status_code=400, detail="Source and target accounts must be different")
+        raise api_error(400, ErrorCode.SAME_ACCOUNT)
 
     tx_date = payload.date or datetime.now(timezone.utc)
-    notes_val = payload.notes.strip() if payload.notes else "Internal Movement"
+    notes_val = payload.notes.strip() if payload.notes else t(language_for_user(current_user), "notes.movement_default")
 
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -103,15 +105,15 @@ def create_movement(payload: MovementCreate, current_user: dict = Depends(get_cu
                 sid = str(payload.source_account_id)
                 matched_source = found_accounts.get(sid)
                 if not matched_source:
-                    raise HTTPException(status_code=404, detail="Source account not found")
+                    raise api_error(404, ErrorCode.SOURCE_ACCOUNT_NOT_FOUND)
             elif payload.source_account_name:
                 matched_source = resolve_account_name(payload.source_account_name, accounts, field="source_account_name")
             else:
-                raise HTTPException(status_code=422, detail="Either source_account_id or source_account_name must be provided")
+                raise api_error(422, ErrorCode.SOURCE_ACCOUNT_REQUIRED)
 
             effective_source = resolve_effective_account(cur, user_id, matched_source, accounts)
             if not effective_source:
-                raise HTTPException(status_code=404, detail="Effective source pocket not found")
+                raise api_error(404, ErrorCode.SOURCE_POCKET_NOT_FOUND)
             source_id = str(effective_source["id"])
 
             # 2. Resolve target account
@@ -121,19 +123,19 @@ def create_movement(payload: MovementCreate, current_user: dict = Depends(get_cu
                 tid = str(payload.target_account_id)
                 matched_target = found_accounts.get(tid)
                 if not matched_target:
-                    raise HTTPException(status_code=404, detail="Target account not found")
+                    raise api_error(404, ErrorCode.TARGET_ACCOUNT_NOT_FOUND)
             elif payload.target_account_name:
                 matched_target = resolve_account_name(payload.target_account_name, accounts, field="target_account_name")
             else:
-                raise HTTPException(status_code=422, detail="Either target_account_id or target_account_name must be provided")
+                raise api_error(422, ErrorCode.TARGET_ACCOUNT_REQUIRED)
 
             effective_target = resolve_effective_account(cur, user_id, matched_target, accounts)
             if not effective_target:
-                raise HTTPException(status_code=404, detail="Effective target pocket not found")
+                raise api_error(404, ErrorCode.TARGET_POCKET_NOT_FOUND)
             target_id = str(effective_target["id"])
 
             if source_id == target_id:
-                raise HTTPException(status_code=400, detail="Source and target accounts must be different")
+                raise api_error(400, ErrorCode.SAME_ACCOUNT)
 
             # 3. Get/seed internal movement categories
             expense_cat_id, income_cat_id = _ensure_internal_movement_categories(cur, user_id)
@@ -165,13 +167,13 @@ def create_movement(payload: MovementCreate, current_user: dict = Depends(get_cu
                         "expense_transaction_id": str(existing_out["id"]),
                         "income_transaction_id": str(existing_in["id"]) if existing_in else None,
                         "idempotent": True,
-                        "message": "Movement already recorded (idempotent)",
+                        "message": notice("movement_duplicate"),
                     }
 
             locked = lock_owned_accounts(cur, user_id, [source_id, target_id])
             ensure_generic_movement_accounts(locked[source_id], locked[target_id])
             if payload.fee is not None and (not is_credit(locked[target_id]) or payload.fee > payload.amount):
-                raise HTTPException(status_code=422, detail={"code": "credit_fee_not_allowed"})
+                raise api_error(422, ErrorCode.CREDIT_FEE_NOT_ALLOWED)
             result = create_bilateral_movement(
                 cur,
                 user_id=user_id,
@@ -197,7 +199,8 @@ def create_movement(payload: MovementCreate, current_user: dict = Depends(get_cu
     return {
         "ok": True,
         **result,
-        "message": f"Moved {payload.amount} from {effective_source['name']} to {effective_target['name']}",
+        "message": notice("movement_recorded", amount=format_money(payload.amount, current_region(), "figure"),
+                          source=effective_source["name"], target=effective_target["name"]),
     }
 
 
@@ -272,7 +275,7 @@ def split_movement(movement_id: UUID, current_user: dict = Depends(get_current_u
             )
             legs = cur.fetchall()
             if len(legs) != 2:
-                raise HTTPException(status_code=404, detail="Movement not found")
+                raise api_error(404, ErrorCode.MOVEMENT_NOT_FOUND)
             outbound = next(leg for leg in legs if leg["type"] == "expense")
             outbound["amount"] = int(outbound["amount"]) + undo_movement_fee(cur, user_id, str(movement_id), str(outbound["id"]))
             # Rows the owner split apart are never paired automatically again.
@@ -332,7 +335,8 @@ def split_movement(movement_id: UUID, current_user: dict = Depends(get_current_u
                 label = account_label(by_id[str(leg["account_id"])], accounts)
                 key = f"notification:{event['id']}"
                 snapshot = committed_snapshot(
-                    key=key, kind=leg["type"], description=leg["notes"] or "Transaksi", amount=int(leg["amount"]),
+                    key=key, kind=leg["type"], description=leg["notes"] or t(language_for_user(current_user), "notes.transaction"),
+                    amount=int(leg["amount"]),
                     source=label if leg["type"] == "expense" else None,
                     target=label if leg["type"] == "income" else None,
                 )
@@ -355,7 +359,7 @@ def update_movement(
     source_id = str(payload.source_account_id)
     target_id = str(payload.target_account_id)
     if source_id == target_id:
-        raise HTTPException(status_code=400, detail="Source and target accounts must be different")
+        raise api_error(400, ErrorCode.SAME_ACCOUNT)
 
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -366,7 +370,7 @@ def update_movement(
             )
             movement_rows = cur.fetchall()
             if {row["movement_role"] for row in movement_rows} != {"outbound", "inbound"}:
-                raise HTTPException(status_code=404, detail="Movement not found")
+                raise api_error(404, ErrorCode.MOVEMENT_NOT_FOUND)
             locked = lock_owned_accounts(cur, user_id, [source_id, target_id])
             ensure_generic_movement_accounts(locked[source_id], locked[target_id])
             from app.services.ledger_mutations import ensure_sufficient_funds
@@ -379,7 +383,7 @@ def update_movement(
                 exclude_movement_id=str(movement_id),
             )
             tx_date = payload.date or datetime.now(timezone.utc)
-            notes = payload.notes.strip() if payload.notes else "Internal Movement"
+            notes = payload.notes.strip() if payload.notes else t(language_for_user(current_user), "notes.movement_default")
             from app.services.ledger_mutations import movement_kakeibo
 
             kakeibo = movement_kakeibo(locked[source_id], locked[target_id])
