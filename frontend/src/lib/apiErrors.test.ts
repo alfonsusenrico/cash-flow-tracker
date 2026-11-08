@@ -41,6 +41,24 @@ describe("API error codes", () => {
     }
   });
 
+  it.each([
+    ["en", "Category not found."],
+    ["id", "Kategori tidak ditemukan."],
+  ] as const)("renders a former plain-string error from its code in %s (localize-server-text)", async (language, message) => {
+    configureApiMessages(language, language === "en" ? en : id);
+    reject({ code: "category_not_found", params: {}, message: "Kategori tidak ditemukan." }, 404);
+    await expect(api.del("/categories/x")).rejects.toMatchObject({ status: 404, message });
+  });
+
+  it.each([
+    ["en", "The schedule day must be between 1 and 28."],
+    ["id", "Tanggal jadwal harus antara 1 dan 28."],
+  ] as const)("renders a server code with its params in %s", async (language, message) => {
+    configureApiMessages(language, language === "en" ? en : id);
+    reject({ code: "schedule_day_out_of_range", params: { max: 28 }, message: "Schedule day must be between 1 and 28" });
+    await expect(api.post("/recurring", {})).rejects.toMatchObject({ message });
+  });
+
   it("renders the insufficient-funds amounts for the account's region", async () => {
     configureApiMessages("en", en);
     configureApiRegion("US");

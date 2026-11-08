@@ -185,58 +185,11 @@ export interface ReviewSummary {
   unreviewed: number;
 }
 
-const REASON_LABELS: Record<string, string> = {
-  uncertain_category: "Kategori belum pasti",
-  model_fallback: "AI ragu, dicatat dengan aturan cadangan",
-  low_confidence: "Keyakinan AI rendah",
-  model_flagged: "Ditandai AI untuk dicek",
-  ambiguous_movement: "Pasangan pindah saldo belum pasti",
-  purpose_question: "Menunggu jawaban: belum dikenali",
-  awaiting_counterpart: "Menunggu rekening pasangan",
-};
-
-/** Indonesian label of a review reason; an unknown code is shown as sent rather than guessed. */
-export function reviewReasonLabel(reason: string): string {
-  return REASON_LABELS[reason] ?? reason;
-}
-
-const KIND_LABELS: Record<ReviewGroup["kind"], string> = {
-  merchant: "Toko",
-  signature: "Tanpa nama toko",
-  notes: "Catatan",
-  category: "Kategori",
-};
-
-export function groupKindLabel(kind: ReviewGroup["kind"]): string {
-  return KIND_LABELS[kind];
-}
-
 export function chunkIds(ids: readonly string[], size = REVIEW_BULK_LIMIT): string[][] {
   const chunks: string[][] = [];
   for (let index = 0; index < ids.length; index += size) chunks.push(ids.slice(index, index + size));
   return chunks;
 }
-
-/** "3 Okt" or "3 – 17 Okt 2026" style range of a group's rows. */
-export function dateRangeLabel(first: string | null, last: string | null): string | null {
-  if (!first || !last) return null;
-  const start = new Date(first);
-  const end = new Date(last);
-  const short = { day: "numeric", month: "short" } as const;
-  const full = { day: "numeric", month: "short", year: "numeric" } as const;
-  if (start.toDateString() === end.toDateString()) return end.toLocaleDateString("id-ID", full);
-  return `${start.toLocaleDateString("id-ID", short)} – ${end.toLocaleDateString("id-ID", full)}`;
-}
-
-const ERROR_MESSAGES: Record<string, string> = {
-  stale_question: "Pertanyaan ini sudah dijawab atau berubah. Daftar dimuat ulang.",
-  purpose_not_applicable: "Transaksi ini sudah dihapus atau menjadi pindah saldo.",
-  purpose_answer_conflict: "Jawaban lain sudah tersimpan untuk pertanyaan ini.",
-  unknown_suggestion: "Pilihan ini sudah tidak tersedia. Muat ulang daftar.",
-  invalid_suggestion: "Kategori pilihan ini sudah tidak aktif. Jawab dengan teks atau ubah di buku kas.",
-  invalid_purpose_answer: "Jawaban harus 1–200 karakter tanpa karakter khusus.",
-  seen_twice_not_found: "Item ini sudah diselesaikan. Daftar dimuat ulang.",
-};
 
 /** An existing row on the chosen account that may already be the missing leg of a transfer. */
 export interface CompletionCandidate {
@@ -258,17 +211,20 @@ export function completionCandidates(error: unknown): CompletionCandidate[] | nu
   return code === "counterpart_candidates" && Array.isArray(candidates) ? (candidates as CompletionCandidate[]) : null;
 }
 
-/** Message for a failed review request; backend messages are already Indonesian. */
-export function reviewErrorMessage(error: unknown): string {
+/**
+ * The text of a failed review request: `lib/api` has already rendered a known error code in the interface
+ * language (localize-server-text D8), so this keeps that message; null when the failure carries none.
+ */
+export function reviewErrorMessage(error: unknown): string | null {
   if (error && typeof error === "object" && "detail" in error) {
     const detail = (error as { detail: unknown }).detail;
+    if (typeof detail === "string" && detail) return detail;
     if (detail && typeof detail === "object") {
-      const { code, message } = detail as { code?: string; message?: string };
-      if (code && ERROR_MESSAGES[code]) return ERROR_MESSAGES[code];
+      const { message } = detail as { message?: string };
       if (message) return message;
     }
   }
-  return error instanceof Error && error.message ? error.message : "Permintaan gagal. Coba lagi.";
+  return error instanceof Error && error.message ? error.message : null;
 }
 
 /** A v4 UUID for a reply id; `crypto.randomUUID` is missing outside secure contexts. */

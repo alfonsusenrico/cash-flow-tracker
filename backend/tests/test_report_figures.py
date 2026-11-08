@@ -117,7 +117,7 @@ def test_apportion_is_exact_and_never_exceeds_a_weight():
 def test_calendar_month_window(ref, offset, start, end, label):
     from app.services.report_windows import get_timeframe_window
 
-    start_utc, end_utc, start_date, end_date, window_label = get_timeframe_window(25, "month", ref, cycle_offset=offset)
+    start_utc, end_utc, start_date, end_date, window_label = get_timeframe_window(25, "month", ref, cycle_offset=offset, language="id")
     assert (start_date, end_date, window_label) == (start, end, label)
     assert start_utc < end_utc
 
@@ -125,7 +125,7 @@ def test_calendar_month_window(ref, offset, start, end, label):
 def test_month_timeframe_and_ledger_period_share_one_window(client, owner):
     from app.services.report_windows import get_timeframe_window
 
-    start_utc, end_utc, _, _, label = get_timeframe_window(25, "month", cycle_offset=-1)
+    start_utc, end_utc, _, _, label = get_timeframe_window(25, "month", cycle_offset=-1, language="id")
     inside = add_expense(owner, 45_000, category="groceries", when=start_utc + timedelta(hours=1))
     add_expense(owner, 99_000, category="groceries", when=start_utc - timedelta(minutes=1))
     add_expense(owner, 11_000, category="groceries", when=end_utc + timedelta(minutes=1))

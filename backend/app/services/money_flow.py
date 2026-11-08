@@ -18,6 +18,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.core.config import settings
+from app.i18n import t
 from app.services.account_roles import TABUNGAN
 from app.services.kakeibo import pillar_bucket_sql
 from app.services.reimbursements import load_spending_offsets
@@ -26,15 +27,8 @@ from app.services.waiting_rows import COUNTERPART_SECTIONS, fetch_waiting_rows
 
 KakeiboBreakdown = Callable[..., dict[str, Any]]
 
-PILLAR_LABELS: dict[str, str] = {
-    "need": "Kebutuhan",
-    "want": "Keinginan",
-    "culture": "Budaya",
-    "unexpected": "Tak Terduga",
-    "saving": "Tabungan",
-    "unclassified": "Belum diklasifikasi",
-}
-PILLAR_ORDER = tuple(PILLAR_LABELS)
+# Pillar nodes in display order; their labels are `labels.pillar.<key>` in the account's language.
+PILLAR_ORDER = ("need", "want", "culture", "unexpected", "saving", "unclassified")
 
 OPENING = "opening"
 NEGATIVE_OPENING = "neg_opening"
@@ -264,7 +258,7 @@ def assign_rows(
             continue
         if row["type"] == "income":
             source = _source_for_income(row)
-            model.sources.setdefault(source, row["category_name"] or "Tanpa kategori")
+            model.sources.setdefault(source, row["category_name"])
             model.add(source, node, "income" if source != OTHER_IN else "other", amount, row_id, waiting=section is not None)
         elif row["reportable_expense"]:
             model.add(node, f"pillar:{row['bucket']}", "spend", amount, row_id, waiting=section is not None)
@@ -296,7 +290,21 @@ def _close_holders(model: FlowModel, accounts: dict[str, dict[str, Any]], openin
     return balances
 
 
-def _node_label(node_id: str, accounts: dict[str, dict[str, Any]], source_names: dict[str, str]) -> str:
+FIXED_NODE_LABELS = {
+    REIMBURSEMENT: "labels.flow.reimbursement",
+    OTHER_IN: "labels.flow.other_in",
+    OPENING: "labels.flow.opening",
+    NEGATIVE_OPENING: "labels.flow.negative_opening",
+    NEGATIVE_CLOSING: "labels.flow.negative_closing",
+    OTHER_OUT: "labels.flow.other_out",
+    WAITING: "labels.flow.waiting",
+    REMAINING: "labels.flow.remaining",
+}
+
+
+def _node_label(
+    node_id: str, accounts: dict[str, dict[str, Any]], source_names: dict[str, str | None], language: str,
+) -> str:
     kind, _, ident = node_id.partition(":")
     if kind in ("acc", "inv"):
         return accounts[ident]["name"]
@@ -304,21 +312,10 @@ def _node_label(node_id: str, accounts: dict[str, dict[str, Any]], source_names:
         account = accounts[ident]
         return f"{account['goal_name']} · {account['name']}" if account["goal_name"] else account["name"]
     if kind == "pillar":
-        return PILLAR_LABELS[ident]
-    if node_id == REIMBURSEMENT:
-        return "Penggantian uang"
-    if node_id == OTHER_IN:
-        return "Masuk lainnya"
-    if kind == "src":
-        return source_names.get(node_id, "Tanpa kategori")
-    return {
-        OPENING: "Saldo sebelum periode",
-        NEGATIVE_OPENING: "Saldo minus sebelum periode",
-        NEGATIVE_CLOSING: "Saldo minus di akhir",
-        OTHER_OUT: "Tidak dihitung belanja",
-        WAITING: "Menunggu pasangan",
-        REMAINING: "Masih ada",
-    }[node_id]
+        return t(language, f"labels.pillar.{ident}")
+    if node_id in FIXED_NODE_LABELS:
+        return t(language, FIXED_NODE_LABELS[node_id])
+    return source_names.get(node_id) or t(language, "labels.fallback.uncategorized")
 
 
 def _node_kind(node_id: str) -> str:
@@ -376,7 +373,7 @@ def load_flow_context(
 
 
 def build_flow(
-    cur, user_id: str, context: FlowContext, *, kakeibo_breakdown: KakeiboBreakdown,
+    cur, user_id: str, context: FlowContext, *, kakeibo_breakdown: KakeiboBreakdown, language: str,
 ) -> dict[str, Any]:
     """Nodes, links and the summary for the rows up to the end of `through`.
 
@@ -406,7 +403,7 @@ def build_flow(
         entry: dict[str, Any] = {
             "id": node_id,
             "kind": _node_kind(node_id),
-            "label": _node_label(node_id, context.accounts, source_names),
+            "label": _node_label(node_id, context.accounts, source_names, language),
             "rank": _node_rank(node_id, context.accounts, account_order, income_order),
         }
         kind, _, ident = node_id.partition(":")

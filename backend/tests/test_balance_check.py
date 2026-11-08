@@ -10,6 +10,7 @@ from uuid import uuid4
 import pytest
 
 from category_keys import seeded_key
+from signed_in import signed_in
 
 NOW = datetime.now(timezone.utc)
 
@@ -30,7 +31,7 @@ def owner(client):
     )}
     with _db() as conn:
         conn.execute(
-            "INSERT INTO users (id, username, name, password_hash, invite_code) VALUES (%s, %s, 'Sari Contoh', 'synthetic-hash', 'TEST')",
+            "INSERT INTO users (id, username, name, password_hash, invite_code, language) VALUES (%s, %s, 'Sari Contoh', 'synthetic-hash', 'TEST', 'id')",
             (user_id, f"balance_{uuid4().hex}"),
         )
         for key, name, kind, balance, parent in [
@@ -58,9 +59,9 @@ def owner(client):
                 (ids[key], user_id, name, kind, seeded_key(name)),
             )
         conn.commit()
-    app.dependency_overrides[get_current_user] = lambda: {
+    app.dependency_overrides[get_current_user] = signed_in({
         "id": user_id, "username": "balance-owner", "name": "Sari Contoh", "currency": "IDR", "payday_day": 25,
-    }
+    })
     yield {"user_id": user_id, **ids}
     app.dependency_overrides.clear()
     with _db() as conn:
@@ -207,7 +208,7 @@ def test_saldo_cocok_starts_the_next_window(client, owner):
     old = add_row(owner, "standalone", 75_000, category="movement_out", when=NOW - timedelta(days=2))
     refused = client.post(f"/api/accounts/{owner['standalone']}/balance-matches", json={"actual_balance": 1_000_000})
     assert refused.status_code == 409
-    assert refused.json()["detail"] == {"code": "balance_mismatch", "difference": 75_000}
+    assert (refused.json()["detail"]["code"], refused.json()["detail"]["difference"]) == ("balance_mismatch", 75_000)
 
     matched = client.post(f"/api/accounts/{owner['standalone']}/balance-matches", json={"actual_balance": 925_000})
     assert matched.status_code == 200, matched.text
@@ -225,7 +226,8 @@ def test_reconcile_is_unchanged_and_also_starts_the_window(client, owner):
     response = client.post(f"/api/accounts/{owner['standalone']}/reconcile", json={"actual_balance": 1_000_000})
     assert response.status_code == 200, response.text
     assert (response.json()["ok"], response.json()["diff"]) == (True, 20_000)
-    assert response.json()["message"] == "Account reconciled with income adjustment of 20000"
+    # The owner is an Indonesian account, so the notice is Indonesian (localize-server-text D1).
+    assert response.json()["message"] == "Saldo rekening dicocokkan dengan penyesuaian pemasukan sebesar Rp 20.000."
 
     result = check(client, owner, "standalone", 1_000_000)
 
@@ -248,7 +250,7 @@ def test_parent_is_checked_as_its_group_without_double_counting(client, owner):
 def test_products_and_other_owners_are_refused(client, owner):
     product = client.post(f"/api/accounts/{owner['product']}/balance-check", json={"actual_balance": 0})
     assert product.status_code == 409
-    assert product.json()["detail"] == {"code": "balance_check_not_liquid"}
+    assert product.json()["detail"]["code"] == "balance_check_not_liquid"
 
     stranger = client.post(f"/api/accounts/{uuid4()}/balance-check", json={"actual_balance": 0})
     assert stranger.status_code == 404

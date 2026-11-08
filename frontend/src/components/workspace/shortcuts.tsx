@@ -45,6 +45,8 @@ export interface ShortcutHelpEntry {
 export interface PageShortcutGroup {
   name: string;
   entries: ShortcutHelpEntry[];
+  /** The page's own phase translated it, so its words follow the interface language without a `lang` mark. */
+  translated?: boolean;
 }
 
 interface ShortcutContextValue {
@@ -66,10 +68,14 @@ function readSingleKeysEnabled(): boolean {
   }
 }
 
+/** Inputs that take no typed text: a single key there is a shortcut (Transaksi's J and K between merge checkboxes). */
+const KEYLESS_INPUTS = new Set(["checkbox", "radio", "button", "submit", "reset"]);
+
 export function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   const tag = target.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
+  if (tag === "INPUT") return !KEYLESS_INPUTS.has((target as HTMLInputElement).type);
+  return tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
 }
 
 function matches(definition: ShortcutDefinition, event: KeyboardEvent): boolean {
@@ -216,7 +222,11 @@ export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const rows = [
     ...GLOBAL_KEYS.map((entry) => ({ keys: entry.keys, text: t(entry.message), lang: undefined })),
     ...(context?.pageGroups ?? []).flatMap((group) =>
-      group.entries.map((entry) => ({ keys: entry.keys, text: t("pageKey", { action: entry.text, where: groupWhere(group) }), lang: pageLang })),
+      group.entries.map((entry) => ({
+        keys: entry.keys,
+        text: t("pageKey", { action: entry.text, where: groupWhere(group) }),
+        lang: group.translated ? undefined : pageLang,
+      })),
     ),
   ];
   const facts = [t("factCapture"), t("factReview"), conversation("helpFactHome")];

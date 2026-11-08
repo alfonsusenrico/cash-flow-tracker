@@ -9,7 +9,16 @@ import { ConfirmActionButton } from "@/components/ui/ConfirmActionButton";
 import { Modal } from "@/components/ui/Modal";
 import { ReconciliationFlag } from "@/components/ui/ReconciliationFlag";
 import { canSwitchToAmountTracking } from "@/lib/investmentTopups";
-import { RowAmount, movementDirection, rowKind, rowTitle, rowWhen } from "@/components/beranda/activity";
+import { RowAmount, movementDirection, rowKind, rowTitle } from "@/components/transactions/rows";
+import { createFormat } from "@/lib/format";
+import { INDONESIAN_ROW_LABELS } from "@/lib/untranslatedRowLabels";
+
+/** Rekening is translated in phase 8; its detail keeps Indonesian words and dates until then. */
+const INDONESIAN_FORMAT = createFormat({ language: "id", region: "ID" });
+
+function rowWhen(date: string): string {
+  return `${INDONESIAN_FORMAT.shortDateAt(date)} · ${INDONESIAN_FORMAT.time(date)}`;
+}
 import type { ActivityRow } from "@/components/beranda/types";
 import { AccountLinks } from "./AccountLinks";
 import type { useAccountDialogs } from "./AccountDialogs";
@@ -184,10 +193,10 @@ export function AccountDetail({
               {recent.map((row) => (
                 <li key={row.id}>
                   <span className={styles.detailTx}>
-                    <span>{rowTitle(row)}</span>
-                    <small>{rowKind(row) === "movement" ? `${rowWhen(row)} · ${movementDirection(row)}` : rowWhen(row)}</small>
+                    <span>{rowTitle(row, INDONESIAN_ROW_LABELS)}</span>
+                    <small>{rowKind(row) === "movement" ? `${rowWhen(row.date)} · ${movementDirection(row, INDONESIAN_ROW_LABELS)}` : rowWhen(row.date)}</small>
                   </span>
-                  <RowAmount row={row} bal={money} />
+                  <RowAmount row={row} money={money} />
                 </li>
               ))}
             </ul>

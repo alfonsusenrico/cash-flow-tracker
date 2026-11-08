@@ -53,7 +53,7 @@ def make_owner(user_id: str):
     ids.update(cash=str(uuid4()), pocket=str(uuid4()))
     with db_conn() as conn:
         conn.execute(
-            "INSERT INTO users (id, username, name, password_hash, invite_code) VALUES (%s, %s, 'Rani Contoh', 'synthetic-hash', 'TEST')",
+            "INSERT INTO users (id, username, name, password_hash, invite_code, language) VALUES (%s, %s, 'Rani Contoh', 'synthetic-hash', 'TEST', 'id')",
             (user_id, f"report_{uuid4().hex}"),
         )
         for key, name in (("cash", "Rekening Contoh"), ("pocket", "Kantong Contoh")):

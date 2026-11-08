@@ -79,13 +79,13 @@
 .cmp:first-of-type { border-top: 0; }
 .cmpName { display: flex; flex-direction: column; min-width: 0; }
 .cmpName b { font-weight: 500; display: flex; align-items: center; gap: 7px; }
-.cmpName b::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--kc); flex: none; }
+.cmpName b::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--k-none); flex: none; }
 .cmpName span { color: var(--muted); font-size: 12px; padding-left: 15px; }
 .cmpValue { text-align: right; font-weight: 500; white-space: nowrap; }
 .cmpState { text-align: right; }
 
 .bench { position: relative; height: 10px; border-radius: 0; background: var(--surface-3); }
-.bench i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0; background: var(--kc); }
+.bench i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0; background: var(--k-none); }
 .bench b { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--text); border-radius: var(--r-control); }
 
 /* Belanja harian */

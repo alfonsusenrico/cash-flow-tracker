@@ -48,6 +48,9 @@ export function createFormat({ language, region, currency = "IDR", rate }: Forma
   const shortMonthYear = dayFormat({ month: "short", year: "numeric" });
   const weekdayInstant = zoneFormat({ weekday: "long", day: "numeric", month: "long" });
   const shortInstant = zoneFormat({ day: "numeric", month: "short" });
+  const yearDay = dayFormat({ day: "numeric", month: "short", year: "numeric" });
+  const yearInstant = zoneFormat({ day: "numeric", month: "short", year: "numeric" });
+  const zoneDay = zoneFormat({ year: "numeric", month: "2-digit", day: "2-digit" });
   // Indonesia writes "18.23" with two-digit hours; the United States "6:23 PM".
   const clock = zoneFormat(region === "US" ? { hour: "numeric", minute: "2-digit" } : { hour: "2-digit", minute: "2-digit" });
 
@@ -91,6 +94,19 @@ export function createFormat({ language, region, currency = "IDR", rate }: Forma
     weekdayAt: (value: Date | string) => weekdayInstant.format(instant(value)),
     /** "5 Nov" for an instant in the app's time zone. */
     shortDateAt: (value: Date | string) => shortInstant.format(instant(value)),
+    /** "5 Nov 2026" (ID) or "Nov 5, 2026" (US) for a calendar date. */
+    yearDate: (iso: string) => yearDay.format(calendarDay(iso)),
+    /** "5 Nov 2026" for an instant in the app's time zone. */
+    yearDateAt: (value: Date | string) => yearInstant.format(instant(value)),
+    /**
+     * Two instants as one range in the app's time zone: "3 Okt 2026" on one day, else "3 Okt – 17 Okt 2026"
+     * (the start without its year, as Tinjau has always written it); null without both ends.
+     */
+    dateRangeAt(first: string | null, last: string | null): string | null {
+      if (!first || !last) return null;
+      if (zoneDay.format(instant(first)) === zoneDay.format(instant(last))) return yearInstant.format(instant(last));
+      return `${shortInstant.format(instant(first))} – ${yearInstant.format(instant(last))}`;
+    },
     /** "18.23" (ID) or "6:23 PM" (US) for an instant in the app's time zone. */
     time: (value: Date | string) => clock.format(instant(value)),
   };

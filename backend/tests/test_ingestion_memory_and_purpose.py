@@ -4,6 +4,7 @@ All texts, names and amounts are synthetic.
 """
 import asyncio
 import json
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -15,6 +16,7 @@ import pytest
 from app.services.notification_interpretation import Interpretation
 from app.services.openai_notification_provider import ProviderError
 from app.services.purpose_normalization import PurposeNormalization
+from signed_in import leaked, rendered_texts, switch_account_language
 from test_notification_processing_database import (  # noqa: F401 - fixture
     count_transactions, enable_ai, ingest, interpretation, notification, notification_owner,
 )
@@ -487,6 +489,31 @@ def answer(client, event_id, body):
     return client.post(f"/api/ingest/notifications/{event_id}/answer-purpose", json=body)
 
 
+@pytest.mark.parametrize("language", ["id", "en"])
+def test_purpose_question_logs_hold_its_code_and_no_rendered_text(client, owner, caplog, language):
+    """The question's key and language are logged; its prompt, amount and account name are not (D8)."""
+    switch_account_language(owner["user_id"], language)
+    caplog.set_level(logging.DEBUG)
+    event_id, question = open_question(client, owner)
+    assert question["language"] == language and question["prompt_code"] == "questions.purpose.expense_hint"
+    body = {"question_id": question["question_id"], "reply_id": str(uuid4()), "text": "Belanja bulanan Contoh"}
+    assert answer(client, event_id, body).status_code == 200
+    refused = answer(client, event_id, {**body, "reply_id": str(uuid4())})
+    assert refused.status_code == 409
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("code=questions.purpose.expense_hint" in message and f"language={language}" in message
+               for message in messages)
+    secrets = {"187.500", "187,500", "Groceries", "Belanja bulanan Contoh", *rendered_texts(question),
+               *rendered_texts(refused.json())}
+    assert leaked(messages, secrets) == []
+
+
+def test_log_leak_check_catches_a_planted_prompt():
+    prompt = "What was this for? Rp187.500 from BCA Harian"
+    assert leaked(["Purpose question asked code=questions.purpose.expense language=en suggestions=2"], {prompt}) == []
+    assert leaked([f"Purpose question asked prompt={prompt}"], {prompt}) == [f"Purpose question asked prompt={prompt}"]
+
+
 def test_answer_with_suggestion_updates_row_feedback_memory_and_result(client, owner):
     add_feedback(owner, notes="makan kafe senja", category="jajan", amount=200000, weekday=3, hour=19)
     event_id, question = open_question(client, owner)
@@ -538,6 +565,39 @@ def test_answer_with_text_uses_normaliser(client, owner, monkeypatch):
     memory = memory_rows(owner)
     assert "merchant:arena futsal" in memory and "signature:bca|expense|groceries" in memory
     assert event_row(event_id)["interpretation"]["purpose_answer"]["normalizer"] == "ok"
+
+
+@pytest.mark.parametrize("enabled,language,version,outcome", [
+    (True, "en", "purpose-normalization-1-en", "invalid_normalization"),
+    (False, "en", "purpose-normalization-1", "ok"),
+    (True, "id", "purpose-normalization-1", "ok"),
+])
+def test_normaliser_uses_the_accounts_rendering_and_refuses_an_english_placeholder(
+    client, owner, monkeypatch, enabled, language, version, outcome,
+):
+    from dataclasses import replace
+    from app.core import config
+    from app.db.pool import db_conn
+    from app.main import app
+
+    event_id, question = open_question(client, owner)
+    monkeypatch.setattr(config, "settings", replace(config.settings, llm_english_output_enabled=enabled))
+    with db_conn() as conn:
+        conn.execute("UPDATE users SET language = %s WHERE id = %s", (language, owner["user_id"]))
+        conn.commit()
+    provider = AsyncMock()
+    provider.normalize_purpose.return_value = normalization(
+        merchant=None, description="Payment", category_id=owner["olahraga"], kakeibo="culture",
+        offset_category_id=None, confidence=0.88)
+    enable_ai(monkeypatch)
+    monkeypatch.setattr(app.state, "notification_provider", provider)
+    response = answer(client, event_id, {"question_id": question["question_id"], "reply_id": str(uuid4()),
+                                         "text": "sewa lapangan"})
+    assert response.status_code == 200, response.text
+    assert provider.normalize_purpose.await_args.kwargs["prompt"].version == version
+    assert provider.normalize_purpose.await_args.args[0]["answer"] == "sewa lapangan"
+    stored = event_row(event_id)["interpretation"]["purpose_answer"]
+    assert (stored["normalizer"], stored["normalizer_prompt_version"]) == (outcome, version)
 
 
 @pytest.mark.parametrize("failure", ["provider", "invalid_reference", "ai_disabled"])

@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.config import settings
-from app.core.errors import coded_error
+from app.errors import ErrorCode, api_error
+from app.i18n import bind_account, current_language, notice, t
 from app.db.pool import db_conn
 from app.services.auth import (
     authenticate_user,
@@ -67,7 +68,7 @@ def _language(value: str) -> str:
     """A supported interface language, or the coded 422 that saves nothing."""
     language = value.strip().lower()
     if language not in LANGUAGES:
-        raise coded_error(422, "invalid_language", "Unsupported language")
+        raise api_error(422, ErrorCode.INVALID_LANGUAGE)
     return language
 
 
@@ -75,17 +76,12 @@ def _region(value: str) -> str:
     """A supported region, or the coded 422 that saves nothing."""
     region = value.strip().upper()
     if region not in REGIONS:
-        raise coded_error(422, "invalid_region", "Unsupported region")
+        raise api_error(422, ErrorCode.INVALID_REGION)
     return region
 
 
 def _too_many_attempts(retry_after: int):
-    return coded_error(
-        429,
-        "too_many_attempts",
-        "Too many attempts. Please try again later.",
-        headers={"Retry-After": str(retry_after)},
-    )
+    return api_error(429, ErrorCode.TOO_MANY_ATTEMPTS, headers={"Retry-After": str(retry_after)})
 
 
 @router.get("/currency/rates")
@@ -150,7 +146,7 @@ def login(payload: LoginRequest, request: Request):
 @router.post("/logout")
 def logout(request: Request):
     request.session.clear()
-    return {"ok": True, "message": "Logged out successfully"}
+    return {"ok": True, "message": notice("signed_out")}
 
 
 @router.get("/me")
@@ -167,7 +163,7 @@ def update_settings(payload: SettingsUpdate, response: Response, current_user: d
 
     if payload.name is not None:
         if not payload.name.strip():
-            raise coded_error(422, "display_name_empty", "Display name cannot be empty")
+            raise api_error(422, ErrorCode.DISPLAY_NAME_EMPTY)
         updates.append("name = %s")
         params.append(payload.name.strip())
     if payload.payday_day is not None:
@@ -193,7 +189,7 @@ def update_settings(payload: SettingsUpdate, response: Response, current_user: d
         params.append(_region(payload.region))
 
     if not updates:
-        raise coded_error(400, "no_settings_to_update", "No settings to update")
+        raise api_error(400, ErrorCode.NO_SETTINGS_TO_UPDATE)
 
     updates.append("updated_at = NOW()")
     params.append(user_id)
@@ -212,6 +208,8 @@ def update_settings(payload: SettingsUpdate, response: Response, current_user: d
             )
             updated = cur.fetchone()
             conn.commit()
+    # A changed language applies from this response on: its text and its Content-Language (D1).
+    bind_account(updated)
 
     result: dict = {
         "ok": True,
@@ -234,7 +232,7 @@ def update_settings(payload: SettingsUpdate, response: Response, current_user: d
         result["deprecations"] = [{
             "field": "payday_day",
             "code": "payday_day_deprecated",
-            "message": "Tanggal gajian tetap tidak lagi menentukan siklus. Konfirmasi gaji yang diterima di Pengaturan.",
+            "message": t(current_language(), "errors.payday_day_deprecated"),
         }]
     return result
 
@@ -316,5 +314,5 @@ def reset_api_key(current_user: dict = Depends(get_current_user)):
         "ok": True,
         "api_key": plain_key,
         "key_prefix": key_prefix,
-        "message": "Copy this key now. You will not be able to see it again.",
+        "message": notice("api_key_shown_once"),
     }

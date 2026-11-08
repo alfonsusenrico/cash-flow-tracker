@@ -7,7 +7,6 @@ when deterministic checks pass (understand-capture-time D5), and it can never to
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
-from pathlib import Path
 from zoneinfo import ZoneInfo
 from typing import Literal
 from uuid import UUID
@@ -15,15 +14,19 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.services.kakeibo import Pillar
+from app.services.prompt_language import CAPTURE_NORMALIZATION, INDONESIAN_VERSIONS
+from app.services.prompt_language import PLACEHOLDER_DESCRIPTIONS as PLACEHOLDERS_BY_LANGUAGE
 
 
-CAPTURE_PROMPT_VERSION = "capture-normalization-2"
-CAPTURE_PROMPT_PATH = Path(__file__).with_name("prompts") / "capture_normalization.md"
+CAPTURE_PROMPT_VERSION = INDONESIAN_VERSIONS[CAPTURE_NORMALIZATION]
 # Upper bound of the serialised capture input; history, then memory, are dropped to fit.
 CAPTURE_CONTEXT_BYTE_LIMIT = 30000
-PLACEHOLDER_DESCRIPTIONS = frozenset({
-    "pembayaran", "belanja", "transaksi", "pengeluaran", "pemasukan", "transfer", "lainnya",
-})
+# The Indonesian rendering keeps its guard exactly as before; English output also drops an Indonesian placeholder,
+# so "Payment" and "Pembayaran" are both refused there (D7).
+PLACEHOLDER_DESCRIPTIONS = {
+    "id": PLACEHOLDERS_BY_LANGUAGE["id"],
+    "en": PLACEHOLDERS_BY_LANGUAGE["id"] | PLACEHOLDERS_BY_LANGUAGE["en"],
+}
 # Without an explicit date, a model time older than this is not believed.
 MODEL_TIME_MAX_AGE = timedelta(days=31)
 
@@ -55,11 +58,7 @@ class InvalidCaptureNormalization(ValueError):
     pass
 
 
-def capture_prompt() -> str:
-    return CAPTURE_PROMPT_PATH.read_text(encoding="utf-8")
-
-
-def validate_capture_normalization(result: CaptureNormalization, context: dict) -> dict:
+def validate_capture_normalization(result: CaptureNormalization, context: dict, *, output_language: str = "id") -> dict:
     """Checked proposal; raises InvalidCaptureNormalization for any reference outside the context.
 
     A category of the other direction is kept: the gate only uses it when the kind matches.
@@ -76,7 +75,7 @@ def validate_capture_normalization(result: CaptureNormalization, context: dict) 
     if category and category["kind"] == "expense":
         kakeibo = result.kakeibo or category.get("default_kakeibo")
     description = " ".join(result.description.split())
-    if description.casefold() in PLACEHOLDER_DESCRIPTIONS:
+    if description.casefold() in PLACEHOLDER_DESCRIPTIONS[output_language]:
         description = ""
     return {
         "merchant": " ".join((result.merchant or "").split()) or None,

@@ -3,7 +3,7 @@ import { isActivePath } from "./navigation";
 /**
  * Title and subtitle of the pages no phase has translated yet (add-language-system D10). They stay Indonesian in
  * every interface language, inside a `lang="id"` title block; each phase moves its page into the catalogue and
- * removes its entry here. Beranda writes its own title and is not listed.
+ * removes its entry here. Beranda, Tinjau and Transaksi write their own titles and are not listed.
  */
 interface PageTitle {
   title: string;
@@ -11,8 +11,6 @@ interface PageTitle {
 }
 
 const PAGE_TITLES: [string, PageTitle][] = [
-  ["/review", { title: "Tinjau", subtitle: "Yang perlu dijawab dan yang dicatat otomatis" }],
-  ["/ledger", { title: "Transaksi", subtitle: "Semua uang masuk, pengeluaran, dan pindah saldo" }],
   ["/accounts", { title: "Rekening & Kantong", subtitle: "Saldo rekening, kantong, investasi dan utang" }],
   ["/goals", { title: "Target & Tagihan", subtitle: "Dana darurat, tagihan, utang dan target tabungan" }],
   ["/insights", { title: "Analisis", subtitle: "Ke mana uang digunakan, dibanding periode lalu" }],

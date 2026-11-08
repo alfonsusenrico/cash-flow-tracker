@@ -62,3 +62,17 @@ def test_arrival_sequence_is_versioned_and_read_one_notification_at_a_time():
     for case in sequence:
         assert "neighbours" not in case.context and "same_money_as" not in case.expected
     assert all(case.expected["outcome"] == "record" for case in sequence)
+
+
+def test_english_output_cases_repeat_every_case_with_english_descriptions():
+    from evaluation.notification_cases import ENGLISH_FIXTURE_VERSION, english_output_cases
+
+    indonesian = synthetic_cases()
+    english = english_output_cases()
+    assert ENGLISH_FIXTURE_VERSION == "synthetic-notifications-5-en"
+    assert [case.name for case in english] == [case.name for case in indonesian]
+    assert [case.partition for case in english] == [case.partition for case in indonesian]
+    for source, case in zip(indonesian, english):
+        assert source.output_language == "id" and case.output_language == "en"
+        assert case.event == source.event and case.context == source.context
+        assert case.expected == {**source.expected, "description_language": "en"}

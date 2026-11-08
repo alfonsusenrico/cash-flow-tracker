@@ -16,14 +16,15 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.core.config import settings
+from app.i18n import language_for_user, t
 from app.services.cycle_summary import expected_salary_for_cycle
 from app.services.plan_occurrences import plan_occurrences_in_window
 from app.services.reimbursements import load_spending_offsets
 from app.services.report_figures import daily_offsets, reportable_expense_sql, reportable_income_sql
 from app.services.report_windows import (
+    cycle_range_label,
     get_timeframe_window,
     shift_month,
-    short_local_date,
 )
 from app.services.salary_cycles import resolve_cycle
 from app.services.salary_receipts import receipts
@@ -72,6 +73,7 @@ def _grid_end(start_date: date, end_date: date, today: date, open_cycle: bool, e
 def build_calendar(conn, user: dict[str, Any], *, timeframe: str, cycle_offset: int, now: datetime) -> dict[str, Any]:
     """The calendar of one period, read through one connection in a constant number of statements."""
     user_id = str(user["id"])
+    language = language_for_user(user)
     payday_day = int(user.get("payday_day") or 25)
     zone = ZoneInfo(settings.tz)
     today = now.astimezone(zone).date()
@@ -81,7 +83,7 @@ def build_calendar(conn, user: dict[str, Any], *, timeframe: str, cycle_offset: 
     if timeframe == "cycle":
         cycle = resolve_cycle([row["date"] for row in receipt_rows], offset=cycle_offset, tz_name=settings.tz, as_of=now)
     start_utc, end_utc, start_date, end_date, report_label = get_timeframe_window(
-        payday_day, timeframe, cycle_offset=cycle_offset, user_id=user_id, cycle=cycle,
+        payday_day, timeframe, cycle_offset=cycle_offset, user_id=user_id, cycle=cycle, language=language
     )
     open_cycle = cycle is not None and cycle.start is not None and cycle.end_exclusive is None
     # An open cycle's report window ends today, a month's at its last day, so both hold today when current.
@@ -168,7 +170,7 @@ def build_calendar(conn, user: dict[str, Any], *, timeframe: str, cycle_offset: 
                 {
                     "transaction_id": str(item["id"]),
                     "section": item["section"],
-                    "label": item["merchant"] or item["notes"] or item["category_name"] or "Tanpa keterangan",
+                    "label": item["merchant"] or item["notes"] or item["category_name"] or t(language, "labels.fallback.undescribed"),
                     "account_name": item["account_name"],
                     "type": item["type"],
                     "amount": int(item["amount"]),
@@ -201,7 +203,7 @@ def build_calendar(conn, user: dict[str, Any], *, timeframe: str, cycle_offset: 
             "start": start_date.isoformat(),
             "end": grid_end.isoformat(),
             # An open cycle's report label says "berlanjut"; the calendar names the days it shows.
-            "label": f"Siklus {short_local_date(start_date)} – {short_local_date(grid_end)}" if open_cycle else report_label,
+            "label": cycle_range_label(language, start_date, grid_end) if open_cycle else report_label,
             "basis": timeframe,
             "today": today.isoformat(),
             "day_index": (today - start_date).days + 1 if is_current else None,

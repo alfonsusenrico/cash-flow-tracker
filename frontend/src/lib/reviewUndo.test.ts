@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { batchOf, NOTHING_TO_UNDO, undoEntry, undoMessage, UndoStack, type UndoResponse } from "./reviewUndo";
+import { testWords } from "@/lib/i18n/testing";
+import { batchOf, undoEntry, undoMessage, undoText, UndoStack, type UndoResponse } from "./reviewUndo";
 
 const NOW = Date.parse("2026-11-03T05:00:00Z");
 const later = (minutes: number) => new Date(NOW + minutes * 60_000).toISOString();
@@ -30,7 +31,7 @@ describe("undo stack", () => {
     expect(batchOf({}, 2)).toBeNull();
     expect(stack.push({ batches: [], label: "Kedai Awan", transactionId: "tx", folderLabel: "Perlu jawaban" })).toBeNull();
     expect(stack.newest()).toBeNull();
-    expect(NOTHING_TO_UNDO).toBe("Tidak ada yang dapat dibatalkan.");
+    expect(testWords("id").t("review.undo.nothing")).toBe("Tidak ada yang dapat dibatalkan.");
   });
 
   it("writes nothing to storage or the URL", () => {
@@ -60,7 +61,8 @@ describe("undoing an entry", () => {
     const outcome = await undoEntry(subject, post);
     expect(post.mock.calls.map(([token]) => token)).toEqual(["token-1", "token-0"]);
     expect(outcome).toEqual({ restored: 50, total: 250, failure: "conflict", conflictIds: ["tx-1"] });
-    expect(undoMessage(outcome, subject)).toContain("50 dari 250 transaksi dibatalkan");
+    expect(undoText(testWords("id").t, undoMessage(outcome, subject))).toBe("50 dari 250 transaksi dibatalkan. Sisanya: Tidak dapat dibatalkan: transaksi sudah berubah sejak itu.");
+    expect(undoText(testWords("en").t, undoMessage(outcome, subject))).toBe("50 of 250 transactions undone. The rest: It cannot be undone: the transaction changed since then.");
   });
 
   it("maps 404, 409, 410 and a network failure", async () => {
@@ -73,9 +75,9 @@ describe("undoing an entry", () => {
     ];
     for (const [error, text] of cases) {
       const outcome = await undoEntry(subject, async () => { throw error; });
-      expect(undoMessage(outcome, subject)).toBe(text);
+      expect(undoText(testWords("id").t, undoMessage(outcome, subject))).toBe(text);
     }
     const success = await undoEntry(subject, async () => ok);
-    expect(undoMessage(success, subject)).toBe("Dibatalkan. Kedai Awan kembali ke Perlu jawaban.");
+    expect(undoText(testWords("id").t, undoMessage(success, subject))).toBe("Dibatalkan. Kedai Awan kembali ke Perlu jawaban.");
   });
 });

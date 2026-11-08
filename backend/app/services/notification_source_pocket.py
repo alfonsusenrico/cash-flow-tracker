@@ -6,9 +6,9 @@ import hashlib
 import json
 from dataclasses import replace
 
-from fastapi import HTTPException
 from psycopg.types.json import Jsonb
 
+from app.errors import ErrorCode, api_error
 from app.services.notification_evidence import EvidenceError, requires_source_pocket
 from app.services.notification_mapping import version_tuple
 from app.services.notification_resolution import MAPPABLE_ACCOUNT_TYPES, institution_parent
@@ -114,13 +114,13 @@ def source_options(cur, event: dict) -> dict:
 
     question = event.get("active_question") or {}
     if event["processing_state"] != "needs_confirmation" or question.get("type") != "source_pocket":
-        raise HTTPException(status_code=409, detail={"code": "stale_confirmation"})
+        raise api_error(409, ErrorCode.STALE_CONFIRMATION)
     try:
         parent, options = eligible_sources(cur, str(event["user_id"]))
     except EvidenceError:
-        raise HTTPException(status_code=409, detail={"code": "source_pocket_unconfigured"}) from None
+        raise api_error(409, ErrorCode.SOURCE_POCKET_UNCONFIGURED) from None
     if str(parent["id"]) != question["jago_account"]["id"]:
-        raise HTTPException(status_code=409, detail={"code": "stale_confirmation"})
+        raise api_error(409, ErrorCode.STALE_CONFIRMATION)
     return {"event_id": str(event["id"]), "question_id": question["question_id"],
             "options": [{"id": str(row["id"]), "label": sanitize_text(
                 f"{parent['name']} · {row['name']}" if row.get("parent_id") else row["name"]
@@ -140,14 +140,14 @@ def accept_source_answer(cur, event: dict, facts, answer: dict) -> bool:
                 and str(receipts[0]["reply_id"]) == answer["reply_id"]
                 and str(receipts[0]["account_id"]) == answer["account_id"]):
             return False
-        raise HTTPException(status_code=409, detail={"code": "source_answer_conflict"})
+        raise api_error(409, ErrorCode.SOURCE_ANSWER_CONFLICT)
     question = event.get("active_question") or {}
     options = source_options(cur, event)
     if (not requires_source_pocket(facts) or question.get("question_id") != answer["question_id"]
             or question.get("evidence_revision") != evidence_revision(facts)):
-        raise HTTPException(status_code=409, detail={"code": "stale_confirmation"})
+        raise api_error(409, ErrorCode.STALE_CONFIRMATION)
     if answer["account_id"] not in {row["id"] for row in options["options"]}:
-        raise HTTPException(status_code=409, detail={"code": "invalid_source_pocket"})
+        raise api_error(409, ErrorCode.INVALID_SOURCE_POCKET)
     decision = {"account_id": answer["account_id"], "question_id": answer["question_id"],
                 "jago_account_id": question["jago_account"]["id"],
                 "evidence_revision": question["evidence_revision"], "confirmed_by": "owner"}
@@ -155,7 +155,7 @@ def accept_source_answer(cur, event: dict, facts, answer: dict) -> bool:
     try:
         resolved_facts(cur, checked, facts)
     except EvidenceError:
-        raise HTTPException(status_code=409, detail={"code": "invalid_source_pocket"}) from None
+        raise api_error(409, ErrorCode.INVALID_SOURCE_POCKET) from None
     cur.execute(
         """INSERT INTO notification_source_pocket_answers
            (user_id, event_id, question_id, reply_id, account_id) VALUES (%s, %s, %s, %s, %s)""",

@@ -13,6 +13,7 @@ from datetime import datetime
 from fastapi import HTTPException
 
 from app.db.pool import db_conn
+from app.errors import ErrorCode, api_error
 from app.services.capture_resolution import account_label, capture_facts, liquid_leaves, memory_state
 from app.services.text_capture import TEXT_MAX_LENGTH, clean_text
 
@@ -59,7 +60,7 @@ def time_preview(facts: dict) -> dict:
 
 def preview_capture(user_id: str, text: str, device_time: datetime) -> dict:
     if device_time.tzinfo is None:
-        raise HTTPException(status_code=422, detail={"code": "invalid_device_time"})
+        raise api_error(422, ErrorCode.INVALID_DEVICE_TIME)
     clean = clean_text(text, TEXT_MAX_LENGTH, "invalid_capture_text")
     problems: list[str] = []
     with db_conn() as conn:

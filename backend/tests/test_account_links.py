@@ -60,7 +60,7 @@ def test_the_companion_api_key_cannot_manage_links(client, notification_owner):
         client.get("/api/ingest/account-links", headers=headers),
         client.delete(f"/api/ingest/account-links/{uuid4()}", headers=headers),
     ):
-        assert response.status_code == 403 and response.json()["detail"] == {"code": "session_required"}
+        assert response.status_code == 403 and response.json()["detail"]["code"] == "session_required"
 
 
 def test_skip_pattern_endpoints_are_gone(client, session_owner):

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
-import { TransactionDrawer } from "@/components/transactions/TransactionDrawer";
+import { TransactionDialog } from "@/components/transactions/TransactionDialog";
 import { useTransactionUndo } from "@/components/transactions/useTransactionUndo";
 import { Icon } from "@/components/ui/Icon";
 import { Drawer } from "@/components/workspace/overlays";
@@ -341,7 +341,7 @@ export function PetaAliranTab({
           onRow={setTxId}
         />
       )}
-      <TransactionDrawer transactionId={txId} onClose={() => setTxId(null)} record={record} />
+      <TransactionDialog transactionId={txId} onClose={() => setTxId(null)} record={record} />
     </div>
   );
 }

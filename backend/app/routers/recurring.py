@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.db.pool import db_conn
+from app.errors import ErrorCode, api_error
+from app.i18n import account_language, t
 from app.routers.movements import _ensure_internal_movement_categories
 from app.services.auth import get_current_user
 from app.services.investment_topups import create_topup, resolve_topup_source, validate_topup_accounts
@@ -67,30 +69,21 @@ class RecurringRuleUpdate(BaseModel):
 def _reject_retired_options(*, auto_post: bool | None, is_payroll_allocation: bool | None, new_payday_schedule: bool) -> None:
     """Old clients can still send these fields; enabling them must fail rather than be ignored."""
     if auto_post:
-        raise HTTPException(
-            status_code=422,
-            detail={"code": "auto_post_retired", "message": "Rencana tidak lagi mencatat transaksi otomatis."},
-        )
+        raise api_error(422, ErrorCode.AUTO_POST_RETIRED)
     if is_payroll_allocation:
-        raise HTTPException(
-            status_code=422,
-            detail={"code": "payroll_allocation_retired", "message": "Alokasi gaji sekaligus tidak lagi tersedia."},
-        )
+        raise api_error(422, ErrorCode.PAYROLL_ALLOCATION_RETIRED)
     if new_payday_schedule:
-        raise HTTPException(
-            status_code=422,
-            detail={"code": "payday_schedule_retired", "message": "Pilih tanggal atau hari tertentu; tanggal gajian tetap tidak lagi dipakai."},
-        )
+        raise api_error(422, ErrorCode.PAYDAY_SCHEDULE_RETIRED)
 
 
 def _validate_schedule(schedule_type: str, schedule_day: int | None) -> int | None:
     if schedule_type == "payday":
         return None
     if schedule_day is None:
-        raise HTTPException(status_code=422, detail="Schedule day is required")
+        raise api_error(422, ErrorCode.SCHEDULE_DAY_REQUIRED)
     upper = 7 if schedule_type == "weekly" else 31
     if not 1 <= schedule_day <= upper:
-        raise HTTPException(status_code=422, detail=f"Schedule day must be between 1 and {upper}")
+        raise api_error(422, ErrorCode.SCHEDULE_DAY_OUT_OF_RANGE, {"max": upper})
     return schedule_day
 
 
@@ -105,10 +98,10 @@ def _validate_rule_references(
     obligation_id: str | None,
 ) -> None:
     if not source_id:
-        raise HTTPException(status_code=422, detail="Source account is required")
+        raise api_error(422, ErrorCode.SOURCE_ACCOUNT_REQUIRED)
     if rule_type == "investment_topup":
         if not target_id or category_id or obligation_id:
-            raise HTTPException(status_code=422, detail={"code": "invalid_investment_topup_rule"})
+            raise api_error(422, ErrorCode.INVALID_INVESTMENT_TOPUP_RULE)
         effective_source = resolve_topup_source(cur, user_id, source_id)
         cur.execute(
             """SELECT a.*, EXISTS (SELECT 1 FROM accounts child WHERE child.parent_id = a.id) AS has_children
@@ -117,7 +110,7 @@ def _validate_rule_references(
         )
         accounts = {str(row["id"]): row for row in cur.fetchall()}
         if effective_source not in accounts or target_id not in accounts:
-            raise HTTPException(status_code=404, detail="Investment rule account not found")
+            raise api_error(404, ErrorCode.ACCOUNT_NOT_FOUND)
         validate_topup_accounts(accounts[effective_source], accounts[target_id])
         return
     cur.execute(
@@ -126,16 +119,16 @@ def _validate_rule_references(
     )
     source_account = cur.fetchone()
     if not source_account:
-        raise HTTPException(status_code=404, detail="Source account not found")
+        raise api_error(404, ErrorCode.SOURCE_ACCOUNT_NOT_FOUND)
     if rule_type == "transfer":
         if not target_id:
-            raise HTTPException(status_code=400, detail="Transfer requires target_account_id")
+            raise api_error(400, ErrorCode.TARGET_ACCOUNT_REQUIRED)
         if target_id == source_id:
-            raise HTTPException(status_code=400, detail="Cannot transfer to the same account")
+            raise api_error(400, ErrorCode.SAME_ACCOUNT)
         if category_id:
-            raise HTTPException(status_code=400, detail="Transfer categories are assigned by the movement service")
+            raise api_error(400, ErrorCode.TRANSFER_CATEGORY_NOT_ALLOWED)
     elif target_id is not None:
-        raise HTTPException(status_code=400, detail="Target account is only valid for transfers")
+        raise api_error(400, ErrorCode.TARGET_ACCOUNT_TRANSFER_ONLY)
     if target_id:
         cur.execute(
             "SELECT id, type, instrument_type FROM accounts WHERE user_id = %s AND id = %s AND is_archived = FALSE",
@@ -143,7 +136,7 @@ def _validate_rule_references(
         )
         target_account = cur.fetchone()
         if not target_account:
-            raise HTTPException(status_code=404, detail="Target account not found")
+            raise api_error(404, ErrorCode.TARGET_ACCOUNT_NOT_FOUND)
         if rule_type == "transfer":
             ensure_generic_movement_accounts(source_account, target_account)
     if category_id:
@@ -153,20 +146,20 @@ def _validate_rule_references(
         )
         category = cur.fetchone()
         if not category:
-            raise HTTPException(status_code=404, detail="Category not found")
+            raise api_error(404, ErrorCode.CATEGORY_NOT_FOUND)
         if rule_type != "transfer" and category["kind"] != rule_type:
-            raise HTTPException(status_code=400, detail="Category is incompatible with recurring type")
+            raise api_error(400, ErrorCode.CATEGORY_TYPE_MISMATCH)
     elif rule_type != "transfer":
-        raise HTTPException(status_code=422, detail="Category is required for income and expense rules")
+        raise api_error(422, ErrorCode.CATEGORY_REQUIRED)
     if obligation_id:
         if rule_type != "expense":
-            raise HTTPException(status_code=400, detail="An obligation can only be linked to an expense rule")
+            raise api_error(400, ErrorCode.OBLIGATION_EXPENSE_ONLY)
         cur.execute(
             "SELECT id FROM obligations WHERE user_id = %s AND id = %s AND is_archived = FALSE AND remaining_amount > 0",
             (user_id, obligation_id),
         )
         if not cur.fetchone():
-            raise HTTPException(status_code=404, detail="Obligation not found")
+            raise api_error(404, ErrorCode.OBLIGATION_NOT_FOUND)
 
 
 def format_recurring_rule_row(r: dict[str, Any]) -> dict[str, Any]:
@@ -258,7 +251,7 @@ def create_recurring_rule(
     payday_day = int(current_user.get("payday_day") or 25)
 
     if not payload.name.strip():
-        raise HTTPException(status_code=422, detail="Rule name is required")
+        raise api_error(422, ErrorCode.RULE_NAME_REQUIRED)
     _reject_retired_options(
         auto_post=payload.auto_post,
         is_payroll_allocation=payload.is_payroll_allocation,
@@ -342,7 +335,7 @@ def update_recurring_rule(
             )
             existing = cur.fetchone()
             if not existing:
-                raise HTTPException(status_code=404, detail="Recurring rule not found")
+                raise api_error(404, ErrorCode.PLAN_NOT_FOUND)
 
             # Determine updated values
             name = payload.name if payload.name is not None else existing["name"]
@@ -377,16 +370,16 @@ def update_recurring_rule(
             is_active = payload.is_active if payload.is_active is not None else existing["is_active"]
 
             if not name.strip():
-                raise HTTPException(status_code=422, detail="Rule name is required")
+                raise api_error(422, ErrorCode.RULE_NAME_REQUIRED)
             if rtype == "investment_topup":
                 if is_payroll or cat_id or ob_id:
-                    raise HTTPException(status_code=422, detail={"code": "invalid_investment_topup_rule"})
+                    raise api_error(422, ErrorCode.INVALID_INVESTMENT_TOPUP_RULE)
             elif rtype != "transfer":
                 target_id = None
                 is_payroll = False
             else:
                 if "category_id" in payload.model_fields_set and payload.category_id is not None:
-                    raise HTTPException(status_code=400, detail="Transfer categories are assigned by the movement service")
+                    raise api_error(400, ErrorCode.TRANSFER_CATEGORY_NOT_ALLOWED)
                 cat_id = None
             if rtype != "expense":
                 ob_id = None
@@ -452,7 +445,7 @@ def delete_recurring_rule(
         with conn.cursor() as cur:
             cur.execute("SELECT id FROM recurring_rules WHERE id = %s AND user_id = %s FOR UPDATE", (str(rule_id), user_id))
             if not cur.fetchone():
-                raise HTTPException(status_code=404, detail="Recurring rule not found")
+                raise api_error(404, ErrorCode.PLAN_NOT_FOUND)
             cur.execute(
                 """
                 SELECT EXISTS (SELECT 1 FROM recurring_executions WHERE recurring_rule_id = %s)
@@ -462,10 +455,7 @@ def delete_recurring_rule(
             )
             if cur.fetchone()["has_history"]:
                 # Deleting would cascade away occurrence history; deactivating keeps it.
-                raise HTTPException(
-                    status_code=409,
-                    detail={"code": "expectation_has_history", "message": "Rencana ini punya riwayat. Nonaktifkan saja agar riwayat tetap tersimpan."},
-                )
+                raise api_error(409, ErrorCode.EXPECTATION_HAS_HISTORY)
             cur.execute("DELETE FROM recurring_rules WHERE id = %s AND user_id = %s", (str(rule_id), user_id))
     return {"ok": True, "deleted_id": str(rule_id)}
 
@@ -489,7 +479,7 @@ def toggle_recurring_rule(
             )
             row = cur.fetchone()
             if not row:
-                raise HTTPException(status_code=404, detail="Recurring rule not found")
+                raise api_error(404, ErrorCode.PLAN_NOT_FOUND)
             return {"ok": True, "id": str(rule_id), "is_active": row["is_active"]}
 
 
@@ -613,13 +603,14 @@ def _execute_rule_occurrence(
             0,
             tzinfo=timezone.utc,
         )
-        notes = rule.get("notes") or f"Rutin: {rule['name']}"
+        # Written in the owner's language when the job records it (D1, D6).
+        notes = rule.get("notes") or t(account_language(cur, user_id)[0], "notes.recurring", plan=rule["name"])
         transaction_id = None
         movement_id = None
 
         if rule["type"] == "investment_topup":
             if rule["auto_post"] or rule["is_payroll_allocation"]:
-                raise HTTPException(status_code=422, detail={"code": "investment_confirmation_required"})
+                raise api_error(422, ErrorCode.INVESTMENT_CONFIRMATION_REQUIRED)
             topup = create_topup(
                 cur, user_id=user_id, source_id=source_id, target_id=target_id,
                 amount=int(rule["amount"]), tx_date=tx_dt, notes=notes,
@@ -740,26 +731,23 @@ def _execute_rule_occurrence(
 
 
 
-def _retired(code: str, message: str) -> HTTPException:
-    return HTTPException(status_code=410, detail={"code": code, "message": message})
+def _retired(code: str, message_key: str | None = None) -> HTTPException:
+    return api_error(410, code, message_key=message_key)
 
 
 @router.post("/process-due")
 def process_auto_post_due_rules(current_user: dict = Depends(get_current_user)):
-    raise _retired("scheduled_posting_retired", "Jadwal tidak lagi mencatat transaksi otomatis.")
+    raise _retired("scheduled_posting_retired")
 
 
 @router.post("/execute")
 def execute_selected_rules(current_user: dict = Depends(get_current_user)):
-    raise _retired(
-        "scheduled_posting_retired",
-        "Rencana tidak lagi dicatat sekaligus. Kaitkan transaksi yang sudah tercatat atau catat satu kejadian secara manual.",
-    )
+    raise _retired("scheduled_posting_retired", "plan_posting_retired")
 
 
 @router.post("/payroll/execute")
 def execute_payroll_batch(current_user: dict = Depends(get_current_user)):
-    raise _retired("payroll_execution_retired", "Alokasi gaji tidak lagi dicatat sekaligus. Catat perpindahan yang benar-benar terjadi.")
+    raise _retired("payroll_execution_retired")
 
 
 class OccurrenceRequest(BaseModel):
@@ -780,7 +768,7 @@ def _lock_rule(cur, user_id: str, rule_id: UUID) -> dict[str, Any]:
     cur.execute("SELECT * FROM recurring_rules WHERE id = %s AND user_id = %s FOR UPDATE", (str(rule_id), user_id))
     rule = cur.fetchone()
     if not rule:
-        raise HTTPException(status_code=404, detail="Recurring rule not found")
+        raise api_error(404, ErrorCode.PLAN_NOT_FOUND)
     return rule
 
 
@@ -797,12 +785,9 @@ def _occurrence(cur, rule_id: str, scheduled_for: date) -> dict[str, Any] | None
 
 def _require_next_occurrence(rule: dict[str, Any], scheduled_for: date) -> None:
     if not rule["is_active"]:
-        raise HTTPException(status_code=409, detail={"code": "expectation_inactive", "message": "Rencana ini tidak aktif."})
+        raise api_error(409, ErrorCode.EXPECTATION_INACTIVE)
     if scheduled_for != rule["next_due_date"]:
-        raise HTTPException(
-            status_code=409,
-            detail={"code": "invalid_scheduled_occurrence", "message": "Jadwal ini bukan kejadian berikutnya dari rencana."},
-        )
+        raise api_error(409, ErrorCode.INVALID_SCHEDULED_OCCURRENCE)
 
 
 @router.get("/{rule_id}/occurrences")
@@ -812,7 +797,7 @@ def list_rule_occurrences(rule_id: UUID, current_user: dict = Depends(get_curren
         with conn.cursor() as cur:
             cur.execute("SELECT id FROM recurring_rules WHERE id = %s AND user_id = %s", (str(rule_id), user_id))
             if not cur.fetchone():
-                raise HTTPException(status_code=404, detail="Recurring rule not found")
+                raise api_error(404, ErrorCode.PLAN_NOT_FOUND)
             cur.execute(
                 """
                 SELECT scheduled_for, status, transaction_id, error_code, link_method, updated_at
@@ -851,21 +836,15 @@ def link_occurrence(rule_id: UUID, payload: OccurrenceLinkRequest, current_user:
                 return {"ok": True, "changed": False, "next_due_date": rule["next_due_date"].isoformat()}
             relink = bool(existing and existing["status"] == "linked" and existing["transaction_id"] is None)
             if existing and existing["status"] != "failed" and not relink:
-                raise HTTPException(
-                    status_code=409,
-                    detail={"code": "occurrence_already_resolved", "message": "Kejadian ini sudah dicatat, dikaitkan, atau dilewati."},
-                )
+                raise api_error(409, ErrorCode.OCCURRENCE_ALREADY_RESOLVED)
             if not relink:
                 _require_next_occurrence(rule, payload.scheduled_for)
             transaction = lock_payment(cur, user_id, transaction_id)
             if transaction["date"] > datetime.now(timezone.utc):
-                raise HTTPException(status_code=422, detail={"code": "future_transaction", "message": "Transaksi masa depan tidak dapat dikaitkan."})
+                raise api_error(422, ErrorCode.FUTURE_TRANSACTION)
             expected_type = "expense" if rule["type"] in {"transfer", "investment_topup"} else rule["type"]
             if transaction["type"] != expected_type:
-                raise HTTPException(
-                    status_code=422,
-                    detail={"code": "transaction_type_mismatch", "message": "Jenis transaksi tidak sesuai dengan rencana."},
-                )
+                raise api_error(422, ErrorCode.TRANSACTION_TYPE_MISMATCH)
             debt_changed = link_transaction(cur, user_id, rule, payload.scheduled_for, transaction, method="owner")
             next_due = rule["next_due_date"]
             if not relink:
@@ -898,10 +877,7 @@ def skip_occurrence(rule_id: UUID, payload: OccurrenceRequest, current_user: dic
             if existing and existing["status"] == "skipped":
                 return {"ok": True, "changed": False, "next_due_date": rule["next_due_date"].isoformat()}
             if existing and existing["status"] != "failed":
-                raise HTTPException(
-                    status_code=409,
-                    detail={"code": "occurrence_already_resolved", "message": "Kejadian ini sudah dicatat, dikaitkan, atau dilewati."},
-                )
+                raise api_error(409, ErrorCode.OCCURRENCE_ALREADY_RESOLVED)
             _require_next_occurrence(rule, payload.scheduled_for)
             cur.execute(
                 """
@@ -935,28 +911,15 @@ def record_occurrence(rule_id: UUID, payload: OccurrenceRecordRequest, current_u
                 }
             _require_next_occurrence(rule, payload.scheduled_for)
             if payload.scheduled_for > today or execution_date > today:
-                raise HTTPException(
-                    status_code=409,
-                    detail={"code": "invalid_scheduled_occurrence", "message": "Kejadian yang belum terjadi tidak dapat dicatat."},
-                )
+                raise api_error(409, ErrorCode.INVALID_SCHEDULED_OCCURRENCE, message_key="occurrence_not_yet_due")
             found = occurrence_candidates(cur, user_id, rule, payload.scheduled_for)["candidates"]
             acknowledged = {str(item) for item in payload.acknowledged_candidate_ids}
             # Same-amount captures are the plausible duplicates; other suggestions do not block.
             unreviewed = [item for item in found if item["exact_amount"] and item["id"] not in acknowledged]
             if unreviewed:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "code": "possible_duplicate",
-                        "message": "Ada transaksi tercatat yang mungkin sama. Kaitkan transaksi itu atau pastikan bukan pembayaran ini.",
-                        "candidates": unreviewed,
-                    },
-                )
+                raise api_error(409, ErrorCode.POSSIBLE_DUPLICATE, extra={"candidates": unreviewed})
             result = _execute_rule_occurrence(cur, rule, user_id, payday_day, payload.scheduled_for, actual_date=execution_date)
             conn.commit()
     if result["status"] == "failed":
-        raise HTTPException(
-            status_code=409,
-            detail={"code": result["error_code"], "message": "Kejadian belum tercatat. Periksa rekening, saldo, dan produk."},
-        )
+        raise api_error(409, result["error_code"], message_key="occurrence_not_recorded")
     return {"ok": True, "result": result}

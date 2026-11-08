@@ -2,10 +2,11 @@
 
 from uuid import UUID
 from typing import Any, Callable
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict
 
 from app.db.pool import db_conn
+from app.errors import api_error
 from app.services.auth import get_current_user
 from app.services import salary_receipts, salary_cycles
 from app.core.config import settings
@@ -23,7 +24,7 @@ def _execute(operation: Callable[..., Any], user_id: str, *args: Any) -> Any:
         with db_conn() as conn:
             return operation(conn, user_id, *args)
     except salary_receipts.SalaryError as error:
-        raise HTTPException(status_code=error.status, detail={'code': error.code, 'message': error.message}) from error
+        raise api_error(error.status, error.code) from error
 
 
 @router.get('/source')
