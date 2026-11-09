@@ -48,6 +48,10 @@ the merged code differ, the code wins and the plan adapts:
   ratio, in a 218 px white `.qr` box with an 8 px quiet border), not the prototype's 118 px, because scan reliability on
   a real phone matters more than the prototype's size. The download QR keeps the 136 px box. This replaces D9's
   module-size fallback for the pairing QR.
+- **Download QR (D9 fallback, measured 2026-11-09).** The download link encodes to 41 modules (45 with the two-module
+  margin), so 118 css px gives 2.62 px per module, under D9's 3 px. The fallback applies: 136 px of code in a 154 px
+  box (3.02 px per module). The pairing payload (83 characters, 37 modules, 41 with the margin) gives 4.88 px per
+  module at 200 px.
 - **Untranslated example (D19).** After `/settings` leaves `untranslatedPages.ts`, only `/komponen` (the local
   component sheet) remains there, so the untranslated-page test's example moves to `/komponen`.
 - **Process.** `PROJECT_STATE.md` lives in the owner's checkout and is not edited by this run; its notes go to
