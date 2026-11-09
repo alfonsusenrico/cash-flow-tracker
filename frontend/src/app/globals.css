@@ -1987,3 +1987,7 @@ details.box.lp-details { display: block; padding: 0; }
   .capture-read { padding: var(--sp-16); }
   .quick-chips .ws-btn { min-height: 44px; }
 }
+/* At 320 px the three modes keep their whole words: the items share the width with less padding. */
+@media (max-width: 359px) {
+  .capture-modes button { flex: 1 1 auto; padding: 0 var(--sp-4); }
+}
