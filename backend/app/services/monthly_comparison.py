@@ -19,6 +19,7 @@ from app.services.kakeibo import UNCLASSIFIED, pillar_bucket_sql
 from app.services.observed_insights import merchant_spending, window_figures
 from app.services.observed_periods import ObservedPeriod
 from app.services.report_figures import reportable_expense_sql, uncategorized_name
+from app.services.spending_basis import spending_merchants as spending_merchant_list
 
 BASELINE_PERIODS = 3
 MIN_BASELINE_PERIODS = 2
@@ -155,11 +156,12 @@ def _change(current: int, other: int | None, *, allowed: bool) -> int | None:
 def build_comparison(
     cur, user_id: str, *, basis: str, period: ObservedPeriod, listing: dict[str, Any], now: datetime,
     kakeibo_breakdown: KakeiboBreakdown, recurring_in_period: RecurringInPeriod,
-    merchants: list[dict[str, Any]] | None = None,
+    merchants: list[dict[str, Any]] | None = None, spending_merchants: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """The whole-period comparison of `period` (design D1–D7); `listing` is `list_periods` of the basis.
 
-    `merchants` is the period's merchant spending, sorted, when the caller already loaded it (the report).
+    `merchants` is the period's merchant spending, sorted, and `spending_merchants` the same on the Pengeluaran basis,
+    when the caller already loaded them (the report).
     """
     first_day: date | None = listing["first_day"]
     periods: list[ObservedPeriod] = listing["periods"]  # newest first
@@ -238,6 +240,12 @@ def build_comparison(
         previous_verdict=previous_verdict, recurring_in_period=recurring_in_period, basis=basis, merchants=merchants,
     )
     result["history"] = _history(periods, index, amounts, partial)
+    # The top-merchant fact on the Pengeluaran basis, read by Laporan in place of the one in `facts`, so it never
+    # names a merchant whose expenses have the Tabungan pillar (apply-markas-laporan D29, owner decision 2026-11-08).
+    if spending_merchants is None:
+        spending_merchants = spending_merchant_list(cur, user_id, period.start, period.last_instant)
+    language, _region = account_language(cur, user_id)
+    result["spending_top_merchant"] = _top_merchant_fact(language, period, spending_merchants)
     return result
 
 
@@ -285,8 +293,7 @@ def _facts(cur, user_id: str, current: PeriodAmounts, previous: PeriodAmounts | 
     facts: list[dict[str, Any]] = []
 
     def label(code: str, **params: Any) -> dict[str, Any]:
-        # Rendered in the account's language, with the code and parameters it came from (D5).
-        return {"label": t(language, code, **params), "label_code": code, "label_params": params}
+        return _label(language, code, **params)
     if not running and baseline:
         usual: dict[str, int] = {}
         for item in baseline:
@@ -326,13 +333,9 @@ def _facts(cur, user_id: str, current: PeriodAmounts, previous: PeriodAmounts | 
     if merchants is None:
         merchants = sorted(merchant_spending(cur, user_id, period.start, period.last_instant).values(),
                            key=lambda item: (-item["amount"], item["name"]))
-    if merchants:
-        top = merchants[0]
-        facts.append({
-            "kind": "top_merchant", **label("facts.comparison.top_merchant", merchant=top["name"]),
-            "amount": top["amount"],
-            "ref": _ref(period, q=top["search_text"]),
-        })
+    top_merchant = _top_merchant_fact(language, period, merchants)
+    if top_merchant:
+        facts.append(top_merchant)
     recurring = recurring_in_period(cur, user_id, period, now=now)
     if recurring["charges"]:
         count = len(recurring["charges"])
@@ -349,6 +352,23 @@ def _facts(cur, user_id: str, current: PeriodAmounts, previous: PeriodAmounts | 
             "ref": _ref(period, kakeibo_type="unexpected"),
         })
     return facts[:FACT_LIMIT]
+
+
+def _label(language: str, code: str, **params: Any) -> dict[str, Any]:
+    # Rendered in the account's language, with the code and parameters it came from (D5).
+    return {"label": t(language, code, **params), "label_code": code, "label_params": params}
+
+
+def _top_merchant_fact(language: str, period: ObservedPeriod, merchants: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """"Tempat belanja terbesar: …" for the first of `merchants` (sorted, largest first), or None without one."""
+    if not merchants:
+        return None
+    top = merchants[0]
+    return {
+        "kind": "top_merchant", **_label(language, "facts.comparison.top_merchant", merchant=top["name"]),
+        "amount": top["amount"],
+        "ref": _ref(period, q=top["search_text"]),
+    }
 
 
 def _unexpected_count(cur, user_id: str, period: ObservedPeriod) -> int:

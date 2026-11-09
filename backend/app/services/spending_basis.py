@@ -16,6 +16,7 @@ from typing import Any
 from app.core.config import settings
 from app.services.apportionment import apportion
 from app.services.kakeibo import pillar_bucket_sql
+from app.services.observed_insights import merchant_spending
 from app.services.reimbursements import SpendingOffsets
 from app.services.report_figures import reportable_expense_sql
 from app.services.saving_flow import saving_pillar_sql
@@ -29,6 +30,8 @@ def spending_sql(tx: str = "t", category: str = "c") -> str:
 @dataclass
 class SpendingBasis:
     total: int = 0
+    # The reimbursements subtracted from Pengeluaran: those applied to the spending pillars' categories.
+    reimbursed: int = 0
     by_day: dict[date, int] = field(default_factory=dict)
     # Category id as a string, or None for uncategorised rows.
     by_category: dict[str | None, int] = field(default_factory=dict)
@@ -68,4 +71,14 @@ def spending_basis(cur, user_id: str, start: datetime, end: datetime, offsets: S
             basis.by_day[day] = basis.by_day.get(day, 0) + net
         basis.by_category[category_id] = basis.by_category.get(category_id, 0) + gross - applied
         basis.total += gross - applied
+        basis.reimbursed += applied
     return basis
+
+
+def spending_merchants(cur, user_id: str, start: datetime, end: datetime) -> list[dict[str, Any]]:
+    """Gross Pengeluaran per merchant, largest first, for "Tempat belanja terbesar" (apply-markas-laporan D29).
+
+    The merchant rule of the report, without the expenses that have the Tabungan pillar.
+    """
+    merchants = merchant_spending(cur, user_id, start, end, expense_sql=spending_sql())
+    return sorted(merchants.values(), key=lambda item: (-item["amount"], item["name"]))

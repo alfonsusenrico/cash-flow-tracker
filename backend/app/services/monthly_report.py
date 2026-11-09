@@ -36,6 +36,7 @@ from app.services.report_figures import (
 )
 from app.services.report_windows import shift_month
 from app.services.seen_twice import seen_twice_count
+from app.services.spending_basis import SpendingBasis, spending_basis, spending_merchants
 
 BASES = ("month", "cycle")
 BASIS_PATTERN = "^(month|cycle)$"
@@ -310,12 +311,19 @@ def _data_quality(cur, user_id: str, period: ObservedPeriod, kakeibo: dict[str, 
     }
 
 
-def _budget(breakdown: list[dict[str, Any]], outflow: int, overall_budget: int | None, basis: str) -> dict[str, Any] | None:
-    """Budget against actual, or None when the owner set no budget at all (budgets stay hidden)."""
+def _budget(breakdown: list[dict[str, Any]], outflow: int, overall_budget: int | None, basis: str,
+            spending: SpendingBasis) -> dict[str, Any] | None:
+    """Budget against actual, or None when the owner set no budget at all (budgets stay hidden).
+
+    `spent` and `remaining` are on the Belanja basis; `spending` and `spending_remaining` beside them on the
+    Pengeluaran basis, which Laporan shows (apply-markas-laporan D29, owner decision 2026-11-08).
+    """
     rows = [
         {
             "category_id": row["id"], "name": row["name"], "budget": int(row["monthly_budget"]),
             "spent": int(row["spent"]), "remaining": int(row["monthly_budget"]) - int(row["spent"]),
+            "spending": spending.category(row["id"]),
+            "spending_remaining": int(row["monthly_budget"]) - spending.category(row["id"]),
         }
         for row in breakdown
         if not row["is_uncategorized"] and not row["is_archived"] and (row["monthly_budget"] or 0) > 0
@@ -330,7 +338,11 @@ def _budget(breakdown: list[dict[str, Any]], outflow: int, overall_budget: int |
         "categories": rows,
         "total_budget": sum(item["budget"] for item in rows),
         "total_spent": sum(item["spent"] for item in rows),
-        "overall": None if overall is None else {"budget": overall, "spent": outflow, "remaining": overall - outflow},
+        "total_spending": sum(item["spending"] for item in rows),
+        "overall": None if overall is None else {
+            "budget": overall, "spent": outflow, "remaining": overall - outflow,
+            "spending": spending.total, "spending_remaining": overall - spending.total,
+        },
     }
 
 
@@ -371,6 +383,9 @@ def build_report(
     kakeibo = kakeibo_breakdown(cur, user_id, start, end, figures["inflow"], offsets)
     breakdown = category_breakdown(cur, user_id, start, end, offsets)
     merchants = sorted(merchant_spending(cur, user_id, start, end).values(), key=lambda item: (-item["amount"], item["name"]))
+    # Pengeluaran beside the Belanja-basis figures, so every "Pengeluaran" on Laporan is one figure (D29).
+    spending = spending_basis(cur, user_id, start, end, offsets)
+    pengeluaran_merchants = spending_merchants(cur, user_id, start, end)
     pillar_amounts = {
         "need": kakeibo["need_spent"], "want": kakeibo["want_spent"], "culture": kakeibo["culture_spent"],
         "unexpected": kakeibo["unexpected_spent"], "saving": kakeibo["saving_expenses"],
@@ -381,7 +396,7 @@ def build_report(
     comparison = build_comparison(
         cur, user_id, basis=basis, period=period, listing=listing, now=now,
         kakeibo_breakdown=kakeibo_breakdown, recurring_in_period=lambda *_args, **_kwargs: recurring,
-        merchants=merchants,
+        merchants=merchants, spending_merchants=pengeluaran_merchants,
     )
     first_day = listing["first_day"]
     previous_reflection = None
@@ -392,7 +407,7 @@ def build_report(
     return {
         "basis": basis,
         "period": describe_period(period, basis, first_day),
-        "flow": {key: figures[key] for key in FLOW_KEYS},
+        "flow": {**{key: figures[key] for key in FLOW_KEYS}, "spending_reimbursement_offset": spending.reimbursed},
         "income": {"total": figures["inflow"], "sources": _income_sources(cur, user_id, start, end)},
         "savings": {
             "fresh_saving": kakeibo["saving_spent"],
@@ -413,13 +428,17 @@ def build_report(
             "top_merchants": [
                 {"name": item["name"], "search_text": item["search_text"], "amount": item["amount"]} for item in merchants[:TOP_LIMIT]
             ],
+            "top_spending_merchants": [
+                {"name": item["name"], "search_text": item["search_text"], "amount": item["amount"]}
+                for item in pengeluaran_merchants[:TOP_LIMIT]
+            ],
             "unexpected": {"amount": kakeibo["unexpected_spent"], **_unexpected_items(cur, user_id, start, end)},
             "recurring": recurring,
             "essential": essential,
         },
         "comparison": comparison,
         "data_quality": _data_quality(cur, user_id, period, kakeibo, now=now),
-        "budget": _budget(breakdown, figures["outflow"], overall_budget, basis),
+        "budget": _budget(breakdown, figures["outflow"], overall_budget, basis, spending),
         "reflection": load_reflection(cur, user_id, basis, local_start(period)),
         "previous_reflection": previous_reflection,
     }
