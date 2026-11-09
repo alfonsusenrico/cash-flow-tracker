@@ -155,3 +155,59 @@ Model evaluation SHALL use a versioned wholly synthetic corpus mimicking support
 #### Scenario: Enforcing the evaluation budget
 - **WHEN** a requested live synthetic run's conservative estimate exceeds its configured per-run dollar cap
 - **THEN** the runner refuses before sending an OpenAI request and reports the estimate and cap without exposing credentials
+
+#### Scenario: Recording the shape of an invalid synthetic reply
+- **WHEN** a synthetic benchmark request ends in `provider_invalid_output`
+- **THEN** the report row SHALL keep the failure class, field paths with error types, the incomplete reason, output tokens, the reply's outcome and direction when decodable, which reference fields are null, string field lengths, the mappings count and the raw synthetic reply text up to 4,000 characters
+- **AND** production processing SHALL NOT capture reply text, because only the benchmark enables that capture
+
+#### Scenario: Scoring an incomplete model record
+- **WHEN** a synthetic reply is valid for the sent schema but proposes a `record` without a required reference
+- **THEN** the report SHALL count it as schema-valid, as a validation rejection with the code `model_uncertain`, and in a separate incomplete-record count that names the missing reference
+- **AND** it SHALL NOT count as correct for classification, references or the validated outcome
+
+### Requirement: Structured Output Validation Matches the Sent Schema
+The provider boundary SHALL accept as a well-formed proposal every completed reply that satisfies the JSON schema sent with the request, and SHALL report `provider_invalid_output` only for a reply that violates that schema, is empty, is not JSON, is a refusal, is incomplete, or is not a readable response. Rules the sent schema cannot express SHALL be applied by backend validation after parsing, never as an invalid provider output.
+
+#### Scenario: Schema-valid record without a category
+- **GIVEN** the model replies `outcome` `record`, direction `expense`, an owned `account_id`, `category_id` null and every other field valid for the sent schema
+- **WHEN** the reply is parsed
+- **THEN** the provider SHALL return the proposal without `provider_invalid_output`
+- **AND** backend validation SHALL reject it with the existing code `model_uncertain` before any financial write
+
+#### Scenario: Reply longer than the sent bound
+- **WHEN** a completed reply has a 161-character `description` while the sent schema allows at most 160
+- **THEN** the provider SHALL raise `provider_invalid_output` with the failure class `schema_mismatch`, the field `description` and the error type `string_too_long`
+- **AND** no ledger row SHALL be created from that reply
+
+#### Scenario: Refusal
+- **WHEN** the reply contains a refusal item and no output text
+- **THEN** the provider SHALL raise `provider_invalid_output` with the failure class `refusal`
+
+#### Scenario: Incomplete response
+- **WHEN** the response status is `incomplete` with the reason `max_output_tokens` or `content_filter`
+- **THEN** the provider SHALL raise `provider_invalid_output` with the failure class `incomplete` and that reason
+- **AND** any partial text SHALL NOT be parsed
+
+#### Scenario: Reply that is not JSON
+- **WHEN** a completed reply's text cannot be decoded as JSON
+- **THEN** the provider SHALL raise `provider_invalid_output` with the failure class `json_decode`
+
+#### Scenario: Unreadable response body
+- **WHEN** the response body has no status or cannot be read as a Responses API object
+- **THEN** the provider SHALL raise `provider_invalid_output` with the failure class `malformed_response`
+
+### Requirement: Content-Free Invalid Output Diagnostics
+For every `provider_invalid_output` the system SHALL record only a content-free diagnosis: the failure class, the incomplete reason when present, schema field paths with their validation error types, output token count, model, reasoning effort and prompt version. It SHALL NOT log or store reply text, notification text, field values or provider error bodies. No new stored or API-visible error code SHALL be introduced.
+
+#### Scenario: Diagnosing a schema mismatch in production
+- **GIVEN** a real notification whose reply fails the sent schema at `description`
+- **WHEN** the worker handles the failure
+- **THEN** the log line SHALL contain the event identifier, `schema_mismatch`, `description:string_too_long`, the output token count, model, effort and prompt version
+- **AND** it SHALL NOT contain the description, the merchant, the notification text or any other reply value
+- **AND** the event SHALL continue through the existing retry and fallback with the existing error codes
+
+#### Scenario: Field paths never carry values
+- **WHEN** a reply fails inside `mappings`
+- **THEN** the recorded field path SHALL use schema property names and list positions only, such as `mappings.0.alternatives`
+- **AND** a key the schema does not define SHALL be recorded as `?`, never by its name
