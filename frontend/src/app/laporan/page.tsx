@@ -84,7 +84,10 @@ function ReportView() {
   const cycleAvailable = periods.data?.cycle_available ?? reportResult.data?.cycle_available ?? false;
   // Newest first, so the stepper's offset 0 is the latest report and −n steps back n reports.
   const ordered = [...(periods.data?.periods ?? [])].sort((left, right) => right.start_date.localeCompare(left.start_date));
-  const shownStart = report?.period.start_date ?? null;
+  // After a failure the stepper still names the requested period, from the list, so it never reads "Memuat…".
+  const requested = reportResult.isError ? ordered.find((item) => (start ? item.start_date === start : item.complete)) ?? null : null;
+  const shown = report?.period ?? requested;
+  const shownStart = shown?.start_date ?? null;
   const position = Math.max(0, ordered.findIndex((item) => item.start_date === shownStart));
   const options: { value: ReportBasis; label: string }[] = [
     { value: "month", label: terms("calendarMonth") },
@@ -103,8 +106,8 @@ function ReportView() {
         <PeriodStepper
           unit={basis === "cycle" ? "Siklus" : "Bulan"}
           monthStyle="long"
-          label={report?.period.label ?? null}
-          period={report ? { start: report.period.start_date, end: report.period.complete ? report.period.end_date : null } : null}
+          label={shown?.label ?? null}
+          period={shown ? { start: shown.start_date, end: shown.complete ? shown.end_date : null } : null}
           offset={-position}
           minOffset={-(ordered.length - 1)}
           // Without `start` the API opens the latest closed period, so the running one needs its date.

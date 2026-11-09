@@ -532,6 +532,18 @@ describe("Laporan", () => {
     expect(screen.getByRole("button", { name: "Coba lagi" })).toBeInTheDocument();
   });
 
+  it("keeps naming the requested period in the stepper when the report fails", async () => {
+    mockApi(makeReport());
+    const listed = vi.mocked(api.get).getMockImplementation()!;
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path.startsWith("/reports/monthly?")) throw new Error("");
+      return listed(path);
+    });
+    renderPage();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Laporan belum bisa dimuat.");
+    expect(await within(screen.getByRole("group", { name: "Periode" })).findByText("Oktober 2026")).toBeInTheDocument();
+  });
+
   it("explains an empty ledger without zero figures", async () => {
     mockApi({ empty: true, basis: "month", cycle_available: false });
     renderPage();
