@@ -101,6 +101,10 @@ export function TransactionEditDialog({
   const [otherCount, setOtherCount] = useState(initialPlan(originalCount) === "other" ? String(originalCount) : "");
   // A first due date the owner set is kept unless the owner clears it; a derived one is never stored from here.
   const ownerFirstDue = tx.credit?.role === "purchase" && tx.credit.first_due_date_set_by === "owner" ? tx.credit.first_due_date ?? null : null;
+  // A date the system kept after the account's days changed is not shown in the field, but a terms change sends it
+  // back so an already-due bill stays where it was (apply-markas-cleanup F1, owner 2026-11-09). Moving the purchase
+  // date clears it on the server, so then it is not sent.
+  const keptFirstDue = tx.credit?.role === "purchase" && tx.credit.first_due_date_set_by === "system" ? tx.credit.first_due_date ?? null : null;
   const [firstDue, setFirstDue] = useState(ownerFirstDue ?? "");
   const [error, setError] = useState("");
   const errorRef = useRef<HTMLParagraphElement>(null);
@@ -125,8 +129,10 @@ export function TransactionEditDialog({
   /** The terms request a saved credit purchase needs, or null when its terms did not change (H5). */
   const termsRequest = (): { method: "put" | "del"; body?: { installment_count: number; first_due_date: string | null } } | null => {
     if (!creditPurchase) return null;
-    const firstDueDate = firstDue || null;
-    if (chosenCount === originalCount && firstDueDate === ownerFirstDue) return null;
+    const dateMoved = date !== (tx.date ? toDatetimeLocal(tx.date) : "");
+    const kept = dateMoved ? null : keptFirstDue;
+    const firstDueDate = firstDue || kept;
+    if (chosenCount === originalCount && firstDueDate === (ownerFirstDue ?? kept)) return null;
     // Paid in full following the account's days is the default, which the server keeps as no stored terms.
     if (chosenCount === 1 && !firstDueDate) return originalCount > 1 || ownerFirstDue ? { method: "del" } : null;
     return { method: "put", body: { installment_count: chosenCount, first_due_date: firstDueDate } };

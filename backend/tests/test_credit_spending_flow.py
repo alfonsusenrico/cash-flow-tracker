@@ -312,6 +312,33 @@ def test_payment_day_change_keeps_bills_already_due(owner, monkeypatch):
     assert stored_terms(owner, paid) is None
 
 
+def test_count_only_edit_keeps_a_kept_due_date_as_kept(owner, monkeypatch):
+    """F1 (owner 2026-11-09, option A): the web sends the kept date back on a count-only edit; it stays `system`
+    and the instalments follow it instead of the account's new payment day (apply-markas-cleanup)."""
+    freeze(monkeypatch, date(2026, 11, 20))
+    add_credit(owner, created=date(2026, 10, 1))
+    paid = owner.tx("expense", 300_000, category="makan", account="credit", when=at_local(date(2026, 10, 5)))
+    pay(owner, 300_000, date(2026, 11, 10))
+    assert owner.session.patch(f"/api/accounts/{owner['credit']}", json={"payment_day": 5}).status_code == 200
+    assert stored_terms(owner, paid) == {"installment_count": 1, "first_due_date": date(2026, 11, 11), "first_due_date_set_by": "system"}
+
+    response = put_terms(owner, paid, installment_count=3, first_due_date="2026-11-11")
+    assert response.status_code == 200, response.text
+    assert response.json()["credit_terms"] == {"installment_count": 3, "first_due_date": "2026-11-11", "first_due_date_set_by": "system"}
+    assert [item["due_date"] for item in response.json()["installments"]] == ["2026-11-11", "2026-12-11", "2027-01-11"]
+    assert stored_terms(owner, paid) == {"installment_count": 3, "first_due_date": date(2026, 11, 11), "first_due_date_set_by": "system"}
+
+    back = put_terms(owner, paid, installment_count=1, first_due_date="2026-11-11")
+    assert back.status_code == 200, back.text
+    assert stored_terms(owner, paid) == {"installment_count": 1, "first_due_date": date(2026, 11, 11), "first_due_date_set_by": "system"}
+    bills = {bill["due_date"]: bill for bill in overview(owner, **{"from": "2026-10-01", "to": "2026-12-31"})["bills"]}
+    assert bills["2026-11-11"]["items"][0]["transaction_id"] == paid and bills["2026-11-11"]["status"] == "paid"
+
+    # A different date is the owner's.
+    owned = put_terms(owner, paid, installment_count=1, first_due_date="2026-11-12")
+    assert owned.status_code == 200 and stored_terms(owner, paid)["first_due_date_set_by"] == "owner"
+
+
 # --- Credit Facts on Ledger Rows ----------------------------------------------------------------------
 
 

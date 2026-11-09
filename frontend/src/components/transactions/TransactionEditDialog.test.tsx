@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axe } from "vitest-axe";
@@ -152,6 +152,58 @@ describe("Ubah transaksi (D15)", () => {
       await user.clear(await screen.findByLabelText("Jatuh tempo pertama (opsional)"));
       await user.click(screen.getByRole("button", { name: "Simpan" }));
       await waitFor(() => expect(api.put).toHaveBeenCalledWith("/transactions/tx-1/credit-terms", { installment_count: 3, first_due_date: null }));
+    });
+  });
+
+  describe("a first due date the system kept (apply-markas-cleanup F1)", () => {
+    const kept = (installment_count = 1) => row({
+      account_id: "spaylater", account_name: "SPayLater",
+      credit: { role: "purchase", account_id: "spaylater", account_name: "SPayLater", installment_count, first_due_date: "2026-11-11", first_due_date_set_by: "system" },
+    });
+
+    it("does not show it, and sends nothing when the terms are unchanged", async () => {
+      const user = userEvent.setup();
+      renderDialog(kept());
+      expect(await screen.findByLabelText("Jatuh tempo pertama (opsional)")).toHaveValue("");
+      await user.click(screen.getByRole("button", { name: "Simpan" }));
+      await waitFor(() => expect(api.patch).toHaveBeenCalled());
+      expect(api.put).not.toHaveBeenCalled();
+      expect(api.del).not.toHaveBeenCalled();
+    });
+
+    it("sends it back when only the instalment count changes", async () => {
+      const user = userEvent.setup();
+      renderDialog(kept());
+      await user.click(await screen.findByRole("radio", { name: "3x" }));
+      await user.click(screen.getByRole("button", { name: "Simpan" }));
+      await waitFor(() => expect(api.put).toHaveBeenCalledWith("/transactions/tx-1/credit-terms", { installment_count: 3, first_due_date: "2026-11-11" }));
+      expect(api.del).not.toHaveBeenCalled();
+    });
+
+    it("sends it back with Sekali bayar instead of deleting the terms", async () => {
+      const user = userEvent.setup();
+      renderDialog(kept(3));
+      await user.click(await screen.findByRole("radio", { name: "Sekali bayar" }));
+      await user.click(screen.getByRole("button", { name: "Simpan" }));
+      await waitFor(() => expect(api.put).toHaveBeenCalledWith("/transactions/tx-1/credit-terms", { installment_count: 1, first_due_date: "2026-11-11" }));
+      expect(api.del).not.toHaveBeenCalled();
+    });
+
+    it("lets the server clear it when the purchase date moves", async () => {
+      const user = userEvent.setup();
+      renderDialog(kept());
+      fireEvent.change(await screen.findByLabelText("Tanggal dan waktu"), { target: { value: "2026-11-07T19:00:00" } });
+      await user.click(screen.getByRole("radio", { name: "3x" }));
+      await user.click(screen.getByRole("button", { name: "Simpan" }));
+      await waitFor(() => expect(api.put).toHaveBeenCalledWith("/transactions/tx-1/credit-terms", { installment_count: 3, first_due_date: null }));
+    });
+
+    it("is replaced by a date the owner types", async () => {
+      const user = userEvent.setup();
+      renderDialog(kept());
+      await user.type(await screen.findByLabelText("Jatuh tempo pertama (opsional)"), "2026-12-01");
+      await user.click(screen.getByRole("button", { name: "Simpan" }));
+      await waitFor(() => expect(api.put).toHaveBeenCalledWith("/transactions/tx-1/credit-terms", { installment_count: 1, first_due_date: "2026-12-01" }));
     });
   });
 });
