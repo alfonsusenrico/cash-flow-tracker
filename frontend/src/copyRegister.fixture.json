@@ -88,5 +88,28 @@
         "title": "Daily spending"
       }
     }
+  },
+  "idReport": {
+    "report": {
+      "hero": {
+        "label": "Belanja bulan ini"
+      },
+      "merchants": {
+        "title": "Tempat belanja terbesar"
+      }
+    }
+  },
+  "enReport": {
+    "terms": {
+      "expenses": "Expenses"
+    },
+    "report": {
+      "history": {
+        "title": "Expenses per month"
+      },
+      "questions": {
+        "spending": "How much was spent?"
+      }
+    }
   }
 }

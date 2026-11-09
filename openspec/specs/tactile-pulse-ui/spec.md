@@ -126,7 +126,7 @@ Each Kakeibo pillar SHALL have a mark colour from the pillar tokens: Kebutuhan v
 The interface SHALL NOT contain rainbow gradients, glow drop-shadows, 0–100 health meters, decorative empty KPI cards or unformatted text blocks. An icon tile that repeats its control's label SHALL be hidden from assistive technology, and a tile icon that conveys meaning SHALL measure at least 3:1 against its tile.
 
 #### Scenario: Decorative icon tiles
-- **WHEN** a page not yet redesigned, such as Laporan or Target & Tagihan, shows icon tiles in its KPI strip or card headers
+- **WHEN** a page not yet redesigned, such as Target & Tagihan, shows icon tiles in its KPI strip or card headers
 - **THEN** each tile that repeats its label SHALL be hidden from assistive technology, the figure SHALL be named by its label, and a tile icon that conveys meaning SHALL measure at least 3:1 against the tile in both themes
 
 #### Scenario: Beranda without tiles
@@ -140,3 +140,7 @@ The interface SHALL NOT contain rainbow gradients, glow drop-shadows, 0–100 he
 #### Scenario: Analisis without tiles
 - **WHEN** any tab of Analisis is shown in either theme at 1440 or 390 px
 - **THEN** it SHALL show no icon tile, KPI card or card shadow, and its sections SHALL be named by their headings alone
+
+#### Scenario: Laporan without tiles
+- **WHEN** Laporan is shown in either theme at 1440 or 390 px
+- **THEN** it SHALL show no icon tile, KPI card or card shadow, its sections SHALL be named by their question and section headings alone, and the data-quality line SHALL use no tinted fill

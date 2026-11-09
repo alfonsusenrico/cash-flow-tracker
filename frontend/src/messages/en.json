@@ -52,7 +52,8 @@
       "paidLate": "Paid late"
     },
     "stillLeft": "Still left",
-    "waitingForPair": "Waiting for its pair"
+    "waitingForPair": "Waiting for its pair",
+    "difference": "Difference"
   },
   "common": {
     "close": "Close",
@@ -2329,6 +2330,177 @@
       "calendarError": "The calendar could not be loaded.",
       "flowError": "The money flow could not be loaded.",
       "empty": "No spending in this period yet."
+    }
+  },
+  "report": {
+    "page": {
+      "subtitle": "Monthly Kakeibo report",
+      "basis": "Report basis",
+      "documentTitle": "Report for {period}",
+      "context": "Report context"
+    },
+    "hero": {
+      "label": "Spending for {period}",
+      "vsPrevious": "<change></change> vs {period}",
+      "vsAverage": "<change></change> vs the {count, plural, one {#-{unit, select, cycle {cycle} other {month}}} other {#-{unit, select, cycle {cycle} other {month}}}} average",
+      "partialPrevious": "{period} recorded from {date} · incomplete",
+      "noAverage": "The average appears after 2 complete {unit, select, cycle {cycles} other {months}}",
+      "shareOfPrevious": "{share}% of the total for {period}",
+      "shareOfAverage": "{share}% of the {count, plural, one {#-{unit, select, cycle {cycle} other {month}}} other {#-{unit, select, cycle {cycle} other {month}}}} average",
+      "running": "Period in progress · compared once it ends",
+      "trackingStarted": "Recording started on {date}, so this period is incomplete."
+    },
+    "questions": {
+      "income": "How much came in?",
+      "saving": "How much was saved?",
+      "spending": "How much was spent?",
+      "improve": "What to improve next month?"
+    },
+    "income": {
+      "sources": "Income sources",
+      "count": "{count, plural, one {# transaction} other {# transactions}}",
+      "note": "Reimbursements and transfers between accounts do not count as income.",
+      "empty": "No income in this period yet."
+    },
+    "saving": {
+      "shareOfIncome": "· {share}% of income",
+      "breakdown": "Savings breakdown",
+      "pillarExpenses": "Spending in the Savings pillar",
+      "netMoves": "Net moved into savings or investment accounts",
+      "netMovesMeta": "savings or investment accounts"
+    },
+    "table": {
+      "title": "Spending by pillar and category",
+      "caption": "Spending for {period} by pillar and category",
+      "pillarCategory": "Pillar and category",
+      "amount": "Amount",
+      "share": "Share",
+      "vs": "vs {period}",
+      "of": "of {period}",
+      "noPrevious": "Comparison",
+      "partial": "incomplete",
+      "total": "Total spending",
+      "rowLink": "{name}: {amount}, view transactions",
+      "empty": "No spending in this period yet."
+    },
+    "merchants": {
+      "title": "Top places",
+      "empty": "No spending with a place name yet."
+    },
+    "details": {
+      "title": "Spending details",
+      "meta": "Unexpected, repeating bills and essential living costs",
+      "reimbursed": "Reimbursements of <amount></amount> already subtracted.",
+      "unexpected": "Unexpected",
+      "allUnexpected": "View all {count, plural, one {# unexpected transaction} other {# unexpected transactions}}",
+      "recurring": "Subscriptions and repeating bills",
+      "monthly": "monthly",
+      "weekly": "weekly",
+      "hasPlan": "already planned",
+      "amountChanged": "amount changed",
+      "essential": "Essential living costs · now",
+      "perMonth": "per month · {method}",
+      "essentialUnavailable": "Cannot be calculated yet. Needs one complete month or a Needs budget.",
+      "none": "None."
+    },
+    "budget": {
+      "title": "Budget",
+      "set": "Set budgets",
+      "spentOf": "{used} of {budget}",
+      "left": "{amount} left",
+      "over": "{amount} over",
+      "total": "Total: {used} of {budget}, {rest}.",
+      "cycleNote": "Monthly budgets are compared as they are with one pay cycle.",
+      "empty": "No budget yet. A budget is optional; the report is complete without one."
+    },
+    "history": {
+      "title": "Spending per month",
+      "titleCycle": "Spending per cycle",
+      "running": "in progress",
+      "viewed": "shown",
+      "barRunning": "{period} · in progress",
+      "legendViewed": "{period} (shown)",
+      "legendRunning": "In progress",
+      "caption": "The current month is not compared until it ends.",
+      "captionCycle": "The current cycle is not compared until it ends.",
+      "period": "Period",
+      "tableCaption": "Spending per period",
+      "chartLabel": "{title}: {list}",
+      "showTable": "Show as table",
+      "showChart": "Show as chart"
+    },
+    "facts": {
+      "title": "What could improve",
+      "soFar": "So far",
+      "view": "View transactions",
+      "viewList": "View the list",
+      "perMonth": "{amount}/mo",
+      "empty": "Nothing to improve from this period's figures."
+    },
+    "note": {
+      "label": "Note for {period}",
+      "write": "Write a note for {period}",
+      "edit": "Edit",
+      "editLabel": "Edit the note for {period}",
+      "placeholder": "For example: cook at home three times a week",
+      "help": "One or two things. This note shows again in the next report.",
+      "save": "Save note",
+      "saving": "Saving…",
+      "delete": "Delete note",
+      "saved": "Note saved.",
+      "deleted": "Note deleted.",
+      "saveError": "The note was not saved. Try again.",
+      "deleteError": "The note was not deleted. Try again.",
+      "previous": "Note from {period}: {note}"
+    },
+    "context": {
+      "differenceMeta": "income minus spending",
+      "past": "Earlier reports",
+      "running": "In progress",
+      "complete": "Complete",
+      "hasNote": "has a note"
+    },
+    "quality": {
+      "title": "Data quality",
+      "complete": "Data complete. Every transaction in this period is reviewed and classified.",
+      "review": "{count, plural, one {# waiting in Review} other {# waiting in Review}}",
+      "unclassified": "{count, plural, one {# without a pillar} other {# without a pillar}}",
+      "duplicates": "{count, plural, one {# possible duplicate} other {# possible duplicates}}",
+      "emptyDays": "{count, plural, one {# day} other {# days}} without records",
+      "emptyDates": "Days without records: {dates}",
+      "openReview": "Open Review",
+      "classify": "Complete classification",
+      "checkDuplicates": "Check duplicates",
+      "record": "Record a transaction"
+    },
+    "classify": {
+      "title": "Complete classification",
+      "intro": "Spending without a pillar shows as No pillar yet. These choices also help learn habits.",
+      "loadFailed": "The list could not be loaded.",
+      "allDone": "All spending has a pillar.",
+      "categories": "Categories without a pillar",
+      "categoriesHelp": "Applies to its transactions that have no pillar of their own.",
+      "categoryMeta": "{count, plural, one {# transaction} other {# transactions}} · {amount}",
+      "choosePillar": "Choose a pillar",
+      "pillarFor": "Pillar for {name}",
+      "save": "Save",
+      "saveFor": "Save the pillar of {name}",
+      "savedCategory": "{name} saved. {count, plural, one {# transaction} other {# transactions}} classified with it.",
+      "rows": "Transactions without a pillar ({count, plural, one {#} other {#}})",
+      "showingLatest": "Showing the latest {count, plural, one {# transaction} other {# transactions}}.",
+      "selectAll": "Select all",
+      "rowsPillar": "Pillar for the selected transactions",
+      "apply": "Apply to {count, plural, one {# transaction} other {# transactions}}",
+      "appliedRows": "{count, plural, one {# transaction} other {# transactions}} classified.",
+      "saveFailed": "Not saved yet. Try again.",
+      "done": "Done",
+      "rowMeta": "{date} · {category} · {account}"
+    },
+    "states": {
+      "loading": "Preparing the report…",
+      "error": "The report could not be loaded.",
+      "emptyTitle": "No report yet",
+      "emptyText": "The first report appears once transactions are recorded. Record spending or connect a phone to start."
     }
   },
   "plans": {

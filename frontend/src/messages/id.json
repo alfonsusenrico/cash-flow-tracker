@@ -52,7 +52,8 @@
       "paidLate": "Lunas terlambat"
     },
     "stillLeft": "Masih ada",
-    "waitingForPair": "Menunggu pasangan"
+    "waitingForPair": "Menunggu pasangan",
+    "difference": "Selisih"
   },
   "common": {
     "close": "Tutup",
@@ -2329,6 +2330,177 @@
       "calendarError": "Kalender belum bisa dimuat.",
       "flowError": "Peta aliran belum bisa dimuat.",
       "empty": "Belum ada pengeluaran di periode ini."
+    }
+  },
+  "report": {
+    "page": {
+      "subtitle": "Laporan bulanan Kakeibo",
+      "basis": "Dasar laporan",
+      "documentTitle": "Laporan {period}",
+      "context": "Konteks laporan"
+    },
+    "hero": {
+      "label": "Pengeluaran {period}",
+      "vsPrevious": "<change></change> vs {period}",
+      "vsAverage": "<change></change> vs rata-rata {count} {unit, select, cycle {siklus} other {bulan}}",
+      "partialPrevious": "{period} tercatat mulai {date} · belum lengkap",
+      "noAverage": "Rata-rata muncul setelah 2 {unit, select, cycle {siklus} other {bulan}} lengkap",
+      "shareOfPrevious": "{share}% dari total {period}",
+      "shareOfAverage": "{share}% dari rata-rata {count} {unit, select, cycle {siklus} other {bulan}}",
+      "running": "Periode berjalan · dibandingkan setelah selesai",
+      "trackingStarted": "Pencatatan dimulai {date}, jadi periode ini belum lengkap."
+    },
+    "questions": {
+      "income": "Berapa uang masuk?",
+      "saving": "Berapa yang ditabung?",
+      "spending": "Berapa pengeluarannya?",
+      "improve": "Apa yang mau diperbaiki bulan depan?"
+    },
+    "income": {
+      "sources": "Sumber uang masuk",
+      "count": "{count} transaksi",
+      "note": "Ganti uang dan pindah saldo antar rekening tidak dihitung sebagai uang masuk.",
+      "empty": "Belum ada uang masuk di periode ini."
+    },
+    "saving": {
+      "shareOfIncome": "· {share}% dari uang masuk",
+      "breakdown": "Rincian tabungan",
+      "pillarExpenses": "Pengeluaran berpilar Tabungan",
+      "netMoves": "Pindah bersih ke rekening tabungan atau investasi",
+      "netMovesMeta": "rekening tabungan atau investasi"
+    },
+    "table": {
+      "title": "Pengeluaran per pilar dan kategori",
+      "caption": "Pengeluaran {period} per pilar dan kategori",
+      "pillarCategory": "Pilar dan kategori",
+      "amount": "Jumlah",
+      "share": "Porsi",
+      "vs": "vs {period}",
+      "of": "dari {period}",
+      "noPrevious": "Pembanding",
+      "partial": "belum lengkap",
+      "total": "Total pengeluaran",
+      "rowLink": "{name}: {amount}, lihat transaksi",
+      "empty": "Belum ada pengeluaran di periode ini."
+    },
+    "merchants": {
+      "title": "Tempat belanja terbesar",
+      "empty": "Belum ada pengeluaran dengan nama tempat."
+    },
+    "details": {
+      "title": "Rincian pengeluaran",
+      "meta": "Tak terduga, tagihan berulang dan biaya hidup pokok",
+      "reimbursed": "Sudah dikurangi ganti uang <amount></amount>.",
+      "unexpected": "Tak terduga",
+      "allUnexpected": "Lihat semua {count} transaksi tak terduga",
+      "recurring": "Langganan dan tagihan berulang",
+      "monthly": "bulanan",
+      "weekly": "mingguan",
+      "hasPlan": "sudah ada rencana",
+      "amountChanged": "nominal berubah",
+      "essential": "Biaya hidup pokok · saat ini",
+      "perMonth": "per bulan · {method}",
+      "essentialUnavailable": "Belum bisa dihitung. Butuh satu bulan lengkap atau anggaran Kebutuhan.",
+      "none": "Tidak ada."
+    },
+    "budget": {
+      "title": "Anggaran",
+      "set": "Atur anggaran",
+      "spentOf": "{used} dari {budget}",
+      "left": "sisa {amount}",
+      "over": "lebih {amount}",
+      "total": "Total: {used} dari {budget}, {rest}.",
+      "cycleNote": "Anggaran bulanan dibandingkan apa adanya dengan satu siklus gaji.",
+      "empty": "Belum ada anggaran. Anggaran tidak wajib; laporan tetap lengkap tanpanya."
+    },
+    "history": {
+      "title": "Pengeluaran per bulan",
+      "titleCycle": "Pengeluaran per siklus",
+      "running": "berjalan",
+      "viewed": "dilihat",
+      "barRunning": "{period} · berjalan",
+      "legendViewed": "{period} (dilihat)",
+      "legendRunning": "Berjalan",
+      "caption": "Bulan berjalan tidak dibandingkan sampai bulannya selesai.",
+      "captionCycle": "Siklus berjalan tidak dibandingkan sampai siklusnya selesai.",
+      "period": "Periode",
+      "tableCaption": "Pengeluaran per periode",
+      "chartLabel": "{title}: {list}",
+      "showTable": "Lihat sebagai tabel",
+      "showChart": "Lihat sebagai grafik"
+    },
+    "facts": {
+      "title": "Yang bisa diperbaiki",
+      "soFar": "Sejauh ini",
+      "view": "Lihat transaksi",
+      "viewList": "Lihat daftar",
+      "perMonth": "{amount}/bln",
+      "empty": "Tidak ada catatan perbaikan dari angka periode ini."
+    },
+    "note": {
+      "label": "Catatan untuk {period}",
+      "write": "Tulis catatan untuk {period}",
+      "edit": "Ubah",
+      "editLabel": "Ubah catatan untuk {period}",
+      "placeholder": "Misalnya: masak di rumah tiga kali seminggu",
+      "help": "Satu atau dua hal saja. Catatan ini muncul lagi di laporan berikutnya.",
+      "save": "Simpan catatan",
+      "saving": "Menyimpan…",
+      "delete": "Hapus catatan",
+      "saved": "Catatan tersimpan.",
+      "deleted": "Catatan dihapus.",
+      "saveError": "Catatan belum tersimpan. Coba lagi.",
+      "deleteError": "Catatan belum terhapus. Coba lagi.",
+      "previous": "Catatan {period}: {note}"
+    },
+    "context": {
+      "differenceMeta": "masuk dikurangi pengeluaran",
+      "past": "Laporan sebelumnya",
+      "running": "Berjalan",
+      "complete": "Lengkap",
+      "hasNote": "ada catatan"
+    },
+    "quality": {
+      "title": "Kualitas data",
+      "complete": "Data lengkap. Semua transaksi periode ini sudah ditinjau dan diklasifikasi.",
+      "review": "{count} menunggu di Tinjau",
+      "unclassified": "{count} belum diklasifikasi",
+      "duplicates": "{count} kemungkinan duplikat",
+      "emptyDays": "{count} hari tanpa catatan",
+      "emptyDates": "Hari tanpa catatan: {dates}",
+      "openReview": "Buka Tinjau",
+      "classify": "Lengkapi klasifikasi",
+      "checkDuplicates": "Periksa duplikat",
+      "record": "Catat transaksi"
+    },
+    "classify": {
+      "title": "Lengkapi klasifikasi",
+      "intro": "Pengeluaran tanpa pilar tampil sebagai Belum diklasifikasi. Pilihan ini juga dipakai untuk mempelajari kebiasaan.",
+      "loadFailed": "Daftar belum bisa dimuat.",
+      "allDone": "Semua pengeluaran sudah punya pilar.",
+      "categories": "Kategori tanpa pilar",
+      "categoriesHelp": "Berlaku untuk transaksinya yang belum punya pilar sendiri.",
+      "categoryMeta": "{count} transaksi · {amount}",
+      "choosePillar": "Pilih pilar",
+      "pillarFor": "Pilar untuk {name}",
+      "save": "Simpan",
+      "saveFor": "Simpan pilar {name}",
+      "savedCategory": "{name} disimpan. {count} transaksi ikut terklasifikasi.",
+      "rows": "Transaksi belum diklasifikasi ({count})",
+      "showingLatest": "Menampilkan {count} terbaru.",
+      "selectAll": "Pilih semua",
+      "rowsPillar": "Pilar untuk transaksi yang dipilih",
+      "apply": "Terapkan ke {count} transaksi",
+      "appliedRows": "{count} transaksi diklasifikasi.",
+      "saveFailed": "Belum tersimpan. Coba lagi.",
+      "done": "Selesai",
+      "rowMeta": "{date} · {category} · {account}"
+    },
+    "states": {
+      "loading": "Menyiapkan laporan…",
+      "error": "Laporan belum bisa dimuat.",
+      "emptyTitle": "Belum ada laporan",
+      "emptyText": "Laporan pertama muncul setelah ada transaksi tercatat. Catat pengeluaran atau sambungkan ponsel untuk mulai."
     }
   },
   "plans": {

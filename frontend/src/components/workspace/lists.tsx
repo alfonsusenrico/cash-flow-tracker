@@ -9,12 +9,14 @@ import { cn } from "@/lib/utils";
  * Section headers, the context panel, list rows and day headings of the Markas+ pages (option-6 SPEC §7,
  * apply-markas-beranda D6 to D8). Rows are whole-row links or buttons; the panel is the page's context column.
  */
-export function SectionHeader({ id, label, aside }: { id?: string; label: string; aside?: ReactNode }) {
+export function SectionHeader({ id, label, aside, level = 2 }: { id?: string; label: string; aside?: ReactNode; level?: 2 | 3 }) {
+  // A section inside a level-2 part, such as one of Laporan's questions, takes level 3 (apply-markas-laporan D4).
+  const Heading = level === 3 ? "h3" : "h2";
   return (
     <div className="sec-h">
-      <h2 className="t-label" id={id}>
+      <Heading className="t-label" id={id}>
         {label}
-      </h2>
+      </Heading>
       {aside}
     </div>
   );

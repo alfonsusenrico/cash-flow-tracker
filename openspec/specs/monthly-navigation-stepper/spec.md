@@ -32,6 +32,10 @@ Every page whose figures depend on a selected period (Transaksi, Analisis, Lapor
 - **WHEN** the user opens Beranda
 - **THEN** no period stepper is shown, and Beranda describes the current salary cycle or current month as defined by `beranda-cycle-summary`
 
+#### Scenario: Report period name
+- **WHEN** an English account opens the October 2026 report and then the cycle report of 25 September to 22 October
+- **THEN** the stepper SHALL read "October 2026" and then "Cycle 25 Sept – 22 Oct", formatted from the report's dates
+
 ### Requirement: Removal of Dual-Timeframe Rolling Pills
 The application SHALL NOT present dual rolling timeframe selector pills (`[ 30 Hari | 90 Hari ]`) in the workspace top bar, unifying all views under monthly statement or salary-cycle accounting.
 

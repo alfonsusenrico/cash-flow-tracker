@@ -87,47 +87,6 @@ export function Pill({ tone = "neutral", icon, children, className }: { tone?: T
   );
 }
 
-export function KpiStrip({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <section className="ws-card ws-kpis" aria-label={label}>
-      {children}
-    </section>
-  );
-}
-
-/** One KPI: label, the figure (usually an explainable button), at most one chip and a caption. */
-export function Kpi({
-  icon,
-  label,
-  value,
-  chip,
-  caption,
-  valueIsWords = false,
-}: {
-  icon: IconName;
-  label: string;
-  value: ReactNode;
-  chip?: ReactNode;
-  caption?: ReactNode;
-  valueIsWords?: boolean;
-}) {
-  return (
-    <div className="ws-kpi">
-      <div className="ws-tile" aria-hidden="true">
-        <Icon name={icon} />
-      </div>
-      <div className="ws-kpi-body">
-        <div className="ws-kpi-label">{label}</div>
-        <div className="ws-kpi-row">
-          <div className={cn("ws-kpi-value", valueIsWords && "is-words")}>{value}</div>
-          {chip}
-        </div>
-        {caption && <div className="ws-kpi-caption">{caption}</div>}
-      </div>
-    </div>
-  );
-}
-
 export function DeltaChip({ tone, children, title }: { tone: Tone; children: ReactNode; title?: string }) {
   return (
     <span className={cn("ws-chip-delta", `ws-tone-${tone}`)} title={title}>

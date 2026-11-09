@@ -263,10 +263,6 @@
   ]
  },
  {
-  "name": "laporan",
-  "path": "/laporan"
- },
- {
   "name": "rekening",
   "path": "/accounts",
   "rekening": true,
@@ -1730,6 +1726,135 @@
   "steps": [
    {
     "wait": 1200
+   }
+  ]
+ },
+ {
+  "name": "laporan",
+  "path": "/laporan",
+  "laporan": true
+ },
+ {
+  "name": "laporan-juli",
+  "path": "/laporan?basis=month&start=2026-07-01",
+  "laporan": true
+ },
+ {
+  "name": "laporan-sebagian",
+  "path": "/laporan?basis=month&start=2026-08-01",
+  "laporan": true
+ },
+ {
+  "name": "laporan-november",
+  "path": "/laporan?basis=month&start=2026-11-01",
+  "laporan": true
+ },
+ {
+  "name": "laporan-siklus",
+  "path": "/laporan?basis=cycle",
+  "laporan": true
+ },
+ {
+  "name": "laporan-catatan",
+  "path": "/laporan?basis=month&start=2026-09-01",
+  "laporan": true
+ },
+ {
+  "name": "laporan-catatan-baru",
+  "path": "/laporan",
+  "laporan": true,
+  "full": true,
+  "steps": [
+   {
+    "click": "^(Tulis catatan untuk|Write a note for) ",
+    "after": 900
+   }
+  ]
+ },
+ {
+  "name": "laporan-rincian",
+  "path": "/laporan",
+  "laporan": true,
+  "full": true,
+  "steps": [
+   {
+    "click": "^(Rincian pengeluaran|Spending details)",
+    "after": 900
+   }
+  ]
+ },
+ {
+  "name": "laporan-tabel",
+  "path": "/laporan",
+  "laporan": true,
+  "full": true,
+  "steps": [
+   {
+    "click": "^(Lihat sebagai tabel|Show as table)$",
+    "after": 900
+   }
+  ]
+ },
+ {
+  "name": "laporan-sembunyi",
+  "path": "/laporan",
+  "laporan": true,
+  "storage": {
+   "hideBalances": "1"
+  }
+ },
+ {
+  "name": "dlg-klasifikasi",
+  "path": "/laporan?lengkapi=1",
+  "laporan": true,
+  "steps": [
+   {
+    "wait": 1500
+   }
+  ]
+ },
+ {
+  "name": "dlg-laporan-anggaran",
+  "path": "/laporan?atur=anggaran",
+  "laporan": true,
+  "steps": [
+   {
+    "wait": 1500
+   }
+  ]
+ },
+ {
+  "name": "dlg-laporan-transaksi",
+  "path": "/laporan",
+  "laporan": true,
+  "steps": [
+   {
+    "click": "^(Rincian pengeluaran|Spending details)",
+    "after": 700
+   },
+   {
+    "click": "Bengkel Motor Contoh",
+    "after": 1500
+   }
+  ]
+ },
+ {
+  "name": "state-laporan-memuat",
+  "path": "/laporan",
+  "laporan": true,
+  "steps": [
+   {
+    "wait": 600
+   }
+  ]
+ },
+ {
+  "name": "state-laporan-galat",
+  "path": "/laporan",
+  "laporan": true,
+  "steps": [
+   {
+    "wait": 1500
    }
   ]
  },
