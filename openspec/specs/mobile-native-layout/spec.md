@@ -25,28 +25,28 @@ Below 768 px Beranda SHALL be one column in the phone order: the hero with Penge
 - **THEN** Pengeluaran, Ditabung & investasi, masuk, the waiting amount and the safe amount SHALL be identical in both layouts, with masuk, Terjadwal and the waiting amount read in the Rincian at 390 px
 
 ### Requirement: Mobile Bottom-Sheet Quick Capture
-The application SHALL render the canonical transaction-capture form as a touch-first bottom sheet on mobile screens.
+The application SHALL render the capture dialog, both its sentence and manual views, as a touch-first bottom sheet below 768 px.
 
 #### Scenario: Required behavior and constraints
-- **WHEN** an owner opens quick transaction capture on a mobile screen
+- **WHEN** an owner opens capture on a mobile screen
 - **THEN** the following required behavior and constraints hold:
 
-  The application SHALL render the canonical transaction-capture form as a touch-first bottom sheet on mobile screens:
+  The application SHALL render the capture dialog as a touch-first bottom sheet on mobile screens:
   1. The sheet SHALL have rounded top corners, a visible handle, contained scrolling, accessible dialog semantics, and safe focus behavior.
-  2. Amount entry SHALL use high-visibility tabular figures and a touch-appropriate numeric interaction without preventing hardware-keyboard entry.
-  3. Category selection SHALL use horizontally scrollable, named, stateful icon choices filtered by transaction type.
-  4. Kakeibo choices SHALL be one-tap targets whose selected state is exposed programmatically and whose default follows the selected category.
-  5. Account, date, notes, goal or obligation context, receipt attachment, errors, and submission results SHALL be functionally equivalent to the desktop canonical form.
-  6. The sheet SHALL not force mobile keyboard focus immediately when doing so obscures context or causes unwanted viewport movement.
-  7. The sheet SHALL expose the `Perpindahan` mode with eligible source and destination accounts, amount, seconds-precise timestamp, notes, and movement validation through the same atomic movement contract as desktop Quick Capture.
+  2. Amount entry SHALL use high-visibility tabular figures and a numeric input mode without preventing hardware-keyboard entry.
+  3. Category selection SHALL use the same select grouped by pillar as desktop, filtered by transaction type.
+  4. Kakeibo choices SHALL be one-tap segment options whose selected state is exposed programmatically and whose default follows the selected category.
+  5. Account, date, notes, goal or obligation context, receipt attachment, credit terms, errors, and submission results SHALL be functionally equivalent to desktop.
+  6. On opening, focus SHALL go to the sheet's title so the soft keyboard does not cover the context.
+  7. The sheet SHALL expose `Perpindahan` with eligible source and destination accounts, stacked below 480 px, amount, seconds-precise timestamp, notes, and movement validation through the same atomic movement contract as desktop.
 
 #### Scenario: Opening quick capture on mobile
-- **WHEN** a user opens Quick Capture on a 390px viewport
-- **THEN** the complete canonical transaction fields are available in a touch-first bottom sheet without losing keyboard or assistive-technology operation
+- **WHEN** a user opens Catat on a 390px viewport
+- **THEN** the sentence view and, through "Isi manual", the complete manual fields are available in one touch-first bottom sheet without losing keyboard or assistive-technology operation
 
 #### Scenario: Selecting a category on mobile
-- **WHEN** a user selects a category chip classified as `want`
-- **THEN** the chip announces its selected state and the Kakeibo selection defaults to `want`
+- **WHEN** a user selects a category classified as `want`
+- **THEN** the Kakeibo segment announces "Keinginan" as selected
 
 #### Scenario: Recording a movement on mobile
 - **WHEN** a user selects `Perpindahan` and submits a valid movement in the mobile bottom sheet

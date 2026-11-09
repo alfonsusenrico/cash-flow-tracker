@@ -254,20 +254,20 @@ A recorded capture SHALL store its time basis (`device_time`, `parsed`, `model` 
 - **THEN** the logs SHALL hold the user id, the outcome and problem codes only, never the text or the amount
 
 ### Requirement: Web Catat Dialog
-The web "+ Catat" action and the N key SHALL open a text-first dialog that previews the typed text through the parse endpoint, refuses to record text without exactly one amount, records through `POST /api/capture/text` declaring the question types it answers, asks follow-up questions inline, and offers "Urungkan" within the capture's undo window. "Isi manual" SHALL open the existing manual form.
+The web "+ Catat" action, the phone tab and the N key SHALL open one capture dialog on "Tulis transaksi", which previews the typed text through the parse endpoint, refuses text without exactly one amount, records through `POST /api/capture/text` declaring the question types it answers, asks follow-up questions inline and offers "Urungkan" within the undo window. "Isi manual" SHALL turn the same dialog into the manual form.
 
 #### Scenario: Typing shows the reading
 - **WHEN** the owner types "parkir 5rb jam 2"
-- **THEN** within a second the dialog SHALL show chips for Rp 5.000, 14.00 and the account or "Rekening: ditentukan saat dicatat", without recording anything
+- **THEN** within a second the dialog SHALL show the "Terbaca" box with −Rp 5.000 in the expense colour, Jenis Pengeluaran, the account or "ditentukan saat dicatat", and Tanggal 14.00, without recording anything
 
 #### Scenario: Text without an amount is refused
 - **WHEN** the owner types "bayar parkir"
-- **THEN** "Catat" SHALL be disabled and the dialog SHALL say "Jumlah belum ada. Tulis jumlahnya, misalnya 5rb."
+- **THEN** "Catat" SHALL be disabled and the dialog SHALL say "Jumlah belum ada. Tulis jumlahnya, misalnya 5rb." ("No amount yet. Write the amount, for example 5k.")
 
 #### Scenario: Recording with a follow-up question
 - **GIVEN** the owner has no memory for "pulsa" and no account was named
 - **WHEN** the owner records "beli pulsa 50rb"
-- **THEN** the dialog SHALL ask "Dari rekening mana?" with account choices, and answering SHALL record the expense and close the dialog with a toast offering "Urungkan"
+- **THEN** the dialog SHALL ask "Dari rekening mana?" with account choices in the same dialog, and answering SHALL record the expense and close the dialog with a toast offering "Urungkan"
 
 #### Scenario: Undo right after recording
 - **WHEN** the owner presses "Urungkan" in the toast within 10 seconds
@@ -279,8 +279,16 @@ The web "+ Catat" action and the N key SHALL open a text-first dialog that previ
 
 #### Scenario: Manual form fallback
 - **WHEN** the owner chooses "Isi manual" after typing "parkir 5rb"
-- **THEN** the manual form SHALL open with the amount 5.000 filled in
+- **THEN** the same dialog SHALL show "Catat transaksi" with the amount 5.000 filled in, no second dialog SHALL open, and "Tulis kalimat" SHALL return to the sentence with "parkir 5rb" still typed
 
 #### Scenario: Preview unavailable
 - **WHEN** the parse endpoint fails or answers 429
-- **THEN** the dialog SHALL say "Belum bisa baca sekarang" and "Catat" SHALL stay available
+- **THEN** the dialog SHALL say "Belum bisa membaca sekarang. Teks tetap bisa dicatat." ("Cannot read it right now. You can still record the text.") and "Catat" SHALL stay available
+
+#### Scenario: Examples
+- **WHEN** the owner chooses an example under "Contoh"
+- **THEN** the field SHALL hold that sentence with focus in it, and the preview SHALL show an amount for it
+
+#### Scenario: English interface
+- **WHEN** an English account opens Catat
+- **THEN** the dialog SHALL read "Write a transaction", its examples SHALL be English sentences the parser reads, and no untranslated notice or `lang="id"` region SHALL appear

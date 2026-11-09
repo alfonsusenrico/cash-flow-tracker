@@ -31,35 +31,43 @@ The web application SHALL offer one short page list shared by the desktop sideba
 - **THEN** the pages SHALL appear in the same relative order, with Analisis before Laporan and Rekening & Kantong before Target & Tagihan in both
 
 ### Requirement: 3-Second Rapid Transaction Capture Pad
-The application SHALL provide a prominent capture entry: "+ Catat" in the workspace top bar, the Catat button of the phone tab bar, and the `N` key while single-key shortcuts are on.
+The application SHALL provide a prominent capture entry: "+ Catat" in the workspace top bar, the Catat button of the phone tab bar, and the `N` key while single-key shortcuts are on. The manual form SHALL offer Pengeluaran, Pemasukan and Perpindahan, a 56 px amount field, quick-add chips, and categories grouped by Kakeibo pillar.
 
 #### Scenario: Required behavior and constraints
 - **WHEN** an owner opens and completes rapid transaction capture
-- **THEN** it SHALL provide an organized category selector with icons, default to the last-used or primary spend account, support inline arithmetic, and refresh observed figures and activity without a full page reload
+- **THEN** it SHALL provide a category selector grouped by pillar, default to the primary spend account, support inline arithmetic, and refresh observed figures and activity without a full page reload
 
 #### Scenario: Organized category selection in quick capture
-- **WHEN** a user opens the quick-capture modal and selects a category
-- **THEN** the category is selected with its icon and name
+- **WHEN** a user opens the manual form and opens "Kategori"
+- **THEN** the expense categories SHALL be listed under their pillar names, and the chosen category SHALL set the pillar unless the owner chose another pillar
 
 #### Scenario: Desktop keyboard shortcut capture
 - **WHEN** single-key shortcuts are on and a user presses `N` on any screen outside a text field
-- **THEN** quick capture opens with the amount input auto-focused
+- **THEN** the capture dialog opens with the sentence field focused
 - **AND** when single-key shortcuts are off, pressing `N` does nothing
 
+#### Scenario: Amount focus
+- **WHEN** the amount field receives focus, in either theme
+- **THEN** its edge SHALL be 1 px `--field-focus` with a 3 px `--ring`, and no outline, coloured or 2 px border SHALL appear
+
 ### Requirement: Quick Capture Linking to Goals and Obligations
-The global transaction quick-capture interface (`N`) SHALL allow optional direct linking to savings goals and debt obligations.
+The global capture form SHALL allow optional direct linking of an expense to one savings goal or to one or more debt obligations, inside "Detail tambahan", each with a one-line hint. A goal and a debt SHALL be exclusive, and the debt choice SHALL not be offered for an expense on a credit account.
 
 #### Scenario: Required behavior and constraints
-- **WHEN** an owner links a Quick Capture transaction to a goal or debt
+- **WHEN** an owner links a capture expense to a goal or debt
 - **THEN** the following required behavior and constraints hold:
 
-  The global transaction quick-capture interface (`N`) SHALL allow optional direct linking to savings goals and debt obligations:
-  1. When recording an expense or transfer, the user can select an active Goal (marking it as a milestone contribution) or an active Obligation (marking it as a debt repayment).
-  2. Upon submission, the transaction SHALL record the corresponding `goal_id` or `obligation_id` and automatically increment the goal's `current_amount` or decrement the obligation's `remaining_amount` in the database.
+  The global capture form SHALL allow optional direct linking to savings goals and debt obligations:
+  1. When recording an expense, the user can select an active Goal (marking it as a milestone contribution) or one or more active Obligations (marking a debt repayment, split by amount).
+  2. Upon submission, the transaction SHALL record the corresponding `goal_id`, `obligation_id` or `obligation_allocations`, and SHALL decrement each linked obligation's `remaining_amount` in the database. A goal link is a label: it SHALL NOT change the goal's progress by itself (a goal follows its own amount or its linked accounts' balance).
 
 #### Scenario: Contributing to a goal via quick capture
-- **WHEN** the user presses `N`, enters `500000`, selects account "Main Bank", and chooses goal "Emergency Fund"
-- **THEN** an expense of 500,000 IDR is recorded and linked to "Emergency Fund", and the goal's saved amount increases by 500,000 IDR immediately
+- **WHEN** the user presses `N`, chooses "Isi manual", enters `500000`, selects account "Main Bank", opens "Detail tambahan" and chooses goal "Emergency Fund"
+- **THEN** an expense of 500,000 IDR is recorded with the `goal_id` of "Emergency Fund", and the hint under the goal field says that the link does not add to the goal's progress
+
+#### Scenario: Details open when needed
+- **WHEN** the form holds a goal passed by its caller or an error inside "Detail tambahan"
+- **THEN** "Detail tambahan" SHALL be open with that field visible
 
 ### Requirement: Quick Capture Save Confirmation
 After Quick Capture saves a transaction or movement, the submit button SHALL show a brief success state (`✓ Tersimpan!`, or `✓ Berhasil dipindahkan` for a movement) and the modal SHALL close about 450 ms later. If the record is saved but its receipt upload fails, the modal SHALL stay open with an error message instead.
@@ -144,3 +152,14 @@ The interface SHALL NOT contain rainbow gradients, glow drop-shadows, 0–100 he
 #### Scenario: Laporan without tiles
 - **WHEN** Laporan is shown in either theme at 1440 or 390 px
 - **THEN** it SHALL show no icon tile, KPI card or card shadow, its sections SHALL be named by their question and section headings alone, and the data-quality line SHALL use no tinted fill
+
+### Requirement: Inline Arithmetic in the Amount
+The capture amount field SHALL accept digits and the operators `+ − * /` typed on any keyboard, evaluate the expression without `eval`, show "= {amount}" as its hint only while an operator is present, and save the evaluated whole-rupiah amount. No on-screen keypad SHALL be shown.
+
+#### Scenario: Evaluate inline arithmetic in transaction entry
+- **WHEN** the owner types `25000+15000` in "Nominal (IDR)"
+- **THEN** the hint SHALL read "= Rp 40.000" and saving SHALL send `amount` 40000
+
+#### Scenario: Plain amount
+- **WHEN** the owner types `35000`
+- **THEN** the field SHALL show "35.000" and no "=" hint

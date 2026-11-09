@@ -353,4 +353,6 @@ The `capture` namespace (Indonesian · English):
 
 ## Final revision
 
-FINAL_REVISION
+Archived on 2026-11-09 as `2026-11-09-apply-markas-catat` after `d6ffc47`; the specs of `text-capture`,
+`tactile-pulse-ui`, `accessible-financial-input-forms`, `mobile-native-layout`, `kazz-ui-and-kakeibo` and
+`credit-accounts` took the deltas. `openspec validate --all --strict` after archiving: 84 passed, 0 failed (84 items).

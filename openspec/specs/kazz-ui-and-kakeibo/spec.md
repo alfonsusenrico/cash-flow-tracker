@@ -25,12 +25,3 @@ The system SHALL compute period-over-period comparison deltas and generate natur
 #### Scenario: Beranda does not show the unequal-window narrative
 - **WHEN** the owner opens Beranda on desktop or phone
 - **THEN** the overview narrative text and its percentage SHALL NOT be shown
-
-### Requirement: Tactile Calculator Keypad
-The system SHALL provide a tactile 4x4 keypad with built-in arithmetic operators for mobile touch inputs and rapid modal entry.
-
-#### Scenario: Evaluate inline arithmetic in transaction entry
-- **GIVEN** the quick capture modal is open
-- **WHEN** the user enters `25000 + 15000` via the numpad or keyboard
-- **THEN** the system SHALL evaluate the expression in real time to `40000`
-- **AND** displaying `= Rp 40.000` as the evaluated total before submission.
