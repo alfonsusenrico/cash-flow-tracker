@@ -52,6 +52,7 @@ const rekeningSource = readFileSync(path.join(here, "rekening-checklist.js"), "u
 const laporanSource = readFileSync(path.join(here, "laporan-checklist.js"), "utf8");
 const targetSource = readFileSync(path.join(here, "target-checklist.js"), "utf8");
 const pengaturanSource = readFileSync(path.join(here, "pengaturan-checklist.js"), "utf8");
+const catatSource = readFileSync(path.join(here, "catat-checklist.js"), "utf8");
 // Settings a scenario may set (`storage`); every capture starts without them, so no scenario leaks into the next.
 const STORAGE_KEYS = { app: ["hideBalances", "sidebarCollapsed", "rekening-grouping"], prototype: ["markas6-hide"] };
 mkdirSync(args.out, { recursive: true });
@@ -181,6 +182,7 @@ try {
       const laporan = scenario.laporan ? await browser.evaluate(laporanSource).catch((error) => ({ error: String(error).slice(0, 200) })) : undefined;
       const target = scenario.target ? await browser.evaluate(targetSource).catch((error) => ({ error: String(error).slice(0, 200) })) : undefined;
       const pengaturan = scenario.pengaturan ? await browser.evaluate(pengaturanSource).catch((error) => ({ error: String(error).slice(0, 200) })) : undefined;
+      const catat = scenario.catat ? await browser.evaluate(catatSource).catch((error) => ({ error: String(error).slice(0, 200) })) : undefined;
       // The document language and every interface part that declares its own (WCAG 3.1.1 and 3.1.2).
       const lang = await browser.evaluate(`({
         root: document.documentElement.lang,
@@ -209,6 +211,7 @@ try {
         laporan,
         target,
         pengaturan,
+        catat,
         lang,
       };
       const flags = report[key].axeSeriousOrCritical.length + report[key].consoleErrors.length;

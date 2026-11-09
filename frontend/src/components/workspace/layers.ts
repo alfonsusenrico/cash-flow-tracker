@@ -149,3 +149,23 @@ export function syncDialog(dialog: HTMLDialogElement | null, open: boolean) {
     else dialog.removeAttribute("open");
   }
 }
+
+/**
+ * Remembers what had focus when a layer opened and gives it back when the layer closes or unmounts, falling back to
+ * the main region when the opener is gone (a phone tab hidden at desktop width, a removed row).
+ */
+export function useReturnFocus(open: boolean) {
+  useLayoutEffect(() => {
+    if (!open) return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    return () => {
+      window.setTimeout(() => {
+        // A layer opened as this one closed (Rencana jatuh tempo › Kelola rencana) keeps its focus.
+        if (document.activeElement?.closest("dialog[open], [role='dialog']")) return;
+        // A hidden opener cannot take focus, so the main region does.
+        if (opener?.isConnected) opener.focus();
+        if (document.activeElement !== opener) document.getElementById("main")?.focus();
+      }, 0);
+    };
+  }, [open]);
+}

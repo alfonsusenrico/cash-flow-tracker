@@ -2182,5 +2182,790 @@
   ],
   "full": true,
   "pengaturan": true
+ },
+ {
+  "name": "catat-tulis",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "key": [
+     "n",
+     "KeyN",
+     78,
+     0,
+     "n"
+    ]
+   }
+  ]
+ },
+ {
+  "name": "catat-tulis-terbaca",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "key": [
+     "n",
+     "KeyN",
+     78,
+     0,
+     "n"
+    ]
+   },
+   {
+    "eval": "(() => {\n  const dlg = () => document.querySelector('dialog[open]');\n  const en = () => document.documentElement.lang === 'en';\n  const setValue = (el, value) => {\n    const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;\n    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);\n    el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));\n  };\n  const optionByText = (select, re) => [...select.options].find((o) => re.test(o.textContent));\n  window.__ct = {\n    type: (id, en_) => { const f = dlg().querySelector('[data-capture-field]'); setValue(f, en() ? en_ : id); return 'typed'; },\n    amount: (value) => { setValue(dlg().querySelector('#capture-amount'), value); return 'amount ' + value; },\n    pick: (selector, pattern) => { const s = dlg().querySelector(selector); const o = s && optionByText(s, new RegExp(pattern)); if (!o) return 'NOT FOUND'; setValue(s, o.value); return 'picked ' + o.textContent.slice(0, 30); },\n    radio: (pattern) => { const r = [...dlg().querySelectorAll('[role=radio]')].find((b) => new RegExp(pattern).test(b.textContent)); if (!r) return 'NOT FOUND'; r.click(); return 'radio ' + r.textContent; },\n    open: () => { const d = dlg().querySelector('details'); if (!d) return 'NOT FOUND'; d.open = true; d.dispatchEvent(new Event('toggle')); return 'details'; },\n    value: (selector, value) => { setValue(dlg().querySelector(selector), value); return 'set ' + selector; },\n    scroll: (selector) => { const e = dlg().querySelector(selector); if (!e) return 'NOT FOUND'; e.scrollIntoView({ block: 'center' }); return 'scrolled'; },\n  };\n  return 'prelude';\n})()",
+    "after": 200
+   },
+   {
+    "eval": "__ct.type('makan siang 35rb', 'lunch 35k')",
+    "after": 1500
+   }
+  ]
+ },
+ {
+  "name": "catat-tulis-tolak",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "key": [
+     "n",
+     "KeyN",
+     78,
+     0,
+     "n"
+    ]
+   },
+   {
+    "eval": "(() => {\n  const dlg = () => document.querySelector('dialog[open]');\n  const en = () => document.documentElement.lang === 'en';\n  const setValue = (el, value) => {\n    const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;\n    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);\n    el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));\n  };\n  const optionByText = (select, re) => [...select.options].find((o) => re.test(o.textContent));\n  window.__ct = {\n    type: (id, en_) => { const f = dlg().querySelector('[data-capture-field]'); setValue(f, en() ? en_ : id); return 'typed'; },\n    amount: (value) => { setValue(dlg().querySelector('#capture-amount'), value); return 'amount ' + value; },\n    pick: (selector, pattern) => { const s = dlg().querySelector(selector); const o = s && optionByText(s, new RegExp(pattern)); if (!o) return 'NOT FOUND'; setValue(s, o.value); return 'picked ' + o.textContent.slice(0, 30); },\n    radio: (pattern) => { const r = [...dlg().querySelectorAll('[role=radio]')].find((b) => new RegExp(pattern).test(b.textContent)); if (!r) return 'NOT FOUND'; r.click(); return 'radio ' + r.textContent; },\n    open: () => { const d = dlg().querySelector('details'); if (!d) return 'NOT FOUND'; d.open = true; d.dispatchEvent(new Event('toggle')); return 'details'; },\n    value: (selector, value) => { setValue(dlg().querySelector(selector), value); return 'set ' + selector; },\n    scroll: (selector) => { const e = dlg().querySelector(selector); if (!e) return 'NOT FOUND'; e.scrollIntoView({ block: 'center' }); return 'scrolled'; },\n  };\n  return 'prelude';\n})()",
+    "after": 200
+   },
+   {
+    "eval": "__ct.type('bayar parkir', 'parking fee')",
+    "after": 1500
+   }
+  ]
+ },
+ {
+  "name": "catat-tulis-kredit",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "key": [
+     "n",
+     "KeyN",
+     78,
+     0,
+     "n"
+    ]
+   },
+   {
+    "eval": "(() => {\n  const dlg = () => document.querySelector('dialog[open]');\n  const en = () => document.documentElement.lang === 'en';\n  const setValue = (el, value) => {\n    const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;\n    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);\n    el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));\n  };\n  const optionByText = (select, re) => [...select.options].find((o) => re.test(o.textContent));\n  window.__ct = {\n    type: (id, en_) => { const f = dlg().querySelector('[data-capture-field]'); setValue(f, en() ? en_ : id); return 'typed'; },\n    amount: (value) => { setValue(dlg().querySelector('#capture-amount'), value); return 'amount ' + value; },\n    pick: (selector, pattern) => { const s = dlg().querySelector(selector); const o = s && optionByText(s, new RegExp(pattern)); if (!o) return 'NOT FOUND'; setValue(s, o.value); return 'picked ' + o.textContent.slice(0, 30); },\n    radio: (pattern) => { const r = [...dlg().querySelectorAll('[role=radio]')].find((b) => new RegExp(pattern).test(b.textContent)); if (!r) return 'NOT FOUND'; r.click(); return 'radio ' + r.textContent; },\n    open: () => { const d = dlg().querySelector('details'); if (!d) return 'NOT FOUND'; d.open = true; d.dispatchEvent(new Event('toggle')); return 'details'; },\n    value: (selector, value) => { setValue(dlg().querySelector(selector), value); return 'set ' + selector; },\n    scroll: (selector) => { const e = dlg().querySelector(selector); if (!e) return 'NOT FOUND'; e.scrollIntoView({ block: 'center' }); return 'scrolled'; },\n  };\n  return 'prelude';\n})()",
+    "after": 200
+   },
+   {
+    "eval": "__ct.type('sepatu 120rb pakai spaylater', 'shoes 120k spaylater')",
+    "after": 1500
+   }
+  ]
+ },
+ {
+  "name": "catat-manual",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "key": [
+     "n",
+     "KeyN",
+     78,
+     0,
+     "n"
+    ]
+   },
+   {
+    "eval": "(() => {\n  const dlg = () => document.querySelector('dialog[open]');\n  const en = () => document.documentElement.lang === 'en';\n  const setValue = (el, value) => {\n    const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;\n    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);\n    el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));\n  };\n  const optionByText = (select, re) => [...select.options].find((o) => re.test(o.textContent));\n  window.__ct = {\n    type: (id, en_) => { const f = dlg().querySelector('[data-capture-field]'); setValue(f, en() ? en_ : id); return 'typed'; },\n    amount: (value) => { setValue(dlg().querySelector('#capture-amount'), value); return 'amount ' + value; },\n    pick: (selector, pattern) => { const s = dlg().querySelector(selector); const o = s && optionByText(s, new RegExp(pattern)); if (!o) return 'NOT FOUND'; setValue(s, o.value); return 'picked ' + o.textContent.slice(0, 30); },\n    radio: (pattern) => { const r = [...dlg().querySelectorAll('[role=radio]')].find((b) => new RegExp(pattern).test(b.textContent)); if (!r) return 'NOT FOUND'; r.click(); return 'radio ' + r.textContent; },\n    open: () => { const d = dlg().querySelector('details'); if (!d) return 'NOT FOUND'; d.open = true; d.dispatchEvent(new Event('toggle')); return 'details'; },\n    value: (selector, value) => { setValue(dlg().querySelector(selector), value); return 'set ' + selector; },\n    scroll: (selector) => { const e = dlg().querySelector(selector); if (!e) return 'NOT FOUND'; e.scrollIntoView({ block: 'center' }); return 'scrolled'; },\n  };\n  return 'prelude';\n})()",
+    "after": 200
+   },
+   {
+    "eval": "__ct.type('makan siang 35rb', 'lunch 35k')",
+    "after": 1500
+   },
+   {
+    "click": "^(Isi manual|Fill in manually)$"
+   },
+   {
+    "eval": "__ct.pick('#capture-category', 'Makan')",
+    "after": 700
+   }
+  ]
+ },
+ {
+  "name": "catat-manual-detail",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "key": [
+     "n",
+     "KeyN",
+     78,
+     0,
+     "n"
+    ]
+   },
+   {
+    "click": "^(Isi manual|Fill in manually)$"
+   },
+   {
+    "eval": "(() => {\n  const dlg = () => document.querySelector('dialog[open]');\n  const en = () => document.documentElement.lang === 'en';\n  const setValue = (el, value) => {\n    const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;\n    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);\n    el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));\n  };\n  const optionByText = (select, re) => [...select.options].find((o) => re.test(o.textContent));\n  window.__ct = {\n    type: (id, en_) => { const f = dlg().querySelector('[data-capture-field]'); setValue(f, en() ? en_ : id); return 'typed'; },\n    amount: (value) => { setValue(dlg().querySelector('#capture-amount'), value); return 'amount ' + value; },\n    pick: (selector, pattern) => { const s = dlg().querySelector(selector); const o = s && optionByText(s, new RegExp(pattern)); if (!o) return 'NOT FOUND'; setValue(s, o.value); return 'picked ' + o.textContent.slice(0, 30); },\n    radio: (pattern) => { const r = [...dlg().querySelectorAll('[role=radio]')].find((b) => new RegExp(pattern).test(b.textContent)); if (!r) return 'NOT FOUND'; r.click(); return 'radio ' + r.textContent; },\n    open: () => { const d = dlg().querySelector('details'); if (!d) return 'NOT FOUND'; d.open = true; d.dispatchEvent(new Event('toggle')); return 'details'; },\n    value: (selector, value) => { setValue(dlg().querySelector(selector), value); return 'set ' + selector; },\n    scroll: (selector) => { const e = dlg().querySelector(selector); if (!e) return 'NOT FOUND'; e.scrollIntoView({ block: 'center' }); return 'scrolled'; },\n  };\n  return 'prelude';\n})()",
+    "after": 200
+   },
+   {
+    "eval": "__ct.amount('25000+15000')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.open()",
+    "after": 700
+   },
+   {
+    "eval": "__ct.pick('#capture-goal', 'Dana Darurat|Emergency')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.scroll('#capture-goal')",
+    "after": 700
+   }
+  ]
+ },
+ {
+  "name": "catat-pemasukan",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "key": [
+     "n",
+     "KeyN",
+     78,
+     0,
+     "n"
+    ]
+   },
+   {
+    "click": "^(Isi manual|Fill in manually)$"
+   },
+   {
+    "eval": "(() => {\n  const dlg = () => document.querySelector('dialog[open]');\n  const en = () => document.documentElement.lang === 'en';\n  const setValue = (el, value) => {\n    const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;\n    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);\n    el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));\n  };\n  const optionByText = (select, re) => [...select.options].find((o) => re.test(o.textContent));\n  window.__ct = {\n    type: (id, en_) => { const f = dlg().querySelector('[data-capture-field]'); setValue(f, en() ? en_ : id); return 'typed'; },\n    amount: (value) => { setValue(dlg().querySelector('#capture-amount'), value); return 'amount ' + value; },\n    pick: (selector, pattern) => { const s = dlg().querySelector(selector); const o = s && optionByText(s, new RegExp(pattern)); if (!o) return 'NOT FOUND'; setValue(s, o.value); return 'picked ' + o.textContent.slice(0, 30); },\n    radio: (pattern) => { const r = [...dlg().querySelectorAll('[role=radio]')].find((b) => new RegExp(pattern).test(b.textContent)); if (!r) return 'NOT FOUND'; r.click(); return 'radio ' + r.textContent; },\n    open: () => { const d = dlg().querySelector('details'); if (!d) return 'NOT FOUND'; d.open = true; d.dispatchEvent(new Event('toggle')); return 'details'; },\n    value: (selector, value) => { setValue(dlg().querySelector(selector), value); return 'set ' + selector; },\n    scroll: (selector) => { const e = dlg().querySelector(selector); if (!e) return 'NOT FOUND'; e.scrollIntoView({ block: 'center' }); return 'scrolled'; },\n  };\n  return 'prelude';\n})()",
+    "after": 200
+   },
+   {
+    "eval": "__ct.radio('^(Pemasukan|Income)$')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.amount('150000')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.pick('#capture-category', 'Patungan')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.scroll('#capture-offset')",
+    "after": 700
+   }
+  ]
+ },
+ {
+  "name": "catat-perpindahan",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "key": [
+     "n",
+     "KeyN",
+     78,
+     0,
+     "n"
+    ]
+   },
+   {
+    "click": "^(Isi manual|Fill in manually)$"
+   },
+   {
+    "eval": "(() => {\n  const dlg = () => document.querySelector('dialog[open]');\n  const en = () => document.documentElement.lang === 'en';\n  const setValue = (el, value) => {\n    const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;\n    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);\n    el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));\n  };\n  const optionByText = (select, re) => [...select.options].find((o) => re.test(o.textContent));\n  window.__ct = {\n    type: (id, en_) => { const f = dlg().querySelector('[data-capture-field]'); setValue(f, en() ? en_ : id); return 'typed'; },\n    amount: (value) => { setValue(dlg().querySelector('#capture-amount'), value); return 'amount ' + value; },\n    pick: (selector, pattern) => { const s = dlg().querySelector(selector); const o = s && optionByText(s, new RegExp(pattern)); if (!o) return 'NOT FOUND'; setValue(s, o.value); return 'picked ' + o.textContent.slice(0, 30); },\n    radio: (pattern) => { const r = [...dlg().querySelectorAll('[role=radio]')].find((b) => new RegExp(pattern).test(b.textContent)); if (!r) return 'NOT FOUND'; r.click(); return 'radio ' + r.textContent; },\n    open: () => { const d = dlg().querySelector('details'); if (!d) return 'NOT FOUND'; d.open = true; d.dispatchEvent(new Event('toggle')); return 'details'; },\n    value: (selector, value) => { setValue(dlg().querySelector(selector), value); return 'set ' + selector; },\n    scroll: (selector) => { const e = dlg().querySelector(selector); if (!e) return 'NOT FOUND'; e.scrollIntoView({ block: 'center' }); return 'scrolled'; },\n  };\n  return 'prelude';\n})()",
+    "after": 200
+   },
+   {
+    "eval": "__ct.radio('^(Perpindahan|Transfer)$')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.amount('200000')",
+    "after": 700
+   }
+  ]
+ },
+ {
+  "name": "catat-kredit",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "key": [
+     "n",
+     "KeyN",
+     78,
+     0,
+     "n"
+    ]
+   },
+   {
+    "click": "^(Isi manual|Fill in manually)$"
+   },
+   {
+    "eval": "(() => {\n  const dlg = () => document.querySelector('dialog[open]');\n  const en = () => document.documentElement.lang === 'en';\n  const setValue = (el, value) => {\n    const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;\n    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);\n    el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));\n  };\n  const optionByText = (select, re) => [...select.options].find((o) => re.test(o.textContent));\n  window.__ct = {\n    type: (id, en_) => { const f = dlg().querySelector('[data-capture-field]'); setValue(f, en() ? en_ : id); return 'typed'; },\n    amount: (value) => { setValue(dlg().querySelector('#capture-amount'), value); return 'amount ' + value; },\n    pick: (selector, pattern) => { const s = dlg().querySelector(selector); const o = s && optionByText(s, new RegExp(pattern)); if (!o) return 'NOT FOUND'; setValue(s, o.value); return 'picked ' + o.textContent.slice(0, 30); },\n    radio: (pattern) => { const r = [...dlg().querySelectorAll('[role=radio]')].find((b) => new RegExp(pattern).test(b.textContent)); if (!r) return 'NOT FOUND'; r.click(); return 'radio ' + r.textContent; },\n    open: () => { const d = dlg().querySelector('details'); if (!d) return 'NOT FOUND'; d.open = true; d.dispatchEvent(new Event('toggle')); return 'details'; },\n    value: (selector, value) => { setValue(dlg().querySelector(selector), value); return 'set ' + selector; },\n    scroll: (selector) => { const e = dlg().querySelector(selector); if (!e) return 'NOT FOUND'; e.scrollIntoView({ block: 'center' }); return 'scrolled'; },\n  };\n  return 'prelude';\n})()",
+    "after": 200
+   },
+   {
+    "eval": "__ct.amount('1000000')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.pick('#capture-account', '^SPayLater')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.radio('^3x$')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.scroll('.capture-credit')",
+    "after": 700
+   }
+  ]
+ },
+ {
+  "name": "catat-kredit-lainnya",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "key": [
+     "n",
+     "KeyN",
+     78,
+     0,
+     "n"
+    ]
+   },
+   {
+    "click": "^(Isi manual|Fill in manually)$"
+   },
+   {
+    "eval": "(() => {\n  const dlg = () => document.querySelector('dialog[open]');\n  const en = () => document.documentElement.lang === 'en';\n  const setValue = (el, value) => {\n    const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;\n    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);\n    el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));\n  };\n  const optionByText = (select, re) => [...select.options].find((o) => re.test(o.textContent));\n  window.__ct = {\n    type: (id, en_) => { const f = dlg().querySelector('[data-capture-field]'); setValue(f, en() ? en_ : id); return 'typed'; },\n    amount: (value) => { setValue(dlg().querySelector('#capture-amount'), value); return 'amount ' + value; },\n    pick: (selector, pattern) => { const s = dlg().querySelector(selector); const o = s && optionByText(s, new RegExp(pattern)); if (!o) return 'NOT FOUND'; setValue(s, o.value); return 'picked ' + o.textContent.slice(0, 30); },\n    radio: (pattern) => { const r = [...dlg().querySelectorAll('[role=radio]')].find((b) => new RegExp(pattern).test(b.textContent)); if (!r) return 'NOT FOUND'; r.click(); return 'radio ' + r.textContent; },\n    open: () => { const d = dlg().querySelector('details'); if (!d) return 'NOT FOUND'; d.open = true; d.dispatchEvent(new Event('toggle')); return 'details'; },\n    value: (selector, value) => { setValue(dlg().querySelector(selector), value); return 'set ' + selector; },\n    scroll: (selector) => { const e = dlg().querySelector(selector); if (!e) return 'NOT FOUND'; e.scrollIntoView({ block: 'center' }); return 'scrolled'; },\n  };\n  return 'prelude';\n})()",
+    "after": 200
+   },
+   {
+    "eval": "__ct.amount('900000')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.pick('#capture-account', '^SPayLater')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.radio('^(Lainnya|Other)$')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.value('#capture-credit-count', '18')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.scroll('.capture-credit')",
+    "after": 700
+   }
+  ]
+ },
+ {
+  "name": "catat-kredit-lewat",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "key": [
+     "n",
+     "KeyN",
+     78,
+     0,
+     "n"
+    ]
+   },
+   {
+    "click": "^(Isi manual|Fill in manually)$"
+   },
+   {
+    "eval": "(() => {\n  const dlg = () => document.querySelector('dialog[open]');\n  const en = () => document.documentElement.lang === 'en';\n  const setValue = (el, value) => {\n    const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;\n    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);\n    el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));\n  };\n  const optionByText = (select, re) => [...select.options].find((o) => re.test(o.textContent));\n  window.__ct = {\n    type: (id, en_) => { const f = dlg().querySelector('[data-capture-field]'); setValue(f, en() ? en_ : id); return 'typed'; },\n    amount: (value) => { setValue(dlg().querySelector('#capture-amount'), value); return 'amount ' + value; },\n    pick: (selector, pattern) => { const s = dlg().querySelector(selector); const o = s && optionByText(s, new RegExp(pattern)); if (!o) return 'NOT FOUND'; setValue(s, o.value); return 'picked ' + o.textContent.slice(0, 30); },\n    radio: (pattern) => { const r = [...dlg().querySelectorAll('[role=radio]')].find((b) => new RegExp(pattern).test(b.textContent)); if (!r) return 'NOT FOUND'; r.click(); return 'radio ' + r.textContent; },\n    open: () => { const d = dlg().querySelector('details'); if (!d) return 'NOT FOUND'; d.open = true; d.dispatchEvent(new Event('toggle')); return 'details'; },\n    value: (selector, value) => { setValue(dlg().querySelector(selector), value); return 'set ' + selector; },\n    scroll: (selector) => { const e = dlg().querySelector(selector); if (!e) return 'NOT FOUND'; e.scrollIntoView({ block: 'center' }); return 'scrolled'; },\n  };\n  return 'prelude';\n})()",
+    "after": 200
+   },
+   {
+    "eval": "__ct.amount('2500000')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.pick('#capture-account', '^SPayLater')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.scroll('.capture-credit')",
+    "after": 700
+   }
+  ]
+ },
+ {
+  "name": "catat-kredit-tanpa-tanggal",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "key": [
+     "n",
+     "KeyN",
+     78,
+     0,
+     "n"
+    ]
+   },
+   {
+    "click": "^(Isi manual|Fill in manually)$"
+   },
+   {
+    "eval": "(() => {\n  const dlg = () => document.querySelector('dialog[open]');\n  const en = () => document.documentElement.lang === 'en';\n  const setValue = (el, value) => {\n    const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;\n    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);\n    el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));\n  };\n  const optionByText = (select, re) => [...select.options].find((o) => re.test(o.textContent));\n  window.__ct = {\n    type: (id, en_) => { const f = dlg().querySelector('[data-capture-field]'); setValue(f, en() ? en_ : id); return 'typed'; },\n    amount: (value) => { setValue(dlg().querySelector('#capture-amount'), value); return 'amount ' + value; },\n    pick: (selector, pattern) => { const s = dlg().querySelector(selector); const o = s && optionByText(s, new RegExp(pattern)); if (!o) return 'NOT FOUND'; setValue(s, o.value); return 'picked ' + o.textContent.slice(0, 30); },\n    radio: (pattern) => { const r = [...dlg().querySelectorAll('[role=radio]')].find((b) => new RegExp(pattern).test(b.textContent)); if (!r) return 'NOT FOUND'; r.click(); return 'radio ' + r.textContent; },\n    open: () => { const d = dlg().querySelector('details'); if (!d) return 'NOT FOUND'; d.open = true; d.dispatchEvent(new Event('toggle')); return 'details'; },\n    value: (selector, value) => { setValue(dlg().querySelector(selector), value); return 'set ' + selector; },\n    scroll: (selector) => { const e = dlg().querySelector(selector); if (!e) return 'NOT FOUND'; e.scrollIntoView({ block: 'center' }); return 'scrolled'; },\n  };\n  return 'prelude';\n})()",
+    "after": 200
+   },
+   {
+    "eval": "__ct.amount('50000')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.pick('#capture-account', '^Kredivo')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.scroll('.capture-credit')",
+    "after": 700
+   }
+  ]
+ },
+ {
+  "name": "catat-perpindahan-kredit",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "key": [
+     "n",
+     "KeyN",
+     78,
+     0,
+     "n"
+    ]
+   },
+   {
+    "click": "^(Isi manual|Fill in manually)$"
+   },
+   {
+    "eval": "(() => {\n  const dlg = () => document.querySelector('dialog[open]');\n  const en = () => document.documentElement.lang === 'en';\n  const setValue = (el, value) => {\n    const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;\n    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);\n    el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));\n  };\n  const optionByText = (select, re) => [...select.options].find((o) => re.test(o.textContent));\n  window.__ct = {\n    type: (id, en_) => { const f = dlg().querySelector('[data-capture-field]'); setValue(f, en() ? en_ : id); return 'typed'; },\n    amount: (value) => { setValue(dlg().querySelector('#capture-amount'), value); return 'amount ' + value; },\n    pick: (selector, pattern) => { const s = dlg().querySelector(selector); const o = s && optionByText(s, new RegExp(pattern)); if (!o) return 'NOT FOUND'; setValue(s, o.value); return 'picked ' + o.textContent.slice(0, 30); },\n    radio: (pattern) => { const r = [...dlg().querySelectorAll('[role=radio]')].find((b) => new RegExp(pattern).test(b.textContent)); if (!r) return 'NOT FOUND'; r.click(); return 'radio ' + r.textContent; },\n    open: () => { const d = dlg().querySelector('details'); if (!d) return 'NOT FOUND'; d.open = true; d.dispatchEvent(new Event('toggle')); return 'details'; },\n    value: (selector, value) => { setValue(dlg().querySelector(selector), value); return 'set ' + selector; },\n    scroll: (selector) => { const e = dlg().querySelector(selector); if (!e) return 'NOT FOUND'; e.scrollIntoView({ block: 'center' }); return 'scrolled'; },\n  };\n  return 'prelude';\n})()",
+    "after": 200
+   },
+   {
+    "eval": "__ct.radio('^(Perpindahan|Transfer)$')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.pick('#capture-target', '^SPayLater')",
+    "after": 700
+   },
+   {
+    "click": "^(Bayar sisa tagihan|Pay the amount left)"
+   },
+   {
+    "eval": "__ct.value('#capture-fee', '2.500')",
+    "after": 700
+   }
+  ]
+ },
+ {
+  "name": "catat-perpindahan-tanpa-tagihan",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "key": [
+     "n",
+     "KeyN",
+     78,
+     0,
+     "n"
+    ]
+   },
+   {
+    "click": "^(Isi manual|Fill in manually)$"
+   },
+   {
+    "eval": "(() => {\n  const dlg = () => document.querySelector('dialog[open]');\n  const en = () => document.documentElement.lang === 'en';\n  const setValue = (el, value) => {\n    const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;\n    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);\n    el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));\n  };\n  const optionByText = (select, re) => [...select.options].find((o) => re.test(o.textContent));\n  window.__ct = {\n    type: (id, en_) => { const f = dlg().querySelector('[data-capture-field]'); setValue(f, en() ? en_ : id); return 'typed'; },\n    amount: (value) => { setValue(dlg().querySelector('#capture-amount'), value); return 'amount ' + value; },\n    pick: (selector, pattern) => { const s = dlg().querySelector(selector); const o = s && optionByText(s, new RegExp(pattern)); if (!o) return 'NOT FOUND'; setValue(s, o.value); return 'picked ' + o.textContent.slice(0, 30); },\n    radio: (pattern) => { const r = [...dlg().querySelectorAll('[role=radio]')].find((b) => new RegExp(pattern).test(b.textContent)); if (!r) return 'NOT FOUND'; r.click(); return 'radio ' + r.textContent; },\n    open: () => { const d = dlg().querySelector('details'); if (!d) return 'NOT FOUND'; d.open = true; d.dispatchEvent(new Event('toggle')); return 'details'; },\n    value: (selector, value) => { setValue(dlg().querySelector(selector), value); return 'set ' + selector; },\n    scroll: (selector) => { const e = dlg().querySelector(selector); if (!e) return 'NOT FOUND'; e.scrollIntoView({ block: 'center' }); return 'scrolled'; },\n  };\n  return 'prelude';\n})()",
+    "after": 200
+   },
+   {
+    "eval": "__ct.radio('^(Perpindahan|Transfer)$')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.pick('#capture-target', '^Kredivo')",
+    "after": 700
+   }
+  ]
+ },
+ {
+  "name": "catat-dari-bel",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "key": [
+     "Shift",
+     "ShiftLeft",
+     16
+    ]
+   },
+   {
+    "click": "^(Notifikasi|Notifications)"
+   },
+   {
+    "click": "Kartu Kredit Contoh"
+   }
+  ]
+ },
+ {
+  "name": "catat-galat-sama",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "key": [
+     "n",
+     "KeyN",
+     78,
+     0,
+     "n"
+    ]
+   },
+   {
+    "click": "^(Isi manual|Fill in manually)$"
+   },
+   {
+    "eval": "(() => {\n  const dlg = () => document.querySelector('dialog[open]');\n  const en = () => document.documentElement.lang === 'en';\n  const setValue = (el, value) => {\n    const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;\n    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);\n    el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));\n  };\n  const optionByText = (select, re) => [...select.options].find((o) => re.test(o.textContent));\n  window.__ct = {\n    type: (id, en_) => { const f = dlg().querySelector('[data-capture-field]'); setValue(f, en() ? en_ : id); return 'typed'; },\n    amount: (value) => { setValue(dlg().querySelector('#capture-amount'), value); return 'amount ' + value; },\n    pick: (selector, pattern) => { const s = dlg().querySelector(selector); const o = s && optionByText(s, new RegExp(pattern)); if (!o) return 'NOT FOUND'; setValue(s, o.value); return 'picked ' + o.textContent.slice(0, 30); },\n    radio: (pattern) => { const r = [...dlg().querySelectorAll('[role=radio]')].find((b) => new RegExp(pattern).test(b.textContent)); if (!r) return 'NOT FOUND'; r.click(); return 'radio ' + r.textContent; },\n    open: () => { const d = dlg().querySelector('details'); if (!d) return 'NOT FOUND'; d.open = true; d.dispatchEvent(new Event('toggle')); return 'details'; },\n    value: (selector, value) => { setValue(dlg().querySelector(selector), value); return 'set ' + selector; },\n    scroll: (selector) => { const e = dlg().querySelector(selector); if (!e) return 'NOT FOUND'; e.scrollIntoView({ block: 'center' }); return 'scrolled'; },\n  };\n  return 'prelude';\n})()",
+    "after": 200
+   },
+   {
+    "eval": "__ct.radio('^(Perpindahan|Transfer)$')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.pick('#capture-source', '^Jago')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.pick('#capture-target', '^Kantong Utama')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.amount('1000')",
+    "after": 700
+   },
+   {
+    "click": "^(Pindahkan saldo|Move balance)$",
+    "after": 1500
+   }
+  ]
+ },
+ {
+  "name": "catat-galat-nominal",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "key": [
+     "n",
+     "KeyN",
+     78,
+     0,
+     "n"
+    ]
+   },
+   {
+    "click": "^(Isi manual|Fill in manually)$"
+   },
+   {
+    "eval": "(() => {\n  const dlg = () => document.querySelector('dialog[open]');\n  const en = () => document.documentElement.lang === 'en';\n  const setValue = (el, value) => {\n    const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;\n    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);\n    el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));\n  };\n  const optionByText = (select, re) => [...select.options].find((o) => re.test(o.textContent));\n  window.__ct = {\n    type: (id, en_) => { const f = dlg().querySelector('[data-capture-field]'); setValue(f, en() ? en_ : id); return 'typed'; },\n    amount: (value) => { setValue(dlg().querySelector('#capture-amount'), value); return 'amount ' + value; },\n    pick: (selector, pattern) => { const s = dlg().querySelector(selector); const o = s && optionByText(s, new RegExp(pattern)); if (!o) return 'NOT FOUND'; setValue(s, o.value); return 'picked ' + o.textContent.slice(0, 30); },\n    radio: (pattern) => { const r = [...dlg().querySelectorAll('[role=radio]')].find((b) => new RegExp(pattern).test(b.textContent)); if (!r) return 'NOT FOUND'; r.click(); return 'radio ' + r.textContent; },\n    open: () => { const d = dlg().querySelector('details'); if (!d) return 'NOT FOUND'; d.open = true; d.dispatchEvent(new Event('toggle')); return 'details'; },\n    value: (selector, value) => { setValue(dlg().querySelector(selector), value); return 'set ' + selector; },\n    scroll: (selector) => { const e = dlg().querySelector(selector); if (!e) return 'NOT FOUND'; e.scrollIntoView({ block: 'center' }); return 'scrolled'; },\n  };\n  return 'prelude';\n})()",
+    "after": 200
+   },
+   {
+    "eval": "(() => { document.querySelector('dialog[open] form.capture-manual').requestSubmit(); return 'submitted'; })()",
+    "after": 700
+   }
+  ]
+ },
+ {
+  "name": "catat-sembunyi",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "key": [
+     "n",
+     "KeyN",
+     78,
+     0,
+     "n"
+    ]
+   },
+   {
+    "click": "^(Isi manual|Fill in manually)$"
+   },
+   {
+    "eval": "(() => {\n  const dlg = () => document.querySelector('dialog[open]');\n  const en = () => document.documentElement.lang === 'en';\n  const setValue = (el, value) => {\n    const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;\n    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);\n    el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));\n  };\n  const optionByText = (select, re) => [...select.options].find((o) => re.test(o.textContent));\n  window.__ct = {\n    type: (id, en_) => { const f = dlg().querySelector('[data-capture-field]'); setValue(f, en() ? en_ : id); return 'typed'; },\n    amount: (value) => { setValue(dlg().querySelector('#capture-amount'), value); return 'amount ' + value; },\n    pick: (selector, pattern) => { const s = dlg().querySelector(selector); const o = s && optionByText(s, new RegExp(pattern)); if (!o) return 'NOT FOUND'; setValue(s, o.value); return 'picked ' + o.textContent.slice(0, 30); },\n    radio: (pattern) => { const r = [...dlg().querySelectorAll('[role=radio]')].find((b) => new RegExp(pattern).test(b.textContent)); if (!r) return 'NOT FOUND'; r.click(); return 'radio ' + r.textContent; },\n    open: () => { const d = dlg().querySelector('details'); if (!d) return 'NOT FOUND'; d.open = true; d.dispatchEvent(new Event('toggle')); return 'details'; },\n    value: (selector, value) => { setValue(dlg().querySelector(selector), value); return 'set ' + selector; },\n    scroll: (selector) => { const e = dlg().querySelector(selector); if (!e) return 'NOT FOUND'; e.scrollIntoView({ block: 'center' }); return 'scrolled'; },\n  };\n  return 'prelude';\n})()",
+    "after": 200
+   },
+   {
+    "eval": "__ct.amount('1000000')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.pick('#capture-account', '^SPayLater')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.radio('^3x$')",
+    "after": 700
+   }
+  ],
+  "storage": {
+   "hideBalances": "1"
+  }
+ },
+ {
+  "name": "catat-panjang",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "key": [
+     "n",
+     "KeyN",
+     78,
+     0,
+     "n"
+    ]
+   },
+   {
+    "click": "^(Isi manual|Fill in manually)$"
+   },
+   {
+    "eval": "(() => {\n  const dlg = () => document.querySelector('dialog[open]');\n  const en = () => document.documentElement.lang === 'en';\n  const setValue = (el, value) => {\n    const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;\n    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);\n    el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));\n  };\n  const optionByText = (select, re) => [...select.options].find((o) => re.test(o.textContent));\n  window.__ct = {\n    type: (id, en_) => { const f = dlg().querySelector('[data-capture-field]'); setValue(f, en() ? en_ : id); return 'typed'; },\n    amount: (value) => { setValue(dlg().querySelector('#capture-amount'), value); return 'amount ' + value; },\n    pick: (selector, pattern) => { const s = dlg().querySelector(selector); const o = s && optionByText(s, new RegExp(pattern)); if (!o) return 'NOT FOUND'; setValue(s, o.value); return 'picked ' + o.textContent.slice(0, 30); },\n    radio: (pattern) => { const r = [...dlg().querySelectorAll('[role=radio]')].find((b) => new RegExp(pattern).test(b.textContent)); if (!r) return 'NOT FOUND'; r.click(); return 'radio ' + r.textContent; },\n    open: () => { const d = dlg().querySelector('details'); if (!d) return 'NOT FOUND'; d.open = true; d.dispatchEvent(new Event('toggle')); return 'details'; },\n    value: (selector, value) => { setValue(dlg().querySelector(selector), value); return 'set ' + selector; },\n    scroll: (selector) => { const e = dlg().querySelector(selector); if (!e) return 'NOT FOUND'; e.scrollIntoView({ block: 'center' }); return 'scrolled'; },\n  };\n  return 'prelude';\n})()",
+    "after": 200
+   },
+   {
+    "eval": "__ct.amount('1234567890')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.pick('#capture-account', '^Kantong Tabungan Pendidikan Anak dan Keperluan Sekolah')",
+    "after": 700
+   }
+  ]
+ },
+ {
+  "name": "catat-panjang-perpindahan",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "key": [
+     "n",
+     "KeyN",
+     78,
+     0,
+     "n"
+    ]
+   },
+   {
+    "click": "^(Isi manual|Fill in manually)$"
+   },
+   {
+    "eval": "(() => {\n  const dlg = () => document.querySelector('dialog[open]');\n  const en = () => document.documentElement.lang === 'en';\n  const setValue = (el, value) => {\n    const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;\n    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);\n    el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));\n  };\n  const optionByText = (select, re) => [...select.options].find((o) => re.test(o.textContent));\n  window.__ct = {\n    type: (id, en_) => { const f = dlg().querySelector('[data-capture-field]'); setValue(f, en() ? en_ : id); return 'typed'; },\n    amount: (value) => { setValue(dlg().querySelector('#capture-amount'), value); return 'amount ' + value; },\n    pick: (selector, pattern) => { const s = dlg().querySelector(selector); const o = s && optionByText(s, new RegExp(pattern)); if (!o) return 'NOT FOUND'; setValue(s, o.value); return 'picked ' + o.textContent.slice(0, 30); },\n    radio: (pattern) => { const r = [...dlg().querySelectorAll('[role=radio]')].find((b) => new RegExp(pattern).test(b.textContent)); if (!r) return 'NOT FOUND'; r.click(); return 'radio ' + r.textContent; },\n    open: () => { const d = dlg().querySelector('details'); if (!d) return 'NOT FOUND'; d.open = true; d.dispatchEvent(new Event('toggle')); return 'details'; },\n    value: (selector, value) => { setValue(dlg().querySelector(selector), value); return 'set ' + selector; },\n    scroll: (selector) => { const e = dlg().querySelector(selector); if (!e) return 'NOT FOUND'; e.scrollIntoView({ block: 'center' }); return 'scrolled'; },\n  };\n  return 'prelude';\n})()",
+    "after": 200
+   },
+   {
+    "eval": "__ct.radio('^(Perpindahan|Transfer)$')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.amount('1234567890')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.pick('#capture-source', '^Kantong Tabungan Pendidikan Anak dan Keperluan Sekolah')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.pick('#capture-target', '^Kantong Tabungan Pendidikan Anak dan Keperluan Sekol 02')",
+    "after": 700
+   }
+  ]
+ },
+ {
+  "name": "glob-notifikasi",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "click": "^(Notifikasi|Notifications)"
+   }
+  ]
+ },
+ {
+  "name": "glob-tema",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "click": "^(Tema|Theme)"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "1024-light",
+   "1024-dark"
+  ]
+ },
+ {
+  "name": "glob-tema-ponsel",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "click": "^(Lainnya|More)$"
+   },
+   {
+    "click": "^(Tema|Theme)"
+   }
+  ],
+  "cells": [
+   "390-light",
+   "390-dark",
+   "320-light",
+   "320-dark"
+  ]
+ },
+ {
+  "name": "glob-akun",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "click": "^(Akun|Account)"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "1024-light",
+   "1024-dark"
+  ]
+ },
+ {
+  "name": "glob-lainnya",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "click": "^(Lainnya|More)$"
+   }
+  ],
+  "cells": [
+   "390-light",
+   "390-dark",
+   "320-light",
+   "320-dark"
+  ]
+ },
+ {
+  "name": "glob-bantuan",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "key": [
+     "?",
+     "Slash",
+     191,
+     8,
+     "?"
+    ]
+   }
+  ]
+ },
+ {
+  "name": "glob-rencana-jatuh-tempo",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "click": "^(Notifikasi|Notifications)"
+   },
+   {
+    "click": "Netflix|Rencana|plan"
+   }
+  ]
+ },
+ {
+  "name": "glob-toast",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "key": [
+     "n",
+     "KeyN",
+     78,
+     0,
+     "n"
+    ]
+   },
+   {
+    "eval": "(() => {\n  const dlg = () => document.querySelector('dialog[open]');\n  const en = () => document.documentElement.lang === 'en';\n  const setValue = (el, value) => {\n    const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;\n    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);\n    el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));\n  };\n  const optionByText = (select, re) => [...select.options].find((o) => re.test(o.textContent));\n  window.__ct = {\n    type: (id, en_) => { const f = dlg().querySelector('[data-capture-field]'); setValue(f, en() ? en_ : id); return 'typed'; },\n    amount: (value) => { setValue(dlg().querySelector('#capture-amount'), value); return 'amount ' + value; },\n    pick: (selector, pattern) => { const s = dlg().querySelector(selector); const o = s && optionByText(s, new RegExp(pattern)); if (!o) return 'NOT FOUND'; setValue(s, o.value); return 'picked ' + o.textContent.slice(0, 30); },\n    radio: (pattern) => { const r = [...dlg().querySelectorAll('[role=radio]')].find((b) => new RegExp(pattern).test(b.textContent)); if (!r) return 'NOT FOUND'; r.click(); return 'radio ' + r.textContent; },\n    open: () => { const d = dlg().querySelector('details'); if (!d) return 'NOT FOUND'; d.open = true; d.dispatchEvent(new Event('toggle')); return 'details'; },\n    value: (selector, value) => { setValue(dlg().querySelector(selector), value); return 'set ' + selector; },\n    scroll: (selector) => { const e = dlg().querySelector(selector); if (!e) return 'NOT FOUND'; e.scrollIntoView({ block: 'center' }); return 'scrolled'; },\n  };\n  return 'prelude';\n})()",
+    "after": 200
+   },
+   {
+    "eval": "__ct.type('parkir 5rb', 'parking 5k')",
+    "after": 1500
+   },
+   {
+    "key": [
+     "Enter",
+     "Enter",
+     13
+    ],
+    "after": 1500
+   }
+  ]
  }
 ]

@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { axe } from "vitest-axe";
-import { DebtAllocationEditor, allocationError } from "./DebtAllocationEditor";
+import { DebtAllocationEditor, allocationIssue } from "./DebtAllocationEditor";
 
 const debts = [
   { id: "a", name: "Kartu A", remaining_amount: 80_000, is_archived: false },
@@ -37,10 +37,10 @@ describe("DebtAllocationEditor", () => {
 
   it("rejects mismatched and over-capacity splits", () => {
     const rows = [{ obligation_id: "a", amount: "60.000" }, { obligation_id: "b", amount: "20.000" }];
-    expect(allocationError(rows, 100_000, debts)).toMatch(/sama/);
-    expect(allocationError([{ ...rows[0], amount: "90.000" }, { ...rows[1], amount: "10.000" }], 100_000, debts)).toMatch(/melebihi/);
-    expect(allocationError([{ ...rows[0], amount: "70.000" }, { ...rows[1], amount: "30.000" }], 100_000, debts)).toBeNull();
-    expect(allocationError([{ obligation_id: "a", amount: "90.000" }], 90_000, debts)).toMatch(/melebihi/);
+    expect(allocationIssue(rows, 100_000, debts)).toEqual({ code: "total" });
+    expect(allocationIssue([{ ...rows[0], amount: "90.000" }, { ...rows[1], amount: "10.000" }], 100_000, debts)).toMatchObject({ code: "over" });
+    expect(allocationIssue([{ ...rows[0], amount: "70.000" }, { ...rows[1], amount: "30.000" }], 100_000, debts)).toBeNull();
+    expect(allocationIssue([{ obligation_id: "a", amount: "90.000" }], 90_000, debts)).toMatchObject({ code: "over" });
   });
 
   it("keeps a saved archived debt in its selector", () => {

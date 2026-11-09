@@ -169,7 +169,8 @@
       "recordNotListed": "Bukan salah satunya, catat manual",
       "recordMissed": "Catat manual (tidak tertangkap)",
       "topupAfterDebit": "Catat top up hanya setelah debit berhasil.",
-      "updateFailed": "Rencana belum diperbarui. Coba lagi."
+      "updateFailed": "Rencana belum diperbarui. Coba lagi.",
+      "close": "Tutup rencana jatuh tempo"
     },
     "companion": {
       "noPhone": "Belum ada HP terhubung",
@@ -3189,6 +3190,156 @@
       "goalsError": "Target belum dapat dimuat.",
       "debtsError": "Utang belum dapat dimuat.",
       "loading": "Memuat Target & Tagihan…"
+    }
+  },
+  "capture": {
+    "close": "Tutup catat transaksi",
+    "sentence": {
+      "title": "Tulis transaksi",
+      "meta": "Satu kalimat dengan jumlahnya. Waktu dan rekening boleh ditulis.",
+      "label": "Kalimat transaksi",
+      "placeholder": "makan siang 35rb pakai gopay",
+      "examples": "Contoh",
+      "record": "Catat",
+      "recording": "Mencatat…",
+      "manual": "Isi manual",
+      "noAmount": "Jumlah belum ada. Tulis jumlahnya, misalnya 5rb.",
+      "severalAmounts": "Ada lebih dari satu jumlah. Tulis satu jumlah saja.",
+      "previewFailed": "Belum bisa membaca sekarang. Teks tetap bisa dicatat.",
+      "answer": "Jawaban",
+      "send": "Kirim",
+      "failed": "Belum dapat dicatat. Coba lagi.",
+      "answerFailed": "Jawaban belum tersimpan. Coba lagi."
+    },
+    "examples": {
+      "first": "makan siang 35rb",
+      "second": "parkir 5rb jam 2",
+      "third": "gaji masuk 8jt"
+    },
+    "preview": {
+      "empty": "Hasil terbaca muncul di sini sebelum disimpan.",
+      "label": "Terbaca",
+      "kind": "Jenis",
+      "account": "Rekening",
+      "category": "Kategori",
+      "pillar": "Pilar",
+      "date": "Tanggal",
+      "accountLater": "ditentukan saat dicatat",
+      "categoryLater": "dikenali saat dicatat",
+      "payLater": "{account} · dibayar nanti",
+      "today": "Hari ini, {time}",
+      "yesterday": "Kemarin, {time}",
+      "otherDay": "{date}, {time}",
+      "timeLater": "ditanyakan saat dicatat"
+    },
+    "toast": {
+      "recorded": "Dicatat: {label}{when, select, none {} other {, {when}}}.",
+      "undone": "Catatan dibatalkan.",
+      "undoFailed": "Gagal membatalkan."
+    },
+    "manual": {
+      "title": "Catat transaksi",
+      "kindLabel": "Jenis catatan",
+      "sentence": "Tulis kalimat",
+      "save": "Simpan transaksi",
+      "saving": "Menyimpan…",
+      "move": "Pindahkan saldo",
+      "moving": "Memindahkan…",
+      "retryUpload": "Coba unggah lagi"
+    },
+    "modes": {
+      "expense": "Pengeluaran",
+      "income": "Pemasukan",
+      "transfer": "Perpindahan"
+    },
+    "fields": {
+      "amount": "Nominal (IDR)",
+      "amountTotal": "Total bayar (IDR)",
+      "equals": "= {amount}",
+      "quickAdd": "Tambah cepat",
+      "payFrom": "Bayar dari",
+      "incomeTo": "Masuk ke",
+      "category": "Kategori",
+      "categoryNone": "Pilih kategori…",
+      "incomeCategory": "Kategori pemasukan",
+      "pillar": "Pilar Kakeibo",
+      "offset": "Mengurangi pengeluaran",
+      "offsetNone": "Belum dipilih",
+      "details": "Detail tambahan · waktu, target, tagihan, bukti",
+      "time": "Waktu transaksi",
+      "transferTime": "Waktu pemindahan",
+      "goal": "Kaitkan ke target (opsional)",
+      "goalNone": "Tidak dikaitkan",
+      "note": "Catatan (opsional)",
+      "notePlaceholder": "Misalnya makan siang, kopi",
+      "receipt": "Bukti transaksi (opsional)",
+      "direction": "Arah perpindahan",
+      "from": "Dari rekening",
+      "to": "Ke rekening",
+      "chooseAccount": "Pilih rekening",
+      "fee": "Biaya / bunga (opsional)"
+    },
+    "hints": {
+      "goal": "Kaitan ini tidak menambah progres target. Target yang terhubung ke rekening mengikuti saldonya.",
+      "fee": "Bagian dari nominal yang menjadi biaya atau bunga. Dicatat sebagai pengeluaran Biaya kredit.",
+      "receipt": "JPG, PNG, WebP atau PDF, paling besar 5 MB. Transaksi tetap tersimpan jika unggahan gagal.",
+      "offset": "Uang ganti ini bukan pemasukan. Pilih kategori pengeluaran yang dibayar kembali.",
+      "needAnotherAccount": "Tambahkan rekening likuid lain untuk memindahkan saldo."
+    },
+    "credit": {
+      "legend": "Bayar pakai kredit",
+      "limitLeft": "Sisa limit <amount></amount>",
+      "overLimitBy": "Melewati limit <amount></amount>",
+      "overLimit": "Melewati limit",
+      "inFull": "Sekali bayar",
+      "times": "{times}x",
+      "other": "Lainnya",
+      "planLabel": "Cara bayar",
+      "count": "Jumlah cicilan",
+      "firstDue": "Jatuh tempo pertama",
+      "useBillDate": "Pakai tanggal tagihan",
+      "noPaymentDay": "Tanggal bayar rekening ini belum diatur. Isi tanggalnya, atau atur di Rekening & Kantong.",
+      "lineFull": "dibayar nanti · {account} · jatuh tempo {date}",
+      "lineInstallments": "dibayar nanti · {count} cicilan mulai {date} · <first></first> per cicilan · tanpa bunga",
+      "lineInstallmentsRemainder": "dibayar nanti · {count} cicilan mulai {date} · <first></first> lalu <rest></rest> per cicilan · tanpa bunga",
+      "lineNoDate": "dibayar nanti · {account} · jatuh tempo belum diatur",
+      "overLimitToast": "Melewati limit {account}",
+      "creditAccount": "rekening kredit"
+    },
+    "bill": {
+      "meta": "Tagihan {account} <amount></amount> jatuh tempo {when}",
+      "overdue": "Tagihan {account} <amount></amount> terlewat {date}",
+      "none": "Tidak ada tagihan berjalan untuk {account}.",
+      "payLeft": "Bayar sisa tagihan <amount></amount>",
+      "today": "hari ini",
+      "tomorrow": "besok"
+    },
+    "errors": {
+      "amountRequired": "Isi nominalnya dulu.",
+      "amountInvalid": "Masukkan nominal yang valid",
+      "accountRequired": "Pilih rekening / dompet",
+      "sourceRequired": "Pilih rekening sumber",
+      "targetRequired": "Pilih rekening tujuan",
+      "sourceInactive": "Pilih rekening sumber yang masih aktif.",
+      "targetInactive": "Pilih rekening tujuan yang masih aktif.",
+      "sameAccount": "Rekening sumber dan tujuan tidak boleh sama",
+      "timeRequired": "Pilih waktu transaksi",
+      "transferTimeRequired": "Pilih waktu pemindahan",
+      "noteTooLong": "Catatan maksimal 500 karakter",
+      "goalOrDebt": "Pilih target tabungan atau tagihan, bukan keduanya",
+      "distinctDebts": "Pilih tagihan yang berbeda untuk setiap baris.",
+      "feeOverAmount": "Biaya tidak boleh melebihi nominal.",
+      "bothCredit": "Salah satu sisi harus rekening bank, e-wallet, atau tunai.",
+      "countRange": "Isi 2 sampai 36 cicilan.",
+      "dueBeforePurchase": "Jatuh tempo pertama tidak boleh sebelum tanggal transaksi.",
+      "saveFailed": "Gagal menyimpan transaksi",
+      "moveFailed": "Gagal memproses pemindahan saldo",
+      "receiptFailed": "Transaksi tersimpan, tetapi bukti belum terunggah: {reason}",
+      "receiptReason": "Bukti gagal diunggah"
+    },
+    "saved": {
+      "transaction": "✓ Tersimpan!",
+      "transfer": "✓ Berhasil dipindahkan"
     }
   }
 }

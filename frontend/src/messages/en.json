@@ -169,7 +169,8 @@
       "recordNotListed": "None of these, add manually",
       "recordMissed": "Add manually (not captured)",
       "topupAfterDebit": "Add a top-up only after the debit went through.",
-      "updateFailed": "The plan was not updated. Try again."
+      "updateFailed": "The plan was not updated. Try again.",
+      "close": "Close plans due"
     },
     "companion": {
       "noPhone": "No phone connected yet",
@@ -3189,6 +3190,156 @@
       "goalsError": "Goals could not be loaded.",
       "debtsError": "Debts could not be loaded.",
       "loading": "Loading Goals & Bills…"
+    }
+  },
+  "capture": {
+    "close": "Close the transaction form",
+    "sentence": {
+      "title": "Write a transaction",
+      "meta": "One sentence with the amount. The time and account may be added.",
+      "label": "Transaction sentence",
+      "placeholder": "lunch 35k",
+      "examples": "Examples",
+      "record": "Record",
+      "recording": "Recording…",
+      "manual": "Fill in manually",
+      "noAmount": "No amount yet. Write the amount, for example 5k.",
+      "severalAmounts": "There is more than one amount. Write one amount only.",
+      "previewFailed": "Cannot read it right now. The text can still be recorded.",
+      "answer": "Answer",
+      "send": "Send",
+      "failed": "Could not record it. Try again.",
+      "answerFailed": "The answer was not saved. Try again."
+    },
+    "examples": {
+      "first": "lunch 35k",
+      "second": "parking 5k yesterday",
+      "third": "coffee 18k"
+    },
+    "preview": {
+      "empty": "What is read appears here before it is saved.",
+      "label": "Read as",
+      "kind": "Type",
+      "account": "Account",
+      "category": "Category",
+      "pillar": "Pillar",
+      "date": "Date",
+      "accountLater": "chosen when recorded",
+      "categoryLater": "recognized when recorded",
+      "payLater": "{account} · pay later",
+      "today": "Today, {time}",
+      "yesterday": "Yesterday, {time}",
+      "otherDay": "{date}, {time}",
+      "timeLater": "asked when recorded"
+    },
+    "toast": {
+      "recorded": "Recorded: {label}{when, select, none {} other {, {when}}}.",
+      "undone": "Recording undone.",
+      "undoFailed": "Could not undo."
+    },
+    "manual": {
+      "title": "Record a transaction",
+      "kindLabel": "Entry type",
+      "sentence": "Write a sentence",
+      "save": "Save transaction",
+      "saving": "Saving…",
+      "move": "Move balance",
+      "moving": "Moving…",
+      "retryUpload": "Try the upload again"
+    },
+    "modes": {
+      "expense": "Spending",
+      "income": "Income",
+      "transfer": "Transfer"
+    },
+    "fields": {
+      "amount": "Amount (IDR)",
+      "amountTotal": "Total paid (IDR)",
+      "equals": "= {amount}",
+      "quickAdd": "Quick add",
+      "payFrom": "Pay from",
+      "incomeTo": "Paid into",
+      "category": "Category",
+      "categoryNone": "Choose a category…",
+      "incomeCategory": "Income category",
+      "pillar": "Kakeibo pillar",
+      "offset": "Reduces spending in",
+      "offsetNone": "Not chosen",
+      "details": "More details · time, goal, bill, receipt",
+      "time": "Time",
+      "transferTime": "Transfer time",
+      "goal": "Link to a goal (optional)",
+      "goalNone": "Not linked",
+      "note": "Note (optional)",
+      "notePlaceholder": "For example lunch, coffee",
+      "receipt": "Receipt (optional)",
+      "direction": "Direction",
+      "from": "From account",
+      "to": "To account",
+      "chooseAccount": "Choose an account",
+      "fee": "Fee / interest (optional)"
+    },
+    "hints": {
+      "goal": "This link does not add to the goal's progress. A goal linked to an account follows its balance.",
+      "fee": "The part of the amount that is a fee or interest. Recorded as Credit fee spending.",
+      "receipt": "JPG, PNG, WebP or PDF, up to 5 MB. The transaction is kept if the upload fails.",
+      "offset": "This refund is not income. Choose the spending category it pays back.",
+      "needAnotherAccount": "Add another cash account to move money."
+    },
+    "credit": {
+      "legend": "Pay with credit",
+      "limitLeft": "Limit left <amount></amount>",
+      "overLimitBy": "Over limit by <amount></amount>",
+      "overLimit": "Over limit",
+      "inFull": "Pay in full",
+      "times": "{times}x",
+      "other": "Other",
+      "planLabel": "How it is paid",
+      "count": "Number of installments",
+      "firstDue": "First due date",
+      "useBillDate": "Use the bill date",
+      "noPaymentDay": "This account has no payment day. Enter the date, or set it in Accounts & Pockets.",
+      "lineFull": "pay later · {account} · due {date}",
+      "lineInstallments": "pay later · {count, plural, one {# installment} other {# installments}} from {date} · <first></first> each · no interest",
+      "lineInstallmentsRemainder": "pay later · {count, plural, one {# installment} other {# installments}} from {date} · <first></first>, then <rest></rest> each · no interest",
+      "lineNoDate": "pay later · {account} · no due date yet",
+      "overLimitToast": "Over the {account} limit",
+      "creditAccount": "credit account"
+    },
+    "bill": {
+      "meta": "{account} bill <amount></amount> due {when}",
+      "overdue": "{account} bill <amount></amount> overdue since {date}",
+      "none": "No open bill for {account}.",
+      "payLeft": "Pay the amount left <amount></amount>",
+      "today": "today",
+      "tomorrow": "tomorrow"
+    },
+    "errors": {
+      "amountRequired": "Enter the amount first.",
+      "amountInvalid": "Enter a valid amount",
+      "accountRequired": "Choose an account or wallet",
+      "sourceRequired": "Choose the source account",
+      "targetRequired": "Choose the target account",
+      "sourceInactive": "Choose a source account that is still active.",
+      "targetInactive": "Choose a target account that is still active.",
+      "sameAccount": "The source and target accounts must differ",
+      "timeRequired": "Choose the time",
+      "transferTimeRequired": "Choose the transfer time",
+      "noteTooLong": "A note can have at most 500 characters",
+      "goalOrDebt": "Choose a savings goal or a bill, not both",
+      "distinctDebts": "Choose a different bill on each row.",
+      "feeOverAmount": "The fee cannot be more than the amount.",
+      "bothCredit": "One side must be a bank, e-wallet or cash account.",
+      "countRange": "Enter 2 to 36 installments.",
+      "dueBeforePurchase": "The first due date cannot be before the transaction date.",
+      "saveFailed": "The transaction could not be saved",
+      "moveFailed": "The transfer could not be processed",
+      "receiptFailed": "The transaction is saved, but the receipt was not uploaded: {reason}",
+      "receiptReason": "The receipt upload failed"
+    },
+    "saved": {
+      "transaction": "✓ Saved",
+      "transfer": "✓ Moved"
     }
   }
 }

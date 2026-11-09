@@ -5,8 +5,6 @@ export const CAPTURE_TEXT_LIMIT = 200;
 /** Every question type the web can answer, so time questions are asked here too. */
 export const CAPTURE_QUESTION_TYPES = ["amount", "time", "kind", "account", "category"];
 
-const TIME = new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
-const DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" });
 
 /** What the deterministic parser reads in a text (`POST /capture/parse`); nothing is written. */
 export interface CapturePreview {
@@ -66,16 +64,6 @@ export function newId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
     : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) => (Number(c) ^ (Math.random() * 16) >> (Number(c) / 4)).toString(16));
-}
-
-export function timeText(preview: CapturePreview): { text: string; missing: boolean } {
-  if (preview.occurred_at) {
-    const sameDay = DAY.format(new Date(preview.occurred_at)) === DAY.format(new Date());
-    const clock = TIME.format(new Date(preview.occurred_at));
-    if (!preview.time_phrase) return { text: `Waktu: sekarang, ${clock}`, missing: false };
-    return { text: sameDay ? `Jam ${clock}` : `${preview.time_phrase}, ${clock}`, missing: false };
-  }
-  return { text: "Jam: ditanyakan setelah dicatat", missing: true };
 }
 
 /** Whether the capture's own undo window (10 s plus grace on the server) is still open. */

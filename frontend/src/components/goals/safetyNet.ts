@@ -1,5 +1,5 @@
 import { coverageText, essentialBasisText, type EmergencyRunway } from "@/components/dashboard/EmergencyCoverage";
-import type { ExplanationLine } from "@/components/workspace/explain";
+import type { ExplanationLine } from "@/components/workspace/explanation";
 import type { RincianData, RincianLine } from "@/components/workspace/ExplanationDialog";
 import type { Format } from "@/lib/format";
 import type { Translate } from "@/lib/i18n/types";

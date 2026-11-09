@@ -9,7 +9,7 @@ import { ShellDialog } from "@/components/workspace/ShellDialog";
 import { UntranslatedRegion } from "@/components/workspace/untranslated";
 import { api, splitMovement, updateMovement } from "@/lib/api";
 import { isCreditAccountChoice, listCreditAccountChoices, listLiquidAccountChoices } from "@/lib/accountOptions";
-import { movementFormSchema } from "@/lib/movementFormSchema";
+import { movementFormSchema, type MovementIssueCode } from "@/lib/movementFormSchema";
 import { queryKeys } from "@/lib/queryKeys";
 import { formatNumberWithDots, localDatetimeToISO, toDatetimeLocal } from "@/lib/utils";
 import { routeText, useAccountOptionLabels, type MovementRoute } from "./rows";
@@ -19,14 +19,15 @@ const FORM_ID = "tx-movement-form";
 
 type MovementIssueKey = "chooseSource" | "chooseTarget" | "amountValid" | "chooseDate" | "notesTooLong" | "sameAccount";
 
-/** The schema's issue as a catalogue key: the rules stay in `movementFormSchema`, which Catat shares (D16). */
-function issueKey(path: PropertyKey | undefined, code: string): MovementIssueKey {
-  if (path === "sourceAccountId") return "chooseSource";
-  if (path === "targetAccountId") return code === "custom" ? "sameAccount" : "chooseTarget";
-  if (path === "amount") return "amountValid";
-  if (path === "date") return "chooseDate";
-  return "notesTooLong";
-}
+/** The schema's issue code as this dialog's catalogue key: the rules stay in `movementFormSchema`, which Catat shares (D16). */
+const ISSUE_KEY: Record<MovementIssueCode, MovementIssueKey> = {
+  source_required: "chooseSource",
+  target_required: "chooseTarget",
+  amount_invalid: "amountValid",
+  date_required: "chooseDate",
+  notes_too_long: "notesTooLong",
+  same_account: "sameAccount",
+};
 
 function accountId(account: { id?: unknown; account_id?: unknown }): string {
   return String(account.id ?? account.account_id ?? "");
@@ -98,8 +99,7 @@ export function MovementEditDialog({
     mutationFn: async () => {
       const validation = movementFormSchema.safeParse({ sourceAccountId: sourceId, targetAccountId: targetId, amount: parsedAmount, date, notes: notes.trim() });
       if (!validation.success) {
-        const issue = validation.error.issues[0];
-        throw new Error(t(`errors.${issueKey(issue.path[0], issue.code)}`));
+        throw new Error(t(`errors.${ISSUE_KEY[validation.error.issues[0].message as MovementIssueCode]}`));
       }
       if (isCreditId(validation.data.sourceAccountId) && isCreditId(validation.data.targetAccountId)) throw new Error(t("errors.creditBothSides"));
       return updateMovement(row.movement_id!, {

@@ -4,14 +4,13 @@ import Link from "next/link";
 import { useContext, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { PendingScheduledBanner } from "@/components/recurring/PendingScheduledBanner";
+import { DuePlansDialog } from "@/components/recurring/DuePlansDialog";
 import { PlansDialog } from "@/components/recurring/PlansDialog";
 import { TransactionDialog } from "@/components/transactions/TransactionDialog";
 import { useTransactionUndo } from "@/components/transactions/useTransactionUndo";
 import { Icon } from "@/components/ui/Icon";
 import { usePageHeader, WorkspaceContext } from "@/components/workspace/context";
 import { useMoney } from "@/components/workspace/money";
-import { Drawer } from "@/components/workspace/overlays";
 import { api } from "@/lib/api";
 import { creditBillsPath, dueCreditBills, type CreditBillsResponse } from "@/lib/creditBills";
 import { consolidateLedgerMovements } from "@/lib/ledgerMovements";
@@ -231,12 +230,7 @@ export default function BerandaView() {
       </div>
 
       <TransactionDialog transactionId={selectedTx?.id ?? null} onClose={() => setSelectedTx(null)} record={record} onDeleted={(row) => setDeletedId(row.id)} />
-      <Drawer open={plansOpen} onClose={() => setPlansOpen(false)} title={t("shell.duePlans.title")} subtitle={t("shell.duePlans.subtitle")}>
-        <PendingScheduledBanner onOpenRulesManager={() => setRulesOpen(true)} />
-        {!(pendingQuery.data?.rules ?? []).length && !(pendingQuery.data?.recent_auto_links ?? []).length && (
-          <p className="ws-caption">{t("shell.duePlans.noneToday")}</p>
-        )}
-      </Drawer>
+      <DuePlansDialog open={plansOpen} onClose={() => setPlansOpen(false)} onOpenRulesManager={() => setRulesOpen(true)} />
       <PlansDialog open={rulesOpen} onClose={() => setRulesOpen(false)} />
     </>
   );

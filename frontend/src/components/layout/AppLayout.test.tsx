@@ -16,8 +16,14 @@ vi.mock("@/lib/api", () => ({
 }));
 
 function MovementTrigger() {
-  const { openMovement } = useAppCtx();
-  return <button type="button" onClick={() => openMovement()}>Global movement</button>;
+  const { openMovementCapture } = useWorkspace();
+  return <button type="button" onClick={() => openMovementCapture({})}>Global movement</button>;
+}
+
+/** Laporan's data-quality panel opens the manual form in a mode. */
+function QuickAddTrigger() {
+  const { openQuickAdd } = useAppCtx();
+  return <button type="button" onClick={() => openQuickAdd("income")}>Add income</button>;
 }
 
 /** "Bayar tagihan" in the Rekening detail (apply-markas-rekening D8): the account and the bill's amount filled in. */
@@ -80,18 +86,18 @@ describe("global movement entry point", () => {
     });
   });
 
-  it("opens Quick Capture in movement mode from shared navigation context", async () => {
+  it("opens the capture dialog on Perpindahan from the shared workspace context", async () => {
     const user = userEvent.setup();
     renderLayout();
 
     await user.click(await screen.findByRole("button", { name: "Global movement" }));
     expect(await screen.findByRole("dialog", { name: "Catat transaksi" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Perpindahan" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("radio", { name: "Perpindahan" })).toHaveAttribute("aria-checked", "true");
     expect(screen.queryByRole("option", { name: /Stock/ })).not.toBeInTheDocument();
     expect(await screen.findByRole("combobox", { name: "Dari rekening" })).toHaveValue("cash-a");
     expect(screen.getByRole("combobox", { name: "Ke rekening" })).toHaveValue("cash-b");
     await user.type(screen.getByRole("textbox", { name: "Nominal (IDR)" }), "300");
-    await user.click(screen.getByRole("button", { name: "Pindahkan Saldo" }));
+    await user.click(screen.getByRole("button", { name: "Pindahkan saldo" }));
 
     await waitFor(() => expect(createMovement).toHaveBeenCalledWith(expect.objectContaining({
       source_account_id: "cash-a",
@@ -106,8 +112,8 @@ describe("global movement entry point", () => {
     renderLayout(<PayBillTrigger />);
     await user.click(await screen.findByRole("button", { name: "Pay bill" }));
     expect(await screen.findByRole("dialog", { name: "Catat transaksi" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Perpindahan" })).toHaveAttribute("aria-pressed", "true");
-    expect(await screen.findByRole("combobox", { name: "Ke rekening" })).toHaveValue("cash-b");
+    expect(screen.getByRole("radio", { name: "Perpindahan" })).toHaveAttribute("aria-checked", "true");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Ke rekening" })).toHaveValue("cash-b"));
     expect(screen.getByRole("textbox", { name: "Nominal (IDR)" })).toHaveValue("434.000");
     expect(createMovement).not.toHaveBeenCalled();
     expect(api.post).not.toHaveBeenCalled();
@@ -172,9 +178,27 @@ describe("global movement entry point", () => {
     renderLayout(<input aria-label="Ketik" />);
     await screen.findByRole("main");
     await user.type(screen.getByRole("textbox", { name: "Ketik" }), "n");
-    expect(screen.queryByRole("dialog", { name: "Catat transaksi" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Tulis transaksi" })).not.toBeInTheDocument();
     (document.activeElement as HTMLElement).blur();
     await user.keyboard("n");
+    const dialog = await screen.findByRole("dialog", { name: "Tulis transaksi" });
+    expect(dialog).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Kalimat transaksi" })).toHaveFocus());
+    // N types into the field; it never opens a second dialog (D16).
+    await user.keyboard("n");
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Tulis transaksi" })).not.toBeInTheDocument());
+  });
+
+  it("opens the manual form in the mode Laporan asks for", async () => {
+    const user = userEvent.setup();
+    renderLayout(<QuickAddTrigger />);
+    const trigger = await screen.findByRole("button", { name: "Add income" });
+    await user.click(trigger);
     expect(await screen.findByRole("dialog", { name: "Catat transaksi" })).toBeVisible();
+    expect(screen.getByRole("radio", { name: "Pemasukan" })).toHaveAttribute("aria-checked", "true");
+    await user.click(screen.getByRole("button", { name: "Batal" }));
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 });

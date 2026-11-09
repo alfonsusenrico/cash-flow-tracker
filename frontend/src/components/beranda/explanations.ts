@@ -1,4 +1,4 @@
-import type { ExplanationData, ExplanationLine } from "@/components/workspace/explain";
+import type { ExplanationData, ExplanationLine } from "@/components/workspace/explanation";
 import type { RincianData } from "@/components/workspace/ExplanationDialog";
 import { createFormat } from "@/lib/format";
 import type { Translate, Words } from "@/lib/i18n/types";

@@ -7,7 +7,6 @@ import { usePathname } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { parseRegion, DEFAULT_REGION } from "@/i18n/language";
 import { TestSessionBanner } from "@/components/settings/TestSessionBanner";
-import { QuickCaptureModal } from "@/components/ui/QuickCaptureModal";
 import { api, ApiError } from "@/lib/api";
 import { setCurrencyConfig, fmtMoney as globalFmtMoney, convertAmount as globalConvertAmount } from "@/lib/utils";
 import { createFormat, RegionProvider } from "@/lib/format";
@@ -28,7 +27,7 @@ import {
   type ThemeChoice,
 } from "@/lib/theme";
 import type { AutoLinkedOccurrence, DueExpectation, RecurringRule } from "@/types/recurring";
-import { PendingScheduledBanner } from "@/components/recurring/PendingScheduledBanner";
+import { DuePlansDialog } from "@/components/recurring/DuePlansDialog";
 import { PlansDialog } from "@/components/recurring/PlansDialog";
 import { WorkspaceContext, type MovementCaptureDefaults, type PageHeader, type WorkspaceNotification, type WorkspaceValue } from "@/components/workspace/context";
 import { frameWidth } from "@/components/workspace/navigation";
@@ -38,15 +37,13 @@ import { TitleBlock } from "@/components/workspace/TitleBlock";
 import { TopBar } from "@/components/workspace/TopBar";
 import { PhoneHeader, PhoneTabBar } from "@/components/workspace/PhoneNav";
 import { ShortcutProvider, useShortcut, useShortcuts } from "@/components/workspace/shortcuts";
-import { ExplainProvider } from "@/components/workspace/explain";
-import { Drawer, ToastProvider } from "@/components/workspace/overlays";
+import { ToastProvider } from "@/components/workspace/overlays";
+import type { CaptureRequest } from "@/components/capture/types";
 import { UntranslatedRegion } from "@/components/workspace/untranslated";
 
-type QuickCaptureMode = "expense" | "income" | "movement";
-
 // Loaded on first open and prefetched when the browser is idle, so the shell's first load stays small (D11).
-const loadCatatDialog = () => import("@/components/capture/CatatDialog");
-const CatatDialog = dynamic(loadCatatDialog, { ssr: false });
+const loadCaptureDialog = () => import("@/components/capture/CaptureDialog");
+const CaptureDialog = dynamic(loadCaptureDialog, { ssr: false });
 
 /** Report window basis: payday cycle or calendar month (both stepped by `cycleOffset`), or rolling days. */
 export type ReportTimeframe = "cycle" | "month" | "30d" | "90d";
@@ -72,7 +69,6 @@ interface AppCtxType {
   bal: (n: number, overrideCurrency?: "IDR" | "USD") => string;
   convertAmount: (amountInIDR: number) => number;
   openQuickAdd: (type?: "expense" | "income") => void;
-  openMovement: (sourceAccountId?: string, targetAccountId?: string) => void;
   /** Rows needing the owner's attention on the review page; null until known. */
   reviewAttention: number | null;
 }
@@ -93,7 +89,6 @@ const AppContext = createContext<AppCtxType>({
   bal: (n: number) => globalFmtMoney(n),
   convertAmount: (amountInIDR: number) => amountInIDR,
   openQuickAdd: () => {},
-  openMovement: () => {},
   reviewAttention: null,
 });
 
@@ -229,55 +224,35 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const [timeframe, setTimeframe] = useState<ReportTimeframe>("cycle");
   const [cycleOffset, setCycleOffset] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [quickAddOpen, setQuickAddOpen] = useState(false);
-  const [quickAddType, setQuickAddType] = useState<"expense" | "income">("expense");
-  const [quickAddDefaultType, setQuickAddDefaultType] = useState<QuickCaptureMode>("expense");
-  const [movementDefaults, setMovementDefaults] = useState({ sourceAccountId: "", targetAccountId: "" });
-  const [catatOpen, setCatatOpen] = useState(false);
-  const [manualAmount, setManualAmount] = useState<number | null>(null);
+  // One capture dialog for every entry point (apply-markas-catat D1, D2); the key opens it fresh each time.
+  const [capture, setCapture] = useState<{ key: number; request: CaptureRequest } | null>(null);
   const [header, setHeader] = useState<PageHeader | null>(null);
   const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
   const [duePlansOpen, setDuePlansOpen] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
 
-  const handleOpenQuickAdd = (type?: "expense" | "income") => {
-    const defaultType = type ?? quickAddType;
-    if (type) setQuickAddType(type);
-    setMovementDefaults({ sourceAccountId: "", targetAccountId: "" });
-    setQuickAddDefaultType(defaultType);
-    setManualAmount(null);
-    setQuickAddOpen(true);
-  };
+  const openCaptureWith = useCallback((request: CaptureRequest) => {
+    setCapture((current) => ({ key: (current?.key ?? 0) + 1, request }));
+  }, []);
 
-  const handleOpenMovement = (sourceAccountId?: string, targetAccountId?: string) => {
-    openMovementCapture({ sourceAccountId, targetAccountId });
-  };
+  /** The manual form in a mode (Laporan's data-quality panel). */
+  const handleOpenQuickAdd = (type?: "expense" | "income") => openCaptureWith({ view: "manual", mode: type ?? "expense" });
 
+  /** Perpindahan with its accounts and amount filled in; nothing is posted until the owner saves (D2, D12). */
   function openMovementCapture({ sourceAccountId, targetAccountId, amount }: MovementCaptureDefaults) {
-    setMovementDefaults({
-      sourceAccountId: sourceAccountId ?? "",
-      targetAccountId: targetAccountId ?? "",
-    });
-    setQuickAddDefaultType("movement");
-    setManualAmount(amount && amount > 0 ? amount : null);
-    setQuickAddOpen(true);
+    openCaptureWith({ view: "manual", mode: "movement", sourceAccountId, targetAccountId, amount: amount && amount > 0 ? amount : null });
   }
 
-  // "+ Catat", N and the phone tab open the text-first dialog; "Isi manual" there opens the form.
-  const openExpenseCapture = useCallback(() => setCatatOpen(true), []);
-
-  const openManualCapture = useCallback((amount: number | null) => {
-    setCatatOpen(false);
-    setMovementDefaults({ sourceAccountId: "", targetAccountId: "" });
-    setQuickAddDefaultType("expense");
-    setManualAmount(amount);
-    setQuickAddOpen(true);
-  }, []);
+  // "+ Catat", N and the phone tab open the sentence view; N does nothing while the dialog is open (D16).
+  const captureOpen = capture !== null;
+  const openExpenseCapture = useCallback(() => {
+    if (!captureOpen) openCaptureWith({ view: "sentence" });
+  }, [captureOpen, openCaptureWith]);
 
   useEffect(() => {
     const idle = (window as Window & { requestIdleCallback?: (callback: () => void) => number }).requestIdleCallback;
-    if (idle) idle(() => void loadCatatDialog());
-    else window.setTimeout(() => void loadCatatDialog(), 2000);
+    if (idle) idle(() => void loadCaptureDialog());
+    else window.setTimeout(() => void loadCaptureDialog(), 2000);
   }, []);
 
   // The pre-paint script already applied the theme; this only syncs React state with it.
@@ -489,61 +464,50 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         bal,
         convertAmount,
         openQuickAdd: handleOpenQuickAdd,
-        openMovement: handleOpenMovement,
         reviewAttention: reviewSummary?.attention ?? null,
       }}
     >
       <RegionProvider value={regionSettings}>
       <WorkspaceContext.Provider value={workspace}>
         <ToastProvider>
-          <ExplainProvider>
-            <a className="skip" href="#main">
-              {t("shell.skipToContent")}
-            </a>
-            {/* The frame (D4): sidebar | main column with the top bar, the phone header and the page. */}
-            <div className="app" data-collapsed={sidebarCollapsed}>
-              <SideNav />
-              <div className="main-col">
-                <TopBar />
-                <PhoneHeader />
-                <TestSessionBanner enabled={signedIn} />
-                <main
-                  id="main"
-                  tabIndex={-1}
-                  className="page"
-                  lang={untranslated ? "id" : undefined}
-                  style={{ "--page-w": `${frameWidth(pathname)}px` } as React.CSSProperties}
-                >
-                  <UntranslatedRegion active={untranslated}>
-                    <div className="page-inner">
-                      <TitleBlock />
-                      {children}
-                    </div>
-                  </UntranslatedRegion>
-                </main>
-              </div>
+          <a className="skip" href="#main">
+            {t("shell.skipToContent")}
+          </a>
+          {/* The frame (D4): sidebar | main column with the top bar, the phone header and the page. */}
+          <div className="app" data-collapsed={sidebarCollapsed}>
+            <SideNav />
+            <div className="main-col">
+              <TopBar />
+              <PhoneHeader />
+              <TestSessionBanner enabled={signedIn} />
+              <main
+                id="main"
+                tabIndex={-1}
+                className="page"
+                lang={untranslated ? "id" : undefined}
+                style={{ "--page-w": `${frameWidth(pathname)}px` } as React.CSSProperties}
+              >
+                <UntranslatedRegion active={untranslated}>
+                  <div className="page-inner">
+                    <TitleBlock />
+                    {children}
+                  </div>
+                </UntranslatedRegion>
+              </main>
             </div>
-            <PhoneTabBar />
-            {/* Due plans from the bell (D7): link, skip and record, as the Transaksi banner opened them. */}
-            <Drawer open={duePlansOpen} onClose={() => setDuePlansOpen(false)} title={t("shell.duePlans.title")} subtitle={t("shell.duePlans.subtitle")}>
-              <PendingScheduledBanner
-                onOpenRulesManager={() => {
-                  setDuePlansOpen(false);
-                  setRulesOpen(true);
-                }}
-              />
-            </Drawer>
-            <PlansDialog open={rulesOpen} onClose={() => setRulesOpen(false)} />
-            <QuickCaptureModal
-              open={quickAddOpen}
-              onClose={() => setQuickAddOpen(false)}
-              defaultType={quickAddDefaultType}
-              defaultSourceAccountId={movementDefaults.sourceAccountId}
-              defaultTargetAccountId={movementDefaults.targetAccountId}
-              defaultAmount={manualAmount}
-            />
-            {catatOpen && <CatatDialog open onClose={() => setCatatOpen(false)} onManual={openManualCapture} />}
-          </ExplainProvider>
+          </div>
+          <PhoneTabBar />
+          {/* Due plans from the bell (D7, apply-markas-catat D20): link, skip and record, as the Transaksi banner opened them. */}
+          <DuePlansDialog
+            open={duePlansOpen}
+            onClose={() => setDuePlansOpen(false)}
+            onOpenRulesManager={() => {
+              setDuePlansOpen(false);
+              setRulesOpen(true);
+            }}
+          />
+          <PlansDialog open={rulesOpen} onClose={() => setRulesOpen(false)} />
+          {capture && <CaptureDialog key={capture.key} request={capture.request} onClose={() => setCapture(null)} />}
         </ToastProvider>
       </WorkspaceContext.Provider>
       </RegionProvider>

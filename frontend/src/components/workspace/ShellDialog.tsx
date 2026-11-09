@@ -2,7 +2,6 @@
 
 import { type ReactNode, useCallback, useEffect, useId, useRef } from "react";
 import { Icon } from "@/components/ui/Icon";
-import { UntranslatedNotice, useUntranslated } from "./untranslated";
 import { focusableIn, syncDialog, useEscapeLayer, useFocusTrap, useScrollLock } from "./layers";
 
 /**
@@ -19,7 +18,7 @@ export function ShellDialog({
   className,
   meta,
   footer,
-  untranslated: untranslatedContent,
+  focusTitle = false,
   fullHeight = false,
   scrollFocusable = false,
   initialFocus,
@@ -32,11 +31,14 @@ export function ShellDialog({
   closeLabel: string;
   className?: string;
   /** One muted line under the title, such as "Rincian hitungan". */
-  meta?: string;
+  meta?: ReactNode;
   /** The footer row with its 1 px top line; actions sit at the right. */
   footer?: ReactNode;
-  /** Content a later phase translates: Indonesian with `lang="id"` and the notice line in an English interface. */
-  untranslated?: boolean;
+  /**
+   * The title takes focus on opening instead of a control, so a phone's soft keyboard does not cover the context
+   * (Catat below 768 px, apply-markas-catat D15).
+   */
+  focusTitle?: boolean;
   /** Below 768 px the whole screen, square and without the grab (Tinjau's item, apply-markas-tinjau D13). */
   fullHeight?: boolean;
   /**
@@ -51,7 +53,6 @@ export function ShellDialog({
   initialFocus?: string;
   children: ReactNode;
 }) {
-  const untranslated = useUntranslated(untranslatedContent);
   const ref = useRef<HTMLDialogElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -64,6 +65,10 @@ export function ShellDialog({
     syncDialog(ref.current, open);
     if (!open) return;
     const body = bodyRef.current;
+    if (focusTitle) {
+      ref.current?.querySelector<HTMLElement>(".dlg-t h2")?.focus();
+      return;
+    }
     const chosen = initialFocus ? body?.querySelector<HTMLElement>(initialFocus) : null;
     const first = chosen ?? (body ? focusableIn(body)[0] : undefined);
     (first ?? ref.current?.querySelector<HTMLElement>("button"))?.focus();
@@ -93,11 +98,10 @@ export function ShellDialog({
           <span className="sheet-grab" aria-hidden="true" />
           <div className="dlg-h">
             <div className="dlg-t">
-              <h2 id={titleId} className="t-dtitle" lang={untranslated ? "id" : undefined}>
+              <h2 id={titleId} className="t-dtitle" tabIndex={focusTitle ? -1 : undefined}>
                 {title}
               </h2>
               {meta && <p className="t-meta">{meta}</p>}
-              {untranslated && <UntranslatedNotice />}
             </div>
             <button type="button" className="ws-icon-btn" aria-label={closeLabel} onClick={close}>
               <Icon name="x" className="h-4 w-4" />
@@ -106,7 +110,6 @@ export function ShellDialog({
           <div
             ref={bodyRef}
             className="dlg-b"
-            lang={untranslated ? "id" : undefined}
             tabIndex={scrollFocusable ? 0 : undefined}
             role={scrollFocusable ? "region" : undefined}
             aria-labelledby={scrollFocusable ? titleId : undefined}

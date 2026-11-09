@@ -67,7 +67,7 @@ function englishOffenders(catalogue: Catalogue): string[] {
 function spendingTermOffenders(catalogue: Catalogue, language: "en" | "id"): string[] {
   const rule = language === "en" ? SPEND_EN : SPENDING_ID;
   return messages(catalogue)
-    .filter(([key]) => /^(terms|review|transactions|analysis|goals|plans|report)\./.test(key) || (language === "id" && /^(home|breakdown)\./.test(key)))
+    .filter(([key]) => /^(terms|review|transactions|analysis|goals|plans|report|capture)\./.test(key) || (language === "id" && /^(home|breakdown)\./.test(key)))
     .filter(([key, value]) => rule.test(value) && !(language === "id" && DIRECTION_KEYS.has(key)) && !QUESTION_KEYS.has(key))
     .map(([key]) => key);
 }
@@ -120,7 +120,7 @@ function sourceOffenders(files: string[]): string[] {
 /** The areas a redesign phase has translated (add-language-system D10); every phase adds its own here. */
 const TRANSLATED_ROOTS = [
   "components/workspace", "components/layout", "components/beranda", "app/page.tsx", "app/layout.tsx", "app/auth/login/page.tsx",
-  "components/ui/PeriodStepper.tsx", "components/ui/Modal.tsx",
+  "components/ui/PeriodStepper.tsx",
   "components/ui/ConfirmActionButton.tsx", "components/settings/TestSessionBanner.tsx", "i18n", "lib/i18n", "lib/format.ts",
   // Tinjau (apply-markas-tinjau D18).
   "components/review", "app/review", "lib/triage.ts", "lib/review.ts", "lib/reviewUndo.ts", "lib/historySuggestions.ts",
@@ -139,6 +139,8 @@ const TRANSLATED_ROOTS = [
   "app/laporan", "components/report",
   // Pengaturan and its dialogs (apply-markas-pengaturan D19).
   "app/settings", "components/settings", "components/ui/Switch.tsx", "lib/deviceHealth.ts", "lib/habits.ts",
+  // Catat and its shared movement checks (apply-markas-catat D18).
+  "components/capture", "lib/capture.ts", "lib/movementFormSchema.ts",
 ];
 /** Indonesian page copy that lives in a translated root until its page's phase moves it (D10). */
 const UNTRANSLATED_FILES = ["components/workspace/untranslatedPages.ts"];
@@ -146,8 +148,8 @@ const UNTRANSLATED_FILES = ["components/workspace/untranslatedPages.ts"];
 const MONEY_ROOTS = ["components/settings", "app/settings", "components/ui/ReconciliationFlag.tsx", "components/ui/DebtAllocationEditor.tsx",
   "components/dashboard/EmergencyCoverage.tsx", "lib/habits.ts"];
 
-const UNTRANSLATED_ROOTS = ["components/capture",
-  "lib/provenance.ts", "lib/capture.ts", "lib/movementFormSchema.ts", "lib/untranslatedRowLabels.ts",
+const UNTRANSLATED_ROOTS = [
+  "lib/provenance.ts", "lib/untranslatedRowLabels.ts",
   // Rekening & Kantong, Target & Tagihan, Pengaturan and their modals (redesign-money-and-settings D16).
   ...MONEY_ROOTS];
 
