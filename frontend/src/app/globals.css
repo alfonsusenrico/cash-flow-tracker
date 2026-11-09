@@ -1664,7 +1664,8 @@ button.hbar:hover { background: var(--surface); }
 .cal-cell:focus-visible { outline-offset: -2px; }
 .cal-cell.is-out { background: var(--surface); color: var(--muted); cursor: default; }
 .cal-cell .d { overflow: hidden; color: var(--muted); font-size: var(--fs-12); line-height: 16px; white-space: nowrap; }
-.cal-cell.is-today .d { color: var(--text); font-weight: 500; }
+/* Today is the ink colour and aria-current; a 500 weight would make a ninth text style (SPEC §13). */
+.cal-cell.is-today .d { color: var(--text); }
 .cal-cell .cal-amt { overflow: hidden; white-space: nowrap; }
 .cal-cell .marks { display: flex; gap: var(--sp-4); }
 .mark { display: inline-block; flex: none; width: 6px; height: 6px; }
@@ -1741,8 +1742,8 @@ button.hbar:hover { background: var(--surface); }
   .cmp-row { grid-template-columns: minmax(0, 1fr) auto 40px; gap: var(--sp-8); padding: var(--sp-8) 0; }
   .cmp-row.is-compare { grid-template-columns: minmax(0, 1fr) auto; }
   .cmp-row .ph-hide { display: none; }
-  .cmp-row .kk-name { flex-direction: column; align-items: flex-start; }
-  .cmp-row .kk-name .kk-fix { margin-left: var(--sp-16); }
+  /* "Perlu dipilih" moves under the pillar name, never alone beside the dot. */
+  .cmp-row .kk-name .kk-fix { flex-basis: 100%; margin-left: var(--sp-16); }
   .cal-cell { grid-template-rows: 16px 16px 6px; min-height: 56px; padding: var(--sp-4); }
   .cal-cell .cal-amt { font-size: var(--fs-12); line-height: 16px; font-weight: 500; letter-spacing: 0; }
   .cal .dow { padding: var(--sp-4); }

@@ -283,9 +283,11 @@ export function layoutFlow(model: FlowModel, options: LayoutOptions): FlowLayout
   const minHeight = (item: ColumnItem) => (item.type === "dummy" ? 0 : item.isStation ? options.stationMin : options.barMin);
   const gap = (previous: ColumnItem, next: ColumnItem) =>
     previous.type === "dummy" && next.type === "dummy" && previous.source === next.source ? 0 : options.pad;
+  // A slot keeps thin nodes' labels apart but does not shrink the scale: as in the prototype, the tallest column's
+  // money fits `height` and the slots may make the drawing taller.
   const room = (item: ColumnItem, height: number) => (item.type === "node" && options.slot ? Math.max(height, options.slot) : height);
   const columnHeight = (column: ColumnItem[], scale: number) =>
-    column.reduce((sum, item, index) => sum + room(item, Math.max(item.value * scale, minHeight(item))) + (index ? gap(column[index - 1], item) : 0), 0);
+    column.reduce((sum, item, index) => sum + Math.max(item.value * scale, minHeight(item)) + (index ? gap(column[index - 1], item) : 0), 0);
   let scale = options.height / Math.max(1, ...columns.map((column) => column.reduce((sum, item) => sum + item.value, 0)));
   for (let round = 0; round < 30; round++) {
     const worst = Math.max(...columns.map((column) => columnHeight(column, scale) / options.height));
