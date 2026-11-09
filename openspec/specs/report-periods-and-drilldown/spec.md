@@ -136,8 +136,12 @@ The ledger list API SHALL accept `uncategorized=true` and SHALL reject it togeth
 - **THEN** the response SHALL be 422 `uncategorized_with_category`.
 
 ### Requirement: Non-Editable Insight Rows
-Archived and "Tanpa kategori" rows on the insights page SHALL not offer budget, edit or archive actions.
+Archived and "Tanpa kategori" rows in Analisis's spending by category SHALL link to the ledger and SHALL offer no budget, edit or archive action. In "Kelola kategori" an archived category SHALL offer only "Pulihkan", and "Tanpa kategori" SHALL NOT be listed.
 
 #### Scenario: Uncategorised row
-- **WHEN** insights list "Tanpa kategori"
+- **WHEN** Analisis lists "Tanpa kategori"
 - **THEN** that row SHALL link to the ledger but offer no budget, edit or archive action.
+
+#### Scenario: Archived category with spending
+- **WHEN** a category archived after the period still has spending in it
+- **THEN** it SHALL be listed under its pillar with "diarsipkan", link to the ledger, and appear in "Kelola kategori" only under "Diarsipkan" with "Pulihkan"

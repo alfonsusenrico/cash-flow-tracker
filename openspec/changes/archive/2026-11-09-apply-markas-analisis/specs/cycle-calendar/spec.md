@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Calendar Heat Levels
-The server SHALL assign each day a heat level from 0 to 5: 0 for no spending, and 1 to 5 from thresholds at the 20th, 40th, 60th and 80th percentiles of the window's days with spending, rounded to Rp 1.000. The response SHALL include the thresholds. The interface SHALL write each day's Pengeluaran (`days[].spending`) and SHALL show its level (`days[].spending_heat`, from `spending_heat_thresholds` by the same rule) as a 4 px strip whose strength follows the level, with a legend naming the lowest and the highest threshold.
+The server SHALL assign each day a heat level from 0 to 5: 0 without spending, else 1 to 5 from the 20th, 40th, 60th and 80th percentiles of the window's days with spending, rounded to Rp 1.000, and SHALL return the thresholds, on the Belanja and the Pengeluaran basis (`spending_heat`, `spending_heat_thresholds`). Kalender SHALL write each day's Pengeluaran and show its level as a 4 px strip, with a legend naming the lowest and the highest threshold.
 
 #### Scenario: Thresholds in the legend
 - **WHEN** the Kalender tab is shown

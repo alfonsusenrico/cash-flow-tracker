@@ -17,7 +17,7 @@ Every page whose figures depend on a selected period (Transaksi, Analisis, Lapor
 - **THEN** the active period shifts backward (e.g. from "Nov 2026" to "Okt 2026", or "Oct 2026" in English), the page refreshes to that period, a "Bulan ini" ("This month") reset appears, and Analisis opened next shows the same period
 
 #### Scenario: Cycle range
-- **WHEN** the user opens Transaksi on the salary-cycle basis for the cycle of 23 October to 24 November
+- **WHEN** the user opens Transaksi or Analisis on the salary-cycle basis for the cycle of 23 October to 24 November
 - **THEN** the stepper SHALL read "Siklus 23 Okt – 24 Nov" in Indonesian and "Cycle 23 Oct – 24 Nov" in English, and the next chevron SHALL be disabled on the current cycle
 
 #### Scenario: Stepper look
@@ -25,7 +25,7 @@ Every page whose figures depend on a selected period (Transaksi, Analisis, Lapor
 - **THEN** its chevrons SHALL be 36 × 36 px icon buttons (44 × 44 px below 768 px), its label 14 px medium at least 168 px wide, and it SHALL have no box, border or fill
 
 #### Scenario: Stepper on an untranslated page
-- **WHEN** an English account opens a page that its phase has not translated yet, such as Analisis
+- **WHEN** an English account opens a page that its phase has not translated yet, such as Pengaturan
 - **THEN** the stepper SHALL read in English while the page content stays Indonesian
 
 #### Scenario: Beranda has no stepper
