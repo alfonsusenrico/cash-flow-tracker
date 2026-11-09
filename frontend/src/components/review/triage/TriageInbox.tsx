@@ -832,6 +832,7 @@ export function TriageInbox() {
             closeLabel={t("review.sheet.close")}
             className="tj-sheet"
             fullHeight
+            initialFocus={`#${HEADING_ID}`}
           >
             <div ref={itemRef} className="tj-detail">
               {selected && detail}
