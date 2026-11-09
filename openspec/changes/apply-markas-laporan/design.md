@@ -2,7 +2,7 @@
 
 See `proposal.md` for the motivation. This section records the state the design starts from.
 
-**Base.** `origin/main` `0308b7b` holds phases 1 to 3, `add-category-system-keys` and `add-language-system`. Before this phase starts, `localize-server-text`, phase 4 (`apply-markas-tinjau`), phase 5 (`apply-markas-transaksi`) and phase 6 (`apply-markas-analisis`) merge (D25). This design names their pieces as they are planned; task 1.2 records every difference in the merged code.
+**Base.** `origin/main` `0308b7b` held phases 1 to 3, `add-category-system-keys` and `add-language-system` when this plan was written. On 2026-11-09 `origin/main` (`98cdb49`) holds phases 1 to 5 and 8, `localize-server-text` and the credit flow; phase 6 (`apply-markas-analisis`) is PR #95 (`d79e95d`), not merged, and this branch stacks on it (coordinator's instruction, D25). "Re-based on the merged code" below records every difference.
 
 **Laporan today** (`app/laporan/page.tsx`, `components/report/**`, `lib/monthlyReport.ts`, `lib/reportReady.ts`):
 - URL `?basis=month|cycle&start=YYYY-MM-DD`, written with `replaceSearch`; `?lengkapi=1` opens the classification dialog and `?atur=anggaran` the budget editor on load. There is no `/reports` route or redirect; inbound links are the nav item, the bell's `url` from `GET /reports/monthly/latest`, and Analisis's `?atur=anggaran` and `?lengkapi=1`.
@@ -26,6 +26,18 @@ See `proposal.md` for the motivation. This section records the state the design 
 - Phase 5: the restyled `PeriodStepper`, `RowAmount` (expense "−Rp" in `--out-fg`, income "+Rp" in green), `TransactionDialog`, `.tbl`, `.dl`, `.box`.
 - Phase 6: `Meter`, `ChangeFigure`, `ChartTable`, `format.compactMoney`, `BudgetDialog`, `progress.baseline_share`, `.cols`, `.caption`, `.chart-foot`.
 
+### Re-based on the merged code (task 1.2, 2026-11-09)
+
+- **Phase 6 not on `main`:** D25 says to stop when phase 6 is not merged. The coordinator's instruction stacks this branch on `origin/feat/markas-analisis` instead (merge `7674f45`); before the final checks `origin/main` is fetched and merged if PR #95 has landed.
+- **Shared names as merged:** `Meter`, `ChangeFigure` (words from `common.change`), `ChartTable` with `ChartTableButton`, `format.compactMoney`, `components/categories/BudgetDialog.tsx` (`analysis.budget` messages), `progress.baseline_share`, `RowAmount` and `KindAmount`, `TransactionDialog`, `HeroFigure` without `mark`, `PillarDot` and `PILLAR_COLOR` (`components/analysis/KakeiboRows.tsx`, square 8 px marks), `.cols`, `.tbl`, `.tbl-scroll`, `.caption`, `.chart-foot`, `.leg-sw`, `.btn-link`. Phase 8 added `ProgressBar`, which overlaps `Meter`; they are not merged here (phase 12).
+- **Tokens:** the prototype's `--m-expense` is `--out-solid`, `--s0` `--window`, `--s1` `--surface`, `--s2` `--surface-2` (phase 6 deviation 2).
+- **Laporan's frame:** phase 6 moved Laporan's page styles to `components/report/laporan.module.css`; it leaves with `report.module.css` (D22).
+- **`.box`:** Tinjau's `.box` is a flex row with 16 px padding; the disclosure box overrides it as `details.box` (D9).
+- **Untranslated-page example:** Pengaturan (`/settings`), see D19.
+- **`localize-server-text`:** facts carry `label`, `label_code` and `label_params`, and period labels are rendered in the account's language by the server; the page shows `label` as sent.
+- **Stepper:** the shared stepper names a month "Oct 2026" in English. Laporan names whole months ("October 2026", as the server's "Oktober 2026"), so the stepper gains a `monthStyle="long"` option used only here.
+- **Workflow:** the coordinator runs this phase without a pull request (task "Workflow follow-up"), and `PROJECT_STATE.md` lines go to `verification.md` "For PROJECT_STATE.md".
+
 ## Goals / Non-Goals
 
 **Goals:**
@@ -36,7 +48,7 @@ See `proposal.md` for the motivation. This section records the state the design 
 - Laporan ships in English and Indonesian, and the old report components are gone.
 
 **Non-Goals:**
-- No new report figure, period rule, fact rule or API field.
+- No new report figure, period rule or fact rule; the only new API fields are D29's read-only Pengeluaran-basis fields.
 - No change to the readiness rule, the nav badge or the bell item.
 - No redesign of the classification logic or the budget rules.
 
@@ -183,7 +195,7 @@ Unchanged: `basis`, `start`, `lengkapi`, `atur`; written with `replaceSearch`. P
 - **Formats:** every date, month, amount and percent through `useFormat()`; `rg 'id-ID|Intl\.' app/laporan components/report` finds nothing.
 - **Registry and guards:**
   - `/laporan` joins `lib/i18n/translatedRoutes.ts`, and its entry leaves `untranslatedPages.ts`;
-  - the untranslated-page test example, which phase 6 moved to Laporan, moves to Rekening (`/accounts`), untranslated until phase 8;
+  - the untranslated-page test example stays on Pengaturan (`/settings`), where phase 6 moved it, untranslated until phase 10 (re-based: phase 8 translated Rekening first);
   - the copy register's translated roots gain `app/laporan` and `components/report`, which leave the untranslated roots;
   - `SPENDING_ID` covers `report.*`, with `report.merchants.title` ("Tempat belanja terbesar") allowed as a place name, not a figure label.
 
@@ -236,8 +248,9 @@ The plan's common gate, with Laporan's scenarios:
 | | Running Period Progress | MODIFIED: both shares in the hero line |
 | | Monthly Spending History | MODIFIED: one series, legend, table |
 | | Laporan in Both Languages | ADDED |
-| `monthly-navigation-stepper` | Month-and-Year Stepper Navigation | MODIFIED: example page Rekening (written over phase 6's version) |
-| `tactile-pulse-ui` | No Decorative Effects | MODIFIED: examples Rekening and Target & Tagihan; Laporan scenario added (written over phase 6's version) |
+| `monthly-report` | One Pengeluaran on Laporan | ADDED (D29) |
+| `monthly-navigation-stepper` | Month-and-Year Stepper Navigation | MODIFIED: the report's period name (written over the merged version, whose example page is Pengaturan) |
+| `tactile-pulse-ui` | No Decorative Effects | MODIFIED: example Target & Tagihan; Laporan scenario added (written over the merged version) |
 
 No delta: the report API requirements, "Spending answer", "Data quality box", "Drill-down from every report figure", "Reflection note per period", "Optional budget in the report", "Spending by Pillar and Category", "Improvement Facts", "Three-Period Average" and "Comparison with the previous period" keep their wording, which the page satisfies.
 
@@ -260,6 +273,17 @@ The report has no capital-gain field; Q2 shows money moved into investments, not
 
 Unchanged: `GET /reports/monthly/latest`, `freshReport` (14 days), the sidebar count and the bell item "Laporan {period} siap dibaca". The bell's `url` opens the report it names.
 
+### D29. One spending basis (owner decision 2026-11-08)
+
+The owner decided that every "Pengeluaran" in the app equals Beranda, Transaksi and Analisis for the same period: expenses with the Tabungan pillar are not spending and stay visible in Ditabung & investasi. Phase 6 applied it to Analisis with read-only fields from `services/spending_basis.py`. On Laporan:
+- Already Pengeluaran (the comparison): the hero, the Q3 table and its total, "Pengeluaran per bulan", Selisih, the running shares and every fact except the top merchant.
+- On the Belanja basis today: `spending.top_merchants` (gross per merchant, Tabungan-pillar rows included), `budget.categories[].spent`/`remaining`, `budget.overall.spent`/`remaining` (`flow.outflow`), `flow.reimbursement_offset` under "Sudah dikurangi ganti uang" (it includes reimbursements of Tabungan-pillar expenses), and the comparison's top-merchant fact.
+- Additive read-only fields, each from `spending_basis.py`: `spending.top_spending_merchants` (`spending_merchants`, the merchant rule with `spending_sql`), `budget.categories[].spending` and `spending_remaining` (`SpendingBasis.category`), `budget.total_spending`, `budget.overall.spending` and `spending_remaining` (`SpendingBasis.total`), `flow.spending_reimbursement_offset` (`SpendingBasis.reimbursed`, the reimbursements applied to the spending pillars), and the comparison's `spending_top_merchant` (the top-merchant fact over `spending_merchants`, rendered from the same code). Laporan reads these; the existing fields keep their values for other clients.
+- Not changed: the recurring charges (a detection of repeating bills, shown on Analisis the same way), the unexpected items (their pillar is never Tabungan) and the essential cost.
+- Evidence: `tests/test_report_spending_basis.py` proves the report's Pengeluaran equals Analisis's comparison, daily, category, calendar and flow Pengeluaran for a closed month; the new fields leave out Tabungan-pillar rows; the old fields keep their values; another owner is never counted.
+
+Rejected: changing the existing fields (other clients read them); a second Pengeluaran rule in the report (the owner asked for one figure).
+
 ## Decisions and their defaults
 
 Approved under the owner's standing instruction "complete all until finished" (2026-11-06, renewed 2026-11-08). Every decision takes its recommended default. **Flag** marks a decision reviewed before implementation because it changes scope beyond the approved phased plan.
@@ -281,12 +305,13 @@ Approved under the owner's standing instruction "complete all until finished" (2
 | D13 | Note | read-only or "Tulis catatan", form in place | hidden block; always-open form | **scope** |
 | D14 | Panel | quality line, Selisih for completed, past reports | green notice; Selisih while running | — |
 | D15 | Classification | ShellDialog 560, same requests | Modal | — |
-| D19 | Language | `report` namespace, `/laporan` translated, example to `/accounts` | — | — |
+| D19 | Language | `report` namespace, `/laporan` translated, example stays `/settings` | — | — |
 | D20 | Hidden balances | every amount masked, leaks fixed | — | — |
 | D26 | Credit figures | not shown | backend field in this phase | **scope** |
 | D27 | Capital gain | none on Laporan | — | — |
+| D29 | One spending basis | additive Pengeluaran-basis fields from `spending_basis.py` | a second rule; changing existing fields | owner decision |
 
-No default changes money behaviour: every figure keeps its server source and value, every action sends today's request, and the backend is untouched.
+No default changes money behaviour beyond the owner's one-basis decision (D29): every figure keeps its server source, every action sends today's request, and every existing API field keeps its value.
 
 ## Risks / Trade-offs
 

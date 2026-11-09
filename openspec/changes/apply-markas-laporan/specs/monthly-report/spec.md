@@ -94,3 +94,25 @@ Laporan SHALL read in English and Indonesian from one catalogue per language, wi
 - **GIVEN** an English and an Indonesian account with the same data
 - **WHEN** both open the same report
 - **THEN** every amount, count, percent and date number SHALL be the same string in both
+
+### Requirement: One Pengeluaran on Laporan
+Every "Pengeluaran" figure on Laporan SHALL equal the comparison's `totals.spending` for its period, as on Beranda, Transaksi and Analisis, so expenses with the Tabungan pillar never count as spending there. The report SHALL return read-only Pengeluaran-basis fields beside its Belanja-basis fields, which keep their values, and Laporan SHALL show them for its top places, budgets, reimbursement caption and top-merchant fact.
+
+#### Scenario: Pengeluaran-basis fields
+- **WHEN** a report is requested
+- **THEN** it SHALL contain `spending.top_spending_merchants`, `budget.categories[].spending` and `spending_remaining`, `budget.total_spending`, `budget.overall.spending` and `spending_remaining`, `flow.spending_reimbursement_offset` and `comparison.spending_top_merchant`, each from the Pengeluaran rule of `services/spending_basis.py`
+
+#### Scenario: Same Pengeluaran as Analisis
+- **GIVEN** a closed month with Rp 635.000 of Pengeluaran after a Rp 60.000 reimbursement and Rp 1.240.000 of expenses with the Tabungan pillar
+- **WHEN** Laporan and Analisis show that month
+- **THEN** both SHALL read Pengeluaran Rp 635.000, and the sums of Analisis's daily, category, calendar and flow figures SHALL equal it
+
+#### Scenario: Top places without saving
+- **GIVEN** the largest merchant of the month holds only expenses with the Tabungan pillar
+- **WHEN** the report is shown
+- **THEN** "Tempat belanja terbesar" and the top-merchant fact SHALL name the largest merchant of Pengeluaran instead, and `spending.top_merchants` SHALL keep its value
+
+#### Scenario: Budget on Pengeluaran
+- **GIVEN** a Rp 1.000.000 budget on Belanja Dapur with Rp 450.000 of Pengeluaran and a Rp 900.000 row with the Tabungan pillar in it
+- **WHEN** the report is shown
+- **THEN** the budget row SHALL read "Rp 450.000 dari Rp 1.000.000 · sisa Rp 550.000", while `spent` stays Rp 1.350.000

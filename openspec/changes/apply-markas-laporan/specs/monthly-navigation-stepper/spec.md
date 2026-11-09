@@ -20,7 +20,7 @@ Every page whose figures depend on a selected period (Transaksi, Analisis, Lapor
 - **THEN** its chevrons SHALL be 36 × 36 px icon buttons (44 × 44 px below 768 px), its label 14 px medium at least 168 px wide, and it SHALL have no box, border or fill
 
 #### Scenario: Stepper on an untranslated page
-- **WHEN** an English account opens a page that its phase has not translated yet, such as Rekening
+- **WHEN** an English account opens a page that its phase has not translated yet, such as Pengaturan
 - **THEN** the stepper SHALL read in English while the page content stays Indonesian
 
 #### Scenario: Beranda has no stepper

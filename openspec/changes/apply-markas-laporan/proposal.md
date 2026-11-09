@@ -6,9 +6,10 @@ Known items for this phase:
 - **320 px overflow.** One Laporan line runs past the frame at 320 px (shell verification), and the KPI values, the stepper and the pillar table have no room at that width (D1).
 - **Hidden balances leak.** The table's change chips format digits with a fixed `id-ID` formatter, so they show amounts while balances are hidden; the history chart's accessible list does too (D20).
 - **No way to write a first note.** The note panel appears only when this or the previous period already has a note, so a first note cannot be written (D13).
-- **The untranslated-route registry.** `/laporan` leaves it, and the untranslated-page test example, which phase 6 moved to Laporan, moves on to Rekening (D19).
+- **The untranslated-route registry.** `/laporan` leaves it. The untranslated-page test example stays on Pengaturan (`/settings`), where phase 6 moved it (D19, re-based).
+- **One spending basis (owner decision 2026-11-08).** "Tempat belanja terbesar", the budget rows and their total, the reimbursement caption and the top-merchant fact use the Belanja basis, which counts expenses with the Tabungan pillar. Every "Pengeluaran" in the app must equal Beranda, Transaksi and Analisis for the same period, so Laporan reads additive Pengeluaran-basis fields (D29).
 
-Phases 1 to 6 (foundation, shell, Beranda, Tinjau, Transaksi, Analisis), `add-category-system-keys`, `add-language-system` and `localize-server-text` merge before this phase. English is the default interface language, and every page rebuilt from phase 4 on ships English and Indonesian.
+Phases 1 to 5 and 8, `add-category-system-keys`, `add-language-system`, `localize-server-text` and the credit flow are on `main` (`98cdb49`). Phase 6 (`apply-markas-analisis`, PR #95, `d79e95d`) is not merged yet; by the coordinator's instruction of 2026-11-09 this phase stacks on its branch (task 1.2). English is the default interface language, and every page rebuilt from phase 4 on ships English and Indonesian.
 
 The phased plan is `cash-flow-tracker-prototypes/research/2026-11-05-markas-implementation-plan.md` (phase 7 of twelve). The fidelity source is `design-options/option-6/`: `styles.css` (it wins over `SPEC.md`), `js/pages2.js` lines 22–160 (Laporan), `SPEC.md` §6 to §9 and §13, and the captures `laporan-*` (Oktober, Juli, November running, and the salary cycle).
 
@@ -31,14 +32,14 @@ The phased plan is `cash-flow-tracker-prototypes/research/2026-11-05-markas-impl
 
 ## Approval
 
-Approved under the owner's standing instruction "complete all until finished" (2026-11-06, renewed 2026-11-08); decisions take their recommended defaults.
+Approved under the owner's standing instruction "complete all until finished" (2026-11-06, renewed 2026-11-08 and with "continue all" on 2026-11-09); decisions take their recommended defaults. The coordinator accepted the three flagged defaults (D11, D13, D26) under that instruction on 2026-11-09. The owner's decision of 2026-11-08, "one spending basis", applies to Laporan as D29.
 
 Every decision, its default and the rejected alternatives are in `design.md` (D1 to D28, summarized in "Decisions and their defaults"). Three decisions are flagged and are reviewed before implementation:
 - **D11 (scope):** "Pengeluaran per bulan" becomes one series of bars, as the prototype draws it. Today each month's bar is split into its five pillars without a legend. The per-month pillar split leaves the page; each month's pillars stay in that month's table. Fallback: keep the split with a pillar legend and table columns per pillar.
 - **D13 (scope):** the note can be written for the first time. Question 4 shows the saved note read-only with "Ubah", or a quiet "Tulis catatan untuk {period}" that opens the form in place, and never an empty form on load. Today the block is hidden without a note, which leaves no way to write the first one. Fallback: the prototype's always-visible form.
 - **D26 (scope):** "Pengeluaran pakai kredit" and "Tagihan kredit dibayar" are not shown on Laporan. `add-credit-spending-flow` hands Laporan nothing (its blocks are H5, H8, H9 and H11), and the report API has neither figure for a closed period. Fallback: a separate backend change adds both to the report, and a later UI change shows them under question 3.
 
-No decision changes money behaviour: every figure keeps its server source and value, and every action sends today's request. The backend is untouched.
+No decision changes money behaviour beyond the owner's one-basis decision (D29): every figure keeps its server source, every action sends today's request, and the backend only adds read-only Pengeluaran-basis fields beside the existing ones, whose values do not change.
 
 ## Deviations from the prototype
 
@@ -70,7 +71,8 @@ Each is a decision in `design.md` and is captured for the owner's end review:
   - Q4 the facts and the note (D12, D13).
 - **Context panel:** Kualitas data, Selisih, Laporan sebelumnya (D14).
 - **Dialogs:** the classification dialog on `ShellDialog` 560 with the same requests; the budget dialog from phase 6 (D10, D15).
-- **Language:** a `report` namespace; facts and period labels from the server's codes (`localize-server-text`); `/laporan` added to the translated routes and removed from `untranslatedPages.ts`; the untranslated-page test example moved from Laporan to Rekening (`/accounts`) (D19).
+- **Language:** a `report` namespace; facts and period labels from the server's codes (`localize-server-text`); `/laporan` added to the translated routes and removed from `untranslatedPages.ts`; the untranslated-page test example stays on Pengaturan (`/settings`) (D19).
+- **Backend (additive, read-only, D29):** the report gains `spending.top_spending_merchants`, `budget.categories[].spending` and `spending_remaining`, `budget.total_spending`, `budget.overall.spending` and `spending_remaining`, and `flow.spending_reimbursement_offset`; the comparison gains `spending_top_merchant`. All reuse `services/spending_basis.py`; no existing field, request, schema or migration changes.
 - **Removed** (each with its destination in D22):
   - the KPI strip (`KpiStrip`, `Kpi` and their CSS, whose last user is Laporan);
   - `ReportLayout` and the two columns, `ReportPanel`, `AmountRow`, `CardHeader` icon tiles on Laporan;
@@ -81,10 +83,10 @@ Each is a decision in `design.md` and is captured for the owner's end review:
 
 ## Non-goals
 
-- No change to any API field, request, figure, count, money rule, schema, data or the Android companion. `backend/`, `db/` and `mobile/` are untouched, and there is no migration.
+- No change to any existing API field, request, figure, count, money rule, schema, data or the Android companion. The backend only adds the read-only Pengeluaran-basis fields of D29; `db/` and `mobile/` are untouched, and there is no migration.
 - No change to what a report compares, which periods are listed, the readiness rule, the nav badge, the bell item, the notes' storage or the drill-down filters.
 - No credit figures (D26) and no capital gain, which the report has no field for (D27).
-- No restyle of other pages. Rekening and Target & Tagihan are phases 8 and 9.
+- No restyle of other pages. Rekening is redesigned (phase 8); Target & Tagihan is phase 9.
 - No new npm dependency.
 - Local verification only, with the parity seed, the audit seed and the stress and USD seed in disposable databases. Release and production stay with the owner through the approved GitHub workflow.
 
@@ -102,8 +104,9 @@ None.
   - "Running Period Progress": the hero line with both shares;
   - "Monthly Spending History": one series with a legend and a table.
   - Added: "Laporan in Both Languages".
-- `monthly-navigation-stepper`: the untranslated-page example moves from Laporan to Rekening.
-- `tactile-pulse-ui`: "No Decorative Effects" names Rekening and Target & Tagihan as the pages not yet redesigned, and adds a Laporan scenario.
+- `monthly-report` (D29), added: "One Pengeluaran on Laporan".
+- `monthly-navigation-stepper`: the report's period name in both languages; the untranslated-page example stays Pengaturan.
+- `tactile-pulse-ui`: "No Decorative Effects" names Target & Tagihan as the page not yet redesigned, and adds a Laporan scenario.
 
 `interface-language` and `ui-copy-register` need no delta. Adding `/laporan` to the translated routes follows their rule that the set of untranslated pages only shrinks. `report-periods-and-drilldown` and `financial-reporting-consistency` keep their requirements: the links and figures do not change.
 
@@ -123,7 +126,8 @@ No capability in `AGENTS.md` changes.
   - removed: `ComparisonParts.tsx`, `ReportLayout.tsx`, `ReportParts.tsx`, `SpendingAnswer.tsx`, `IncomeSavingsAnswers.tsx`, `report.module.css`;
   - `lib/monthlyReport.ts` (types unchanged; link helpers kept).
 - **Shared:** `components/workspace/primitives.tsx` (`Kpi`, `KpiStrip` removed), `app/globals.css` (`.ws-kpis`, `.ws-kpi*` removed; `.q`, `.q-num`, `.q-h`, `.bars-v`, `.b`, `.box` disclosure rules added from `styles.css`).
-- **Language:** `messages/en.json` and `id.json` (`report`), `lib/i18n/translatedRoutes.ts` (`/laporan`), `components/workspace/untranslatedPages.ts` (the `/laporan` entry removed), the copy register roots, and the untranslated-page test of `add-language-system`, which moves its example from Laporan to Rekening (`/accounts`).
+- **Language:** `messages/en.json` and `id.json` (`report`), `lib/i18n/translatedRoutes.ts` (`/laporan`), `components/workspace/untranslatedPages.ts` (the `/laporan` entry removed), the copy register roots; the untranslated-page test keeps its example on Pengaturan (`/settings`).
 - **Tooling (local only):** `scripts/verify/markas/`: the Laporan scenarios, `laporan-checklist.js`, the keyboard flows `laporan-keys.mjs`, the parity seed extended with five months of history, a partial first month, a reflection note on the previous period, a budget over its limit and the running month.
-- **No change** to `backend/`, `db/`, `mobile/` or `nginx/`. Rollback is a revert of the merge commit.
+- **Backend (D29):** `services/spending_basis.py` (`reimbursed`, `spending_merchants`), `services/observed_insights.py` (`merchant_spending` takes an expense filter), `services/monthly_report.py` and `services/monthly_comparison.py` (the additive fields), with `tests/test_report_spending_basis.py`.
+- **No change** to `db/`, `mobile/` or `nginx/`. Rollback is a revert of the merge commit.
 - **Dependencies:** phase 6 (`apply-markas-analisis`) for `Meter`, `ChangeFigure`, `ChartTable`, `format.compactMoney`, `BudgetDialog` and `progress.baseline_share`; phase 5 for `RowAmount`, `TransactionDialog` and the stepper; phase 4 for `HeroFigure` without a mark.

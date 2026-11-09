@@ -2,13 +2,13 @@
 
 - [ ] 1.1 Record the approval and the flagged review. Evidence:
   - `proposal.md` "Approval" names the standing instruction (2026-11-06, renewed 2026-11-08) and the three flagged decisions D11, D13 and D26 with their fallbacks;
-  - `PROJECT_STATE.md` names the same, with the date and the reviewer's outcome per flag (handed to the coordinator when this worktree may not touch the owner's checkout);
+  - `verification.md` "For PROJECT_STATE.md" names the same, with the date and the reviewer's outcome per flag (this worktree may not touch the owner's checkout);
   - `openspec validate apply-markas-laporan --strict` passes after the edits.
 - [ ] 1.2 Confirm the dependencies and update the branch (D25). `localize-server-text`, `apply-markas-tinjau`, `apply-markas-transaksi` and `apply-markas-analisis` must be merged into `main`; stop and report if one is not. Then update `feat/markas-laporan` from `origin/main`. Evidence:
   - `git merge-base --is-ancestor` succeeds for the four merge commits;
   - `Meter`, `ChangeFigure`, `ChartTable`, `format.compactMoney`, `components/categories/BudgetDialog.tsx`, `RowAmount`, `TransactionDialog` and `HeroFigure` without a mark exist; whether `progress.baseline_share` exists is recorded (D3 falls back without it);
   - the report's facts and period labels carry their codes from `localize-server-text`; an English request renders them in English; otherwise stop and report;
-  - an English Laporan shows "This page is in Indonesian for now." and the untranslated-page test uses `/laporan`;
+  - an English Laporan shows "This page is in Indonesian for now." and the untranslated-page test uses `/settings` (re-based);
   - every difference between the merged code and D21, and between the merged `monthly-navigation-stepper` and `tactile-pulse-ui` wording and this change's deltas, is written to `verification.md`, and the two deltas are re-based on the merged text;
   - `openspec validate --all --strict` passes on the updated branch, and the revision is recorded.
 - [ ] 1.3 Capture the "before" state on that `main` revision, tied to its hash. Evidence in `research/evidence/apply-markas-laporan/before/`:
@@ -25,11 +25,13 @@ Expected Result: the phase starts from a verified base with its dependencies mer
 ## 2. Shared pieces and language
 
 - [ ] 2.1 Write every Laporan copy key with both languages into `research/evidence/apply-markas-laporan/copy-keys.md` (Appendix A plus the classification dialog, `aria-label`s and errors). Evidence: the file lists every literal of `app/laporan` and `components/report` with a key; a check against the copy register finds no slang, no "you/your", no "Belanja" or "Keluar" figure label and no near-duplicate term.
-- [ ] 2.2 Add the `report` namespace and `terms.difference` to both catalogues, `/laporan` to `lib/i18n/translatedRoutes.ts`, and remove `/laporan` from `untranslatedPages.ts` (D19). Move the untranslated-page test example from Laporan to Rekening (`/accounts`). Update the copy register roots and extend `SPENDING_ID` to `report.*` with `report.merchants.title` allowed. Evidence:
+- [ ] 2.2 Add the `report` namespace and `terms.difference` to both catalogues, `/laporan` to `lib/i18n/translatedRoutes.ts`, and remove `/laporan` from `untranslatedPages.ts` (D19). The untranslated-page test example stays on Pengaturan (`/settings`). Update the copy register roots and extend `SPENDING_ID` to `report.*` with `report.merchants.title` allowed. Evidence:
   - the catalogue parity test and `type-check` pass, and a planted missing English key fails both;
-  - an English Laporan has no notice and no `lang="id"` region; an English Rekening still has both;
+  - an English Laporan has no notice and no `lang="id"` region; an English Pengaturan still has both;
   - a planted Indonesian "Belanja bulan ini" figure label and a planted English "Expenses" in `terms` each fail the copy register.
 - [ ] 2.3 Add the Laporan CSS from `styles.css` (`.q`, `.q-num`, `.q-h`, `.bars-v`, `.b`, the `details.box` summary and the hatch) (D21). Evidence: the component sheet (`/komponen`) shows a question block and the bars at 1440 and 390 in both themes, measured equal to the prototype's `#/komponen` or `laporan` capture within 1 px.
+
+- [ ] 2.4 One spending basis (D29). Add the read-only Pengeluaran-basis fields to the report and the comparison from `services/spending_basis.py`. Evidence: `tests/test_report_spending_basis.py` (Laporan's Pengeluaran equals Analisis's for a closed month; top places, budgets, the overall budget, the reimbursement caption and the top-merchant fact leave out Tabungan-pillar rows; the Belanja-basis fields keep their values; another owner is never counted); the full backend suite passes on a fresh database migrated V1 → V54; the page reads only the new fields for these figures.
 
 Expected Result: every message and rule exists before the page uses it.
 
@@ -58,8 +60,8 @@ Expected Result: Laporan matches the prototype, reads as one narrative and keeps
 - [ ] 4.5 Figure parity. Evidence: `parity.mjs` and a `verification.md` table with zero changed values: before (1.3) against after with the same seed, and `en` against `id` (region `ID`), byte-identical figure strings; the intended differences (the average change now in the hero, the running average share) are listed with their server sources.
 - [ ] 4.6 Known items. Evidence: a `verification.md` section proves the 320 px overflow gone, the hidden-balance leaks gone, the first note writable, and `/laporan` out of the untranslated set.
 - [ ] 4.7 Stress and USD seed at 1440, 1024, 390 and 320 in both themes and both languages. Evidence: captures with no clipping, overlap or horizontal scroll for 60-character names, Rp 1.234.567.890, 25 categories, the 1000-character note and the USD display; recorded in `verification.md`.
-- [ ] 4.8 Frontend and repository checks on the exact revision. Evidence, each recorded with the commit hash: `npm test`, `npm run type-check`, `npm run lint`, `npm run build`, `git diff --check` and `openspec validate --all --strict` pass; `git diff --stat origin/main -- backend db mobile nginx` is empty.
-- [ ] 4.9 Complete `verification.md` and present the result. Evidence: it names what changed, the gate counts, the deviations, the flag outcomes, the "Rincian tabungan" follow-up (D6) and what was not verified and why; the deviations are added to the owner's end-review list in `PROJECT_STATE.md`; the report to the owner quotes them.
+- [ ] 4.8 Frontend and repository checks on the exact revision. Evidence, each recorded with the commit hash: `npm test`, `npm run type-check`, `npm run lint`, `npm run build`, `git diff --check` and `openspec validate --all --strict` pass; `git diff --stat origin/main -- db mobile nginx` is empty and `backend` lists only phase 6's files and D29's.
+- [ ] 4.9 Complete `verification.md` and present the result. Evidence: it names what changed, the gate counts, the deviations, the flag outcomes, the "Rincian tabungan" follow-up (D6) and what was not verified and why; the deviations are listed for the owner's end-review list in its "For PROJECT_STATE.md" section; the report to the owner quotes them.
 
 Expected Result: the phase passes the plan's common gate and the both-language gate on its exact revision, with every deviation recorded.
 
@@ -67,6 +69,6 @@ Expected Result: the phase passes the plan's common gate and the both-language g
 
 - Archive: `openspec archive apply-markas-laporan`, then `openspec validate --all --strict` must pass. The archive path is under `openspec/changes/archive/`.
 - Commit with subject-only Conventional Commits messages, for example `feat(report): apply Markas+ to Laporan`, and push `feat/markas-laporan`.
-- Create the pull request into `main` with `gh pr create` (the owner's standing instruction of 2026-11-06), specs and code together, and report its URL with the pushed revision. Merging stays with the owner.
+- Push `feat/markas-laporan` and report the revision. The coordinator creates no pull request for this phase (instruction of 2026-11-09); merging stays with the owner.
 - After merge: delete the branch locally and on the remote, and remove the `cash-flow-tracker-markas-laporan` worktree.
-- Record in `PROJECT_STATE.md` that phase 8 (`apply-markas-rekening`) starts from this phase's merged state and takes over the untranslated-page test example at `/accounts`.
+- Write in `verification.md` "For PROJECT_STATE.md" that the untranslated-page example stays Pengaturan until phase 10, and that `Meter` and `ProgressBar` still overlap (phase 12).

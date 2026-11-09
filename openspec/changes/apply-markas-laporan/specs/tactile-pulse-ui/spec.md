@@ -4,7 +4,7 @@
 The interface SHALL NOT contain rainbow gradients, glow drop-shadows, 0–100 health meters, decorative empty KPI cards or unformatted text blocks. An icon tile that repeats its control's label SHALL be hidden from assistive technology, and a tile icon that conveys meaning SHALL measure at least 3:1 against its tile.
 
 #### Scenario: Decorative icon tiles
-- **WHEN** a page not yet redesigned, such as Rekening or Target & Tagihan, shows icon tiles in its KPI strip or card headers
+- **WHEN** a page not yet redesigned, such as Target & Tagihan, shows icon tiles in its KPI strip or card headers
 - **THEN** each tile that repeats its label SHALL be hidden from assistive technology, the figure SHALL be named by its label, and a tile icon that conveys meaning SHALL measure at least 3:1 against the tile in both themes
 
 #### Scenario: Beranda without tiles
