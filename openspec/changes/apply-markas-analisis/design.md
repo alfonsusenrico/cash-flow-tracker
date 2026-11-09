@@ -537,7 +537,7 @@ Arguments arrive formatted from `lib/format.ts`; `{count}` selects plural forms 
 | `bills.amountChanged` | Nominal terakhir berubah: {from} → {to} | Latest amount changed: {from} → {to} |
 | `bills.empty` (new) | Belum ada tagihan berulang yang terlihat. | No repeating bills seen yet. |
 | `report.title` (new) | Laporan bulanan | Monthly report |
-| `report.ready` (new) | Laporan {period} siap dibaca | The {period} report is ready |
+| `report.ready` (new) | Laporan {period} siap dibaca | Report ready: {period} |
 | `report.about` (new) | Empat pertanyaan Kakeibo, satu per bagian | Four Kakeibo questions, one per section |
 
 ### `calendar`, `day`, `upcoming`

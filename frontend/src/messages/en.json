@@ -2119,7 +2119,7 @@
     },
     "report": {
       "title": "Monthly report",
-      "ready": "The {period} report is ready",
+      "ready": "Report ready: {period}",
       "about": "Four Kakeibo questions, one per section"
     },
     "calendar": {
