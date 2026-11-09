@@ -12,7 +12,9 @@ Local verification only, synthetic data, disposable databases. No production acc
   a due credit bill opens Perpindahan prefilled; the shared Rencana dialog rebuilt as list and detail). None needed its
   fallback.
 - **Base:** the plan was committed at `f8323d8` on old main `0308b7b`, then `origin/feat/markas-rekening` was merged
-  (`ab459f6`) and, after PR #93 and #94 merged, `origin/main` `98cdb49` (`ba89278`). `localize-server-text`, phase 5,
+  (`ab459f6`), after PR #93 and #94 merged `origin/main` `98cdb49` (`ba89278`), and after phase 6 (#95) merged
+  `origin/main` `3cbd371` (`6235452`; conflicts in the catalogues, `globals.css`, the route registries and the copy
+  register resolved by keeping both phases' additions; phase 6's new `BillsPanel` now opens `PlansDialog`). `localize-server-text`, phase 5,
   `add-credit-spending-flow` (#91) and phase 8 (#94) are ancestors of the branch.
 - **Credit API as planned** (on the seeded disposable database): `GET /api/credit/bills?from&to&status` with
   `due_dates_unavailable`; `GET /api/accounts` credit rows with `credit_owed`, `limit_left`, `over_limit`, `next_due`;
@@ -27,12 +29,11 @@ Local verification only, synthetic data, disposable databases. No production acc
 
 ## For PROJECT_STATE.md
 
-- 2026-11-09: phase 9 `apply-markas-target` built on `feat/markas-target` on top of `origin/main` `98cdb49`, archived
+- 2026-11-09: phase 9 `apply-markas-target` built on `feat/markas-target` on top of `origin/main` `3cbd371` (phase 6
+  merged as #95 and merged into this branch at `6235452`), archived
   and pushed without a PR (coordinator). The owner opens the PR.
-- Phase 6 (Analisis), running in parallel: `RecurringRulesModal` is now `PlansDialog`
-  (`components/recurring/PlansDialog.tsx`, same props plus `planId`); this branch changed the import in
-  `components/analysis/RingkasanTab.tsx` and the mock in `app/insights/page.test.tsx`. If phase 6 rewrote either, it
-  must point at `PlansDialog` when it merges after this phase.
+- `RecurringRulesModal` is now `PlansDialog` (`components/recurring/PlansDialog.tsx`, same props plus `planId`);
+  every caller, including phase 6's `components/analysis/BillsPanel.tsx` and the `app/insights` test mock, uses it.
 - Shared additions other phases can use: `components/workspace/Field.tsx` (moved out of `AccountDialogs`),
   `lib/creditBills.ts` (`creditBillsPath`, `dueCreditBills`), `queryKeys.obligationsWithArchived`,
   `queryKeys.transactions.creditBills`, `WorkspaceNotification.onSelect`, `RincianLine.plain` / `total.plain`.
@@ -96,38 +97,58 @@ plans, five credit accounts with long names. `seed_parity.py` is unchanged, so `
 
 ## Measurement, accessibility and states (tasks 6.1 to 6.3, 6.6)
 
-FINAL_RUNS
+Gate on the final build (`6235452` code, production build, both languages), session scratchpad `markas-target/final/`:
+
+| Run | Captures | Checklist (`target-checklist.js`) | axe serious/critical: page / open dialog alone | Console errors | Horizontal overflow |
+| --- | --- | --- | --- | --- | --- |
+| `final/id`: 21 scenarios × 1440, 1024, 390, 320 × light, dark, plus hidden balances | 170 | 2702 pass, 0 fail | 4 / 0 (see below) | 0 | 0 |
+| `final/en`: the same | 170 | 2702 pass, 0 fail | 2 / 0 (see below) | 0 | 0 |
+| `final/wide-{id,en}`: page at 1280, 1200, 1199, 768, 767 × light, dark | 10 + 10 | 404 + 404 pass, 0 fail | 0 | 0 | 0 |
+| `final/stress-id` (USD, 40 goals, 25 debts, 60 plans, five long credit names): 6 scenarios × 4 widths × 2 themes | 48 | 1232 pass, 0 fail | 0 | 0 | 0 |
+| `final/states-{id,en}`: loading, two failure sets, empty, unknown cost (`kosong_contoh`), 1440 and 390 | 10 + 10 | as expected (no hero figure or Rincian while loading or failed) | 0 | only the injected 500 responses (3 per failure capture) | 0 |
+
+The checklist covers `.tg-cols` 1fr/352 gap 24 from 1200 and one column below, first content at y = 192 on 1440, one
+44 px figure and no other text ≥ 33 px outside dialogs, the hero bar 8 px at margin-top 24, four (two on a phone)
+supporting figures, section headers, 56/64 px rows with the 40 px time column, 72 px goal rows with a 4 px bar capped
+at 320 px, stacked panel rows, panel padding 24/16 and radius 12, dialog widths 480/560/880 and phone sheets, font
+sizes and weights, borders and status colours. An earlier run of the same checklist on `f560882` (the plans fork's and
+gate fork's first pass) is in `after/`, `after-wide/`, `stress/`, `states/`.
 
 - Found and fixed during the gate: the goal bar was not capped at 320 px (a more specific `.r-main.col > *` rule won;
   now `.row.goal-row .r-main.col > .prog`); the hero skeleton's figures sat on the bar placeholder (missing
   `tg-supports`); at 320 px the hero figures wrapped after "Rp" (now 16 px on one line below 360 px); the
   missing-due-date line read as an error (now muted); focus after archiving now goes to the goal or debt list.
-- axe with a bottom sheet open on Beranda (Perpindahan at 390 and 320) reports `target-size` on Beranda's "Rincian"
-  behind the sheet; axe on the open dialog alone finds 0.
+- The axe findings are all `target-size (1) .ws-btn-quiet` with Perpindahan open as a phone sheet over Beranda (id at
+  390 and 320, en at 390): the flagged control is Beranda's "Rincian" behind the sheet; axe on the open dialog alone
+  finds 0.
 - English pages have no untranslated notice and no `lang="id"` part, except the Catat form (Perpindahan), which phase
   11 translates.
-- States (`states/{id,en}`, run on `f560882` + the muted-line fix): loading skeletons with `aria-busy`; each failure
+- States: loading skeletons with `aria-busy`; each failure
   (net worth, cycle summary, goals, obligations, credit bills) shows its own error box or line with "Coba lagi" while
   the other sections keep working; empty lines and "Tambah target"; the unknown-cost owner sees "Belum dapat dihitung"
   with no months, bar or days. Console errors only for the injected 500 responses. axe 0 serious.
 
 ## Keyboard flows (task 6.4)
 
-KEYS_RUN
+`target-keys.mjs`, the 13 flows of D26 at 1440 and 390 on the final build (`final/keys/{id,en}`): **Indonesian 36/36,
+English 36/36**. Flows 6, 11 and 12 assert that no write request is sent (the backing confirmation stops before
+saving; Perpindahan from "Perlu tindakan" and from the bell opens with "Ke" and the amount and closes with Esc without
+a request).
 
 ## Figure parity (task 6.5)
 
 `target-parity.mjs` (`markas-target/parity/`, `markas-target/final/`):
-- **Before (`98cdb49`) against after, Indonesian, same seed within the same minutes:** 34 values, 2 changed, both
+- **Before (`origin/main` `3cbd371`, rebuilt from `git archive`) against after (`6235452`), Indonesian, same seed
+  within the same minutes (the same comparison against `98cdb49` gave the same result):** 34 values, 2 changed, both
   named: the credit-bill plan row "Tagihan SPayLater" shows its `plan_amount` Rp 434.000 (was the counted Rp 310.000)
   with "Rp 124.000 sudah dihitung di Pengeluaran" (D14), and the flagged Dana Darurat left the goal list (D7). Equal:
   9 bulan, Rp 21.550.400, Rp 14.387.520 (= server `target_amount`), Rp 2.397.920, 273 hari, Tagihan "7 · Rp 1.130.000"
   (the unpaid credit bills are outside it), every goal and debt amount and %, Beranda Terjadwal Rp 5.498.334 and
-  Pengeluaran Rp 3.502.490.
-- **Bar (flag D3), stress seed:** browser division 60,4551 % before, `coverage_pct` 60,5 after (0,045 apart, within
-  0,1). The main seed's coverage is 150 %, capped at 100 % in both.
-- **English against Indonesian** (region ID): every figure string equal, also on the final build; the differences are
-  words only.
+  Pengeluaran Rp 3.530.490 (Rp 3.502.490 against `98cdb49`: phase 6's spending basis moved it on `main`, equally
+  before and after).
+- **Bar (flag D3), stress seed:** browser division 60,4551 % before, `coverage_pct` 60,5 after (0,0449 apart, within
+  0,1); 214 values compared, the only other change is D7. The main seed's coverage is 150 %, capped at 100 % in both.
+- **English against Indonesian** (region ID) on the final build: 34 differences, all words; 0 figure differences.
 - **Requests on `/goals`:** 13 before, 15 after: `GET /credit/bills` for the page's window and the shell's two-day
   window, and `/obligations?include_archived=true` in place of `/obligations`.
 
@@ -146,7 +167,19 @@ KEYS_RUN
 
 ## Frontend and repository checks (task 6.7)
 
-CHECKS
+Code at `6235452` (merge of `origin/main` `3cbd371`); later commits are docs only.
+
+| Check | Result |
+| --- | --- |
+| `npm test` (vitest) | 99 files, **1040 passed**, 0 failed |
+| `npm run type-check` | 0 errors |
+| `npm run lint` | 0 problems |
+| `npm run build` (`next build --webpack`) | passes (the build the gate captured) |
+| Backend `pytest` on a fresh `postgres:16` (`cft-target-pytest`, 127.0.0.1:9789) migrated V1 → V54 by `flyway/flyway:10` | **2188 passed**, 1 warning, exit 0, on `6235452`; container removed |
+| `openspec validate --all --strict` | 85 passed, 0 failed before the archive; ARCHIVED_COUNT after it |
+| `git diff --check origin/main` | clean |
+| `git diff --stat origin/main -- backend db mobile nginx` | empty |
+| `frontend/package.json`, `package-lock.json` | unchanged against `origin/main` |
 
 ## Deviations and notes for the owner's end review
 
@@ -184,7 +217,6 @@ CHECKS
   `styles.css` values, and the prototype scenarios added to `scenarios-prototype.json` were not run.
 - The stress and USD seed exists for an Indonesian owner only; English stress captures were not run.
 - Pointer-only interactions beyond clicks were not driven; keyboard flows cover the dialogs and menus.
-- Backend `pytest` ran on `ba89278`; `backend`, `db`, `mobile` and `nginx` are unchanged since (empty diff).
 
 ## Owner acceptance
 
