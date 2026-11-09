@@ -277,8 +277,8 @@ export function ComponentSheet() {
                 <input type="checkbox" defaultChecked className="h-4 w-4" />
                 <span className="t-body">Kotak centang</span>
               </label>
-              <span className="ws-switch w-auto" role="switch" aria-checked="true" aria-label="Sakelar aktif"><span className="ws-switch-track" /></span>
-              <span className="ws-switch w-auto" role="switch" aria-checked="false" aria-label="Sakelar mati"><span className="ws-switch-track" /></span>
+              <span className="switch" role="switch" aria-checked="true" aria-label="Sakelar aktif" />
+              <span className="switch" role="switch" aria-checked="false" aria-label="Sakelar mati" />
               <span className="chip">
                 <span className="lbl">BCA</span>
                 <button type="button" tabIndex={-1} aria-label="Hapus filter BCA"><Icon name="x" className="h-3 w-3" /></button>

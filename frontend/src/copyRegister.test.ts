@@ -111,17 +111,9 @@ function visibleLines(file: string): { line: number; text: string }[] {
   });
 }
 
-/** The conversation strings still written in sources not translated yet: the connect-phone guide's prose. */
-const SOURCE_CONVERSATION = [
-  "HP-mu siap! Mulai sekarang transaksi tercatat sendiri.",
-  "Tenang, aplikasi di HP-mu bakal nunjukin cara benerinnya.",
-  "Biar nggak dimatiin diam-diam",
-  "Aku berhenti ngecek dulu. Lanjutin di aplikasi HP-mu, ya.",
-];
-
 function sourceOffenders(files: string[]): string[] {
   return files.flatMap((file) => visibleLines(file)
-    .filter(({ text }) => SLANG_ID.test(text.replace(/\/\/.*$/, "")) && !SOURCE_CONVERSATION.some((allowed) => text.includes(allowed)))
+    .filter(({ text }) => SLANG_ID.test(text.replace(/\/\/.*$/, "")))
     .map(({ line, text }) => `${path.relative(__dirname, file)}:${line}: ${text.trim()}`));
 }
 
@@ -145,17 +137,17 @@ const TRANSLATED_ROOTS = [
   "app/goals", "components/goals",
   // Laporan (apply-markas-laporan D19).
   "app/laporan", "components/report",
+  // Pengaturan and its dialogs (apply-markas-pengaturan D19).
+  "app/settings", "components/settings", "components/ui/Switch.tsx", "lib/deviceHealth.ts", "lib/habits.ts",
 ];
 /** Indonesian page copy that lives in a translated root until its page's phase moves it (D10). */
 const UNTRANSLATED_FILES = ["components/workspace/untranslatedPages.ts"];
 
 const MONEY_ROOTS = ["components/settings", "app/settings", "components/ui/ReconciliationFlag.tsx", "components/ui/DebtAllocationEditor.tsx",
-  "components/ui/SalarySettingsSection.tsx", "components/ui/SenderAliasesSection.tsx",
   "components/dashboard/EmergencyCoverage.tsx", "lib/habits.ts"];
 
 const UNTRANSLATED_ROOTS = ["components/capture",
-  "components/ui/DeviceHealthChecklist.tsx", "components/ui/DevicePairingDialog.tsx", "components/ui/DevicePairingSection.tsx",
-  "lib/deviceHealth.ts", "lib/provenance.ts", "lib/capture.ts", "lib/movementFormSchema.ts", "lib/untranslatedRowLabels.ts",
+  "lib/provenance.ts", "lib/capture.ts", "lib/movementFormSchema.ts", "lib/untranslatedRowLabels.ts",
   // Rekening & Kantong, Target & Tagihan, Pengaturan and their modals (redesign-money-and-settings D16).
   ...MONEY_ROOTS];
 
@@ -163,9 +155,10 @@ const UNTRANSLATED_ROOTS = ["components/capture",
 const VISIBLE_NAMES = /^(aria-label|aria-description|title|placeholder|alt|label|heading|meta|subtitle|closeLabel|menuLabel|caption|emptyLabel|line|text|detail|help|rule)$/;
 /**
  * Literal values that are not copy: key names, a directive, the product name, and "Bayar tagihan: ", the stored note of
- * a manual debt payment, which is data the server has always received in this form (apply-markas-target D19).
+ * a manual debt payment, which is data the server has always received in this form (apply-markas-target D19), and the
+ * ISO currency codes of Pengaturan's display-currency segment (apply-markas-pengaturan D13).
  */
-const NOT_COPY = new Set(["use client", "Ctrl K", "Meta+K Control+K", "CashFlow", "English", "Bahasa Indonesia", "Bayar tagihan: "]);
+const NOT_COPY = new Set(["use client", "Ctrl K", "Meta+K Control+K", "CashFlow", "English", "Bahasa Indonesia", "Bayar tagihan: ", "IDR", "USD"]);
 /** A class list, a CSS value or a query: every token is lower-case code-like, and one has a separator. */
 function looksLikeCode(text: string): boolean {
   const tokens = text.trim().split(/\s+/);

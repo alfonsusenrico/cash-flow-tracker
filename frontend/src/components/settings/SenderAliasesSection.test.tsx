@@ -125,7 +125,7 @@ describe("sender memory", () => {
     const search = await screen.findByRole("searchbox", { name: "Cari nama pengirim" });
     expect(screen.getByRole("status")).toHaveTextContent("12 dari 12 nama");
     await user.type(search, "JAGO");
-    expect(within(screen.getByRole("list", { name: "Nama pengirim tersimpan" })).getAllByRole("listitem")).toHaveLength(4);
+    expect(within(screen.getByRole("list", { name: "Nama pengirim terkonfirmasi" })).getAllByRole("listitem")).toHaveLength(4);
     expect(screen.getByRole("status")).toHaveTextContent("4 dari 12 nama");
     await user.clear(search);
     await user.type(search, "setiawan");

@@ -766,46 +766,6 @@
   "path": "/goals"
  },
  {
-  "name": "pengaturan",
-  "path": "/settings"
- },
- {
-  "name": "pengaturan-profil",
-  "path": "/settings/profil"
- },
- {
-  "name": "pengaturan-gaji",
-  "path": "/settings/gaji"
- },
- {
-  "name": "pengaturan-anggaran",
-  "path": "/settings/anggaran"
- },
- {
-  "name": "pengaturan-pemetaan",
-  "path": "/settings/pemetaan"
- },
- {
-  "name": "pengaturan-pengirim",
-  "path": "/settings/pengirim"
- },
- {
-  "name": "pengaturan-perangkat",
-  "path": "/settings/perangkat"
- },
- {
-  "name": "pengaturan-kebiasaan",
-  "path": "/settings/kebiasaan"
- },
- {
-  "name": "pengaturan-sesi-uji",
-  "path": "/settings/sesi-uji"
- },
- {
-  "name": "pengaturan-tampilan",
-  "path": "/settings/tampilan"
- },
- {
   "name": "dlg-catat-tulis",
   "path": "/",
   "steps": [
@@ -2099,5 +2059,128 @@
     "click": "(Tagihan Kartu Kredit Contoh|Kartu Kredit Contoh bill)"
    }
   ]
+ },
+ {
+  "name": "pengaturan",
+  "path": "/settings",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-perangkat",
+  "path": "/settings/perangkat",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-kebiasaan",
+  "path": "/settings/kebiasaan",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-tampilan",
+  "path": "/settings/tampilan",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-profil",
+  "path": "/settings/profil",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-gaji",
+  "path": "/settings/gaji",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-anggaran",
+  "path": "/settings/anggaran",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-pemetaan",
+  "path": "/settings/pemetaan",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-pengirim",
+  "path": "/settings/pengirim",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-sesi-uji",
+  "path": "/settings/sesi-uji",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-anggaran-sembunyi",
+  "path": "/settings/anggaran",
+  "storage": {
+   "hideBalances": "1"
+  },
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-kebiasaan-sembunyi",
+  "path": "/settings/kebiasaan",
+  "storage": {
+   "hideBalances": "1"
+  },
+  "pengaturan": true
+ },
+ {
+  "name": "dlg-hubungkan-ponsel",
+  "path": "/settings/perangkat",
+  "steps": [
+   {
+    "click": "^(Hubungkan ponsel|Connect a phone)$",
+    "after": 2500
+   }
+  ],
+  "pengaturan": true
+ },
+ {
+  "name": "dlg-cabut",
+  "path": "/settings/perangkat",
+  "steps": [
+   {
+    "click": "^(Cabut|Revoke) Ponsel Cadangan",
+    "after": 1200
+   }
+  ],
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-kunci-konfirmasi",
+  "path": "/settings/perangkat",
+  "steps": [
+   {
+    "click": "^(Buat kunci baru \\(reset\\)|Create a new key \\(reset\\))$",
+    "after": 900
+   }
+  ],
+  "full": true,
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-pengirim-cari",
+  "path": "/settings/pengirim",
+  "steps": [
+   {
+    "eval": "(() => { const input = document.querySelector('input[type=search]'); if (!input) return 'no search'; const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(input, 'andra'); input.dispatchEvent(new Event('input', { bubbles: true })); return 'typed'; })()"
+   }
+  ],
+  "full": true,
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-sesi-laporan",
+  "path": "/settings/sesi-uji",
+  "steps": [
+   {
+    "click": "^(Lihat laporan|View report)",
+    "after": 1500
+   }
+  ],
+  "full": true,
+  "pengaturan": true
  }
 ]

@@ -35,8 +35,8 @@ describe("Profil settings", () => {
     const { user, invalidate, container } = show();
     const name = await screen.findByRole("textbox", { name: "Nama tampilan" });
     await waitFor(() => expect(name).toHaveValue("Owner"));
-    expect(screen.getByText("@owner")).toBeInTheDocument();
-    expect(name).toHaveAccessibleDescription("Dipakai untuk sapaan di Beranda.");
+    expect(screen.getByRole("textbox", { name: "Nama pengguna" })).toHaveValue("owner");
+    expect(screen.getByRole("textbox", { name: "Nama pengguna" })).toHaveAttribute("readonly");
     expect((await axe(container)).violations).toHaveLength(0);
 
     await user.clear(name);

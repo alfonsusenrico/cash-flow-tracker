@@ -736,22 +736,10 @@ dialog.shell-dialog::backdrop { background: var(--scrim); animation: ws-fade var
 .ws-menu-item small { display: block; color: var(--muted); font-size: var(--fs-12); line-height: 16px; }
 .ws-menu-sep { height: 1px; margin: 8px 0; background: var(--line); }
 
-/* The phone's capture status at the top of Pengaturan · HP & perangkat. */
-.ws-companion-status {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin: 0 0 16px;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-panel);
-  background: var(--surface-2);
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.4;
-}
-.ws-companion-status strong { display: block; color: var(--text); font-size: 14px; font-weight: 600; }
-.ws-dot { flex: none; width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; }
+/* The phone's capture status, the first line of Pengaturan's "Status HP" box. */
+.ws-companion-status { display: flex; align-items: flex-start; gap: var(--sp-8); margin: 0; color: var(--muted); font-size: var(--fs-14); line-height: 20px; }
+.ws-companion-status strong { color: var(--text); font-weight: 500; }
+.ws-dot { flex: none; width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; }
 .ws-dot[data-tone="ok"] { background: var(--ok-dot); }
 .ws-dot[data-tone="warn"] { background: var(--warn-solid); }
 .ws-dot[data-tone="none"] { border: 1.5px dashed var(--muted); }
@@ -897,11 +885,6 @@ dialog.shell-dialog::backdrop { background: var(--scrim); animation: ws-fade var
 .ws-toast button:hover { background: var(--surface); }
 
 /* Dialogs (native <dialog>) */
-.ws-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-control); text-align: left; }
-.ws-switch-track { position: relative; flex: none; width: 36px; height: 20px; border-radius: var(--r-control); background: var(--line-strong); transition: background-color var(--t-state); }
-.ws-switch-track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: var(--r-control); background: var(--window); transition: transform var(--t-state); }
-[aria-checked="true"] > .ws-switch-track { background: var(--accent-fg); }
-[aria-checked="true"] > .ws-switch-track::after { transform: translateX(16px); }
 
 /* Skeleton, empty and error states */
 /* Skeletons are static (SPEC §10: nothing pulses). */
@@ -1205,7 +1188,7 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
   text-align: left;
   transition: background-color var(--t-state), color var(--t-state);
 }
-.rail-item:hover, .rail-item[aria-current="true"] { background: var(--surface); color: var(--text); }
+.rail-item:hover, .rail-item:is([aria-current="true"], [aria-current="page"]) { background: var(--surface); color: var(--text); }
 .rail-item:focus-visible { outline-offset: -2px; }
 .rail-item .lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rail-item .count { flex: none; color: var(--muted); font-size: var(--fs-12); line-height: 16px; font-weight: 400; font-variant-numeric: tabular-nums lining-nums; font-feature-settings: var(--features-num); }
@@ -1769,7 +1752,6 @@ button.hbar:hover { background: var(--surface); }
 .bills-all .bill .ws-btn { margin-top: var(--sp-8); }
 .bill-top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-12); }
 .bill-name { min-width: 0; overflow: hidden; color: var(--text); font-weight: 500; text-decoration: underline; text-decoration-color: var(--line-strong); text-overflow: ellipsis; text-underline-offset: 3px; white-space: nowrap; }
-.qr-moved { margin-top: var(--sp-24); }
 
 /* Loading blocks */
 .an-skel-tab { height: 420px; border-radius: 0; }
@@ -1914,4 +1896,117 @@ details.box.lp-details { display: block; padding: 0; }
   .bars-v { gap: 6px; }
   .lp-note-actions .ws-btn { min-height: 44px; }
   .lp-select { min-height: 44px; }
+}
+
+/* ======================================================================
+ * Pengaturan (apply-markas-pengaturan D1 to D11): option-6 styles.css `.set`, `.toggle`, `.switch` and `.qr`.
+ * The rail beside a form column of at most 720 px from 1200 px, 184 | 1fr from 768 px (styles.css' tablet rule),
+ * and above the section on a phone. Sections have no card: a 20 px title, one line, then parts 48 px apart.
+ * ====================================================================== */
+.set { display: grid; grid-template-columns: 200px minmax(0, 720px); gap: var(--sp-48); align-items: start; }
+.set-rail .rail-group { margin: 0; padding: 0; list-style: none; }
+.set-rail .rail-group + .rail-label { margin-top: var(--sp-16); }
+.set-rail .rail-label { display: block; }
+.set-form { min-width: 0; }
+.set-head .t-meta { margin: var(--sp-4) 0 var(--sp-32); }
+.set-head h2 { scroll-margin-top: calc(var(--topbar-h) + var(--sp-16)); }
+.set-head h2:focus-visible { outline-offset: 4px; }
+/* The prototype's settings `.box`: a 1 px line, radius 12, padding 24 (16 on a phone). */
+.set-box { padding: var(--sp-24); border: 1px solid var(--line); border-radius: var(--r-panel); }
+.set-box + .set-box, .set-box + .set-actions, .set-list + .set-actions, .set-actions + .set-box { margin-top: var(--sp-12); }
+.set-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-8) var(--sp-12); }
+.set-err { color: var(--out-fg); font-size: var(--fs-12); line-height: 16px; }
+.set-note { margin-top: var(--sp-8); }
+.set-list { margin: 0 calc(-1 * var(--sp-12)); }
+.set-list > li > .row { flex-wrap: wrap; min-height: 56px; }
+.set-list > li > .row.is-stacked { align-items: center; }
+/* A row's actions move under its title when both do not fit side by side (Sesi uji's four actions on a phone). */
+.set-list .row .r-main { flex: 1 1 12rem; }
+.set-list .row .r-actions { flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
+.set-list .row .r-actions:has(> .set-confirm) { flex: 1 1 100%; justify-content: flex-end; padding-bottom: var(--sp-8); }
+.set-list .row .r-title { white-space: normal; overflow-wrap: anywhere; }
+.set-list .row .r-meta { white-space: normal; overflow-wrap: anywhere; }
+.set-list .row .r-main.is-col { flex-direction: column; align-items: flex-start; gap: 0; padding: var(--sp-8) 0; }
+.set-list .row .r-main.is-col > * { max-width: 100%; }
+.set-list .row .r-main.is-col .r-meta { flex: none; }
+.set-list .row .r-end { flex: none; color: var(--muted); font-size: var(--fs-12); line-height: 16px; text-align: right; }
+.set-list .row .r-end.is-ink { color: var(--text); }
+.set-list > li > .set-inline { padding: 0 var(--sp-12) var(--sp-16); border-bottom: 1px solid var(--line); }
+.set-list > li:last-child > .set-inline { border-bottom: 0; }
+.set-list > li:has(> .set-inline) > .row { border-bottom: 0; }
+.set-search { margin-bottom: var(--sp-12); }
+.set-report { margin: 0; padding: 0; list-style: none; }
+.set-report > li { padding: var(--sp-12) 0; border-top: 1px solid var(--line); }
+.set-report > li:first-child { border-top: 0; }
+.set-preview { margin-top: var(--sp-4); overflow-wrap: anywhere; }
+.set-label-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-8) var(--sp-12); margin-top: var(--sp-8); }
+.set-label-form .set-case { flex: 0 0 112px; }
+.set-label-form .set-case-note { flex: 1 1 12rem; }
+.set-label-form .set-label-status { flex-basis: 100%; min-height: 16px; }
+.set-box-actions { margin-top: var(--sp-16); }
+.set-picker { margin-top: var(--sp-16); padding-top: var(--sp-8); border-top: 1px solid var(--line); }
+.set-picker > .form-stack { margin-top: var(--sp-12); }
+.set-confirm { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--sp-8); }
+.set-confirm .t-strong { overflow-wrap: anywhere; }
+
+/* Status HP: the companion line, then one block per phone with its checks as 32 px lines. */
+.set-phone + .set-phone { margin-top: var(--sp-16); padding-top: var(--sp-16); border-top: 1px solid var(--line); }
+.set-companion + .set-phone { margin-top: var(--sp-16); }
+.set-phone-h { display: flex; align-items: flex-start; gap: var(--sp-12); }
+.set-phone-h > svg { flex: none; margin-top: 2px; color: var(--muted); }
+.set-phone-h .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.set-checks { margin: var(--sp-12) 0 0; padding: 0; list-style: none; }
+.set-checks li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-4) var(--sp-8); min-height: 32px; }
+.set-checks li > svg { flex: none; }
+.set-checks .t-body { flex: 1 1 auto; min-width: 0; }
+.set-checks .t-meta { margin-left: auto; text-align: right; }
+
+/* Download and pairing QR codes: dark modules on white in both themes, inside a white quiet border. */
+.qr { flex: none; box-sizing: border-box; width: 136px; height: 136px; padding: var(--sp-8); border: 1px solid var(--line); border-radius: var(--r-control); background: #FFFFFF; }
+.qr canvas { display: block; width: 100%; height: 100%; }
+/* The download QR keeps 136 px of code (D9 fallback: 3 px per module). */
+.qr.is-download { width: 154px; height: 154px; }
+/* The pairing QR keeps at least 200 px of code (owner decision 2026-11-08), so the box is 218 px. */
+.qr.is-pairing { width: 218px; height: 218px; }
+.qr.is-empty { display: grid; place-items: center; padding: var(--sp-16); border-style: dashed; border-color: var(--line-strong); background: transparent; color: var(--text); font-size: var(--fs-14); line-height: 20px; text-align: center; }
+.set-qr-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-24); }
+.set-qr-row > .grow { flex: 1 1 200px; min-width: 0; }
+.pair-steps { margin: 0; padding-left: 20px; list-style: decimal; }
+.pair-steps > li + li { margin-top: var(--sp-8); }
+.pair-code { letter-spacing: 0.12em; }
+.pair-body > * + * { margin-top: var(--sp-24); }
+.pair-body:focus { outline: none; }
+.pair-body details > summary { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-8); min-height: 44px; cursor: pointer; list-style: none; font-weight: 500; }
+.pair-body details > summary::-webkit-details-marker { display: none; }
+.pair-body details[open] > summary svg { transform: rotate(180deg); }
+.pair-body details > section { margin-top: var(--sp-12); }
+.set-checks .set-check-note { flex-basis: 100%; padding: 0 0 var(--sp-8) 24px; text-align: left; }
+
+/* Toggle rows: 56 px with a 1 px line; the switch, a status word or a button at the end. */
+.toggle { display: flex; align-items: center; gap: var(--sp-16); min-height: 56px; padding: var(--sp-8) 0; border-bottom: 1px solid var(--line); }
+.toggle .tg-main { flex: 1; min-width: 0; }
+.toggle .tg-end { flex: none; color: var(--text); font-size: var(--fs-14); line-height: 20px; }
+.switch { position: relative; flex: none; width: 36px; height: 20px; border-radius: var(--r-control); background: var(--line-strong); transition: background-color var(--t-state); }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: var(--r-control); background: var(--window); transition: transform var(--t-state); }
+.switch[aria-checked="true"] { background: var(--accent-fg); }
+.switch[aria-checked="true"]::after { transform: translateX(16px); }
+.qrate-fig { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-4) var(--sp-8); }
+.qrate-weeks { margin: var(--sp-12) 0 0; padding: 0; list-style: none; }
+.qrate-weeks > li { padding: var(--sp-12) 0; border-top: 1px solid var(--line); }
+.qrate-weeks .prog { margin: var(--sp-8) 0; }
+.qrate-weeks dl { display: flex; flex-wrap: wrap; gap: var(--sp-4) var(--sp-12); margin: 0; }
+.qrate-weeks dl > div { display: inline-flex; gap: var(--sp-4); }
+
+@media (max-width: 1199px) {
+  .set { grid-template-columns: 184px minmax(0, 1fr); gap: var(--sp-32); }
+}
+@media (max-width: 767px) {
+  .set { display: block; }
+  .set-rail { margin-bottom: var(--sp-24); }
+  .set-rail .rail-item { height: 44px; }
+  .set-box { padding: var(--sp-16); }
+  /* A 44 px target around the 36 × 20 switch. */
+  .switch::before { content: ""; position: absolute; inset: -12px -4px; }
+  .set-list .row .ws-btn, .set-list .row .ws-icon-btn, .set-actions .ws-btn, .set-confirm .ws-btn, .toggle .ws-btn { min-height: 44px; }
+  .set-list .row .ws-icon-btn { width: 44px; height: 44px; }
 }

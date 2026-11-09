@@ -5,6 +5,7 @@ import QRCode from "qrcode";
 import { axe } from "vitest-axe";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPairingCode, getDevices } from "@/lib/api";
+import { renderWithIntl } from "@/lib/i18n/testing";
 import {
   COMPANION_DOWNLOAD_URL,
   COMPANION_RELEASE_URL,
@@ -51,8 +52,9 @@ describe("companion app download", () => {
       COMPANION_DOWNLOAD_URL,
     );
     expect(within(section).getByRole("link", { name: "halaman rilis" })).toHaveAttribute("href", COMPANION_RELEASE_URL);
-    expect(within(section).getByText(/cocokkan SHA-256 berkas/)).toBeInTheDocument();
-    expect(within(section).getByText("Butuh Android 8.0 atau lebih baru.")).toBeInTheDocument();
+    expect(within(section).getByText(/Butuh Android 8\.0 atau lebih baru\. Cocokkan SHA-256 berkas di/)).toHaveTextContent(
+      "Butuh Android 8.0 atau lebih baru. Cocokkan SHA-256 berkas di halaman rilis.",
+    );
     expect(within(section).getByRole("img", { name: "Kode QR tautan unduhan aplikasi pendamping" })).toBeInTheDocument();
     await waitFor(() =>
       expect(QRCode.toCanvas).toHaveBeenCalledWith(
@@ -61,7 +63,18 @@ describe("companion app download", () => {
         expect.objectContaining({ errorCorrectionLevel: "M", color: { dark: "#000000", light: "#ffffff" } }),
       ),
     );
+    // 136 css px of code, so each of the link's 45 modules is 3 px (D9 fallback), drawn at the device pixel ratio.
+    const canvas = within(section).getByRole("img", { name: "Kode QR tautan unduhan aplikasi pendamping" });
+    expect(canvas).toHaveStyle({ width: "136px", height: "136px" });
+    expect(canvas.closest(".qr")).not.toBeNull();
     expect((await axe(container)).violations).toHaveLength(0);
+  });
+
+  it("reads the download in English", () => {
+    renderWithIntl(<CompanionDownloadSection />, { language: "en" });
+    const section = screen.getByRole("region", { name: "Download the companion app" });
+    expect(section).toHaveTextContent("Needs Android 8.0 or later. Check the file's SHA-256 on the release page.");
+    expect(within(section).getByRole("link", { name: "release page" })).toHaveAttribute("href", COMPANION_RELEASE_URL);
   });
 
   it("keeps the download link usable when the QR cannot be drawn", async () => {
@@ -98,7 +111,7 @@ describe("companion app download", () => {
       "href",
       COMPANION_DOWNLOAD_URL,
     );
-    expect(within(download).getByText("Butuh Android 8.0 atau lebih baru.")).toBeInTheDocument();
+    expect(within(download).getByText(/Butuh Android 8\.0 atau lebih baru\./)).toBeInTheDocument();
     await waitFor(() => {
       const payloads = vi.mocked(QRCode.toCanvas).mock.calls.map((call) => call[1]);
       expect(payloads).toContain(PAIRING_PAYLOAD);

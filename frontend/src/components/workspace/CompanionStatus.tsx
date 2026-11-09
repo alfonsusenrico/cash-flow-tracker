@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { getDevices, type PairedDevice } from "@/lib/api";
-import { deviceProblems, isStale } from "@/lib/deviceHealth";
+import { deviceProblems, isStale, problemText, type HealthWords } from "@/lib/deviceHealth";
 import { useFormat, type Format } from "@/lib/format";
 import { queryKeys } from "@/lib/queryKeys";
 
@@ -11,12 +11,12 @@ export interface CompanionState {
   tone: "ok" | "warn" | "none";
   title: string;
   detail: string;
-  /** Set when the detail is a device problem that Pengaturan still words in Indonesian (add-language-system D10). */
-  detailLang?: "id";
 }
 
 export interface CompanionText {
   t: ReturnType<typeof useTranslations<"shell.companion">>;
+  /** The device problems' words, which Pengaturan translates since apply-markas-pengaturan (D19). */
+  health: HealthWords;
   format: Format;
 }
 
@@ -47,22 +47,23 @@ export function companionState(devices: PairedDevice[], now: Date, text: Compani
   }
   const problem = deviceProblems(health, now.getTime())[0];
   if (!problem) return { tone: "warn", title: t("needsCheck"), detail: t("notReady") };
-  return { tone: "warn", title: t("needsCheck"), detail: problem, detailLang: text.format.language === "id" ? undefined : "id" };
+  return { tone: "warn", title: t("needsCheck"), detail: problemText(problem, health, text.health) };
 }
 
-/** The phone's capture status at the top of Pengaturan · HP & perangkat (refine-workspace-layout D3). */
+/** The phone's capture status at the top of Pengaturan › HP & perangkat's "Status HP" box (refine-workspace-layout D3). */
 export function CompanionStatus() {
   const t = useTranslations("shell.companion");
+  const health = useTranslations("settings.health");
   const format = useFormat();
   const { data, isError } = useQuery({ queryKey: queryKeys.devices, queryFn: getDevices, refetchInterval: 60_000 });
   if (isError || !data) return null;
-  const state = companionState(data.devices ?? [], new Date(), { t, format });
+  const state = companionState(data.devices ?? [], new Date(), { t, health, format });
+  // One line of text at the top of the "Status HP" box (apply-markas-pengaturan D7); the dot repeats the words.
   return (
     <p className="ws-companion-status" data-tone={state.tone}>
       <span className="ws-dot" data-tone={state.tone} aria-hidden="true" />
       <span>
-        <strong>{state.title}</strong>
-        <span lang={state.detailLang}>{state.detail}</span>
+        <strong>{state.title}</strong> · {state.detail}
       </span>
     </p>
   );

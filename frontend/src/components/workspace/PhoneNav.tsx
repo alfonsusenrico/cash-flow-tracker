@@ -132,14 +132,14 @@ export function PhoneTabBar() {
 }
 
 /**
- * Lainnya (D5): the pages outside the tab bar in the sidebar's order, then Notifikasi, Tema and Keluar, which
- * stays here until phase 10 adds it to Pengaturan (owner decision 7). Modal: focus stays inside.
+ * Lainnya (D5): the pages outside the tab bar in the sidebar's order, then Notifikasi and Tema. "Keluar" moved to the
+ * end of Pengaturan's rail (owner decision 7, apply-markas-pengaturan D5). Modal: focus stays inside.
  */
 export function MoreSheet({ open, onClose, onOpenLayer }: { open: boolean; onClose: () => void; onOpenLayer: (layer: PhoneLayer) => void }) {
   const pathname = usePathname();
   const t = useTranslations();
   const badgeWords = useBadgeWords();
-  const { reportBadge, unreadIds, themeChoice, logout } = useWorkspace();
+  const { reportBadge, unreadIds, themeChoice } = useWorkspace();
   const theme = THEME_CHOICES.find((choice) => choice.value === themeChoice)!;
   const unread = unreadIds.size;
 
@@ -201,12 +201,6 @@ export function MoreSheet({ open, onClose, onOpenLayer }: { open: boolean; onClo
             <span className="r-title t-strong">{t("common.theme.label")}</span>
             <span className="t-meta">{t(`common.theme.${theme.value}`)}</span>
             <Icon name="chevron-right" className="h-4 w-4 chev" />
-          </button>
-        </li>
-        <li>
-          <button type="button" className="more-row" onClick={logout}>
-            <Icon name="logout" className="h-5 w-5" />
-            <span className="r-title t-strong">{t("shell.signOut")}</span>
           </button>
         </li>
       </ul>

@@ -7,6 +7,8 @@ import {
   ApiError, deleteTestSession, endTestSession, getTestSessionEvents, getTestSessions, labelTestSessionEvent,
   startTestSession, type TestSession, type TestSessionEvent,
 } from "@/lib/api";
+import { createTranslator } from "next-intl";
+import { CATALOGUES } from "@/lib/i18n/testing";
 import { TestSessionSection, durationLabel } from "./TestSessionSection";
 
 vi.mock("@/lib/api", () => ({
@@ -56,7 +58,11 @@ describe("Sesi uji", () => {
   });
 
   it("names durations in hours and minutes", () => {
-    expect([15, 60, 120, 90].map(durationLabel)).toEqual(["15 menit", "1 jam", "2 jam", "1 jam 30 menit"]);
+    type Words = Parameters<typeof durationLabel>[1];
+    const words = (language: "en" | "id") =>
+      createTranslator({ locale: language, messages: CATALOGUES[language], namespace: "settings.testSession" }) as unknown as Words;
+    expect([15, 60, 120, 90].map((minutes) => durationLabel(minutes, words("id")))).toEqual(["15 menit", "1 jam", "2 jam", "1 jam 30 menit"]);
+    expect([15, 60, 120, 90].map((minutes) => durationLabel(minutes, words("en")))).toEqual(["15 minutes", "1 hour", "2 hours", "1 h 30 min"]);
   });
 
   it("starts a session with the default two hours", async () => {
@@ -79,7 +85,7 @@ describe("Sesi uji", () => {
   it("shows the running session and ends it", async () => {
     vi.mocked(getTestSessions).mockResolvedValue({ ok: true, sessions: [running, ended] });
     const { user } = show();
-    expect(await screen.findByText(/Berjalan sampai/)).toHaveTextContent("Berjalan sampai 18.30 · 0 notifikasi");
+    expect(await screen.findByText(/Sesi berjalan sampai/)).toHaveTextContent("Sesi berjalan sampai 18.30 · 0 notifikasi disimpan, tidak dicatat");
     expect(screen.queryByRole("button", { name: "Mulai sesi" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Akhiri sesi" }));
     expect(endTestSession).toHaveBeenCalledWith("sesi-jalan");
@@ -87,7 +93,7 @@ describe("Sesi uji", () => {
 
   it("opens a past session's report and saves a case number and note", async () => {
     const { user, container } = show();
-    const list = await screen.findByRole("list", { name: "Sesi uji sebelumnya" });
+    const list = await screen.findByRole("list", { name: "Sesi sebelumnya" });
     expect(within(list).getByText("1 Nov 09.00 – 10.15")).toBeInTheDocument();
     expect(within(list).getByText("2 notifikasi · 1 bernomor kasus")).toBeInTheDocument();
     expect(within(list).getByRole("link", { name: /Unduh CSV/ })).toHaveAttribute("href", "/api/ingest/test-sessions/sesi-lalu/export.csv");
@@ -106,7 +112,7 @@ describe("Sesi uji", () => {
 
   it("deletes a session's data only after confirming", async () => {
     const { user } = show();
-    const list = await screen.findByRole("list", { name: "Sesi uji sebelumnya" });
+    const list = await screen.findByRole("list", { name: "Sesi sebelumnya" });
     await user.click(within(list).getByRole("button", { name: /Hapus data sesi/ }));
     expect(deleteTestSession).not.toHaveBeenCalled();
     await user.click(within(list).getByRole("button", { name: "Ya, hapus data" }));

@@ -96,11 +96,11 @@ From 768 px every signed-in page SHALL start with a sticky 56 px top bar holding
 - **THEN** the menu SHALL list Terang, Gelap and Ikuti sistem as radio items with the current one checked, the theme SHALL switch at once, and focus SHALL return to "Tema"
 
 ### Requirement: Phone Tab Bar
-Below 768 px the app SHALL show a fixed 64 px bottom tab bar plus the safe-area inset with Beranda, Tinjau (with its count), Catat (an accent block with its label, opening capture), Transaksi and Lainnya. The current tab SHALL show `--ink` and a 2 px accent bar at the bar's top edge. Lainnya SHALL open a sheet with the other pages, Notifikasi, Tema and Keluar. The bar SHALL never hide focused content.
+Below 768 px the app SHALL show a fixed 64 px bottom tab bar plus the safe-area inset with Beranda, Tinjau (with its count), Catat (an accent block with its label, opening capture), Transaksi and Lainnya. The current tab SHALL show `--ink` and a 2 px accent bar at the bar's top edge. Lainnya SHALL open a sheet with the other pages, Notifikasi and Tema; "Keluar" lives in Pengaturan. The bar SHALL never hide focused content.
 
 #### Scenario: Reaching every page on a phone
 - **WHEN** the owner opens "Lainnya" at 390 px
-- **THEN** the sheet SHALL list Analisis, Laporan, Rekening & Kantong, Target & Tagihan, Pengaturan, Notifikasi, Tema and Keluar, without Tanya or Bantuan, trap focus while open and return focus to "Lainnya" when closed
+- **THEN** the sheet SHALL list Analisis, Laporan, Rekening & Kantong, Target & Tagihan, Pengaturan, Notifikasi and Tema, without Tanya, Bantuan or Keluar, trap focus while open and return focus to "Lainnya" when closed
 
 #### Scenario: Focus not obscured
 - **WHEN** a keyboard user tabs to the last row of a long list at 390 px

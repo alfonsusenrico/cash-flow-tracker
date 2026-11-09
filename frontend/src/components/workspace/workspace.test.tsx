@@ -162,9 +162,10 @@ describe("navigation model", () => {
   it("gives Transaksi and Pengaturan the 1040 frame and the prototype's subtitles", () => {
     // Transaksi writes its title from the catalogue since apply-markas-transaksi, so it has no untranslated entry.
     expect({ title: untranslatedPageTitle("/ledger"), width: frameWidth("/ledger") }).toEqual({ title: null, width: 1040 });
-    expect({ ...untranslatedPageTitle("/settings/profil"), width: frameWidth("/settings/profil") }).toEqual({ title: "Pengaturan", subtitle: "", width: 1040 });
-    // Rekening & Kantong and Target & Tagihan write their titles from the catalogue since their phases (apply-markas-
-    // rekening, apply-markas-target); Pengaturan stays the example.
+    // Every product page writes its title from the catalogue since its phase; Pengaturan was the last
+    // (apply-markas-pengaturan D19), so the local component sheet is the untranslated example.
+    expect({ title: untranslatedPageTitle("/settings/profil"), width: frameWidth("/settings/profil") }).toEqual({ title: null, width: 1040 });
+    expect(untranslatedPageTitle("/komponen")).toEqual({ title: "Komponen", subtitle: "Lembar komponen Markas+, hanya di build lokal" });
     expect(untranslatedPageTitle("/accounts")).toBeNull();
     expect(untranslatedPageTitle("/goals")).toBeNull();
     expect(frameWidth("/")).toBe(1200);
@@ -660,20 +661,21 @@ describe("Phone shell", () => {
     expect(screen.getByRole("button", { name: "Lainnya" })).toHaveAttribute("aria-current", "page");
   });
 
-  it("Reaching every page on a phone: Lainnya lists the pages in the sidebar order, Notifikasi, Tema and Keluar", async () => {
-    const { user, value, baseElement } = renderShell(<PhoneTabBar />, { themeChoice: "dark" });
+  it("Reaching every page on a phone: Lainnya lists the pages in the sidebar order, Notifikasi and Tema", async () => {
+    const { user, baseElement } = renderShell(<PhoneTabBar />, { themeChoice: "dark" });
     const more = screen.getByRole("button", { name: "Lainnya" });
     await user.click(more);
     expect(more).toHaveAttribute("aria-expanded", "true");
     const sheet = screen.getByRole("dialog", { name: "Lainnya" });
     const rows = within(sheet).getAllByRole("listitem").map((row) => row.textContent);
-    expect(rows).toEqual(["Analisis", "Laporan1 baru", "Rekening & Kantong", "Target & Tagihan", "Pengaturan", "Notifikasi2 baru", "TemaGelap", "Keluar"]);
+    expect(rows).toEqual(["Analisis", "Laporan1 baru", "Rekening & Kantong", "Target & Tagihan", "Pengaturan", "Notifikasi2 baru", "TemaGelap"]);
     expect(within(sheet).getByRole("link", { name: "Laporan, laporan baru siap" })).toHaveAttribute("href", "/laporan");
-    expect(within(sheet).queryByText(/Tanya|Bantuan/)).not.toBeInTheDocument();
+    // Keluar lives at the end of Pengaturan's rail since apply-markas-pengaturan D5.
+    expect(within(sheet).queryByText(/Tanya|Bantuan|Keluar/)).not.toBeInTheDocument();
     expect(sheet).toContainElement(document.activeElement as HTMLElement);
     expect((await axe(baseElement)).violations).toHaveLength(0);
-    await user.click(within(sheet).getByRole("button", { name: "Keluar" }));
-    expect(value.logout).toHaveBeenCalledOnce();
+    await user.keyboard("{Escape}");
+    expect(more).toHaveFocus();
   });
 
   it("traps Tab inside Lainnya and returns focus to Lainnya on Esc", async () => {
@@ -952,7 +954,7 @@ describe("the shell in English (add-language-system)", () => {
     expect(within(more).getByRole("link", { name: "Reports, new report ready" })).toHaveTextContent("1 new");
     expect(within(more).getByRole("button", { name: /Notifications/ })).toHaveTextContent("2 new");
     expect(within(more).getByRole("button", { name: /Theme/ })).toHaveTextContent("Match system");
-    expect(within(more).getByRole("button", { name: "Sign out" })).toBeInTheDocument();
+    expect(within(more).queryByRole("button", { name: "Sign out" })).not.toBeInTheDocument();
     expect(within(more).getByRole("button", { name: "Close More" })).toBeInTheDocument();
   });
 
@@ -1019,11 +1021,12 @@ describe("pages not translated yet (add-language-system D10)", () => {
     );
   }
 
-  it("shows English Pengaturan's Indonesian title block and content marked lang=id, with the notice in English", async () => {
-    showPage("/settings", "en");
+  // The example is the local component sheet, the last route no phase translates (apply-markas-pengaturan D19).
+  it("shows an English untranslated page's Indonesian title block and content marked lang=id, with the notice in English", async () => {
+    showPage("/komponen", "en");
     const main = await screen.findByRole("main");
     expect(main).toHaveAttribute("lang", "id");
-    expect(within(main).getByRole("heading", { level: 1, name: "Pengaturan" })).toHaveAttribute("lang", "id");
+    expect(within(main).getByRole("heading", { level: 1, name: "Komponen" })).toHaveAttribute("lang", "id");
     const notice = within(main).getByText("This page is in Indonesian for now.");
     expect(notice).toHaveAttribute("lang", "en");
     expect(screen.getByRole("navigation", { name: "Main menu" })).toHaveTextContent("Review");
@@ -1036,6 +1039,14 @@ describe("pages not translated yet (add-language-system D10)", () => {
     expect(main).not.toHaveAttribute("lang");
     expect(screen.queryByText("This page is in Indonesian for now.")).not.toBeInTheDocument();
     expect(document.querySelector("[lang='id']")).toBeNull();
+  });
+
+  it("shows no notice and no lang=id on an English Pengaturan, which apply-markas-pengaturan translated", async () => {
+    showPage("/settings/anggaran", "en");
+    const main = await screen.findByRole("main");
+    expect(main).not.toHaveAttribute("lang");
+    expect(within(main).getByRole("heading", { level: 1, name: "Settings" })).not.toHaveAttribute("lang");
+    expect(screen.queryByText("This page is in Indonesian for now.")).not.toBeInTheDocument();
   });
 
   it("shows no notice on an Indonesian Pengaturan", async () => {

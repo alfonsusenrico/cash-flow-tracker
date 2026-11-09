@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import type { ReactNode } from "react";
+import { Icon, type IconName } from "@/components/ui/Icon";
 import { cn } from "@/lib/utils";
 
 /**
@@ -35,9 +37,13 @@ export function Rail({
   );
 }
 
-/** A group's label inside a rail, such as "PERIODE" after the rule. */
-export function RailLabel({ children }: { children: ReactNode }) {
-  return <span className="t-label rail-label">{children}</span>;
+/** A group's label inside a rail, such as "PERIODE" after the rule; with `id` it names the group's list. */
+export function RailLabel({ id, children }: { id?: string; children: ReactNode }) {
+  return (
+    <span className="t-label rail-label" id={id}>
+      {children}
+    </span>
+  );
 }
 
 export function RailItem({
@@ -46,6 +52,8 @@ export function RailItem({
   countName,
   current = false,
   pressed,
+  href,
+  icon,
   onSelect,
 }: {
   label: string;
@@ -58,9 +66,24 @@ export function RailItem({
    * fill and bar as `current` while pressed.
    */
   pressed?: boolean;
-  onSelect: () => void;
+  /**
+   * An address, such as a Pengaturan section (apply-markas-pengaturan D2): the item is a link and the current one
+   * carries `aria-current="page"`.
+   */
+  href?: string;
+  /** A 16 px icon before the label, such as "Keluar"'s. */
+  icon?: IconName;
+  onSelect?: () => void;
 }) {
   const chosen = pressed ?? current;
+  if (href) {
+    return (
+      <Link href={href} className="rail-item ws-select-bar" aria-current={current ? "page" : undefined} onClick={onSelect}>
+        {icon && <Icon name={icon} className="h-4 w-4" />}
+        <span className="lbl">{label}</span>
+      </Link>
+    );
+  }
   return (
     <button
       type="button"
@@ -69,6 +92,7 @@ export function RailItem({
       aria-current={chosen ? "true" : undefined}
       onClick={onSelect}
     >
+      {icon && <Icon name={icon} className="h-4 w-4" />}
       <span className="lbl">{label}</span>
       {count !== undefined && (
         <span className="count" aria-hidden={countName ? "true" : undefined}>

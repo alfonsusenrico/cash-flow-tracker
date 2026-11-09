@@ -55,6 +55,9 @@ export function createFormat({ language, region, currency = "IDR", rate }: Forma
   const zoneDay = zoneFormat({ year: "numeric", month: "2-digit", day: "2-digit" });
   // Indonesia writes "18.23" with two-digit hours; the United States "6:23 PM".
   const clock = zoneFormat(region === "US" ? { hour: "numeric", minute: "2-digit" } : { hour: "2-digit", minute: "2-digit" });
+  const clockSeconds = zoneFormat(
+    region === "US" ? { hour: "numeric", minute: "2-digit", second: "2-digit" } : { hour: "2-digit", minute: "2-digit", second: "2-digit" },
+  );
 
   /** A whole number with the region's grouping, such as "1.234.567". */
   const integer = (value: number) => Math.round(value).toLocaleString(digits);
@@ -119,6 +122,8 @@ export function createFormat({ language, region, currency = "IDR", rate }: Forma
     },
     /** "18.23" (ID) or "6:23 PM" (US) for an instant in the app's time zone. */
     time: (value: Date | string) => clock.format(instant(value)),
+    /** "18.23.05" (ID) or "6:23:05 PM" (US), for a test session's notification times. */
+    timeSeconds: (value: Date | string) => clockSeconds.format(instant(value)),
     /**
      * A short amount for a calendar cell or a chart tick (apply-markas-analisis D22): "79rb", "1,3jt" in Indonesian,
      * "79K", "1.3M" in English, the decimal mark by region. `narrow` drops the decimal ("1jt") for a 45 px cell;
