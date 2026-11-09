@@ -11,10 +11,13 @@ type Money = (amount: number) => string;
 
 /**
  * Question 2 "Berapa yang ditabung?" (apply-markas-laporan D6): Ditabung & investasi with its share of Masuk, and
- * "Rincian tabungan" with today's two parts. The net move is not a sum of rows, so it is not a link.
+ * "Rincian tabungan" with the parts that add up to it: saving-pillar expenses, the net move into savings and, when
+ * there is any, spending paid from a savings account, which lowers it and stays in Pengeluaran
+ * (apply-markas-cleanup D8). Only the first part is a sum of rows the ledger can filter, so only it is a link.
  */
 export function SavingQuestion({ report, money }: { report: MonthlyReport; money: Money }) {
   const t = useTranslations("report");
+  const breakdown = useTranslations("breakdown");
   const format = useFormat();
   const { totals } = report.comparison;
   const { savings, period } = report;
@@ -43,6 +46,15 @@ export function SavingQuestion({ report, money }: { report: MonthlyReport; money
               amount={<MaskedMoney text={money(savings.net_saving_transfers)} className="t-amt c-invest" />}
             />
           </li>
+          {savings.paid_from_savings > 0 && (
+            <li>
+              <ListRow
+                title={breakdown("spendingFromSavings")}
+                meta={breakdown("stillCountedAsSpending")}
+                amount={<MaskedMoney text={`−${money(savings.paid_from_savings)}`} className="t-amt" />}
+              />
+            </li>
+          )}
         </ul>
       </div>
     </Question>

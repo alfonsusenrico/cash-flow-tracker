@@ -34,7 +34,7 @@ function componentSources(dir: string): string[] {
 }
 
 function block(selector: string): Record<string, string> {
-  const start = selector === ":root" ? tokens.indexOf(":root, .theme-light {") : tokens.indexOf(`${selector} {`);
+  const start = selector === ":root" ? tokens.indexOf(":root {") : tokens.indexOf(`${selector} {`);
   expect(start).toBeGreaterThanOrEqual(0);
   const body = tokens.slice(start, tokens.indexOf("\n}", start));
   return Object.fromEntries([...body.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)].map((match) => [match[1], match[2].trim()]));
@@ -87,20 +87,17 @@ function contrast(first: Rgb, second: Rgb): number {
 // the raised badge and selection fill (s2) and the dialog surface.
 const SURFACES = ["--window", "--surface", "--surface-2", "--dialog"];
 const textPairs: [string, string[]][] = [
-  ["--text", [...SURFACES, "--canvas", "--nav-bg", "--nav-hover"]],
-  ["--text-2", [...SURFACES, "--nav-bg", "--nav-hover"]],
-  ["--muted", [...SURFACES, "--nav-bg", "--nav-hover"]],
-  ["--tile-fg", ["--tile"]],
-  ["--ink-fg", ["--ink"]],
+  ["--text", [...SURFACES, "--canvas"]],
+  ["--text-2", [...SURFACES]],
+  ["--muted", [...SURFACES]],
   ["--accent-ink", ["--accent", "--accent-hover", "--accent-pressed"]],
   ["--accent-fg", SURFACES],
-  ["--in-fg", [...SURFACES, "--in-bg"]],
+  ["--in-fg", SURFACES],
   // Expense amounts are red wherever they carry "−", on the canvas too (apply-markas-transaksi D29).
   ["--out-fg", ["--canvas", ...SURFACES, "--out-bg"]],
-  ["--tr-fg", [...SURFACES, "--tr-bg"]],
-  ["--inv-fg", [...SURFACES, "--inv-bg"]],
-  ["--warn-fg", [...SURFACES, "--warn-bg"]],
-  ["--ok-fg", [...SURFACES, "--ok-bg"]],
+  ["--tr-fg", SURFACES],
+  ["--inv-fg", SURFACES],
+  ["--warn-fg", SURFACES],
   ["--danger-contrast", ["--danger-solid", "--danger-solid-hover"]],
 ];
 
@@ -181,36 +178,23 @@ const MARKAS: Record<string, [string, string]> = {
   "--window": ["#F8F7F4", "#151517"],
   "--surface": ["#F1EFEB", "#1C1D20"],
   "--surface-2": ["#E6E3DD", "#26272B"],
-  "--surface-3": ["#E6E3DD", "#26272B"],
-  "--nav-bg": ["#F1EFEB", "#1C1D20"],
-  "--nav-hover": ["#E6E3DD", "#26272B"],
-  "--accent-soft": ["#E6E3DD", "#26272B"],
   "--dialog": ["#F8F7F4", "#1C1D20"],
   "--line": ["#E1DDD6", "#2F3034"],
   "--line-strong": ["#847F78", "#6E7076"],
   "--text": ["#1C1E22", "#E8E7E4"],
-  "--ink": ["#1C1E22", "#E8E7E4"],
   "--muted": ["#5B5E65", "#A3A3A7"],
   "--text-2": ["#5B5E65", "#A3A3A7"],
-  "--ink-hover": ["#45484F", "#BDBEC2"],
-  "--ink-fg": ["#F8F7F4", "#151517"],
   "--accent": ["#FF334B", "#FF4757"],
   "--accent-hover": ["#FF4D61", "#FF6675"],
   "--accent-pressed": ["#FF6B7C", "#FF8A95"],
   "--accent-ink": ["#0A0D14", "#0A0D14"],
   "--accent-fg": ["#B8142D", "#FF6B78"],
   "--in-fg": ["#056548", "#34D399"],
-  "--ok-fg": ["#056548", "#34D399"],
   "--out-fg": ["#B8142D", "#FF6B78"],
   "--tr-fg": ["#075985", "#38BDF8"],
   "--inv-fg": ["#5B21B6", "#B39DFB"],
   "--warn-fg": ["#8F4F04", "#FBBF24"],
-  "--in-bg": ["#E6E3DD", "#26272B"],
   "--out-bg": ["#E6E3DD", "#26272B"],
-  "--tr-bg": ["#E6E3DD", "#26272B"],
-  "--inv-bg": ["#E6E3DD", "#26272B"],
-  "--warn-bg": ["#E6E3DD", "#26272B"],
-  "--ok-bg": ["#E6E3DD", "#26272B"],
   "--in-solid": ["#047857", "#10B981"],
   "--ok-dot": ["#047857", "#10B981"],
   "--k-saving": ["#047857", "#10B981"],
@@ -336,6 +320,19 @@ describe("design tokens", () => {
     }
   });
 
+  it("declares no token and maps no colour key that nothing under src uses (apply-markas-cleanup D5)", () => {
+    const sources = componentFiles(srcDir).map((file) => readFileSync(file, "utf8")).join("\n");
+    const quoted = [...sources.matchAll(/["'`](--[\w-]+)["'`]/g)].map((match) => match[1]);
+    const used = new Set([...usedIn(tokens + globals), ...usedIn(sources), ...quoted]);
+    expect([...declaredIn(tokens)].filter((name) => !used.has(name))).toEqual([]);
+    const colors = createRequire(import.meta.url)("../../tailwind.config.js").theme.extend.colors as Record<string, string | Record<string, string>>;
+    const keys = Object.entries(colors).flatMap(([key, value]) =>
+      typeof value === "string" ? [key] : Object.keys(value).map((sub) => (sub === "DEFAULT" ? key : `${key}-${sub}`)));
+    const utility = (key: string) =>
+      new RegExp(`(?<![\\w-])(?:[a-z-]+:)*(?:text|bg|border|ring|fill|stroke|outline|divide|placeholder|decoration|caret|accent)-${key}(?![\\w-])`);
+    expect(keys.filter((key) => !utility(key).test(sources))).toEqual([]);
+  });
+
   it("paints no tinted semantic fill behind text", () => {
     // Badges carry the ink on the raised neutral fill (D7); tints of a mark colour fall below 4.5:1 on s2.
     expect(findings(/(?<![\w-])(?:[a-z-]+:)*(?:bg|border)-(?:in|out|tr|inv|warn|ok)-(?:solid|bg|fg)\/\d+/g)).toEqual([]);
@@ -370,14 +367,14 @@ describe("design tokens", () => {
     for (const type of ["bank", "wallet", "cash"]) expect(defaultAccountTagColor(type)).not.toBe(INVESTMENT_ACCOUNT_TAG_COLOR);
   });
 
-  it("gives cards no shadow and floating layers the layer shadow token", () => {
+  it("gives panels, boxes and tiles no shadow and floating layers the layer shadow token", () => {
     const rule = (selector: string) => {
-      const start = globals.indexOf(`${selector} {`);
+      const start = globals.indexOf(`\n${selector} {`);
       expect(start, selector).toBeGreaterThanOrEqual(0);
       return globals.slice(start, globals.indexOf("}", start));
     };
-    expect(rule(".ws-card")).toContain("box-shadow: none");
-    for (const floating of [".ws-menu", ".popover", ".ws-toast", "dialog.shell-dialog"]) {
+    for (const flat of [".panel", ".box", ".tile"]) expect(rule(flat), flat).not.toContain("box-shadow");
+    for (const floating of [".popover", ".ws-toast", "dialog.shell-dialog"]) {
       expect(rule(floating), floating).toContain("box-shadow: var(--shadow-float)");
     }
   });

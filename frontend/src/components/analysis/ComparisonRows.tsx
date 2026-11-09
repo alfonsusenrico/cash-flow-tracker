@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { jakartaDay } from "@/components/transactions/rows";
-import { ChangeFigure, Meter } from "@/components/workspace/figures";
+import { ChangeFigure, ProgressBar } from "@/components/workspace/figures";
 import { MaskedMoney } from "@/components/workspace/money";
 import { useFormat } from "@/lib/format";
 import type { ReportComparison } from "@/lib/monthlyReport";
@@ -59,7 +59,7 @@ export function ComparisonRows({ comparison, money }: { comparison: ReportCompar
         <span className="t-body">{t("shareOfPrevious", { share: format.integer(progress.share), period: previousName })}</span>
         <MaskedMoney text={money(progress.previous_spending)} className="t-amt cmp-num" />
         <span className="t-meta cmp-num ph-hide">{t("wholePeriod")}</span>
-        <span className="ph-hide cmp-bar"><Meter value={progress.share} tone="var(--out-solid)" /></span>
+        <span className="ph-hide cmp-bar"><ProgressBar value={progress.share} color="var(--out-solid)" /></span>
       </div>
     );
   } else {
@@ -91,7 +91,7 @@ export function ComparisonRows({ comparison, money }: { comparison: ReportCompar
         </span>
         <MaskedMoney text={money(baseline.totals.spending)} className="t-amt cmp-num" />
         <span className="t-meta cmp-num ph-hide">{per}</span>
-        <span className="ph-hide cmp-bar">{share !== null && <Meter value={share} tone="var(--out-solid)" />}</span>
+        <span className="ph-hide cmp-bar">{share !== null && <ProgressBar value={share} color="var(--out-solid)" />}</span>
       </div>
     );
   } else {

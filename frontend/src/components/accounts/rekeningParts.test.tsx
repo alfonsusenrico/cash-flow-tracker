@@ -2,7 +2,7 @@ import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithIntl } from "@/lib/i18n/testing";
 import { GainText, ProgressBar } from "@/components/workspace/figures";
-import { BILL_STATUS_KEY, billStatusTone, creditFacts, isUnpaid } from "./credit";
+import { BILL_STATUS_KEY, billStatusTone, creditFacts } from "./credit";
 import { badgeInk } from "./displayColours";
 import type { AccountItem } from "./types";
 
@@ -86,8 +86,6 @@ describe("creditFacts", () => {
     expect(billStatusTone("overdue")).toBe("warning");
     expect(billStatusTone("paid_late")).toBe("muted");
     expect(billStatusTone("open")).toBe("plain");
-    expect(isUnpaid("upcoming")).toBe(true);
-    expect(isUnpaid("paid")).toBe(false);
   });
 });
 

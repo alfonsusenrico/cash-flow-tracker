@@ -23,7 +23,7 @@ from app.services.auth import get_current_user
 from app.services.credit_figures import paid_to_credit_by_account, spent_on_credit_by_account
 from app.services.credit_terms import Terms, is_credit_purchase, lock_purchase, set_purchase_terms
 from app.services.reimbursements import load_spending_offsets
-from app.services.report_windows import get_timeframe_window
+from app.services.report_windows import PERIOD_PATTERN, get_timeframe_window
 
 router = APIRouter(tags=["Credit"])
 
@@ -64,17 +64,47 @@ def _schedule_or_refuse(cur, user: dict[str, Any], account_id: str) -> credit_bi
     return schedules[account_id]
 
 
+def _list_window(
+    user: dict[str, Any], period: str | None, period_offset: int, from_instant: datetime | None, to_instant: datetime | None,
+) -> tuple[datetime, datetime, date, date] | None:
+    """The ledger list's own window (apply-markas-cleanup D9): a period resolved as `GET /api/transactions` resolves
+    it, or the exact instants the list sends. None when the request names neither form."""
+    zone = ZoneInfo(settings.tz)
+    if period:
+        start, end, start_day, end_day, _ = get_timeframe_window(
+            int(user.get("payday_day") or 25), period, cycle_offset=period_offset, user_id=str(user["id"]),
+            language=language_for_user(user),
+        )
+        return start, end, start_day, end_day
+    if from_instant is None and to_instant is None:
+        return None
+    if from_instant is None or to_instant is None or from_instant > to_instant:
+        raise api_error(422, ErrorCode.CREDIT_PERIOD_INVALID)
+    return from_instant, to_instant, from_instant.astimezone(zone).date(), to_instant.astimezone(zone).date()
+
+
 @router.get("/credit/accounts/{account_id}")
 def credit_account_overview(
     account_id: UUID,
     from_date: date | None = Query(default=None, alias="from"),
     to_date: date | None = Query(default=None, alias="to"),
+    period: str | None = Query(default=None, pattern=PERIOD_PATTERN),
+    period_offset: int = Query(default=0, ge=-36, le=12),
+    from_instant: datetime | None = Query(default=None, alias="from_date"),
+    to_instant: datetime | None = Query(default=None, alias="to_date"),
     current_user: dict = Depends(get_current_user),
 ):
-    """What one credit account owes, its bills with their items, and its totals for a period (H5, H8)."""
+    """What one credit account owes, its bills with their items, and its totals for a period (H5, H8).
+
+    The period is local days (`from`, `to`), or the ledger list's window (`period` with `period_offset`, or the
+    instants `from_date` and `to_date`) so the Kredit header counts exactly the rows the list holds (D9).
+    """
     user_id = str(current_user["id"])
     aid = str(account_id)
-    start, end, start_day, end_day = _period(current_user, from_date, to_date)
+    if (period and (from_date or to_date or from_instant or to_instant)) or ((from_date or to_date) and (from_instant or to_instant)):
+        raise api_error(422, ErrorCode.PERIOD_WITH_DATES)
+    window = _list_window(current_user, period, period_offset, from_instant, to_instant)
+    start, end, start_day, end_day = window or _period(current_user, from_date, to_date)
     with db_conn() as conn, conn.cursor() as cur:
         schedule = _schedule_or_refuse(cur, current_user, aid)
         offsets = load_spending_offsets(cur, user_id, start, end)

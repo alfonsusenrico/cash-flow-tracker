@@ -276,8 +276,8 @@ def test_statement_count_is_fixed(client, owner, monkeypatch):
     for day in range(2, 28):
         insert(owner, 1_000, at(day, 9))
         insert(owner, 2_000, at(day, 10))
-    # summary, two offset lookups (cycle and all time), page, allocations, days, types
-    assert one == count(50) == 7
+    # JIT off (apply-markas-cleanup D10), summary, two offset lookups (cycle and all time), page, allocations, days, types
+    assert one == count(50) == 8
 
 
 def test_detail_carries_waiting_local_day_and_origin(client, owner):

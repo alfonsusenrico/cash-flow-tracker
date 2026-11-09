@@ -52,7 +52,7 @@ export interface ListRowProps {
   onClick?: () => void;
   time?: string;
   /**
-   * The time column holds a short date ("10 Nov", "30 Sept") rather than a clock time: it is wider and never wraps,
+   * The time column holds a short date ("10 Nov", "30 Sep") rather than a clock time: it is wider and never wraps,
    * so every row's date stays on one line and the titles stay aligned.
    */
   timeIsDate?: boolean;

@@ -13,8 +13,7 @@ import type { RowFacts } from "./types";
 
 /**
  * How a ledger row describes itself on Transaksi, Beranda, the transaction dialog and the pages that list rows
- * (apply-markas-transaksi D11, D22, D27, D29, D30). The words come from the caller's labels: the catalogue's on a
- * translated page, the Indonesian ones of `lib/untranslatedRowLabels.ts` on a page its phase has not translated yet.
+ * (apply-markas-transaksi D11, D22, D27, D29, D30). The words come from the caller's labels, read from the catalogue.
  */
 export interface RowLabels {
   investmentTopUp: string;

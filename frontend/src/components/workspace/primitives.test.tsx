@@ -10,7 +10,7 @@ import { DayHeading, ListRow, Panel, PanelBlock, SectionHeader } from "./lists";
 import { Rail, RailItem, RailRule } from "./rail";
 import { ShellDialog } from "./ShellDialog";
 import { MaskedMoney } from "./money";
-import { Card, CardHeader, EmptyState, ErrorState, Pill, RadioSegments, Segmented, Skeleton } from "./primitives";
+import { EmptyState, ErrorState, RadioSegments, Segmented, Skeleton } from "./primitives";
 
 const app = vi.hoisted(() => ({ hideBalances: false, currency: "IDR" as "IDR" | "USD" }));
 vi.mock("@/components/layout/AppLayout", () => ({
@@ -32,34 +32,6 @@ const SPLIT: SplitSegment[] = [
 ];
 
 const PRIMITIVES: [string, () => ReactElement][] = [
-  [
-    "Card with CardHeader",
-    () => (
-      <Card labelledBy="card-title">
-        <CardHeader
-          id="card-title"
-          title="Perlu ditinjau"
-          icon="inbox"
-          count={3}
-          countLabel="3 transaksi"
-          caption="Dari notifikasi bank"
-          action={<button type="button">Buka</button>}
-        />
-        <p>Isi kartu</p>
-      </Card>
-    ),
-  ],
-  [
-    "Pill",
-    () => (
-      <p>
-        <Pill tone="in" icon="check">
-          Masuk
-        </Pill>
-        <Pill tone="warn">Hampir batas</Pill>
-      </p>
-    ),
-  ],
   [
     "Segmented",
     () => (
@@ -145,13 +117,6 @@ describe.each([
 });
 
 describe("primitive behaviour", () => {
-  it("CardHeader announces its count in words", () => {
-    render(<CardHeader title="Perlu ditinjau" count={3} countLabel="3 transaksi" />);
-    const heading = screen.getByRole("heading", { level: 2 });
-    expect(heading).toHaveTextContent("3 transaksi");
-    expect(within(heading).getByText("3")).toHaveAttribute("aria-hidden", "true");
-  });
-
   it("Segmented marks the chosen option and reports a change", async () => {
     const onChange = vi.fn();
     render(

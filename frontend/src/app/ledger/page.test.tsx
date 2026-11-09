@@ -712,11 +712,27 @@ describe("Credit (H5)", () => {
     await user.click(within(providers).getByRole("button", { name: "SPayLater" }));
     expect(here()).toBe(`/ledger?period=cycle&type=credit&account=${SPL}`);
     const header = await screen.findByRole("region", { name: "SPayLater · 25 Okt – 24 Nov" });
-    expect(vi.mocked(api.get)).toHaveBeenCalledWith(`/credit/accounts/${SPL}?from=2026-10-25&to=2026-11-24`);
+    expect(vi.mocked(api.get)).toHaveBeenCalledWith(`/credit/accounts/${SPL}?period=cycle&period_offset=0`);
     expect(header).toHaveTextContent("UtangRp 470.000");
     expect(header).toHaveTextContent("Tagihan berikutnyaRp 470.000jatuh tempo 11 Des");
     expect(header).toHaveTextContent("Pengeluaran pakai kreditRp 120.000");
     expect(header).toHaveTextContent("Tagihan kredit dibayarRp 350.000");
+  });
+
+  it("asks the credit overview for the list's own window: a stepped month and an exact range (apply-markas-cleanup D9)", async () => {
+    pages = [[purchase]];
+    const month = renderPage(`/ledger?period=month&offset=-1&type=credit&account=${SPL}`);
+    await screen.findByRole("region", { name: /^SPayLater · / });
+    expect(vi.mocked(api.get)).toHaveBeenCalledWith(`/credit/accounts/${SPL}?period=month&period_offset=-1`);
+    month.unmount();
+    const from = "2026-10-01T00:00:00+07:00";
+    const to = "2026-10-15T23:59:59.999999+07:00";
+    renderPage(`/ledger?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&type=credit&account=${SPL}`);
+    await screen.findByRole("region", { name: /^SPayLater · / });
+    expect(vi.mocked(api.get)).toHaveBeenCalledWith(
+      `/credit/accounts/${SPL}?${new URLSearchParams({ from_date: from, to_date: to }).toString()}`,
+    );
+    expect(listCalls().at(-1)).toContain(`from_date=${encodeURIComponent(from)}`);
   });
 
   it("shows the terms in the dialog and changes the instalments through the credit-terms request", async () => {

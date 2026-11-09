@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { ShellDialog } from "@/components/workspace/ShellDialog";
-import { UntranslatedRegion } from "@/components/workspace/untranslated";
 import { api } from "@/lib/api";
 import { useFormat } from "@/lib/format";
 import { queryKeys } from "@/lib/queryKeys";
@@ -80,42 +79,40 @@ export function BudgetDialog({ open, onClose }: { open: boolean; onClose: () => 
   );
 
   return (
-    <UntranslatedRegion active={false}>
-      <ShellDialog open={open} onClose={onClose} title={t("title")} meta={t("help")} width={560} closeLabel={common("close")} footer={footer}>
-        <form
-          id={FORM_ID}
-          className="form-stack"
-          onSubmit={(event) => {
-            event.preventDefault();
-            setError("");
-            save.mutate();
-          }}
-        >
-          {error && <p role="alert" className="form-alert">{error}</p>}
-          {isLoading && <p className="t-meta" role="status">{t("loading")}</p>}
-          {isError && <p role="alert" className="form-alert">{t("loadFailed")}</p>}
-          <ul className="budget-list">
-            {categories.map((row) => (
-              <li key={row.id} className="budget-row">
-                <label htmlFor={`budget-${row.id}`} className="budget-name">{row.name}</label>
-                <span className="budget-input">
-                  {/* Budgets are stored in rupiah whatever the display currency. */}
-                  <span aria-hidden="true" className="budget-unit">{t("unit")}</span>
-                  <input
-                    id={`budget-${row.id}`}
-                    inputMode="numeric"
-                    autoComplete="off"
-                    value={values[row.id] ?? ""}
-                    onChange={(event) => setValues((current) => ({ ...current, [row.id]: grouped(Number(digits(event.target.value)) || null) }))}
-                    placeholder={t("none")}
-                    className="field-control tabular-nums"
-                  />
-                </span>
-              </li>
-            ))}
-          </ul>
-        </form>
-      </ShellDialog>
-    </UntranslatedRegion>
+    <ShellDialog open={open} onClose={onClose} title={t("title")} meta={t("help")} width={560} closeLabel={common("close")} footer={footer}>
+      <form
+        id={FORM_ID}
+        className="form-stack"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setError("");
+          save.mutate();
+        }}
+      >
+        {error && <p role="alert" className="form-alert">{error}</p>}
+        {isLoading && <p className="t-meta" role="status">{t("loading")}</p>}
+        {isError && <p role="alert" className="form-alert">{t("loadFailed")}</p>}
+        <ul className="budget-list">
+          {categories.map((row) => (
+            <li key={row.id} className="budget-row">
+              <label htmlFor={`budget-${row.id}`} className="budget-name">{row.name}</label>
+              <span className="budget-input">
+                {/* Budgets are stored in rupiah whatever the display currency. */}
+                <span aria-hidden="true" className="budget-unit">{t("unit")}</span>
+                <input
+                  id={`budget-${row.id}`}
+                  inputMode="numeric"
+                  autoComplete="off"
+                  value={values[row.id] ?? ""}
+                  onChange={(event) => setValues((current) => ({ ...current, [row.id]: grouped(Number(digits(event.target.value)) || null) }))}
+                  placeholder={t("none")}
+                  className="field-control tabular-nums"
+                />
+              </span>
+            </li>
+          ))}
+        </ul>
+      </form>
+    </ShellDialog>
   );
 }

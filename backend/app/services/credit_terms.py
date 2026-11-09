@@ -122,11 +122,23 @@ def validate_terms(installment_count: int, first_due_date: date | None, purchase
 
 
 def write_terms(cur, user_id: str, transaction_id: str, installment_count: int, first_due_date: date | None) -> None:
-    """Store the owner's terms; paid in full with a derived date is the default and needs no row (D1)."""
+    """Store the owner's terms; paid in full with a derived date is the default and needs no row (D1).
+
+    A first due date equal to the stored one keeps who set it, so a count-only edit that sends back a date the
+    system kept after a day change leaves it kept, not the owner's (apply-markas-cleanup F1, owner 2026-11-09).
+    """
     if installment_count == 1 and first_due_date is None:
         cur.execute("DELETE FROM credit_purchase_terms WHERE transaction_id = %s AND user_id = %s", (transaction_id, user_id))
         return
     set_by = OWNER if first_due_date is not None else None
+    if first_due_date is not None:
+        cur.execute(
+            "SELECT first_due_date, first_due_date_set_by FROM credit_purchase_terms WHERE transaction_id = %s AND user_id = %s",
+            (transaction_id, user_id),
+        )
+        stored = cur.fetchone()
+        if stored is not None and stored["first_due_date"] == first_due_date:
+            set_by = stored["first_due_date_set_by"]
     cur.execute(
         """
         INSERT INTO credit_purchase_terms (transaction_id, user_id, installment_count, first_due_date, first_due_date_set_by)

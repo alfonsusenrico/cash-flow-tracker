@@ -38,7 +38,7 @@ The application SHALL provide a consistent button hierarchy built from the works
 - **THEN** the button shows a 2 px outline in the focus token 2 px outside its edge, and no coloured ring
 
 #### Scenario: Small row actions are quiet
-- **WHEN** a Tinjau row on a page not yet redesigned shows a small action such as "Pilih" or "Ubah"
+- **WHEN** a list row on any page shows a small action such as "Pilih" or "Ubah"
 - **THEN** the action is a small quiet button with muted text and no semantic fill
 
 #### Scenario: Whole-row items

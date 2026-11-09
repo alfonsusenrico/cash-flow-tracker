@@ -9,7 +9,6 @@ import { Icon } from "@/components/ui/Icon";
 import { MaskedMoney, useMoney } from "@/components/workspace/money";
 import { useToast } from "@/components/workspace/overlays";
 import { ShellDialog } from "@/components/workspace/ShellDialog";
-import { UntranslatedRegion } from "@/components/workspace/untranslated";
 import { ApiError, api } from "@/lib/api";
 import { useFormat } from "@/lib/format";
 import { isHabitRecorded } from "@/lib/provenance";
@@ -210,7 +209,7 @@ export function TransactionDialog({
   ) : undefined;
 
   return (
-    <UntranslatedRegion active={false}>
+    <>
       <ShellDialog open={open} onClose={onClose} title={title} meta={when} width={560} closeLabel={t("transactions.dialog.close")} footer={footer} className="tx-dialog" scrollFocusable>
         {detail.isLoading && (
           <div aria-busy="true" aria-label={t("transactions.dialog.loading")}>
@@ -340,7 +339,7 @@ export function TransactionDialog({
           }}
         />
       )}
-    </UntranslatedRegion>
+    </>
   );
 }
 

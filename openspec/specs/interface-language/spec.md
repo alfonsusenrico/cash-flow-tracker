@@ -77,17 +77,6 @@ Every page SHALL declare the interface language on its root element. Interface t
 - **WHEN** the English Beranda lists a transaction named "Bayar parkir PTC"
 - **THEN** the title SHALL be inside no element with a `lang` attribute other than the root
 
-### Requirement: Untranslated Pages Inside a Translated Shell
-In English, a page whose redesign phase has not translated it yet SHALL show its Indonesian content inside the English shell. Its title block and main region SHALL carry `lang="id"`, and one muted line under its title SHALL read "This page is in Indonesian for now." The Indonesian interface SHALL show no such line. The set of untranslated pages SHALL only shrink.
-
-#### Scenario: Tinjau before phase 4
-- **WHEN** an English account opens Tinjau
-- **THEN** the sidebar SHALL read "Review", the page content SHALL be the Indonesian page with `lang="id"`, and the line "This page is in Indonesian for now." SHALL appear under its title
-
-#### Scenario: Translated page has no notice
-- **WHEN** an English account opens Beranda or the sign-in page
-- **THEN** no untranslated-page line SHALL appear and no region SHALL carry `lang="id"`
-
 ### Requirement: User Data Is Never Translated
 Names, notes and merchants the user entered, categories and accounts once created (including starter ones), quoted notification text and stored generated descriptions SHALL be shown exactly as stored in either language. Switching language SHALL NOT change any stored row.
 
@@ -119,7 +108,7 @@ Interface text SHALL come from one catalogue per language, with the same keys an
 - **THEN** English SHALL read "1 day until payday on 25 Nov" and "20 days until payday on 25 Nov"
 
 ### Requirement: Region-Based Formatting
-Numbers, dates, weekday and month names, compact amounts and money SHALL be formatted by the interface language together with the account region, never by the language alone. For region Indonesia and IDR, money SHALL read exactly "Rp 1.234.567" in both languages. Every figure SHALL be identical in both languages for the same data.
+Numbers, dates, weekday and month names, compact amounts and money SHALL be formatted by the interface language together with the account region, never by the language alone. For region Indonesia and IDR, money SHALL read exactly "Rp 1.234.567" in both languages. Every figure SHALL be identical in both languages for the same data. English short month names SHALL have three letters ("Sep", never "Sept"), as the server's labels do.
 
 #### Scenario: English with region Indonesia
 - **WHEN** an English account in region Indonesia views Beranda on Thursday 5 November with Rp 1.234.567 safe to spend
@@ -129,6 +118,10 @@ Numbers, dates, weekday and month names, compact amounts and money SHALL be form
 - **GIVEN** an English and an Indonesian account with the same transactions, region Indonesia
 - **WHEN** both open Beranda and its Rincian
 - **THEN** every amount, count and date number SHALL be the same string in both
+
+#### Scenario: September in a short date
+- **WHEN** an English account in region Indonesia views Analisis for the cycle from 29 September to 27 October
+- **THEN** the web's cycle label SHALL read "Cycle 29 Sep – 27 Oct", with the same "Sep" as the server's period labels, and no date on any page SHALL read "Sept"
 
 ### Requirement: Account Region
 Each account SHALL have a region, Indonesia (`ID`) or the United States (`US`), chosen at sign-up (default Indonesia) and changeable in Pengaturan. The region SHALL change number and date style only, never words, stored amounts or the display currency.
@@ -234,3 +227,14 @@ Logs and error reports SHALL record message keys, error codes, prompt versions, 
 #### Scenario: Purpose question log
 - **WHEN** a purpose question naming "Kedai Awan" and Rp 125.000 is created and answered for an English account
 - **THEN** the captured logs SHALL contain its code and no "Kedai Awan", no "125.000" and no rendered prompt
+
+### Requirement: Every Page in the Interface Language
+Every signed-in page, its dialogs and the sign-in page SHALL render their interface copy in the interface language from the catalogues. No route SHALL show an untranslated-page notice, and no interface copy SHALL be wrapped in a `lang` other than the document's, except a language's own name in the language choice.
+
+#### Scenario: English across the pages
+- **WHEN** an English account opens Beranda, Tinjau, Transaksi, Analisis, Laporan, Rekening & Kantong, Target & Tagihan and each Pengaturan section
+- **THEN** no page SHALL show "This page is in Indonesian for now." and no interface element SHALL carry `lang="id"` except the option "Bahasa Indonesia" in the language choice, while user data such as an account named "Tabungan Rumah" keeps no language override
+
+#### Scenario: Indonesian across the pages
+- **WHEN** an Indonesian account opens the same pages
+- **THEN** the document SHALL carry `lang="id"` and no element SHALL carry `lang="en"` except the option "English" in the language choice

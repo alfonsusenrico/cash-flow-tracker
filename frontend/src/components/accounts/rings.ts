@@ -1,5 +1,3 @@
-import type { KeyboardEvent } from "react";
-
 /** Radians of empty space on each side of a ring segment, so neighbouring segments stay apart. */
 export const SEGMENT_GAP = 0.012;
 
@@ -29,11 +27,4 @@ export function segmentAngles(shares: number[], offset = 0): { start: number; en
     start = end;
   }
   return angles;
-}
-
-/** Segments drawn as `role="button"` take Enter and Space like a button. */
-export function pressOnKey(event: KeyboardEvent<SVGElement>, action: () => void) {
-  if (event.key !== "Enter" && event.key !== " ") return;
-  event.preventDefault();
-  action();
 }

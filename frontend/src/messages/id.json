@@ -63,7 +63,6 @@
     "tryAgain": "Coba lagi",
     "hidden": "Disembunyikan",
     "loading": "Memuat…",
-    "closeDetails": "Tutup detail",
     "moreActions": "Tindakan lain",
     "theme": {
       "label": "Tema",
@@ -102,7 +101,6 @@
     "accounts": "Rekening & Kantong",
     "goals": "Target & Tagihan",
     "settings": "Pengaturan",
-    "components": "Komponen",
     "more": "Lainnya",
     "closeMore": "Tutup Lainnya",
     "mainMenu": "Menu utama",
@@ -265,10 +263,6 @@
     "cannotCalculate": "Belum bisa dihitung",
     "kakeiboPeriod": "{period, select, cycle {Kakeibo siklus ini} other {Kakeibo bulan ini}}",
     "chooseInReview": "Perlu dipilih di Tinjau",
-    "viewBreakdownLabel": "{label} {amount}: lihat rincian",
-    "closeExplanation": "Tutup penjelasan",
-    "whyUnavailable": "Kenapa belum ada: ",
-    "itemCount": "{count} item",
     "creditBill": "Tagihan {account}",
     "creditMark": "Kredit",
     "creditWhen": "{when} · Kredit"
@@ -1829,9 +1823,6 @@
   },
   "conversation": {
     "helpFactHome": "Beranda menunjukkan berapa yang aman dipakai sampai gajian."
-  },
-  "notice": {
-    "untranslated": "Halaman ini masih dalam bahasa Indonesia."
   },
   "accounts": {
     "page": {

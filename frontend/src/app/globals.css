@@ -36,9 +36,8 @@ body {
  * ====================================================================== */
 
 /* Tabular figures for every amount, count, time, date column, table, field, badge and chart label. */
-.tabular, .tabular-nums, .t-fig-l, .t-fig, .t-amt, .ws-cnt, .ws-kbd, .ws-pill, .ws-badge, .ws-tbl,
-.ws-bigline, .ws-rows .r,
-.ws-chip-delta, table, dd, input, select, textarea, svg text {
+.tabular, .tabular-nums, .t-fig-l, .t-fig, .t-amt, .ws-kbd, .ws-badge,
+table, dd, input, select, textarea, svg text {
   font-variant-numeric: tabular-nums lining-nums;
   font-feature-settings: var(--features-num);
 }
@@ -72,7 +71,7 @@ body {
 /* Fields: a 1 px edge that turns --field-focus with a 3 px soft ring, never an outline or a colour.
    The :not() list keeps the rule above Tailwind's single-class utilities. */
 input[class~="border"]:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
-select[class~="border"], textarea[class~="border"], .ws-field input, .ws-field select {
+select[class~="border"], textarea[class~="border"] {
   transition: border-color var(--t-state), box-shadow var(--t-state);
 }
 /* A field's resting edge is the strong line on the page or dialog surface (SPEC §7). */
@@ -86,7 +85,7 @@ select[class~="border"], textarea[class~="border"] {
   background-color: var(--dialog);
 }
 input[class~="border"]:not([type="checkbox"]):not([type="radio"]):not([type="range"]):hover,
-select[class~="border"]:not([disabled]):hover, textarea[class~="border"]:hover, .ws-field input:hover, .ws-field select:hover {
+select[class~="border"]:not([disabled]):hover, textarea[class~="border"]:hover {
   border-color: var(--muted);
 }
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
@@ -96,13 +95,12 @@ textarea:not([data-bare]):focus, textarea:not([data-bare]):focus-visible {
   outline: none;
 }
 input[class~="border"]:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
-select[class~="border"]:not([multiple]):focus, textarea[class~="border"]:not([data-bare]):focus,
-.ws-field input:focus, .ws-field select:focus, .ws-field-box:focus-within {
+select[class~="border"]:not([multiple]):focus, textarea[class~="border"]:not([data-bare]):focus {
   border-color: var(--field-focus);
   box-shadow: 0 0 0 3px var(--ring);
 }
 /* Selects draw the prototype's chevron (SPEC §7: right padding 36, chevron #847F78). */
-select[class~="border"]:not([multiple]), .ws-select, .ws-field select {
+select[class~="border"]:not([multiple]), .ws-select {
   appearance: none;
   padding-right: 36px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23847F78' stroke-width='1.5' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
@@ -372,8 +370,6 @@ code, kbd, samp, pre { font-family: var(--font-sans); }
 .title-block { display: flex; align-items: flex-end; gap: var(--sp-16); padding: var(--sp-48) 0 var(--sp-32); }
 .title-block .tb-text { flex: 1; min-width: 0; }
 .title-block .sub { margin-top: var(--sp-4); color: var(--muted); text-wrap: pretty; }
-/* A page not translated yet says so in one muted line under its title (add-language-system D10). */
-.untranslated-note { margin-top: var(--sp-4); color: var(--muted); }
 .title-block .tb-actions { display: flex; align-items: center; gap: var(--sp-8); }
 .title-block .tb-actions:empty { display: none; }
 
@@ -612,8 +608,7 @@ dialog.shell-dialog::backdrop { background: var(--scrim); animation: ws-fade var
   .dlg-b { padding: 0 var(--sp-16) calc(var(--sp-16) + env(safe-area-inset-bottom, 0px)); }
 }
 
-
-/* Shared controls the pages use: buttons, icon buttons, key caps, the page search field and menus. */
+/* Shared controls the pages use: buttons, icon buttons and key caps. */
 /* Buttons */
 .ws-btn {
   display: inline-flex;
@@ -640,8 +635,6 @@ dialog.shell-dialog::backdrop { background: var(--scrim); animation: ws-fade var
 .ws-btn-ink, .ws-btn-accent { border-color: transparent; background: var(--accent); color: var(--accent-ink); }
 .ws-btn-ink:hover, .ws-btn-accent:hover { background: var(--accent-hover); }
 .ws-btn-ink:active, .ws-btn-accent:active { background: var(--accent-pressed); transform: translateY(1px); }
-
-
 
 .ws-btn-danger { border-color: transparent; background: var(--danger-solid); color: var(--danger-contrast); }
 .ws-btn-danger:hover { background: var(--danger-solid); filter: brightness(0.92); }
@@ -681,60 +674,6 @@ dialog.shell-dialog::backdrop { background: var(--scrim); animation: ws-fade var
 .ws-icon-btn:hover { background: var(--surface); color: var(--text); }
 .ws-icon-btn:active, .ws-icon-btn[aria-pressed="true"], .ws-icon-btn[aria-expanded="true"] { background: var(--surface-2); color: var(--text); }
 
-.ws-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 300px;
-  height: 40px;
-  padding: 0 8px 0 12px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-control);
-  background: var(--window);
-  color: var(--muted);
-  transition: border-color var(--t-state), box-shadow var(--t-state);
-}
-.ws-search input { flex: 1; min-width: 0; height: 100%; border: 0; background: none; color: var(--text); outline: none; }
-.ws-search input::placeholder { color: var(--muted); }
-.ws-search:hover { border-color: var(--muted); }
-.ws-search:focus-within { border-color: var(--field-focus); box-shadow: 0 0 0 3px var(--ring); }
-
-/* Popover menus of page controls (Disclosure) */
-.ws-pop-anchor { position: relative; }
-.ws-menu {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 8px);
-  z-index: 70;
-  min-width: 240px;
-  max-width: min(400px, calc(100vw - 32px));
-  padding: var(--sp-8) 0;
-  border: 1px solid var(--line);
-  border-radius: var(--r-panel);
-  background: var(--dialog);
-  color: var(--text);
-  box-shadow: var(--shadow-float);
-}
-.ws-menu-h { padding: 8px 16px; color: var(--muted); font-size: var(--fs-12); line-height: 16px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; }
-.ws-menu-item {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-12);
-  width: 100%;
-  min-height: 36px;
-  padding: 8px var(--sp-16);
-  border-radius: 0;
-  color: var(--text);
-  font-size: var(--fs-14);
-  text-align: left;
-  transition: background-color var(--t-state);
-}
-.ws-menu-item:hover, .ws-menu-item:focus-visible { background: var(--surface-2); }
-.ws-menu-item:focus-visible { outline-offset: -2px; }
-.ws-menu-item[aria-pressed="true"] { font-weight: 500; }
-.ws-menu-item small { display: block; color: var(--muted); font-size: var(--fs-12); line-height: 16px; }
-.ws-menu-sep { height: 1px; margin: 8px 0; background: var(--line); }
-
 /* The phone's capture status, the first line of Pengaturan's "Status HP" box. */
 .ws-companion-status { display: flex; align-items: flex-start; gap: var(--sp-8); margin: 0; color: var(--muted); font-size: var(--fs-14); line-height: 20px; }
 .ws-companion-status strong { color: var(--text); font-weight: 500; }
@@ -743,55 +682,15 @@ dialog.shell-dialog::backdrop { background: var(--scrim); animation: ws-fade var
 .ws-dot[data-tone="warn"] { background: var(--warn-solid); }
 .ws-dot[data-tone="none"] { border: 1.5px dashed var(--muted); }
 
-
 /* ======================================================================
  * Primitives
  * ====================================================================== */
-
-/* Per-element colour hooks; components set them inline (pillar, legend and bar colours). */
-.ws-bar { --bc: var(--in-solid); }
-
-.ws-card { min-width: 0; padding: 20px 22px; border-radius: var(--r-panel); background: var(--surface); box-shadow: none; }
-.ws-card-h { display: flex; align-items: flex-start; gap: 14px; }
-.ws-card-t { flex: 1; min-width: 0; }
-.ws-card-h h2,
-.ws-card-h h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.3; }
-.ws-cap { margin-top: 2px; color: var(--muted); font-size: 14px; }
-.ws-tile { display: grid; flex: none; place-items: center; width: 38px; height: 38px; border-radius: var(--r-panel); background: var(--tile); color: var(--tile-fg); }
-.ws-tile svg { width: 19px; height: 19px; }
-.ws-tile-sm { width: 32px; height: 32px; border-radius: var(--r-panel); }
-.ws-tile-sm svg { width: 16px; height: 16px; }
-.ws-caption { color: var(--muted); font-size: 14px; line-height: 1.5; }
-.ws-cnt { padding: 1px 7px; border-radius: var(--r-control); background: var(--surface-2); color: var(--text-2); font-size: 12px; font-weight: 400; }
-.ws-muted { color: var(--muted); }
-
-.ws-chip-delta { align-self: flex-end; margin-bottom: 4px; padding: 2px 6px; border-radius: var(--r-control); font-size: 12px; font-weight: 600; line-height: 1.35; white-space: nowrap; }
-
-/* Pills */
-.ws-pill { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 var(--sp-8); border-radius: var(--r-control); background: var(--surface-2); font-size: var(--fs-12); line-height: 16px; font-weight: 500; white-space: nowrap; }
-.ws-pill svg { width: 12px; height: 12px; }
-.ws-tone-in { background: var(--in-bg); color: var(--in-fg); }
-.ws-tone-out { background: var(--out-bg); color: var(--out-fg); }
-.ws-tone-tr { background: var(--tr-bg); color: var(--tr-fg); }
-.ws-tone-inv { background: var(--inv-bg); color: var(--inv-fg); }
-.ws-tone-warn { background: var(--warn-bg); color: var(--warn-fg); }
-.ws-tone-ok { background: var(--ok-bg); color: var(--ok-fg); }
-.ws-tone-neutral { background: var(--surface-2); color: var(--muted); }
 
 /* Segmented control and chips */
 .ws-seg { display: inline-flex; gap: 2px; max-width: 100%; padding: 2px; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r-control); background: var(--surface); }
 .ws-seg button { display: inline-flex; align-items: center; gap: 8px; min-height: 30px; padding: 0 var(--sp-12); border-radius: var(--r-control); color: var(--muted); font-size: var(--fs-14); font-weight: 500; white-space: nowrap; transition: background-color var(--t-state), color var(--t-state); }
 .ws-seg button:hover { background: var(--surface-2); color: var(--text); }
 .ws-seg button[aria-pressed="true"], .ws-seg button[aria-checked="true"] { background: var(--window); color: var(--text); box-shadow: 0 0 0 1px var(--line); }
-.ws-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.ws-chip { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 0 var(--sp-12); border: 1px solid var(--line-strong); border-radius: var(--r-control); color: var(--text); font-size: var(--fs-12); line-height: 16px; font-weight: 500; transition: background-color var(--t-state); }
-.ws-chip:hover { background: var(--surface); }
-.ws-chip[aria-pressed="true"] { border-color: var(--line-strong); background: var(--surface-2); color: var(--text); }
-
-/* The former drawer's frame, drawn only as a static sample on /komponen until phase 12 retires the sheet. */
-.ws-drawer { display: flex; flex-direction: column; gap: 16px; padding: var(--sp-24); background: var(--dialog); color: var(--text); }
-.ws-drawer-h { display: flex; align-items: center; gap: 12px; }
-.ws-drawer-h h2 { flex: 1; min-width: 0; font-family: var(--font-display); font-feature-settings: var(--features-display); font-size: var(--fs-20); line-height: 28px; font-weight: 600; letter-spacing: -0.01em; }
 
 /* Toast */
 .ws-toast {
@@ -828,41 +727,6 @@ dialog.shell-dialog::backdrop { background: var(--scrim); animation: ws-fade var
 .ws-empty .ws-btn { margin-top: 12px; }
 .ws-error { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 16px 24px; border: 1px solid var(--line-strong); border-radius: var(--r-panel); background: transparent; color: var(--text); }
 .ws-error p { flex: 1; min-width: 12rem; }
-
-/* Lists, tables and banners */
-.ws-act, .ws-act[class*="ws-tone-"] { display: inline-flex; flex: none; align-items: center; min-height: 28px; padding: 0 var(--sp-8); border-radius: var(--r-control); background: transparent; color: var(--muted); font-size: var(--fs-14); font-weight: 500; transition: background-color var(--t-state), color var(--t-state); }
-.ws-act:hover, .ws-act[class*="ws-tone-"]:hover { background: var(--surface-2); color: var(--text); }
-
-.ws-tbl { width: 100%; margin-top: 14px; border-collapse: collapse; }
-.ws-tbl th { padding: 8px 10px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 14px; font-weight: 400; text-align: left; white-space: nowrap; }
-.ws-tbl td { padding: 13px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
-.ws-tbl tr:last-child td { border-bottom: 0; }
-.ws-tbl th:first-child,
-.ws-tbl td:first-child { padding-left: 0; }
-.ws-tbl th:last-child,
-.ws-tbl td:last-child { padding-right: 0; }
-.ws-tbl .r { text-align: right; white-space: nowrap; }
-.ws-who { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.ws-who-t { min-width: 0; }
-.ws-who-t > span { display: block; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.ws-rowbtn { display: block; min-height: 24px; max-width: 100%; overflow: hidden; color: var(--text); font-weight: 600; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
-.ws-rowbtn:hover { text-decoration: underline; text-underline-offset: 3px; }
-
-.ws-banner { display: flex; align-items: flex-start; gap: 14px; padding: 14px 16px; border-radius: var(--r-panel); font-size: 14px; line-height: 1.5; }
-.ws-banner .ws-tile { width: 34px; height: 34px; border-radius: var(--r-panel); }
-.ws-banner b { font-weight: 600; }
-.ws-banner-neutral { background: var(--surface); box-shadow: none; color: var(--text); }
-.ws-banner-ok { background: var(--ok-bg); color: var(--ok-fg); }
-.ws-banner-ok .ws-tile { background: var(--ok-fg); color: var(--ok-bg); }
-.ws-banner-warn { background: var(--warn-bg); color: var(--warn-fg); }
-.ws-banner-warn .ws-tile { background: var(--warn-fg); color: var(--warn-bg); }
-
-.ws-bar { position: relative; height: 8px; overflow: hidden; border-radius: 0; background: var(--surface-2); }
-.ws-bar > i { display: block; height: 100%; border-radius: 0; background: var(--bc, var(--in-solid)); }
-
-/* KPI cards with large figures (refine-workspace-layout D5), Transaksi's until its phase. */
-.ws-accent-link { display: inline-flex; align-items: center; min-height: 28px; color: var(--accent-fg); font-size: var(--fs-14); font-weight: 500; text-decoration: none; text-underline-offset: 3px; }
-.ws-accent-link:hover { text-decoration: underline; }
 
 /* ======================================================================
  * Markas+ page pieces (apply-markas-beranda D1 to D12), shared by the redesigned pages: the reading and context
@@ -942,7 +806,7 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
 .panel .row:hover { background: var(--surface-2); }
 .row:focus-visible { outline-offset: -2px; }
 .row .r-time { flex: none; width: 40px; color: var(--muted); font-size: var(--fs-12); line-height: 16px; }
-/* A short date in the time column (Tagihan, payment candidates): wide enough for "30 Sept" (45 px) or "30 Agu" (42 px) on one line. */
+/* A short date in the time column (Tagihan, payment candidates): wide enough for "30 Sep" or "30 Agu" (42 px) on one line. */
 .row .r-time.is-date { width: 48px; white-space: nowrap; }
 .row .r-main { display: flex; flex: 1; align-items: baseline; gap: var(--sp-8); min-width: 0; }
 .row .r-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1050,24 +914,9 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
 
 /* Page parts on phones; the shell's own phone rules are in the Shell block. */
 @media (max-width: 767px) {
-  .ws-card { padding: 16px; border-radius: var(--r-panel); }
   /* 16 px above the tab bar (D11). */
   .ws-toast { bottom: calc(var(--tabbar-h) + var(--sp-16) + env(safe-area-inset-bottom, 0px)); }
-  .ws-menu { position: fixed; top: 64px; right: 12px; left: 12px; max-width: none; }
 }
-
-.ws-grab { width: 32px; height: 4px; margin: 0 auto 12px; border-radius: var(--r-control); background: var(--line-strong); }
-
-/* ======================================================================
- * Fields that stay on older pages: Transaksi's selects and inputs, and Analisis' learned habits.
- * ====================================================================== */
-.ws-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 14px; color: var(--muted); }
-.ws-field select, .ws-field input { min-height: 40px; width: 100%; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--r-control); background: var(--window); color: var(--text); font-size: var(--fs-14); }
-.ws-rows { margin: 14px 0 0; padding: 0; list-style: none; }
-.ws-rows li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
-.ws-rows .ws-rows-t { min-width: 0; }
-.ws-rows .ws-rows-t span { display: block; color: var(--muted); font-size: 12px; }
-.ws-notice { margin: 0 0 12px; padding: 10px 14px; border-radius: var(--r-panel); background: var(--surface-2); color: var(--text); font-size: 14px; }
 
 /* ======================================================================
  * Markas+ fields and forms (option-6 SPEC §7): a 12/500 label 8 px over a 40 px control, the error and hint
@@ -1212,10 +1061,7 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
 @keyframes ws-rise { from { opacity: 0; transform: translateY(8px); } }
 @keyframes ws-sheet-up { from { opacity: 0; transform: translateY(24px); } }
 @keyframes ws-toast-in { from { opacity: 0; transform: translate(-50%, 8px); } }
-.ws-layer-in, .ws-menu { animation: ws-rise var(--t-layer) both; }
-.ws-sheet-in { animation: ws-sheet-up var(--t-layer) both; }
 .ws-toast { animation: ws-toast-in var(--t-layer) both; }
-.ws-scrim-in { animation: ws-fade var(--t-layer) both; }
 
 /* Reduced motion: no animation and no transition anywhere (SPEC §10). */
 @media (prefers-reduced-motion: reduce) {
@@ -1424,7 +1270,6 @@ button.hbar:hover { background: var(--surface); }
 .rk-detail .dlg-fig .t-fig-l { display: block; margin-top: var(--sp-4); }
 .rk-detail .dlg-fig .prog { margin-top: var(--sp-12); }
 .rk-detail .dlg-fig .gain { display: inline-block; margin-top: var(--sp-4); }
-.rk-detail .dlg-head { display: flex; align-items: center; gap: var(--sp-12); }
 .rk-detail .row.is-line .r-amt { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .rk-bill-items { margin: 0 0 var(--sp-8) var(--sp-16); }
 .rk-bill-items li { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--sp-4) var(--sp-12); padding: var(--sp-8) 0; border-top: 1px solid var(--line); font-size: var(--fs-12); line-height: 16px; }
@@ -1443,7 +1288,6 @@ button.hbar:hover { background: var(--surface); }
   .wallet { display: flex; gap: var(--sp-12); margin: var(--sp-8) calc(-1 * var(--sp-16)) 0; padding: 0 var(--sp-16) var(--sp-8); overflow-x: auto; scroll-snap-type: x mandatory; }
   .wallet > li { flex: 0 0 280px; scroll-snap-align: start; }
   .wallet .tile { flex: 1; min-height: 152px; }
-  .tiles.is-wallet { display: none; }
   .tiles { grid-template-columns: minmax(0, 1fr); }
   .reorder .rk-moves { display: inline-flex; }
   .reorder .tile .rk-moves { position: relative; z-index: 1; }
@@ -1844,9 +1688,6 @@ details.box.lp-details { display: block; padding: 0; }
 .set-list .row .r-actions:has(> .set-confirm) { flex: 1 1 100%; justify-content: flex-end; padding-bottom: var(--sp-8); }
 .set-list .row .r-title { white-space: normal; overflow-wrap: anywhere; }
 .set-list .row .r-meta { white-space: normal; overflow-wrap: anywhere; }
-.set-list .row .r-main.is-col { flex-direction: column; align-items: flex-start; gap: 0; padding: var(--sp-8) 0; }
-.set-list .row .r-main.is-col > * { max-width: 100%; }
-.set-list .row .r-main.is-col .r-meta { flex: none; }
 .set-list .row .r-end { flex: none; color: var(--muted); font-size: var(--fs-12); line-height: 16px; text-align: right; }
 .set-list .row .r-end.is-ink { color: var(--text); }
 .set-list > li > .set-inline { padding: 0 var(--sp-12) var(--sp-16); border-bottom: 1px solid var(--line); }

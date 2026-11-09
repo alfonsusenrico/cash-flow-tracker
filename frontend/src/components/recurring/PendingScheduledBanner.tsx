@@ -7,7 +7,6 @@ import { api } from "@/lib/api";
 import { useFormat, type Format } from "@/lib/format";
 import { queryKeys } from "@/lib/queryKeys";
 import { Icon } from "@/components/ui/Icon";
-import { useInterfaceLang } from "@/components/workspace/untranslated";
 import { AutoLinkedOccurrence, DueExpectation } from "@/types/recurring";
 import { DuePlanActions } from "./DuePlanActions";
 
@@ -30,7 +29,6 @@ function autoLinkLabel(link: AutoLinkedOccurrence, t: DuePlansText, format: Form
 export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
   const t = useTranslations("shell.duePlans");
   const format = useFormat();
-  const lang = useInterfaceLang();
   const planDay = format.shortDate;
   const qc = useQueryClient();
 
@@ -65,7 +63,7 @@ export function PendingScheduledBanner({ onOpenRulesManager }: Props = {}) {
   if (dueRules.length === 0 && autoLinks.length === 0) return null;
 
   return (
-    <div className="space-y-3" lang={lang}>
+    <div className="space-y-3">
       {autoLinks.length > 0 && (
         <section aria-labelledby="auto-linked-title" className="space-y-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 text-xs text-[var(--text)] sm:p-5">
           <div>

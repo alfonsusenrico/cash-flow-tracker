@@ -831,7 +831,7 @@ describe("Beranda in English (add-language-system)", () => {
     expect(rowTexts(dialog).slice(0, 5)).toEqual([
       "IncomeRp 9.800.000", "Spending−Rp 2.364.500", "Saved & invested−Rp 800.000", "Scheduled until 24 Nov−Rp 1.713.500", "Safe to spendRp 4.922.000",
     ]);
-    expect(dialog).toHaveTextContent("Next salary expected on 25 November, based on salaries confirmed on 25 Aug, 25 Sept, 25 Oct.");
+    expect(dialog).toHaveTextContent("Next salary expected on 25 November, based on salaries confirmed on 25 Aug, 25 Sep, 25 Oct.");
     expect(dialog).toHaveTextContent("4 items (Rp 581.000) still waiting for an answer. Rp 357.000 of it is already included.");
     await user.click(within(dialog).getByRole("button", { name: /^Income/ }));
     expect(dialog).toHaveTextContent("Gaji");

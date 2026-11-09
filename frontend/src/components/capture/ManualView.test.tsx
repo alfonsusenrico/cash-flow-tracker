@@ -385,6 +385,29 @@ describe("Catat transaksi (manual view)", () => {
       await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
     });
 
+    it("preselects a Ke the server accepts when the first account is a parent with its default pocket next (D13)", async () => {
+      vi.mocked(api.get).mockImplementation(async (path) => {
+        if (path === "/accounts") return { accounts: [
+          { id: "bca", name: "BCA", type: "bank", balance: 0, default_pocket_id: "utama", children: [
+            { id: "utama", name: "Utama", type: "bank", parent_id: "bca", balance: 300_000 },
+            { id: "harian", name: "Harian", type: "bank", parent_id: "bca", balance: 50_000 },
+          ] },
+          { id: "utama", name: "Utama", type: "bank", parent_id: "bca", balance: 300_000 },
+          { id: "harian", name: "Harian", type: "bank", parent_id: "bca", balance: 50_000 },
+          { id: "jago", name: "Jago", type: "bank", balance: 10_000 },
+        ] };
+        if (path === "/categories" || path === "/goals" || path === "/obligations") return { categories: [], goals: [], obligations: [] };
+        throw new Error(`Unexpected GET ${path}`);
+      });
+      const { user } = renderCapture({ mode: "movement" });
+      await waitFor(() => expect(screen.getByRole("combobox", { name: "Dari rekening" })).toHaveValue("bca"));
+      expect(screen.getByRole("combobox", { name: "Ke rekening" })).toHaveValue("harian");
+      await user.type(amountField(), "25000");
+      await user.click(submitButton("Pindahkan saldo"));
+      await waitFor(() => expect(createMovement).toHaveBeenCalled());
+      expect(vi.mocked(createMovement).mock.calls.at(-1)![0]).toMatchObject({ source_account_id: "bca", target_account_id: "harian", amount: 25_000 });
+    });
+
     it("rejects a zero amount without creating a movement", async () => {
       renderCapture({ mode: "movement" });
       await waitFor(() => expect(screen.getByRole("combobox", { name: "Dari rekening" })).toHaveValue("cash-a"));

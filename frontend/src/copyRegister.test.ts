@@ -142,14 +142,12 @@ const TRANSLATED_ROOTS = [
   // Catat and its shared movement checks (apply-markas-catat D18).
   "components/capture", "lib/capture.ts", "lib/movementFormSchema.ts",
 ];
-/** Indonesian page copy that lives in a translated root until its page's phase moves it (D10). */
-const UNTRANSLATED_FILES = ["components/workspace/untranslatedPages.ts"];
 
-const MONEY_ROOTS = ["components/settings", "app/settings", "components/ui/ReconciliationFlag.tsx", "components/ui/DebtAllocationEditor.tsx",
+const MONEY_ROOTS = ["components/settings", "app/settings", "components/ui/DebtAllocationEditor.tsx",
   "components/dashboard/EmergencyCoverage.tsx", "lib/habits.ts"];
 
 const UNTRANSLATED_ROOTS = [
-  "lib/provenance.ts", "lib/untranslatedRowLabels.ts",
+  "lib/provenance.ts",
   // Rekening & Kantong, Target & Tagihan, Pengaturan and their modals (redesign-money-and-settings D16).
   ...MONEY_ROOTS];
 
@@ -270,7 +268,7 @@ describe("catalogue copy register", () => {
 
 describe("translated sources", () => {
   const translated = TRANSLATED_ROOTS.flatMap(sources).filter(isSource);
-  const literalFiles = translated.filter((file) => !UNTRANSLATED_FILES.includes(path.relative(__dirname, file)));
+  const literalFiles = translated;
 
   it("hold no literal copy: every word comes from the catalogue", () => {
     expect(literalFiles.length).toBeGreaterThan(30);
@@ -300,7 +298,7 @@ describe("translated sources", () => {
   });
 });
 
-describe("source copy register for areas not translated yet", () => {
+describe("source copy register for literal strings", () => {
   const files = UNTRANSLATED_ROOTS.flatMap(sources).filter(isSource);
 
   it("keeps slang out of every label-type string outside the assistant's conversation", () => {

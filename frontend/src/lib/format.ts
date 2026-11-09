@@ -38,8 +38,17 @@ function instant(value: Date | string): Date {
 export function createFormat({ language, region, currency = "IDR", rate }: FormatConfig) {
   const dateLocale = `${language}-${region}`;
   const digits = numberLocale(region);
-  const dayFormat = (options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(dateLocale, { ...options, timeZone: "UTC" });
-  const zoneFormat = (options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(dateLocale, { ...options, timeZone: ZONE });
+  // CLDR writes September "Sept" in English outside the United States; the server's labels and every other short
+  // month have three letters, so English short months read "Sep" (apply-markas-cleanup D11).
+  const withMonths = (options: Intl.DateTimeFormatOptions, timeZone: string): { format: (date: Date) => string } => {
+    const formatter = new Intl.DateTimeFormat(dateLocale, { ...options, timeZone });
+    if (language !== "en" || options.month !== "short") return formatter;
+    return {
+      format: (date) => formatter.formatToParts(date).map((part) => (part.type === "month" && part.value === "Sept" ? "Sep" : part.value)).join(""),
+    };
+  };
+  const dayFormat = (options: Intl.DateTimeFormatOptions) => withMonths(options, "UTC");
+  const zoneFormat = (options: Intl.DateTimeFormatOptions) => withMonths(options, ZONE);
   const shortDay = dayFormat({ day: "numeric", month: "short" });
   const longDay = dayFormat({ day: "numeric", month: "long" });
   const weekdayDay = dayFormat({ weekday: "long", day: "numeric", month: "long" });
@@ -176,10 +185,6 @@ const RegionContext = createContext<RegionSettings | null>(null);
 /** The signed-in account's region and display currency for `useFormat`; the sign-in page has none and uses ID. */
 export function RegionProvider({ value, children }: { value: RegionSettings; children: ReactNode }) {
   return createElement(RegionContext.Provider, { value }, children);
-}
-
-export function useRegion(): Region {
-  return useContext(RegionContext)?.region ?? DEFAULT_REGION;
 }
 
 /** The formatter for the interface language and the account's region and currency. */

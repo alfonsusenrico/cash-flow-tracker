@@ -19,8 +19,8 @@ context: |
     model may propose it, and code accepts it only after the understand-capture-time checks.
   Language: English interface by default with Indonesian per account (cookie and Accept-Language before
     sign-in); formats follow the account region, so IDR keeps "Rp 1.234.567" in region Indonesia. User data,
-    stored descriptions and notification evidence are never translated. Generated ledger descriptions and the
-    server's composed text stay Indonesian until localize-server-text.
+    stored descriptions and notification evidence are never translated. Server text follows the account's language;
+    generated text is stored in the writing account's language and never rewritten. Every page is translated.
   Privacy: tracked research/evidence uses synthetic data only; local journals may retain
     protected historical context and are excluded from Git. No secrets in planning artifacts.
 

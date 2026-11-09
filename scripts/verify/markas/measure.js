@@ -7,7 +7,7 @@
   const WEIGHTS = ["400", "500", "600"];
   const RADII = [0, 6, 12, 16];
   const LAYER = '[role="dialog"], [role="menu"], [role="alertdialog"], [role="listbox"], [role="tooltip"], ' +
-    '.ws-menu, .ws-explain, .ws-toast, .ws-drawer, dialog, .dialog, .popover, .toast';
+    '.ws-menu, .ws-explain, .ws-toast, dialog, .dialog, .popover, .toast';
   const EXAMPLES = 12;
 
   const probe = document.createElement("span");

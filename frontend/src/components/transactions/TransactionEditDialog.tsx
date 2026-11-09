@@ -8,7 +8,6 @@ import { DebtAllocationEditor, allocationIssue, totalDebtPayments, type DebtAllo
 import { useMoney } from "@/components/workspace/money";
 import { RadioSegments } from "@/components/workspace/primitives";
 import { ShellDialog } from "@/components/workspace/ShellDialog";
-import { UntranslatedRegion } from "@/components/workspace/untranslated";
 import { api, uploadTransactionReceipt } from "@/lib/api";
 import { isCreditAccountChoice } from "@/lib/accountOptions";
 import { useFormat } from "@/lib/format";
@@ -102,6 +101,10 @@ export function TransactionEditDialog({
   const [otherCount, setOtherCount] = useState(initialPlan(originalCount) === "other" ? String(originalCount) : "");
   // A first due date the owner set is kept unless the owner clears it; a derived one is never stored from here.
   const ownerFirstDue = tx.credit?.role === "purchase" && tx.credit.first_due_date_set_by === "owner" ? tx.credit.first_due_date ?? null : null;
+  // A date the system kept after the account's days changed is not shown in the field, but a terms change sends it
+  // back so an already-due bill stays where it was (apply-markas-cleanup F1, owner 2026-11-09). Moving the purchase
+  // date clears it on the server, so then it is not sent.
+  const keptFirstDue = tx.credit?.role === "purchase" && tx.credit.first_due_date_set_by === "system" ? tx.credit.first_due_date ?? null : null;
   const [firstDue, setFirstDue] = useState(ownerFirstDue ?? "");
   const [error, setError] = useState("");
   const errorRef = useRef<HTMLParagraphElement>(null);
@@ -126,8 +129,10 @@ export function TransactionEditDialog({
   /** The terms request a saved credit purchase needs, or null when its terms did not change (H5). */
   const termsRequest = (): { method: "put" | "del"; body?: { installment_count: number; first_due_date: string | null } } | null => {
     if (!creditPurchase) return null;
-    const firstDueDate = firstDue || null;
-    if (chosenCount === originalCount && firstDueDate === ownerFirstDue) return null;
+    const dateMoved = date !== (tx.date ? toDatetimeLocal(tx.date) : "");
+    const kept = dateMoved ? null : keptFirstDue;
+    const firstDueDate = firstDue || kept;
+    if (chosenCount === originalCount && firstDueDate === (ownerFirstDue ?? kept)) return null;
     // Paid in full following the account's days is the default, which the server keeps as no stored terms.
     if (chosenCount === 1 && !firstDueDate) return originalCount > 1 || ownerFirstDue ? { method: "del" } : null;
     return { method: "put", body: { installment_count: chosenCount, first_due_date: firstDueDate } };
@@ -246,169 +251,167 @@ export function TransactionEditDialog({
   );
 
   return (
-    <UntranslatedRegion active={false}>
-      <ShellDialog open onClose={onClose} title={t("title")} meta={tx.merchant || tx.notes || undefined} width={600} closeLabel={t("close")} footer={footer}>
-        <form id={FORM_ID} className="form-stack" onSubmit={submit} noValidate>
-          {error && <p ref={errorRef} tabIndex={-1} role="alert" className="form-alert">{error}</p>}
+    <ShellDialog open onClose={onClose} title={t("title")} meta={tx.merchant || tx.notes || undefined} width={600} closeLabel={t("close")} footer={footer}>
+      <form id={FORM_ID} className="form-stack" onSubmit={submit} noValidate>
+        {error && <p ref={errorRef} tabIndex={-1} role="alert" className="form-alert">{error}</p>}
+        <div className="field">
+          <span className="flabel" id="tx-edit-type">{t("type")}</span>
+          <RadioSegments labelledBy="tx-edit-type" options={typeOptions} value={kind} onChange={switchKind} />
+          <p className="hint">{convertible ? t("typeHintTopup") : t("typeHint")}</p>
+        </div>
+        <div className="form-grid">
           <div className="field">
-            <span className="flabel" id="tx-edit-type">{t("type")}</span>
-            <RadioSegments labelledBy="tx-edit-type" options={typeOptions} value={kind} onChange={switchKind} />
-            <p className="hint">{convertible ? t("typeHintTopup") : t("typeHint")}</p>
+            <label htmlFor="tx-edit-amount">{debtLinked ? t("total") : t("amount")}</label>
+            <input id="tx-edit-amount" type="text" inputMode="numeric" required value={amount} readOnly={debtLinked}
+              onChange={(event) => setAmount(formatNumberWithDots(event.target.value))} className="field-control tabular-nums" />
           </div>
-          <div className="form-grid">
-            <div className="field">
-              <label htmlFor="tx-edit-amount">{debtLinked ? t("total") : t("amount")}</label>
-              <input id="tx-edit-amount" type="text" inputMode="numeric" required value={amount} readOnly={debtLinked}
-                onChange={(event) => setAmount(formatNumberWithDots(event.target.value))} className="field-control tabular-nums" />
-            </div>
-            <div className="field">
-              <label htmlFor="tx-edit-date">{t("date")}</label>
-              <input id="tx-edit-date" type="datetime-local" step={1} required value={date} onChange={(event) => setDate(event.target.value)} className="field-control" />
-            </div>
-            <div className="field">
-              <label htmlFor="tx-edit-account">{kind === "expense" ? t("payFrom") : t("paidInto")}</label>
-              <select id="tx-edit-account" required value={accountId} className="field-control" onChange={(event) => {
-                setAccountId(event.target.value);
-                // A debt is paid from cash, so a row moved to credit drops its debt link.
-                if (creditIds.has(event.target.value)) {
-                  setDebtRows([]);
-                  setObligationId("");
-                }
-              }}>
-                <AccountSelectOptions labels={accountLabels} accounts={accounts} formatBalance={money} allowParentSelection={true} liquidOnly includeCredit={offerCredit} />
-              </select>
-            </div>
-            <div className="field">
-              <label htmlFor="tx-edit-category">{t("category")}</label>
-              <select id="tx-edit-category" value={categoryId} className="field-control" onChange={(event) => {
-                setCategoryId(event.target.value);
-                if (kind === "expense" && !pillarOverride) {
-                  setPillar(pillarOrUnclassified(categories.find((item) => item.id === event.target.value)?.kakeibo_type));
-                }
-              }}>
-                <option value="">{terms("terms.noCategory")}</option>
-                {categories.filter((category) => category.kind === kind && !category.is_archived).map((category) => (
-                  <option key={category.id} value={category.id}>{category.name}</option>
-                ))}
-              </select>
-            </div>
-            {creditPurchase && (
-              <>
-                <div className="field full-row">
-                  <span className="flabel" id="tx-edit-credit">{t("creditPayment")}</span>
-                  <RadioSegments
-                    labelledBy="tx-edit-credit"
-                    options={[
-                      { value: "1" as PlanChoice, label: t("creditInFull") },
-                      ...PLAN_COUNTS.map((count) => ({ value: count as PlanChoice, label: t("creditTimes", { times: count }) })),
-                      { value: "other" as PlanChoice, label: t("creditOther") },
-                    ]}
-                    value={plan}
-                    onChange={setPlan}
-                  />
-                </div>
-                {plan === "other" && (
-                  <div className="field">
-                    <label htmlFor="tx-edit-credit-count">{t("creditCount")}</label>
-                    <input id="tx-edit-credit-count" type="number" inputMode="numeric" min={MIN_INSTALLMENTS} max={MAX_INSTALLMENTS} value={otherCount}
-                      onChange={(event) => setOtherCount(event.target.value)} className="field-control tabular-nums" />
-                  </div>
-                )}
-                <div className="field">
-                  <label htmlFor="tx-edit-credit-due">{t("creditFirstDue")}</label>
-                  <input id="tx-edit-credit-due" type="date" value={firstDue} onChange={(event) => setFirstDue(event.target.value)}
-                    className="field-control" aria-describedby="tx-edit-credit-due-hint" />
-                  <p id="tx-edit-credit-due-hint" className="hint">
-                    {!firstDue && tx.credit?.installments?.[0]
-                      ? t("creditFirstDueHintDate", { date: format.shortDate(tx.credit.installments[0].due_date) })
-                      : t("creditFirstDueHint")}
-                  </p>
-                </div>
-              </>
-            )}
-            {offsetsSpending && (
+          <div className="field">
+            <label htmlFor="tx-edit-date">{t("date")}</label>
+            <input id="tx-edit-date" type="datetime-local" step={1} required value={date} onChange={(event) => setDate(event.target.value)} className="field-control" />
+          </div>
+          <div className="field">
+            <label htmlFor="tx-edit-account">{kind === "expense" ? t("payFrom") : t("paidInto")}</label>
+            <select id="tx-edit-account" required value={accountId} className="field-control" onChange={(event) => {
+              setAccountId(event.target.value);
+              // A debt is paid from cash, so a row moved to credit drops its debt link.
+              if (creditIds.has(event.target.value)) {
+                setDebtRows([]);
+                setObligationId("");
+              }
+            }}>
+              <AccountSelectOptions labels={accountLabels} accounts={accounts} formatBalance={money} allowParentSelection={true} liquidOnly includeCredit={offerCredit} />
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="tx-edit-category">{t("category")}</label>
+            <select id="tx-edit-category" value={categoryId} className="field-control" onChange={(event) => {
+              setCategoryId(event.target.value);
+              if (kind === "expense" && !pillarOverride) {
+                setPillar(pillarOrUnclassified(categories.find((item) => item.id === event.target.value)?.kakeibo_type));
+              }
+            }}>
+              <option value="">{terms("terms.noCategory")}</option>
+              {categories.filter((category) => category.kind === kind && !category.is_archived).map((category) => (
+                <option key={category.id} value={category.id}>{category.name}</option>
+              ))}
+            </select>
+          </div>
+          {creditPurchase && (
+            <>
               <div className="field full-row">
-                <label htmlFor="tx-edit-offset">{t("offset")}</label>
-                <select id="tx-edit-offset" value={offsetCategoryId} onChange={(event) => setOffsetCategoryId(event.target.value)} aria-describedby="tx-edit-offset-help" className="field-control">
-                  <option value="">{t("offsetNone")}</option>
-                  {offsetCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-                </select>
-                <p id="tx-edit-offset-help" className="hint">{t("offsetHelp")}</p>
-              </div>
-            )}
-            {kind === "expense" && (
-              <div className="field full-row">
-                <span className="flabel" id="tx-edit-pillar">{t("pillar")}</span>
+                <span className="flabel" id="tx-edit-credit">{t("creditPayment")}</span>
                 <RadioSegments
-                  labelledBy="tx-edit-pillar"
-                  options={KAKEIBO_PILLARS.map((item) => ({ value: item.value, label: bucketName(terms, item.value) }))}
-                  value={pillar || null}
-                  onChange={(next) => { setPillar(next); setPillarOverride(true); }}
+                  labelledBy="tx-edit-credit"
+                  options={[
+                    { value: "1" as PlanChoice, label: t("creditInFull") },
+                    ...PLAN_COUNTS.map((count) => ({ value: count as PlanChoice, label: t("creditTimes", { times: count }) })),
+                    { value: "other" as PlanChoice, label: t("creditOther") },
+                  ]}
+                  value={plan}
+                  onChange={setPlan}
                 />
-                <p className="hint">{pillar ? terms(PILLAR_HELP[pillar]) : t("pillarChoose")}</p>
               </div>
-            )}
+              {plan === "other" && (
+                <div className="field">
+                  <label htmlFor="tx-edit-credit-count">{t("creditCount")}</label>
+                  <input id="tx-edit-credit-count" type="number" inputMode="numeric" min={MIN_INSTALLMENTS} max={MAX_INSTALLMENTS} value={otherCount}
+                    onChange={(event) => setOtherCount(event.target.value)} className="field-control tabular-nums" />
+                </div>
+              )}
+              <div className="field">
+                <label htmlFor="tx-edit-credit-due">{t("creditFirstDue")}</label>
+                <input id="tx-edit-credit-due" type="date" value={firstDue} onChange={(event) => setFirstDue(event.target.value)}
+                  className="field-control" aria-describedby="tx-edit-credit-due-hint" />
+                <p id="tx-edit-credit-due-hint" className="hint">
+                  {!firstDue && tx.credit?.installments?.[0]
+                    ? t("creditFirstDueHintDate", { date: format.shortDate(tx.credit.installments[0].due_date) })
+                    : t("creditFirstDueHint")}
+                </p>
+              </div>
+            </>
+          )}
+          {offsetsSpending && (
+            <div className="field full-row">
+              <label htmlFor="tx-edit-offset">{t("offset")}</label>
+              <select id="tx-edit-offset" value={offsetCategoryId} onChange={(event) => setOffsetCategoryId(event.target.value)} aria-describedby="tx-edit-offset-help" className="field-control">
+                <option value="">{t("offsetNone")}</option>
+                {offsetCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+              </select>
+              <p id="tx-edit-offset-help" className="hint">{t("offsetHelp")}</p>
+            </div>
+          )}
+          {kind === "expense" && (
+            <div className="field full-row">
+              <span className="flabel" id="tx-edit-pillar">{t("pillar")}</span>
+              <RadioSegments
+                labelledBy="tx-edit-pillar"
+                options={KAKEIBO_PILLARS.map((item) => ({ value: item.value, label: bucketName(terms, item.value) }))}
+                value={pillar || null}
+                onChange={(next) => { setPillar(next); setPillarOverride(true); }}
+              />
+              <p className="hint">{pillar ? terms(PILLAR_HELP[pillar]) : t("pillarChoose")}</p>
+            </div>
+          )}
+          <div className="field">
+            <label htmlFor="tx-edit-goal">{t("goal")}</label>
+            <select id="tx-edit-goal" value={goalId} className="field-control" onChange={(event) => {
+              setGoalId(event.target.value);
+              if (event.target.value) { setObligationId(""); setDebtRows([]); }
+            }} aria-describedby={goalId ? "tx-edit-goal-help" : undefined}>
+              <option value="">{t("goalNone")}</option>
+              {goals.filter((goal) => !goal.is_archived).map((goal) => (
+                <option key={goal.id} value={goal.id}>{t("goalOption", { name: goal.name, current: money(goal.current_amount), target: money(goal.target_amount) })}</option>
+              ))}
+            </select>
+            {goalId && <p id="tx-edit-goal-help" className="hint">{t("goalHelp")}</p>}
+          </div>
+          {onCredit ? null : kind === "expense" ? (
+            <div className="full-row">
+              <DebtAllocationEditor idPrefix="tx-edit" debts={obligations} rows={debtRows} total={Number(stripGrouping(amount)) || 0} currency={money}
+                originalAmounts={originalAmounts} onChange={(rows) => {
+                  setDebtRows(rows);
+                  if (rows.length) setGoalId("");
+                  if (rows.some((row) => row.obligation_id)) setAmount(formatNumberWithDots(totalDebtPayments(rows)));
+                  setError("");
+                }} />
+            </div>
+          ) : (
             <div className="field">
-              <label htmlFor="tx-edit-goal">{t("goal")}</label>
-              <select id="tx-edit-goal" value={goalId} className="field-control" onChange={(event) => {
-                setGoalId(event.target.value);
-                if (event.target.value) { setObligationId(""); setDebtRows([]); }
-              }} aria-describedby={goalId ? "tx-edit-goal-help" : undefined}>
-                <option value="">{t("goalNone")}</option>
-                {goals.filter((goal) => !goal.is_archived).map((goal) => (
-                  <option key={goal.id} value={goal.id}>{t("goalOption", { name: goal.name, current: money(goal.current_amount), target: money(goal.target_amount) })}</option>
+              <label htmlFor="tx-edit-obligation">{t("bill")}</label>
+              <select id="tx-edit-obligation" value={obligationId} className="field-control" onChange={(event) => {
+                setObligationId(event.target.value);
+                if (event.target.value) setGoalId("");
+              }} aria-describedby={obligationId ? "tx-edit-obligation-help" : undefined}>
+                <option value="">{t("billNone")}</option>
+                {obligations.filter((item) => !item.is_archived && item.remaining_amount > 0).map((item) => (
+                  <option key={item.id} value={item.id}>{t("billOption", { name: item.name, amount: money(item.remaining_amount) })}</option>
                 ))}
               </select>
-              {goalId && <p id="tx-edit-goal-help" className="hint">{t("goalHelp")}</p>}
+              {obligationId && <p id="tx-edit-obligation-help" className="hint">{t("billHelp")}</p>}
             </div>
-            {onCredit ? null : kind === "expense" ? (
-              <div className="full-row">
-                <DebtAllocationEditor idPrefix="tx-edit" debts={obligations} rows={debtRows} total={Number(stripGrouping(amount)) || 0} currency={money}
-                  originalAmounts={originalAmounts} onChange={(rows) => {
-                    setDebtRows(rows);
-                    if (rows.length) setGoalId("");
-                    if (rows.some((row) => row.obligation_id)) setAmount(formatNumberWithDots(totalDebtPayments(rows)));
-                    setError("");
-                  }} />
-              </div>
-            ) : (
-              <div className="field">
-                <label htmlFor="tx-edit-obligation">{t("bill")}</label>
-                <select id="tx-edit-obligation" value={obligationId} className="field-control" onChange={(event) => {
-                  setObligationId(event.target.value);
-                  if (event.target.value) setGoalId("");
-                }} aria-describedby={obligationId ? "tx-edit-obligation-help" : undefined}>
-                  <option value="">{t("billNone")}</option>
-                  {obligations.filter((item) => !item.is_archived && item.remaining_amount > 0).map((item) => (
-                    <option key={item.id} value={item.id}>{t("billOption", { name: item.name, amount: money(item.remaining_amount) })}</option>
-                  ))}
-                </select>
-                {obligationId && <p id="tx-edit-obligation-help" className="hint">{t("billHelp")}</p>}
-              </div>
-            )}
-            <div className="field">
-              <label htmlFor="tx-edit-merchant">{t("merchant")}</label>
-              <input id="tx-edit-merchant" type="text" autoComplete="off" maxLength={MERCHANT_MAX_LENGTH} value={merchant}
-                onChange={(event) => setMerchant(event.target.value)} placeholder={t("merchantPlaceholder")} className="field-control" />
-            </div>
-            <div className="field">
-              <label htmlFor="tx-edit-notes">{t("notes")}</label>
-              <input id="tx-edit-notes" type="text" autoComplete="off" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder={t("notesPlaceholder")} className="field-control" />
-            </div>
-            <div className="field full-row">
-              <label htmlFor="tx-edit-receipt">{t("receipt")}</label>
-              <input id="tx-edit-receipt" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setReceipt(event.target.files?.[0] ?? null)}
-                className="field-control" aria-describedby={tx.receipt_path ? "tx-edit-receipt-help" : undefined} />
-              {tx.receipt_path && <p id="tx-edit-receipt-help" className="hint">{t("receiptHelp")}</p>}
-              {receiptRetry && (
-                <button type="button" className="ws-btn" disabled={retryReceipt.isPending || !receipt} onClick={() => retryReceipt.mutate()}>
-                  {retryReceipt.isPending ? t("receiptUploading") : t("receiptRetry")}
-                </button>
-              )}
-            </div>
+          )}
+          <div className="field">
+            <label htmlFor="tx-edit-merchant">{t("merchant")}</label>
+            <input id="tx-edit-merchant" type="text" autoComplete="off" maxLength={MERCHANT_MAX_LENGTH} value={merchant}
+              onChange={(event) => setMerchant(event.target.value)} placeholder={t("merchantPlaceholder")} className="field-control" />
           </div>
-        </form>
-      </ShellDialog>
-    </UntranslatedRegion>
+          <div className="field">
+            <label htmlFor="tx-edit-notes">{t("notes")}</label>
+            <input id="tx-edit-notes" type="text" autoComplete="off" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder={t("notesPlaceholder")} className="field-control" />
+          </div>
+          <div className="field full-row">
+            <label htmlFor="tx-edit-receipt">{t("receipt")}</label>
+            <input id="tx-edit-receipt" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setReceipt(event.target.files?.[0] ?? null)}
+              className="field-control" aria-describedby={tx.receipt_path ? "tx-edit-receipt-help" : undefined} />
+            {tx.receipt_path && <p id="tx-edit-receipt-help" className="hint">{t("receiptHelp")}</p>}
+            {receiptRetry && (
+              <button type="button" className="ws-btn" disabled={retryReceipt.isPending || !receipt} onClick={() => retryReceipt.mutate()}>
+                {retryReceipt.isPending ? t("receiptUploading") : t("receiptRetry")}
+              </button>
+            )}
+          </div>
+        </div>
+      </form>
+    </ShellDialog>
   );
 }

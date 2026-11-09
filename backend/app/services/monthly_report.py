@@ -366,6 +366,21 @@ def reflection_dates(cur, user_id: str, basis: str) -> set[date]:
     return {row["period_start"] for row in cur.fetchall()}
 
 
+def savings_parts(kakeibo: dict[str, Any], surplus: int) -> dict[str, int]:
+    """Question 2's figure and the parts that make it up: saving-pillar expenses, plus the net move into savings,
+    minus spending paid from a savings account (apply-markas-cleanup D8). The parts always add up to the figure."""
+    parts = {
+        "fresh_saving": int(kakeibo["saving_spent"]),
+        "saving_expenses": int(kakeibo["saving_expenses"]),
+        "net_saving_transfers": int(kakeibo["net_saving_transfers"]),
+        "paid_from_savings": int(kakeibo["saving_paid_from_savings"]),
+        "surplus": int(surplus),
+    }
+    if parts["saving_expenses"] + parts["net_saving_transfers"] - parts["paid_from_savings"] != parts["fresh_saving"]:
+        raise RuntimeError("Savings parts do not add up to Ditabung & investasi")
+    return parts
+
+
 def build_report(
     cur, user_id: str, *, basis: str, period: ObservedPeriod, listing: dict[str, Any],
     kakeibo_breakdown, overall_budget: int | None, essential: dict[str, Any], now: datetime | None = None,
@@ -409,12 +424,7 @@ def build_report(
         "period": describe_period(period, basis, first_day),
         "flow": {**{key: figures[key] for key in FLOW_KEYS}, "spending_reimbursement_offset": spending.reimbursed},
         "income": {"total": figures["inflow"], "sources": _income_sources(cur, user_id, start, end)},
-        "savings": {
-            "fresh_saving": kakeibo["saving_spent"],
-            "saving_expenses": kakeibo["saving_expenses"],
-            "net_saving_transfers": kakeibo["net_saving_transfers"],
-            "surplus": figures["net"],
-        },
+        "savings": savings_parts(kakeibo, figures["net"]),
         "spending": {
             "total": figures["outflow"],
             "pillars": [{"pillar": pillar, "amount": pillar_amounts[pillar]} for pillar in SPENDING_PILLARS],

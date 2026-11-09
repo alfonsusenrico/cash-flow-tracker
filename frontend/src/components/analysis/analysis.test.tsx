@@ -6,7 +6,7 @@ import { axe } from "vitest-axe";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";
 import { renderWithIntl } from "@/lib/i18n/testing";
-import { ChangeFigure, Meter } from "@/components/workspace/figures";
+import { ChangeFigure, ProgressBar } from "@/components/workspace/figures";
 import { KalenderTab } from "./calendar/KalenderTab";
 import { DailySpendingChart, barGeometry, dateLabelIndexes, niceMax } from "./DailySpendingChart";
 import { MAP, PetaAliranTab, fitLabel, labelWidth, nodeTotals } from "./flow/PetaAliranTab";
@@ -77,14 +77,21 @@ describe("Analisis URL", () => {
   });
 });
 
-describe("Meter and ChangeFigure", () => {
-  it("clamps the bar, paints its tone and stays hidden from assistive technology", () => {
-    const { container } = render(<><Meter value={140} tone="var(--out-solid)" /><Meter value={-5} /></>);
-    const [over, under] = container.querySelectorAll<HTMLElement>(".prog > span");
+describe("ProgressBar and ChangeFigure", () => {
+  it("takes a percent by default, clamps it, paints its colour, keeps a width and stays hidden from assistive technology", () => {
+    const { container } = render(
+      <><ProgressBar value={140} width={160} color="var(--out-solid)" /><ProgressBar value={-5} /><ProgressBar value={Number.NaN} /><ProgressBar value={42} /></>,
+    );
+    const bars = container.querySelectorAll<HTMLElement>(".prog");
+    const [over, under, invalid, plain] = container.querySelectorAll<HTMLElement>(".prog > span");
     expect(over.style.width).toBe("100%");
     expect(over.style.background).toBe("var(--out-solid)");
+    expect(bars[0].style.width).toBe("160px");
     expect(under.style.width).toBe("0%");
-    expect(container.querySelector(".prog")).toHaveAttribute("aria-hidden", "true");
+    expect(invalid.style.width).toBe("0%");
+    expect(plain.style.width).toBe("42%");
+    expect(plain.style.background).toBe("");
+    expect([...bars].every((bar) => bar.getAttribute("aria-hidden") === "true" && bar.tagName === "SPAN")).toBe(true);
   });
 
   it("writes a rise in the expense ink, a fall in the income ink and the words for screen readers", () => {

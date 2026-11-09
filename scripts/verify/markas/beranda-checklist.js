@@ -8,12 +8,12 @@
     light: {
       s0: "#F8F7F4", s1: "#F1EFEB", s2: "#E6E3DD", line: "#E1DDD6", lineStrong: "#847F78", ink: "#1C1E22", muted: "#5B5E65",
       accentText: "#B8142D", dialog: "#F8F7F4", mIncome: "#047857", mExpense: "#E11D48", mInvest: "#7C3AED", mWarning: "#B45309",
-      income: "#056548", transfer: "#075985", invest: "#5B21B6", warning: "#8F4F04",
+      income: "#056548", transfer: "#075985", invest: "#5B21B6", warning: "#8F4F04", expense: "#B8142D",
     },
     dark: {
       s0: "#151517", s1: "#1C1D20", s2: "#26272B", line: "#2F3034", lineStrong: "#6E7076", ink: "#E8E7E4", muted: "#A3A3A7",
       accentText: "#FF6B78", dialog: "#1C1D20", mIncome: "#10B981", mExpense: "#FF4757", mInvest: "#8B5CF6", mWarning: "#F59E0B",
-      income: "#34D399", transfer: "#38BDF8", invest: "#B39DFB", warning: "#FBBF24",
+      income: "#34D399", transfer: "#38BDF8", invest: "#B39DFB", warning: "#FBBF24", expense: "#FF6B78",
     },
   };
   const hexToRgb = (hex) => {
@@ -184,7 +184,8 @@
       const time = first(".r-time", row.closest("section"));
       if (time && !phone) add("time column", `${px(box(time).width)} ${font(time)}`, "40 Inter 12/16 400");
       const pillar = first(".r-pillar");
-      if (pillar && !phone) add("status column width", px(box(pillar).width), 112);
+      // 136 px since apply-markas-transaksi D11 (owner decision 2026-11-06), wider than the prototype's 112.
+      if (pillar && !phone) add("status column width", px(box(pillar).width), 136);
       const amounts = all(".stack .row .r-amt");
       if (amounts.length && !phone) add("amount column ≥ 120", amounts.every((amount) => box(amount).width >= 120 - 0.5), true);
       const amountTexts = all(".stack .row .r-amt .t-amt, .stack .row .r-amt > .mask");
@@ -192,7 +193,8 @@
       const signColours = amountTexts.filter((amount) => /^[−+]/.test(amount.textContent.trim())).map((amount) => ({
         sign: amount.textContent.trim()[0], colour: style(amount).color,
       }));
-      add("expense amounts in ink", signColours.filter((item) => item.sign === "−").every((item) => item.colour === colour("ink")), true);
+      // Spending is red (--out-fg) everywhere since apply-markas-transaksi D29 (owner decision 2026-11-06).
+      add("expense amounts in --out-fg", signColours.filter((item) => item.sign === "−").every((item) => item.colour === colour("expense")), true);
       add("income amounts green", signColours.filter((item) => item.sign === "+").every((item) => item.colour === colour("income")), true);
       const icons = all(".stack .row .r-ico");
       if (icons.length) add("icon column", `${px(box(icons[0]).width)}x${px(box(icons[0]).height)}`, "40x20");

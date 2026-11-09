@@ -3,7 +3,7 @@
 import { Fragment, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { inSentence } from "@/components/analysis/ComparisonRows";
-import { ChangeFigure, HeroFigure, Meter } from "@/components/workspace/figures";
+import { ChangeFigure, HeroFigure, ProgressBar } from "@/components/workspace/figures";
 import { MaskedMoney } from "@/components/workspace/money";
 import { useFormat } from "@/lib/format";
 import type { MonthlyReport } from "@/lib/monthlyReport";
@@ -79,7 +79,7 @@ export function ReportHero({ report, money }: { report: MonthlyReport; money: Mo
     >
       {comparison.running && (
         <div className="lp-running">
-          {bar !== null && <Meter value={bar} width={240} tone="var(--out-solid)" />}
+          {bar !== null && <ProgressBar value={bar} width={240} color="var(--out-solid)" />}
           <p className="caption">{t("running")}</p>
         </div>
       )}

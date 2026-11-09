@@ -28,14 +28,6 @@ export interface RecurringRule {
   updated_at?: string | null;
 }
 
-export interface PayrollItemPayload {
-  rule_id?: string;
-  source_account_id: string;
-  target_account_id: string;
-  amount: number;
-  notes?: string;
-}
-
 export interface OccurrenceCandidate {
   id: string;
   amount: number;

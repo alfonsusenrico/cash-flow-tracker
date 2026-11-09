@@ -11,7 +11,6 @@ import { api, ApiError } from "@/lib/api";
 import { setCurrencyConfig, fmtMoney as globalFmtMoney, convertAmount as globalConvertAmount } from "@/lib/utils";
 import { createFormat, RegionProvider } from "@/lib/format";
 import { configureApiRegion } from "@/lib/i18n/runtime";
-import { isTranslatedRoute } from "@/lib/i18n/translatedRoutes";
 import type { Words } from "@/lib/i18n/types";
 import { useAccountLanguage } from "@/lib/i18n/useAccountLanguage";
 import { queryKeys } from "@/lib/queryKeys";
@@ -39,7 +38,6 @@ import { PhoneHeader, PhoneTabBar } from "@/components/workspace/PhoneNav";
 import { ShortcutProvider, useShortcut, useShortcuts } from "@/components/workspace/shortcuts";
 import { ToastProvider } from "@/components/workspace/overlays";
 import type { CaptureRequest } from "@/components/capture/types";
-import { UntranslatedRegion } from "@/components/workspace/untranslated";
 
 // Loaded on first open and prefetched when the browser is idle, so the shell's first load stays small (D11).
 const loadCaptureDialog = () => import("@/components/capture/CaptureDialog");
@@ -439,9 +437,6 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     setActionsSlot,
   };
 
-  // Pages no phase has translated yet stay Indonesian, marked as such, inside the translated shell (D10).
-  const untranslated = locale !== "id" && !isTranslatedRoute(pathname);
-
   if (userLoading || userError) {
     return <div className="min-h-screen bg-[var(--canvas)]" />;
   }
@@ -484,15 +479,12 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                 id="main"
                 tabIndex={-1}
                 className="page"
-                lang={untranslated ? "id" : undefined}
                 style={{ "--page-w": `${frameWidth(pathname)}px` } as React.CSSProperties}
               >
-                <UntranslatedRegion active={untranslated}>
-                  <div className="page-inner">
-                    <TitleBlock />
-                    {children}
-                  </div>
-                </UntranslatedRegion>
+                <div className="page-inner">
+                  <TitleBlock />
+                  {children}
+                </div>
               </main>
             </div>
           </div>

@@ -3,44 +3,20 @@ import { axe } from "vitest-axe";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
-import { ChoiceGroup, FormErrorSummary, FormField, MonetaryInput } from "./FormField";
+import { FormField, MonetaryInput } from "./FormField";
 
 describe("FormField", () => {
   it("associates label, description, and error with its control", async () => {
     const { container } = render(
-      <>
-        <FormField label="Nominal" description="Dalam rupiah" error="Nominal wajib diisi" required>
-          {(props) => <input {...props} />}
-        </FormField>
-        <FormErrorSummary message="Periksa kembali isian." />
-      </>,
+      <FormField label="Nominal" description="Dalam rupiah" error="Nominal wajib diisi" required>
+        {(props) => <input {...props} />}
+      </FormField>,
     );
     const input = screen.getByRole("textbox", { name: /Nominal/ });
     expect(input).toHaveAttribute("aria-invalid", "true");
     expect(input).toHaveAccessibleDescription(/Dalam rupiah Nominal wajib diisi/);
     expect(screen.getByText("Dalam rupiah")).toBeVisible();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
-    expect((await axe(container)).violations).toHaveLength(0);
-  });
-
-  it("exposes selected and disabled choice states", async () => {
-    const { container } = render(
-      <form>
-        <ChoiceGroup
-          label="Kakeibo"
-          name="kakeibo"
-          value="saving"
-          onChange={() => {}}
-          options={[
-            { value: "need", label: "Need" },
-            { value: "saving", label: "Saving" },
-            { value: "want", label: "Want", disabled: true },
-          ]}
-        />
-      </form>,
-    );
-    expect(screen.getByRole("radio", { name: "Saving" })).toBeChecked();
-    expect(screen.getByRole("radio", { name: "Want" })).toBeDisabled();
     expect((await axe(container)).violations).toHaveLength(0);
   });
 

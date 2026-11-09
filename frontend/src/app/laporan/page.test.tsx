@@ -115,7 +115,7 @@ function makeReport(overrides: Partial<MonthlyReport> = {}): MonthlyReport {
     empty: false, basis: "month", cycle_available: false, period,
     flow: { inflow: 11_068_400, gross_outflow: 7_543_830, reimbursement_offset: 50_000, outflow: 7_493_830, net: 3_574_570, spending_reimbursement_offset: 40_000 },
     income: { total: 11_068_400, sources: [{ category_id: "c-gaji", name: "Gaji", amount: 9_500_000, count: 1 }, { category_id: null, name: "Tanpa kategori", amount: 1_568_400, count: 2 }] },
-    savings: { fresh_saving: 2_750_000, saving_expenses: 1_500_000, net_saving_transfers: 1_250_000, surplus: 3_574_570 },
+    savings: { fresh_saving: 2_750_000, saving_expenses: 1_500_000, net_saving_transfers: 1_250_000, paid_from_savings: 0, surplus: 3_574_570 },
     spending: {
       total: 7_493_830,
       pillars: [],
@@ -229,6 +229,33 @@ describe("Laporan", () => {
     expect(within(saving).getByRole("link", { name: /Pengeluaran berpilar Tabungan/ }).getAttribute("href")).toContain("kakeibo=saving");
     expect(within(saving).queryByRole("link", { name: /Pindah bersih/ })).toBeNull();
     expect(within(saving).getByText("Rp 1.250.000")).toHaveClass("c-invest");
+    expect(within(saving).queryByText("Pengeluaran dari tabungan")).toBeNull();
+  });
+
+  it("adds spending paid from savings so the savings parts add up (apply-markas-cleanup D8)", async () => {
+    const report = makeReport();
+    mockApi({ ...report, savings: { ...report.savings, saving_expenses: 1_650_000, paid_from_savings: 150_000 } });
+    renderPage();
+    const saving = await screen.findByRole("region", { name: "Berapa yang ditabung?" });
+    const parts = within(saving).getByRole("list", { name: "Rincian tabungan" });
+    expect(within(parts).getAllByRole("listitem")).toHaveLength(3);
+    const paid = within(parts).getAllByRole("listitem")[2];
+    expect(paid).toHaveTextContent("Pengeluaran dari tabungan");
+    expect(paid).toHaveTextContent("tetap dihitung sebagai pengeluaran");
+    expect(within(paid).getByText("−Rp 150.000")).toHaveClass("t-amt");
+    expect(within(paid).queryByRole("link")).toBeNull();
+    // 1.650.000 + 1.250.000 − 150.000 = 2.750.000, the figure.
+    expect(saving).toHaveTextContent("Rp 2.750.000");
+    expect(within(parts).getAllByRole("listitem")[0]).toHaveTextContent("Rp 1.650.000");
+  });
+
+  it("names spending paid from savings in English", async () => {
+    const report = makeReport();
+    mockApi({ ...report, savings: { ...report.savings, saving_expenses: 1_650_000, paid_from_savings: 150_000 } });
+    renderPage("en");
+    const saving = await screen.findByRole("region", { name: "How much was saved?" });
+    expect(saving).toHaveTextContent("Spending from savings");
+    expect(saving).toHaveTextContent("still counted as spending");
   });
 
   it("lists pillars and categories in the table with whole-row links, changes and the total", async () => {

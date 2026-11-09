@@ -7,7 +7,6 @@ import { Icon, type IconName } from "@/components/ui/Icon";
 import type { ThemeChoice, ResolvedTheme } from "@/lib/theme";
 import { MenuButton } from "./Menu";
 import { PHONE_QUERY, useMediaQuery } from "./layers";
-import { useInterfaceLang } from "./untranslated";
 
 export interface WorkspaceNotification {
   /** Includes the report end date or the plan date, so a new occurrence is new again (D6). */
@@ -113,7 +112,6 @@ export function PageActions({
 }) {
   const context = useContext(WorkspaceContext);
   const t = useTranslations("common");
-  const lang = useInterfaceLang();
   const phone = useMediaQuery(PHONE_QUERY);
   const listed = more.filter((action) => phone || !action.phoneOnly);
   const content = (
@@ -122,7 +120,6 @@ export function PageActions({
       {listed.length > 0 && (
         <MenuButton
           label={moreLabel ?? t("moreActions")}
-          lang={moreLabel ? undefined : lang}
           className="ws-icon-btn"
           menuLabel={t("moreActions")}
           width={260}

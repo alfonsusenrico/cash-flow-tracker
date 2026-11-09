@@ -35,10 +35,6 @@ export function roleInfo(role: AccountRole): UseInfo {
   return USES.find((use) => use.key === role) ?? DEBT_USE;
 }
 
-export function kindInfo(kind: InvestmentKind) {
-  return KINDS.find((entry) => entry.key === kind) ?? KINDS[KINDS.length - 1];
-}
-
 /** The account's role from the server, or the role V51 would backfill when an older API sends none. */
 export function roleOf(account: AccountItem): AccountRole {
   if (account.role) return account.role;

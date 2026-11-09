@@ -334,6 +334,10 @@ def list_transactions(
         from_date, to_date, _, _, period_label = get_timeframe_window(payday_day, period, cycle_offset=period_offset, user_id=user_id, language=language_for_user(current_user))
     with db_conn() as conn:
         with conn.cursor() as cur:
+            # The list, totals and type-count queries are short scans whose saving-flow subplans push the planner's
+            # cost past jit_above_cost; compiling them cost about 55 ms at p95 on a 20,000-row owner and saved
+            # nothing (apply-markas-cleanup D10). SET LOCAL ends with this request's transaction.
+            cur.execute("SET LOCAL jit = off")
             conditions = ["t.user_id = %s"]
             params: list[Any] = [user_id]
 

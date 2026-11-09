@@ -2,7 +2,6 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { Icon } from "@/components/ui/Icon";
-import { useInterfaceLang } from "@/components/workspace/untranslated";
 import { useFormat } from "@/lib/format";
 
 /** The period's own dates, so the stepper can name it in a language the server label is not written in. */
@@ -32,7 +31,6 @@ export function PeriodStepper({ label, offset, onChange, unit, minOffset = -36, 
   const t = useTranslations("common");
   const locale = useLocale();
   const format = useFormat();
-  const lang = useInterfaceLang();
   const cycle = unit === "Siklus";
   const shown = (() => {
     if (label === null) return t("loading");
@@ -47,7 +45,7 @@ export function PeriodStepper({ label, offset, onChange, unit, minOffset = -36, 
   // SPEC `.stepper` (apply-markas-transaksi D3): two 36 px icon buttons around a 168 px live label, no box; the
   // reset after a step back stays, because a far step back would otherwise need many presses (deviation 4).
   return (
-    <div className="stepper" role="group" aria-label={t("period.label")} lang={lang}>
+    <div className="stepper" role="group" aria-label={t("period.label")}>
       <button type="button" className="ws-icon-btn" onClick={() => onChange(offset - 1)} disabled={offset <= minOffset} aria-label={previous} title={previous}>
         <Icon name="chevron-left" className="h-4 w-4" />
       </button>

@@ -20,29 +20,25 @@ export interface CreditOverview {
 
 /**
  * The provider view's header (apply-markas-transaksi D30, H5 "Provider Filter"): the account's Utang, next bill,
- * "Pengeluaran pakai kredit" and "Tagihan kredit dibayar" for the page's period, all from the credit overview.
+ * "Pengeluaran pakai kredit" and "Tagihan kredit dibayar" over the list's own window (apply-markas-cleanup D9),
+ * all from the credit overview.
  */
 export function CreditHeader({
   accountId,
-  from,
-  to,
+  window,
   money,
   format,
 }: {
   accountId: string;
-  /** The page's period as local days; both null on "Semua waktu" without a range, where the server's cycle is used. */
-  from: string | null;
-  to: string | null;
+  /** The list's window as overview parameters; empty on "Semua waktu" without a range, where the server's cycle is used. */
+  window: Record<string, string>;
   money: (amount: number) => string;
   format: Format;
 }) {
   const t = useTranslations("transactions.provider");
   const common = useTranslations("common");
   const row = useTranslations("transactions.row");
-  const query = new URLSearchParams();
-  if (from) query.set("from", from);
-  if (to) query.set("to", to);
-  const search = query.toString();
+  const search = new URLSearchParams(window).toString();
   const overview = useQuery<CreditOverview>({
     queryKey: queryKeys.transactions.creditOverview(accountId, search),
     queryFn: () => api.get(`/credit/accounts/${accountId}${search ? `?${search}` : ""}`),

@@ -63,7 +63,6 @@
     "tryAgain": "Try again",
     "hidden": "Hidden",
     "loading": "Loading…",
-    "closeDetails": "Close details",
     "moreActions": "More actions",
     "theme": {
       "label": "Theme",
@@ -102,7 +101,6 @@
     "accounts": "Accounts & Pockets",
     "goals": "Goals & Bills",
     "settings": "Settings",
-    "components": "Components",
     "more": "More",
     "closeMore": "Close More",
     "mainMenu": "Main menu",
@@ -265,10 +263,6 @@
     "cannotCalculate": "Cannot be calculated yet",
     "kakeiboPeriod": "{period, select, cycle {Kakeibo this cycle} other {Kakeibo this month}}",
     "chooseInReview": "Choose in Review",
-    "viewBreakdownLabel": "{label} {amount}: view breakdown",
-    "closeExplanation": "Close explanation",
-    "whyUnavailable": "Why it is not available: ",
-    "itemCount": "{count, plural, one {# item} other {# items}}",
     "creditBill": "{account} bill",
     "creditMark": "Credit",
     "creditWhen": "{when} · Credit"
@@ -1829,9 +1823,6 @@
   },
   "conversation": {
     "helpFactHome": "Home shows how much is safe to spend until payday."
-  },
-  "notice": {
-    "untranslated": "This page is in Indonesian for now."
   },
   "accounts": {
     "page": {
