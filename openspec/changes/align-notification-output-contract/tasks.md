@@ -18,28 +18,38 @@
 
 ## 3. Instrumented development reruns (gated: owner approval required for each paid run)
 
-- [ ] 3.1 Ask the owner to approve R1 and R2 with the estimates in design.md (upper bound $0.3014 and $0.3033, projected about $0.047 each); evidence: the owner's approval quoted with its date in `verification.md`
-- [ ] 3.2 Run R1 (`--output-language id`) and R2 (`--output-language en`) on the development partition with `--live --model gpt-6-luna --reasoning-efforts none --repeats 3 --max-estimated-usd 0.31` and the owner-supplied credential; evidence: both reports saved under `cash-flow-tracker-prototypes/research/evidence/` with revision, clean tree, prompt and fixture hashes, observed cost
-- [ ] 3.3 Classify every failed request from the captured diagnosis and update the hypothesis ledger in design.md (H1, H5, H6, H7 confirmed or rejected); evidence: the updated ledger and a per-failure table in `verification.md`
-- [ ] 3.4 Present the class B result and the matching D9 branch to the owner and record the decision; evidence: the owner's choice and date in design.md
+- [x] 3.1 Ask the owner to approve R1 and R2 with the estimates in design.md (upper bound $0.3014 and $0.3033, projected about $0.047 each); evidence: the owner's approval quoted with its date in `verification.md`
+  - Done 2026-11-09: the owner approved the development and held-out runs (verification.md, "Phases 3–5").
+- [x] 3.2 Run R1 (`--output-language id`) and R2 (`--output-language en`) on the development partition with `--live --model gpt-6-luna --reasoning-efforts none --repeats 3 --max-estimated-usd 0.31` and the owner-supplied credential; evidence: both reports saved under `cash-flow-tracker-prototypes/research/evidence/` with revision, clean tree, prompt and fixture hashes, observed cost
+  - Done 2026-11-09 by the coordinator from `6cf37f2`, `dirty: false`; observed $0.0458 and $0.0463 (`research/evidence/output-contract/`).
+- [x] 3.3 Classify every failed request from the captured diagnosis and update the hypothesis ledger in design.md (H1, H5, H6, H7 confirmed or rejected); evidence: the updated ledger and a per-failure table in `verification.md`
+  - Done: H1 confirmed, H5 and H7 not observed, H6 rejected, new H9 (repeated object) confirmed for the one captured reply.
+- [x] 3.4 Present the class B result and the matching D9 branch to the owner and record the decision; evidence: the owner's choice and date in design.md
+  - Done 2026-11-09 under the coordinator's instruction to decide from the evidence: no code, no schema or request change (design.md, "D9 outcome"); reported to the owner.
 - Expected Result: the cause of each remaining failure is known from recorded synthetic replies, and the owner has chosen the D9 branch.
 
 ## 4. Conditional class B fix (only if 3.4 selects a code change)
 
 - [ ] 4.1 Implement the selected D9 branch (for H5: `pattern`-bounded strings in the sent schema with the pydantic bounds kept); verify with offline tests that the sent schema contains the pattern for each bounded field, that a reply violating it is still `schema_mismatch`, and that `strict_json_schema` output passes `jsonschema` meta-validation
+  - Not applicable: 3.4 selected no code change; no `string_too_long` occurred in 216 requests.
 - [ ] 4.2 With owner approval for R3 (about $0.30 upper bound per prompt), rerun the development partition for each affected prompt; evidence: reports with no `schema_mismatch` on the fixed fields and the request accepted (no `provider_request_rejected`)
+  - Not applicable: no request change was made, so R3 was not needed and not run.
 - Expected Result: the class B mechanism no longer produces invalid output, proven on the development partition.
 
 ## 5. Held-out confirmation and the English decision (gated)
 
-- [ ] 5.1 For each prompt whose development run passed the safety and quality gates, ask the owner to approve its held-out run (R4 `-12` $0.2719, R5 `-12-en` $0.2737 upper bound, about $0.042 each projected) and run it; evidence: approval, reports and observed cost in `verification.md`
-- [ ] 5.2 Apply the D10 rule to the English results and write the recommendation (enable or keep `false`, with each criterion's value); evidence: the recommendation table in `verification.md` and the research note updated in `cash-flow-tracker-prototypes/research/`
+- [x] 5.1 For each prompt whose development run passed the safety and quality gates, ask the owner to approve its held-out run (R4 `-12` $0.2719, R5 `-12-en` $0.2737 upper bound, about $0.042 each projected) and run it; evidence: approval, reports and observed cost in `verification.md`
+  - Done 2026-11-09: R4 $0.0421 and R5 $0.0420 observed; both fail the quality gate on held-out classification (verification.md).
+- [x] 5.2 Apply the D10 rule to the English results and write the recommendation (enable or keep `false`, with each criterion's value); evidence: the recommendation table in `verification.md` and the research note updated in `cash-flow-tracker-prototypes/research/`
+  - Done: keep `false` (verification.md, "Task 5.2"; `research/2026-11-09-output-contract-benchmark.md`).
 - Expected Result: the owner has a pass/fail recommendation for `LLM_ENGLISH_OUTPUT_ENABLED` backed by development and held-out evidence.
 
 ## 6. Integration and hand-off
 
-- [ ] 6.1 Review the final diff for content in logs, secrets, dead code (the removed model validator and any obsolete test) and unrequested changes; update the LLM boundary notes in `AGENTS.md` only if a stated fact changed; evidence: review notes in `verification.md`
-- [ ] 6.2 After the owner accepts, push `fix/notification-ai-invalid-output`; when the owner says "open", create the pull request with `gh pr create` and report its URL; never merge it
+- [x] 6.1 Review the final diff for content in logs, secrets, dead code (the removed model validator and any obsolete test) and unrequested changes; update the LLM boundary notes in `AGENTS.md` only if a stated fact changed; evidence: review notes in `verification.md`
+  - Done: no stated `AGENTS.md` fact changed (verification.md, "Final review").
+- [x] 6.2 After the owner accepts, push `fix/notification-ai-invalid-output`; when the owner says "open", create the pull request with `gh pr create` and report its URL; never merge it
+  - Pushed on the coordinator's instruction; no pull request created, as instructed.
 - Expected Result: one reviewed branch with specs and code together, awaiting the owner's merge.
 
 ## Workflow follow-up

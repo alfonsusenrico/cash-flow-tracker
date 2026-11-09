@@ -94,14 +94,15 @@ two mappings with three alternatives give 224 or 313 before removing a UUID.
 
 | ID | Mechanism | Supporting evidence | Conflicting evidence | Prediction that must hold | Discriminating experiment | Result |
 | --- | --- | --- | --- | --- | --- | --- |
-| H1 | Our parser applies a domain rule (record needs category/account) the sent schema allows to break: contract mismatch at the provider boundary | Offline reproduction; exact token fit for #5, fit within 3 tokens for #1, #6, #7; same cases record with a category on other repeats; rule only runs without `allow_uncategorized` | Raw replies not recorded | Instrumented rerun shows class A failures as `schema-valid` + `incomplete_record` rejections, none as `schema_mismatch` | Phase 3 rerun with failure capture | Supported for #1, #5, #6, #7 (strong, indirect) |
+| H1 | Our parser applies a domain rule (record needs category/account) the sent schema allows to break: contract mismatch at the provider boundary | Offline reproduction; exact token fit for #5, fit within 3 tokens for #1, #6, #7; same cases record with a category on other repeats; rule only runs without `allow_uncategorized` | Raw replies not recorded | Instrumented rerun shows class A failures as `schema-valid` + `incomplete_record` rejections, none as `schema_mismatch` | Phase 3 rerun with failure capture | Confirmed (2026-11-09 reruns, 216 requests): 17 schema-valid records rejected as `category_required`, 0 class A provider failures |
 | H2 | Truncation at `max_output_tokens` | none | Max failed reply 287 tokens against a 2048 cap; effort `none` adds no reasoning tokens | An incomplete status would show ~2048 output tokens | Already decided by recorded usage | Rejected |
 | H3 | Provider not enforcing the schema structurally (non-strict or unsupported keyword) | none | `strict: true`, all properties required, `additionalProperties: false`; requests accepted (unsupported schema would be an error); all 107 valid replies match the schema field for field | n/a | Already decided | Rejected for structure |
 | H4 | Pydantic strict mode stricter than JSON Schema for types | none | Offline probe: ints, UUID variants accepted | n/a | Already decided | Rejected |
-| H5 | `maxLength` not enforced by the provider for this model, so a long string fails `string_too_long` | `maxLength` not listed as supported; sizes of #2–#4 fit a 450–650-character description | Requests were accepted with `maxLength`; enforcement unknown | Rerun shows `schema_mismatch` on a string field with `string_too_long` | Phase 3 rerun | Open (candidate for class B) |
-| H6 | Class B is a record-shape failure carrying `mappings` | Sizes fit one or two mappings; BCA cases have no unresolved names, so mappings would be unexpected | Prompt says mappings must be empty without unresolved names | Rerun shows class B as `incomplete_record` with `mappings` > 0 | Phase 3 rerun | Open |
-| H7 | Refusal or `content_filter` incompleteness | none | Synthetic bank texts; a refusal is usually short | Rerun shows class `refusal` or `incomplete` | Phase 3 rerun | Open, low prior |
-| H8 | Benchmark contexts lack the production `classification` block (`merchant_less`, `match_key`), so merchant-less BCA cases get fewer category hints and more class A replies | The prompt's merchant-less instruction refers to `classification.merchant_less`; all class A cases are merchant-less or unfamiliar-merchant texts | Not measured | Adding the block lowers class A frequency | Follow-up (D8), not in this change | Open, contributing condition |
+| H5 | `maxLength` not enforced by the provider for this model, so a long string fails `string_too_long` | `maxLength` not listed as supported; sizes of #2–#4 fit a 450–650-character description | Requests were accepted with `maxLength`; enforcement unknown | Rerun shows `schema_mismatch` on a string field with `string_too_long` | Phase 3 rerun | Not observed: no `string_too_long` in 216 requests; the captured long reply was a duplicated object (H9). Not disproved for other replies |
+| H6 | Class B is a record-shape failure carrying `mappings` | Sizes fit one or two mappings; BCA cases have no unresolved names, so mappings would be unexpected | Prompt says mappings must be empty without unresolved names | Rerun shows class B as `incomplete_record` with `mappings` > 0 | Phase 3 rerun | Rejected: the captured long reply had no mappings; its size came from a second object |
+| H7 | Refusal or `content_filter` incompleteness | none | Synthetic bank texts; a refusal is usually short | Rerun shows class `refusal` or `incomplete` | Phase 3 rerun | Not observed: no `refusal` or `incomplete` in 216 requests |
+| H8 | Benchmark contexts lack the production `classification` block (`merchant_less`, `match_key`), so merchant-less BCA cases get fewer category hints and more class A replies | The prompt's merchant-less instruction refers to `classification.merchant_less`; all class A cases are merchant-less or unfamiliar-merchant texts | Not measured | Adding the block lowers class A frequency | Follow-up (D8), not in this change | Open, contributing condition; follow-up (D8) |
+| H9 | Class B is a completed reply holding two schema-valid objects back to back, so the text is not one JSON value (`json_decode`) | Captured on 2026-11-09 (`-12`, development, `mybca-id-expense` r1): 724 characters, the 362-character `needs_review` object written twice with no separator, status `completed`, 187 output tokens; the 2026-11-08 long replies size as two objects plus 9–11 tokens (#3: 276 against 287, #4: 270 against 279) | #2 fits less well (needs_review + record = 225 against 243) | Every class B capture is a repeated or concatenated object | 2026-11-09 reruns with capture | Confirmed for the one captured reply; consistent with #3 and #4 |
 
 ## Goals / Non-Goals
 
@@ -194,6 +195,14 @@ change to run after this one.
   no fix in this change.
 - Class B does not recur in the instrumented rerun: no phase 4 code. The failures stay observable through D3/D4.
 
+D9 outcome (2026-11-09, from the reruns at `6cf37f2`): class B recurred once in 216 requests, as `json_decode`
+(H9), never as `string_too_long`, `refusal` or `incomplete`. None of the planned branches matches, and none needs a
+schema or request change. Decision: no phase 4 code. The reply stays `provider_invalid_output`; in production the
+existing single retry asks again, and the deterministic fallback handles a second failure. Schema completion now
+passes on all four runs (98.2% to 100%). Rejected for now: parsing the first object of a repeated reply (a lenient
+repair of malformed output, for a 0.5% rate the retry already covers); a request change to stop generation after
+the first object (the Responses API offers no documented setting for it). Reopen if the captured rate rises.
+
 **D10 (default) Decision rule for `LLM_ENGLISH_OUTPUT_ENABLED`.** Recommend enabling only when, on one revision
 and the production configuration (`gpt-6-luna`, effort `none`): the English development and held-out runs both
 pass the safety gate, the quality gate (schema ≥ 98%, unambiguous classification ≥ 90%, description rubric ≥ 90%)
@@ -201,6 +210,10 @@ and the deterministic routes; English record recall is no more than 5 percentage
 the same partition and revision; and no class B failure is unexplained. The agent only recommends; the owner flips
 the flag through the release path. If Indonesian fails where English passes, the production prompt gets its own
 follow-up; it does not block English.
+
+D10 outcome (2026-11-09): keep `LLM_ENGLISH_OUTPUT_ENABLED=false`. The English held-out quality gate fails
+(unambiguous classification 66.7% against 90%), and English record recall trails Indonesian by 11.7 points on
+development (86.3% against 98.0%) and 7.8 points on held-out (92.2% against 100%), both above the 5-point limit.
 
 ## Evaluation plan
 
