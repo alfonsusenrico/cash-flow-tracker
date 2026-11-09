@@ -14,9 +14,9 @@ export function UntranslatedRegion({ active, children }: { active: boolean; chil
 }
 
 /** Whether Indonesian content shown here needs its own `lang="id"`: an untranslated area in another language. */
-export function useUntranslated(explicit = false): boolean {
+export function useUntranslated(): boolean {
   const inRegion = useContext(UntranslatedContext);
-  return useLocale() !== "id" && (explicit || inRegion);
+  return useLocale() !== "id" && inRegion;
 }
 
 /**

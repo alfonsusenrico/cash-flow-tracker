@@ -23,7 +23,7 @@ export function totalDebtPayments(rows: DebtAllocationValue[]): number {
   return rows.reduce((sum, row) => sum + (Number(stripGrouping(row.amount)) || 0), 0);
 }
 
-/** What is wrong with a debt split, as a code its caller words: Transaksi from its catalogue, Catat in Indonesian. */
+/** What is wrong with a debt split, as a code its caller words from `transactions.debts.errors`. */
 export type AllocationIssue = { code: "positive" } | { code: "total" } | { code: "over"; name: string };
 
 export function allocationIssue(
@@ -41,20 +41,6 @@ export function allocationIssue(
     if (debt && values[index] > debt.remaining_amount + (originalAmounts[row.obligation_id] || 0)) return { code: "over", name: debt.name };
   }
   return null;
-}
-
-/** The Indonesian wording of `allocationIssue` for Catat, which phase 11 translates. */
-export function allocationError(
-  rows: DebtAllocationValue[],
-  total: number,
-  debts: DebtChoice[],
-  originalAmounts: Record<string, number> = {},
-): string | null {
-  const issue = allocationIssue(rows, total, debts, originalAmounts);
-  if (!issue) return null;
-  if (issue.code === "positive") return "Isi nominal positif untuk setiap tagihan.";
-  if (issue.code === "total") return "Jumlah pembagian harus sama dengan nominal transaksi.";
-  return `Pembagian ${issue.name} melebihi sisa tagihan.`;
 }
 
 interface Props {

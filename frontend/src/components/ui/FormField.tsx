@@ -1,6 +1,5 @@
 import { useId } from "react";
 import { cn, formatNumberWithDots } from "@/lib/utils";
-import { InfoHelp } from "./InfoHelp";
 
 interface FormFieldProps {
   id?: string;
@@ -33,13 +32,10 @@ export function FormField({
 
   return (
     <div className={cn("space-y-2", className)}>
-      <div className="flex items-center gap-1">
-        <label htmlFor={id} className="block text-xs font-medium text-[var(--muted)]">
-          {label}
-          {required ? <span aria-hidden="true"> *</span> : null}
-        </label>
-        {description ? <InfoHelp id={descriptionId} label={label}>{description}</InfoHelp> : null}
-      </div>
+      <label htmlFor={id} className="block text-xs font-medium text-[var(--muted)]">
+        {label}
+        {required ? <span aria-hidden="true"> *</span> : null}
+      </label>
       {children({
         id,
         "aria-describedby": describedBy,
@@ -50,6 +46,8 @@ export function FormField({
           {error}
         </p>
       ) : null}
+      {/* Guidance is one visible hint line under the control, never an information control (apply-markas-catat D8). */}
+      {description ? <p id={descriptionId} className="text-xs text-[var(--muted)]">{description}</p> : null}
     </div>
   );
 }
@@ -116,27 +114,6 @@ export function FormErrorSummary({ message }: { message?: string }) {
   );
 }
 
-interface FormSectionProps {
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-  className?: string;
-}
-
-export function FormSection({ title, description, children, className }: FormSectionProps) {
-  const titleId = useId();
-
-  return (
-    <section aria-labelledby={titleId} className={cn("space-y-3 border-t border-[var(--line)] pt-4", className)}>
-      <div className="flex items-center gap-1">
-        <h3 id={titleId} className="text-sm font-semibold text-[var(--text)]">{title}</h3>
-        {description ? <InfoHelp label={title}>{description}</InfoHelp> : null}
-      </div>
-      {children}
-    </section>
-  );
-}
-
 interface ChoiceOption {
   value: string;
   label: string;
@@ -181,27 +158,5 @@ export function ChoiceGroup({ label, name, value, options, onChange }: ChoiceGro
         ))}
       </div>
     </fieldset>
-  );
-}
-
-interface PendingSubmitButtonProps {
-  pending: boolean;
-  pendingLabel: string;
-  children: React.ReactNode;
-  disabled?: boolean;
-  className?: string;
-}
-
-export function PendingSubmitButton({
-  pending,
-  pendingLabel,
-  children,
-  disabled = false,
-  className,
-}: PendingSubmitButtonProps) {
-  return (
-    <button type="submit" disabled={pending || disabled} className={className}>
-      {pending ? pendingLabel : children}
-    </button>
   );
 }

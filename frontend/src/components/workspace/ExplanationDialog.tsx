@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Icon } from "@/components/ui/Icon";
-import type { ExplanationLine } from "./explain";
+import type { ExplanationLine } from "./explanation";
 import { MaskedMoney } from "./money";
 import { ShellDialog } from "./ShellDialog";
 

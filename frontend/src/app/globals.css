@@ -36,7 +36,7 @@ body {
  * ====================================================================== */
 
 /* Tabular figures for every amount, count, time, date column, table, field, badge and chart label. */
-.tabular, .tabular-nums, .t-fig-l, .t-fig, .t-amt, .ws-cnt, .ws-kbd, .ws-pill, .ws-badge, .ws-tbl, .ws-xtable,
+.tabular, .tabular-nums, .t-fig-l, .t-fig, .t-amt, .ws-cnt, .ws-kbd, .ws-pill, .ws-badge, .ws-tbl,
 .ws-bigline, .ws-rows .r,
 .ws-chip-delta, table, dd, input, select, textarea, svg text {
   font-variant-numeric: tabular-nums lining-nums;
@@ -157,7 +157,6 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent-fg); }
 }
 
 /* Segment selected state: the canvas tone with a 1 px hairline, no colour. */
-.ws-seg-on { background: var(--window); color: var(--text); box-shadow: 0 0 0 1px var(--line); }
 
 /* Badge: 20 px, the raised neutral fill, 12/500 text in the meaning's ink. */
 .ws-badge {
@@ -789,75 +788,8 @@ dialog.shell-dialog::backdrop { background: var(--scrim); animation: ws-fade var
 .ws-chip:hover { background: var(--surface); }
 .ws-chip[aria-pressed="true"] { border-color: var(--line-strong); background: var(--surface-2); color: var(--text); }
 
-/* Explainable figure ("Rincian hitungan") */
-.ws-xn {
-  display: inline;
-  min-height: 24px;
-  margin: 0 -1px;
-  padding: 0 1px;
-  border-radius: var(--r-control);
-  color: inherit;
-  font: inherit;
-  letter-spacing: inherit;
-  font-variant-numeric: tabular-nums;
-  text-decoration: underline dotted;
-  text-decoration-thickness: 1.5px;
-  text-decoration-color: color-mix(in srgb, currentColor 55%, transparent);
-  text-underline-offset: 0.22em;
-  cursor: help;
-}
-.ws-xn:hover { background: var(--surface-2); text-decoration-style: solid; }
-.ws-explain {
-  position: absolute;
-  z-index: 80;
-  width: 380px;
-  max-width: calc(100vw - 32px);
-  padding: var(--sp-16);
-  border: 1px solid var(--line);
-  border-radius: var(--r-panel);
-  background: var(--dialog);
-  color: var(--text);
-  box-shadow: var(--shadow-float);
-}
-.ws-explain[data-mode="sheet"] {
-  position: fixed;
-  inset: auto 0 0 0;
-  width: auto;
-  max-width: none;
-  max-height: 80vh;
-  overflow: auto;
-  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
-  border-bottom: 0;
-  border-radius: var(--r-layer) var(--r-layer) 0 0;
-}
-/* The scrim sits under every modal layer it dims: drawers and sheets (80) stack above it. */
-.ws-sheet-scrim { position: fixed; inset: 0; z-index: 79; background: var(--scrim); }
-.ws-x-head { display: grid; grid-template-columns: 1fr auto; align-items: start; gap: 2px 10px; }
-.ws-x-kick { color: var(--muted); font-size: 12px; }
-.ws-x-head h2 { font-size: 16px; font-weight: 600; outline: none; }
-.ws-close { display: grid; flex: none; place-items: center; width: 36px; height: 36px; border-radius: var(--r-control); background: transparent; color: var(--muted); transition: background-color var(--t-state), color var(--t-state); }
-.ws-close:hover { background: var(--surface); color: var(--text); }
-.ws-close:active { background: var(--surface-2); }
-.ws-x-head .ws-close { grid-column: 2; grid-row: 1 / span 2; }
-.ws-x-body { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; color: var(--text-2); font-size: 14px; }
-.ws-xtable { width: 100%; border-collapse: collapse; font-size: 14px; }
-.ws-xtable td { padding: 6px 0; border-top: 1px solid var(--line); color: var(--text); vertical-align: top; overflow-wrap: anywhere; }
-.ws-xtable tr:first-child td { border-top: 0; }
-.ws-xtable td small { display: block; color: var(--muted); font-size: 12px; }
-.ws-xtable .r { padding-left: 12px; text-align: right; white-space: nowrap; }
-.ws-xtable tr.is-total td { border-top: 1px solid var(--line-strong); font-weight: 600; }
-.ws-x-link { display: inline-flex; align-self: flex-start; align-items: center; gap: 4px; min-height: 24px; color: var(--accent-fg); font-weight: 500; text-decoration: none; text-underline-offset: 3px; }
-.ws-x-link:hover { text-decoration: underline; }
-
-/* Drawer: a centred dialog from 768 px, a bottom sheet below */
+/* The former drawer's frame, drawn only as a static sample on /komponen until phase 12 retires the sheet. */
 .ws-drawer { display: flex; flex-direction: column; gap: 16px; padding: var(--sp-24); background: var(--dialog); color: var(--text); }
-/* Centered detail dialog (OD113): wide enough for the transaction form's two-column rows. */
-.ws-drawer[data-mode="dialog"] {
-  position: fixed; top: 50%; left: 50%; z-index: 80; transform: translate(-50%, -50%);
-  width: min(720px, calc(100vw - 48px)); max-height: calc(100dvh - 96px); overflow: auto;
-  border: 1px solid var(--line); border-radius: var(--r-layer); box-shadow: var(--shadow-float);
-}
-.ws-drawer[data-mode="sheet"] { position: fixed; inset: auto 0 0 0; z-index: 80; max-height: 92vh; overflow: auto; padding: var(--sp-16) var(--sp-16) calc(16px + env(safe-area-inset-bottom, 0px)); border: 1px solid var(--line); border-bottom: 0; border-radius: var(--r-layer) var(--r-layer) 0 0; box-shadow: var(--shadow-float); }
 .ws-drawer-h { display: flex; align-items: center; gap: 12px; }
 .ws-drawer-h h2 { flex: 1; min-width: 0; font-family: var(--font-display); font-feature-settings: var(--features-display); font-size: var(--fs-20); line-height: 28px; font-weight: 600; letter-spacing: -0.01em; }
 
@@ -1280,12 +1212,10 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
 @keyframes ws-rise { from { opacity: 0; transform: translateY(8px); } }
 @keyframes ws-sheet-up { from { opacity: 0; transform: translateY(24px); } }
 @keyframes ws-toast-in { from { opacity: 0; transform: translate(-50%, 8px); } }
-@keyframes ws-center-in { from { opacity: 0; transform: translate(-50%, calc(-50% + 8px)); } }
-.ws-layer-in, .ws-menu, .ws-explain:not([data-mode="sheet"]) { animation: ws-rise var(--t-layer) both; }
-.ws-sheet-in, .ws-explain[data-mode="sheet"], .ws-drawer[data-mode="sheet"] { animation: ws-sheet-up var(--t-layer) both; }
-.ws-drawer[data-mode="dialog"] { animation: ws-center-in var(--t-layer) both; }
+.ws-layer-in, .ws-menu { animation: ws-rise var(--t-layer) both; }
+.ws-sheet-in { animation: ws-sheet-up var(--t-layer) both; }
 .ws-toast { animation: ws-toast-in var(--t-layer) both; }
-.ws-scrim-in, .ws-sheet-scrim { animation: ws-fade var(--t-layer) both; }
+.ws-scrim-in { animation: ws-fade var(--t-layer) both; }
 
 /* Reduced motion: no animation and no transition anywhere (SPEC §10). */
 @media (prefers-reduced-motion: reduce) {
@@ -1534,23 +1464,11 @@ button.hbar:hover { background: var(--surface); }
   .rk-hero .t-hero { font-size: var(--fs-32); line-height: 40px; }
 }
 
-/* Catat dialog */
-.ws-catat textarea, .ws-catat input[type="text"] { width: 100%; min-height: 48px; padding: 12px; border: 1px solid var(--line-strong); border-radius: var(--r-control); background: var(--dialog); color: var(--text); font-size: var(--fs-16); line-height: 24px; transition: border-color var(--t-state), box-shadow var(--t-state); }
-.ws-catat textarea:hover, .ws-catat input[type="text"]:hover { border-color: var(--muted); }
-.ws-catat textarea:focus, .ws-catat input[type="text"]:focus { outline: none; border-color: var(--field-focus); box-shadow: 0 0 0 3px var(--ring); }
-.ws-catat-preview { display: flex; flex-wrap: wrap; gap: 8px; min-height: 34px; margin-top: 10px; }
-.ws-catat-fact { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; border-radius: var(--r-control); background: var(--surface-2); color: var(--text); font-size: var(--fs-14); }
-.ws-catat-fact.is-missing { background: transparent; border: 1px dashed var(--line-strong); color: var(--text-2); }
-.ws-catat-refuse { margin-top: 10px; color: var(--warn-fg); font-size: 14px; }
-.ws-catat-q { margin-top: 12px; padding: 12px 14px; border-radius: var(--r-panel); background: var(--surface-2); }
-.ws-catat-q p { margin-bottom: 8px; font-size: 14px; }
-
-
 /* Phone targets (SPEC §7): buttons 44 px, segments 40 px, icon buttons 44 × 44. */
 @media (max-width: 767px) {
   .ws-btn { min-height: 44px; }
   .ws-seg button { min-height: 40px; }
-  .ws-icon-btn, .ws-close { width: 44px; height: 44px; }
+  .ws-icon-btn { width: 44px; height: 44px; }
 }
 
 /*
@@ -2009,4 +1927,63 @@ details.box.lp-details { display: block; padding: 0; }
   .switch::before { content: ""; position: absolute; inset: -12px -4px; }
   .set-list .row .ws-btn, .set-list .row .ws-icon-btn, .set-actions .ws-btn, .set-confirm .ws-btn, .toggle .ws-btn { min-height: 44px; }
   .set-list .row .ws-icon-btn { width: 44px; height: 44px; }
+}
+
+/*
+ * Catat (option-6 styles.css `.input-money`, `.quick-chips`, `.box`, `.dl`, `details`; apply-markas-catat D3 to D12):
+ * one 560 px dialog with the sentence and the manual view, the 56 px fields, the chips, the "Terbaca" box, the
+ * quiet "Detail tambahan" disclosure, Dari → Ke and the credit block.
+ */
+.field-control.input-money { height: 56px; font-size: var(--fs-20); line-height: 28px; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.field-control.capture-sentence { height: 56px; font-size: var(--fs-16); line-height: 24px; }
+.capture-dialog .field input.field-control, .capture-dialog .field select.field-control { background-color: var(--dialog); }
+/* Selects draw the prototype's chevron (SPEC §7), as `.ws-select` does. */
+.capture-dialog select.field-control {
+  appearance: none;
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23847F78' stroke-width='1.5' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  text-overflow: ellipsis;
+}
+/* An empty live region under a field takes no room until it speaks. */
+.capture-dialog .field > [aria-live]:empty { margin-top: calc(-1 * var(--sp-8)); }
+.capture-dialog .dlg-b > * + * { margin-top: 0; }
+.quick-chips { display: flex; flex-wrap: wrap; gap: var(--sp-8); }
+.quick-chips .ws-btn { min-height: 32px; height: auto; padding: 0 var(--sp-12); border-color: var(--line); background: var(--surface); font-weight: 400; }
+.quick-chips .ws-btn:hover { background: var(--surface-2); }
+.capture-examples-label { margin-bottom: var(--sp-8); }
+.capture-read { display: block; padding: var(--sp-24); }
+.capture-read-fig { margin-top: var(--sp-8); }
+.capture-read .dl { margin-top: var(--sp-16); }
+.capture-seg { display: flex; width: 100%; }
+.capture-seg button { flex: 1 0 auto; justify-content: center; }
+.field .capture-seg { align-self: stretch; flex-wrap: nowrap; }
+.capture-details > summary { display: inline-flex; align-items: center; gap: var(--sp-8); padding: 0; list-style: none; cursor: pointer; }
+.capture-details > summary::-webkit-details-marker { display: none; }
+.capture-details > summary:hover { background: none; color: var(--text); }
+.capture-details-chev { transition: transform var(--t-state); }
+.capture-details[open] .capture-details-chev { transform: rotate(180deg); }
+.capture-details > .form-stack { margin-top: var(--sp-16); }
+.capture-direction, .capture-credit { min-width: 0; padding: 0; border: 0; }
+.capture-direction > legend { float: left; width: 100%; margin-bottom: var(--sp-8); padding: 0; }
+.capture-direction > legend + * { clear: both; }
+.capture-direction-row { display: grid; grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr); gap: var(--sp-8); align-items: center; }
+.capture-direction-arrow { display: grid; place-items: center; color: var(--muted); }
+.capture-credit-legend { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-4) var(--sp-12); width: 100%; padding: 0; }
+.capture-credit-legend .t-strong { font-weight: 500; }
+.capture-due-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-8); }
+.capture-due-row .field-control { flex: 1 1 180px; width: auto; }
+.field-control.capture-count { max-width: 160px; }
+.capture-question > * + * { margin-top: var(--sp-16); }
+.capture-answer { display: flex; gap: var(--sp-8); }
+.capture-answer .field-control { flex: 1; min-width: 0; }
+/* On a phone Dari and Ke stack with a down arrow, so long pocket names stay readable (deviation 4). */
+@media (max-width: 479px) {
+  .capture-direction-row { grid-template-columns: minmax(0, 1fr); }
+  .capture-direction-arrow { transform: rotate(90deg); }
+}
+@media (max-width: 767px) {
+  .capture-read { padding: var(--sp-16); }
+  .quick-chips .ws-btn { min-height: 44px; }
 }

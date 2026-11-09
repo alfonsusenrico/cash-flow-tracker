@@ -4,7 +4,7 @@ vi.mock("@/lib/api", () => ({ api: { post: vi.fn() } }));
 
 import { api } from "@/lib/api";
 import {
-  CAPTURE_QUESTION_TYPES, amountRefused, answerCapture, deviceTime, newId, parseCapture, submitCapture, timeText,
+  CAPTURE_QUESTION_TYPES, amountRefused, answerCapture, deviceTime, newId, parseCapture, submitCapture,
   undoCapture, undoStillOpen, type Capture, type CapturePreview,
 } from "./capture";
 
@@ -27,13 +27,6 @@ describe("capture client", () => {
     const first = newId();
     expect(first).toMatch(/^[0-9a-f-]{36}$/);
     expect(newId()).not.toBe(first);
-  });
-
-  it("names the time it read, or says it will ask", () => {
-    expect(timeText(preview())).toEqual({ text: "Jam: ditanyakan setelah dicatat", missing: true });
-    const now = new Date();
-    expect(timeText(preview({ occurred_at: now.toISOString() })).text).toMatch(/^Waktu: sekarang, \d{2}\.\d{2}$/);
-    expect(timeText(preview({ occurred_at: now.toISOString(), time_phrase: "jam 2" })).text).toMatch(/^Jam \d{2}\.\d{2}$/);
   });
 
   it("keeps undo open only before its deadline", () => {

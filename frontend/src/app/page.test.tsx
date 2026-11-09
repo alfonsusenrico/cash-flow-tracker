@@ -514,8 +514,10 @@ describe("Perlu tindakan", () => {
     expect(row.querySelector(".c-warning")).toHaveTextContent("Jatuh tempo hari ini");
     await user.click(row);
     const dialog = await screen.findByRole("dialog", { name: /^Rencana jatuh tempo/ });
-    expect(dialog).toHaveAttribute("data-mode", "dialog");
-    expect(dialog).toHaveAttribute("aria-modal", "true");
+    // A 560 px ShellDialog, a bottom sheet below 768 px (apply-markas-catat D20).
+    expect(dialog.tagName).toBe("DIALOG");
+    expect(dialog).toHaveClass("shell-dialog");
+    expect(dialog.style.getPropertyValue("--dw")).toBe("560px");
   });
 
   it("says nothing waits in one line, with Buka Tinjau without a count", async () => {

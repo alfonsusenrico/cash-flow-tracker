@@ -34,11 +34,10 @@ vi.mock("@/lib/api", () => ({
   },
   getDevices: vi.fn(),
 }));
-vi.mock("@/components/capture/CatatDialog", () => ({
-  default: ({ open }: { open: boolean }) => (open ? <div role="dialog" aria-label="Catat transaksi" /> : null),
-}));
-vi.mock("@/components/ui/QuickCaptureModal", () => ({
-  QuickCaptureModal: ({ open }: { open: boolean }) => (open ? <div role="dialog" aria-label="Isi manual" /> : null),
+vi.mock("@/components/capture/CaptureDialog", () => ({
+  default: ({ request }: { request: { view: string } }) => (
+    <div role="dialog" aria-label={request.view === "sentence" ? "Tulis transaksi" : "Catat transaksi"} />
+  ),
 }));
 
 /** Node's own experimental localStorage global shadows jsdom's, so each test gets an in-memory one. */
@@ -825,10 +824,10 @@ describe("AppLayout wiring", () => {
     const { user } = showLayout();
     const search = await screen.findByRole("searchbox", { name: "Cari transaksi" });
     await user.type(search, "n");
-    expect(screen.queryByRole("dialog", { name: "Catat transaksi" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Tulis transaksi" })).not.toBeInTheDocument();
     search.blur();
     await user.keyboard("n");
-    expect(await screen.findByRole("dialog", { name: "Catat transaksi" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Tulis transaksi" })).toBeInTheDocument();
   });
 
   it("stores the theme choice from the Tema menu and applies the dark class", async () => {

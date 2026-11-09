@@ -377,16 +377,9 @@ describe("design tokens", () => {
       return globals.slice(start, globals.indexOf("}", start));
     };
     expect(rule(".ws-card")).toContain("box-shadow: none");
-    for (const floating of [".ws-menu", ".popover", ".ws-explain", ".ws-toast", "dialog.shell-dialog", '.ws-drawer[data-mode="dialog"]']) {
+    for (const floating of [".ws-menu", ".popover", ".ws-toast", "dialog.shell-dialog"]) {
       expect(rule(floating), floating).toContain("box-shadow: var(--shadow-float)");
     }
-  });
-
-  it("stacks the detail dialog and the phone sheet above the scrim that dims the page", () => {
-    const zOf = (selector: string) => Number(globals.slice(globals.indexOf(`${selector} {`)).match(/z-index:\s*(\d+)/)![1]);
-    const scrim = zOf(".ws-sheet-scrim");
-    expect(zOf('.ws-drawer[data-mode="dialog"]')).toBeGreaterThan(scrim);
-    expect(zOf('.ws-drawer[data-mode="sheet"]')).toBeGreaterThan(scrim);
   });
 
   describe.each(Object.entries(themes))("in %s", (selector, theme) => {

@@ -3,7 +3,7 @@ import { axe } from "vitest-axe";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
-import { ChoiceGroup, FormErrorSummary, FormField, MonetaryInput, PendingSubmitButton } from "./FormField";
+import { ChoiceGroup, FormErrorSummary, FormField, MonetaryInput } from "./FormField";
 
 describe("FormField", () => {
   it("associates label, description, and error with its control", async () => {
@@ -18,33 +18,12 @@ describe("FormField", () => {
     const input = screen.getByRole("textbox", { name: /Nominal/ });
     expect(input).toHaveAttribute("aria-invalid", "true");
     expect(input).toHaveAccessibleDescription(/Dalam rupiah Nominal wajib diisi/);
-    expect(screen.getByText("Dalam rupiah")).not.toBeVisible();
+    expect(screen.getByText("Dalam rupiah")).toBeVisible();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect((await axe(container)).violations).toHaveLength(0);
   });
 
-  it("shows optional guidance from an information control and keeps errors visible", async () => {
-    const user = userEvent.setup();
-    render(
-      <FormField label="Nominal" description="Dalam rupiah" error="Nominal wajib diisi">
-        {(props) => <input {...props} />}
-      </FormField>,
-    );
-
-    const help = screen.getByRole("button", { name: "Info Nominal" });
-    expect(help).toHaveAttribute("aria-expanded", "false");
-    expect(screen.getByText("Nominal wajib diisi")).toBeVisible();
-
-    await user.click(help);
-    expect(help).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByText("Dalam rupiah")).toBeVisible();
-
-    await user.keyboard("{Escape}");
-    expect(help).toHaveFocus();
-    expect(help).toHaveAttribute("aria-expanded", "false");
-    expect(screen.getByText("Nominal wajib diisi")).toBeVisible();
-  });
-
-  it("exposes selected and disabled choice states and prevents pending resubmission", async () => {
+  it("exposes selected and disabled choice states", async () => {
     const { container } = render(
       <form>
         <ChoiceGroup
@@ -58,14 +37,10 @@ describe("FormField", () => {
             { value: "want", label: "Want", disabled: true },
           ]}
         />
-        <PendingSubmitButton pending pendingLabel="Saving…">
-          Save
-        </PendingSubmitButton>
       </form>,
     );
     expect(screen.getByRole("radio", { name: "Saving" })).toBeChecked();
     expect(screen.getByRole("radio", { name: "Want" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
     expect((await axe(container)).violations).toHaveLength(0);
   });
 
