@@ -13,9 +13,9 @@ import json
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from fastapi import HTTPException
 
 from app.db.pool import db_conn
+from app.errors import ErrorCode, api_error
 from app.services.notification_evidence import EvidenceError, collect_facts
 from app.services.notification_resolution import INSTITUTION_LABELS
 
@@ -169,8 +169,7 @@ def _locked_item(cur, user_id: str, event_id: str) -> dict:
     )
     event = cur.fetchone()
     if not event:
-        raise HTTPException(status_code=404, detail={"code": "seen_twice_not_found",
-                                                     "message": "Item ini tidak ada di Terlihat dua kali."})
+        raise api_error(404, ErrorCode.SEEN_TWICE_NOT_FOUND)
     return event
 
 
@@ -225,9 +224,7 @@ def record_separately(user_id: str, event_id: str) -> dict:
                     merchant=proposal.merchant, arrival_guard=False, pair_counterpart=False,
                 )
             except EvidenceError as exc:
-                raise HTTPException(status_code=422, detail={
-                    "code": exc.code, "message": "Notifikasi ini tidak dapat dicatat terpisah.",
-                }) from None
+                raise api_error(422, exc.code, message_key="separate_record_refused") from None
             cur.execute(
                 """UPDATE notification_events SET duplicate_of_transaction_id = NULL, reporting_link_id = NULL,
                        reviewed_at = NOW(), updated_at = NOW()

@@ -13,6 +13,7 @@ from test_movements import movement_category
 
 def test_create_transaction_by_name():
     mock_user = {
+        "language": "id", "region": "ID",
         "id": "11111111-1111-1111-1111-111111111111",
         "username": "tester",
         "currency": "IDR",
@@ -77,6 +78,7 @@ def test_create_jago_pocket_movement():
     from app.services.auth import get_current_user
 
     mock_user = {
+        "language": "id", "region": "ID",
         "id": "11111111-1111-1111-1111-111111111111",
         "username": "tester",
         "currency": "IDR",
@@ -144,6 +146,7 @@ def test_create_jago_pocket_movement():
 
 def test_create_transaction_idempotent_replay():
     mock_user = {
+        "language": "id", "region": "ID",
         "id": "11111111-1111-1111-1111-111111111111",
         "username": "tester",
         "currency": "IDR",
@@ -188,6 +191,7 @@ def test_create_transaction_idempotent_replay():
 
 def test_create_transaction_validation_errors():
     mock_user = {
+        "language": "id", "region": "ID",
         "id": "11111111-1111-1111-1111-111111111111",
         "username": "tester",
         "currency": "IDR",
@@ -219,7 +223,7 @@ def test_create_transaction_validation_errors():
 
         res = client.post("/api/transactions", json={"type": "expense", "amount": 1000})
         assert res.status_code == 422
-        assert "Either account_id or account_name must be provided" in res.json()["detail"]
+        assert res.json()["detail"]["code"] == "account_required"
 
         # Reject 'transfer' as invalid transaction type
         res = client.post("/api/transactions", json={"account_name": "Bank Jago", "type": "transfer", "amount": 1000})
@@ -228,6 +232,7 @@ def test_create_transaction_validation_errors():
 
 def test_create_transaction_routes_to_default_pocket():
     mock_user = {
+        "language": "id", "region": "ID",
         "id": "11111111-1111-1111-1111-111111111111",
         "username": "tester",
         "currency": "IDR",
@@ -286,6 +291,7 @@ def test_create_transaction_routes_to_default_pocket():
 
 def test_list_transactions_summary_cycle_and_cumulative():
     mock_user = {
+        "language": "id", "region": "ID",
         "id": "11111111-1111-1111-1111-111111111111",
         "username": "tester",
         "currency": "IDR",
@@ -357,6 +363,7 @@ def test_list_transactions_summary_cycle_and_cumulative():
 
 def test_list_transactions_summary_with_filters_and_custom_payday():
     mock_user = {
+        "language": "id", "region": "ID",
         "id": "22222222-2222-2222-2222-222222222222",
         "username": "payday_user",
         "currency": "IDR",

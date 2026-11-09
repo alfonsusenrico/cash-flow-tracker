@@ -1,3 +1,5 @@
+import type { Translate } from "@/lib/i18n/types";
+
 /**
  * The tab's undo stack for Tinjau answers (redesign-review-triage D15). Tokens are capabilities, so they
  * live only in memory: never in storage or the URL. "Urungkan" and Z undo the newest entry until it expires.
@@ -122,21 +124,47 @@ export async function undoEntry(
   return { restored, total, failure: null, conflictIds: [] };
 }
 
-const FAILURE_TEXT: Record<Exclude<UndoFailure, "network">, string> = {
-  expired: "Sudah lewat 10 menit, jadi tidak dapat dibatalkan di sini.",
-  conflict: "Tidak dapat dibatalkan: transaksi sudah berubah sejak itu.",
-  not_found: "Tidak dapat dibatalkan lagi di sini.",
+/**
+ * The message for an undo outcome (D14, D15) as a `review.undo` key and its values; the caller renders it in the
+ * interface language.
+ */
+export type UndoMessage =
+  | { key: "done"; values: { label: string; folder: string } }
+  | { key: "doneLabel"; values: { label: string } }
+  | { key: "failed"; values: Record<string, never> }
+  | { key: "expired" | "conflict" | "notFound"; values: Record<string, never> }
+  | { key: "partial"; values: { restored: number; total: number; reason: "expired" | "conflict" | "notFound" } };
+
+const FAILURE_KEY: Record<Exclude<UndoFailure, "network">, "expired" | "conflict" | "notFound"> = {
+  expired: "expired",
+  conflict: "conflict",
+  not_found: "notFound",
 };
 
-/** The text for an undo outcome (D14, D15). */
-export function undoMessage(outcome: UndoOutcome, entry: UndoEntry): string {
+export function undoMessage(outcome: UndoOutcome, entry: UndoEntry): UndoMessage {
   if (outcome.failure === null) {
-    return entry.folderLabel ? `Dibatalkan. ${entry.label} kembali ke ${entry.folderLabel}.` : `Dibatalkan: ${entry.label}.`;
+    return entry.folderLabel
+      ? { key: "done", values: { label: entry.label, folder: entry.folderLabel } }
+      : { key: "doneLabel", values: { label: entry.label } };
   }
-  if (outcome.failure === "network") return "Gagal membatalkan. Coba lagi.";
-  const reason = FAILURE_TEXT[outcome.failure];
-  if (outcome.restored > 0) return `${outcome.restored} dari ${outcome.total} transaksi dibatalkan. Sisanya: ${reason}`;
-  return reason;
+  if (outcome.failure === "network") return { key: "failed", values: {} };
+  const reason = FAILURE_KEY[outcome.failure];
+  if (outcome.restored > 0) return { key: "partial", values: { restored: outcome.restored, total: outcome.total, reason } };
+  return { key: reason, values: {} };
 }
 
-export const NOTHING_TO_UNDO = "Tidak ada yang dapat dibatalkan.";
+/** The undo message in the interface language. */
+export function undoText(t: Translate, message: UndoMessage): string {
+  switch (message.key) {
+    case "done":
+      return t("review.undo.done", message.values);
+    case "doneLabel":
+      return t("review.undo.doneLabel", message.values);
+    case "partial": {
+      const { restored, total, reason } = message.values;
+      return t("review.undo.partial", { restored: String(restored), total: String(total), reason: t(`review.undo.${reason}`) });
+    }
+    default:
+      return t(`review.undo.${message.key}`);
+  }
+}

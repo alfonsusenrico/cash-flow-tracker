@@ -49,37 +49,218 @@
   ]
  },
  {
-  "name": "tinjau",
-  "path": "/review"
- },
- {
-  "name": "transaksi",
-  "path": "/ledger"
- },
- {
   "name": "analisis",
-  "path": "/insights"
+  "path": "/insights",
+  "analisis": true
+ },
+ {
+  "name": "analisis-bulan",
+  "path": "/insights",
+  "analisis": true,
+  "full": true,
+  "steps": [
+   {
+    "click": "^(Bulan kalender|Calendar month)$",
+    "after": 1500
+   }
+  ]
+ },
+ {
+  "name": "analisis-lalu",
+  "path": "/insights",
+  "analisis": true,
+  "full": true,
+  "steps": [
+   {
+    "click": "^(Bulan kalender|Calendar month)$",
+    "after": 1500
+   },
+   {
+    "click": "^(Bulan sebelumnya|Previous month)$",
+    "after": 2000
+   }
+  ]
+ },
+ {
+  "name": "analisis-siklus-lalu",
+  "path": "/insights",
+  "analisis": true,
+  "full": true,
+  "steps": [
+   {
+    "click": "^(Siklus sebelumnya|Previous cycle)$",
+    "after": 2000
+   }
+  ]
+ },
+ {
+  "name": "analisis-tabel",
+  "path": "/insights",
+  "analisis": true,
+  "full": true,
+  "steps": [
+   {
+    "click": "^(Lihat sebagai tabel|Show as table)$"
+   }
+  ]
  },
  {
   "name": "analisis-kalender",
-  "path": "/insights",
+  "path": "/insights?tab=kalender",
+  "analisis": true
+ },
+ {
+  "name": "analisis-kalender-hari",
+  "path": "/insights?tab=kalender",
+  "analisis": true,
+  "full": true,
   "steps": [
    {
-    "click": "^Kalender$"
+    "eval": "(() => { const cell = document.querySelector('.cal-cell .mark.is-outline')?.closest('.cal-cell'); if (!cell) return 'no waiting day'; cell.click(); return 'clicked ' + cell.dataset.day; })()",
+    "after": 1500
    }
-  ],
-  "full": true
+  ]
  },
  {
   "name": "analisis-peta-aliran",
-  "path": "/insights",
+  "path": "/insights?tab=aliran",
+  "analisis": true
+ },
+ {
+  "name": "analisis-peta-aliran-peta",
+  "path": "/insights?tab=aliran&view=peta",
+  "analisis": true
+ },
+ {
+  "name": "analisis-peta-aliran-tabel",
+  "path": "/insights?tab=aliran&view=tabel",
+  "analisis": true
+ },
+ {
+  "name": "analisis-sorot",
+  "path": "/insights?tab=aliran&view=peta",
+  "analisis": true,
+  "full": true,
   "steps": [
    {
-    "click": "^Peta Aliran$",
-    "after": 2000
+    "eval": "(() => { const group = document.querySelector('[role=group][aria-label=\"Sorot aliran\"], [role=group][aria-label=\"Highlight\"]'); const button = group && group.querySelectorAll('button')[1]; if (!button) return 'NOT FOUND'; button.click(); return 'clicked ' + button.textContent; })()"
    }
-  ],
-  "full": true
+  ]
+ },
+ {
+  "name": "analisis-sembunyi",
+  "path": "/insights",
+  "analisis": true,
+  "storage": {
+   "hideBalances": "1"
+  }
+ },
+ {
+  "name": "analisis-kalender-sembunyi",
+  "path": "/insights?tab=kalender",
+  "analisis": true,
+  "storage": {
+   "hideBalances": "1"
+  }
+ },
+ {
+  "name": "analisis-peta-aliran-sembunyi",
+  "path": "/insights?tab=aliran&view=peta",
+  "analisis": true,
+  "storage": {
+   "hideBalances": "1"
+  }
+ },
+ {
+  "name": "dlg-rincian-pengeluaran",
+  "path": "/insights",
+  "analisis": true,
+  "steps": [
+   {
+    "click": "^(Rincian pengeluaran|Spending breakdown)"
+   }
+  ]
+ },
+ {
+  "name": "dlg-kategori",
+  "path": "/insights",
+  "analisis": true,
+  "steps": [
+   {
+    "click": "^(Kelola kategori|Manage categories)$",
+    "after": 1500
+   }
+  ]
+ },
+ {
+  "name": "dlg-kategori-ubah",
+  "path": "/insights",
+  "analisis": true,
+  "steps": [
+   {
+    "click": "^(Kelola kategori|Manage categories)$",
+    "after": 1500
+   },
+   {
+    "click": "^(Ubah|Edit) Makanan",
+    "after": 800
+   }
+  ]
+ },
+ {
+  "name": "dlg-anggaran",
+  "path": "/insights",
+  "analisis": true,
+  "steps": [
+   {
+    "click": "^(Atur anggaran|Set budgets)$",
+    "after": 1500
+   }
+  ]
+ },
+ {
+  "name": "dlg-tagihan",
+  "path": "/insights",
+  "analisis": true,
+  "steps": [
+   {
+    "click": "^(Lihat semua|See all)$",
+    "after": 1000
+   }
+  ]
+ },
+ {
+  "name": "dlg-aliran-node",
+  "path": "/insights?tab=aliran&view=peta",
+  "analisis": true,
+  "steps": [
+   {
+    "eval": "(() => { const node = document.querySelector('.flow-node'); if (!node) return 'NOT FOUND'; node.dispatchEvent(new MouseEvent('click', { bubbles: true })); return 'clicked ' + node.getAttribute('aria-label').slice(0, 40); })()",
+    "after": 1200
+   }
+  ]
+ },
+ {
+  "name": "dlg-aliran-link",
+  "path": "/insights?tab=aliran&view=tabel",
+  "analisis": true,
+  "steps": [
+   {
+    "eval": "(() => { const button = [...document.querySelectorAll('.tbl-link')].find((b) => /Kebutuhan|Needs|Keinginan|Wants/.test(b.textContent)) || document.querySelector('.tbl-link'); if (!button) return 'NOT FOUND'; button.click(); return 'clicked ' + button.textContent.slice(0, 40); })()",
+    "after": 1500
+   }
+  ]
+ },
+ {
+  "name": "dlg-transaksi-hari",
+  "path": "/insights?tab=kalender",
+  "analisis": true,
+  "steps": [
+   {
+    "eval": "(async () => { for (let i = 0; i < 20; i++) { const row = document.querySelector('.day-rows .row'); if (row) { row.click(); return 'clicked'; } await new Promise((r) => setTimeout(r, 300)); } return 'NOT FOUND'; })()",
+    "after": 1500
+   }
+  ]
  },
  {
   "name": "laporan",
@@ -88,25 +269,10 @@
  {
   "name": "rekening",
   "path": "/accounts",
+  "rekening": true,
   "steps": [
    {
-    "click": "^Kartu$"
-   },
-   {
-    "click": "^Per kegunaan$"
-   }
-  ],
-  "full": true
- },
- {
-  "name": "rekening-grafik",
-  "path": "/accounts",
-  "steps": [
-   {
-    "click": "^Grafik$"
-   },
-   {
-    "click": "^Per kegunaan$"
+    "click": "^(Per kegunaan|By use)$"
    }
   ],
   "full": true
@@ -114,15 +280,490 @@
  {
   "name": "rekening-per-rekening",
   "path": "/accounts",
+  "rekening": true,
   "steps": [
    {
-    "click": "^Kartu$"
-   },
-   {
-    "click": "^Per rekening$"
+    "click": "^(Per rekening|By account)$"
    }
   ],
   "full": true
+ },
+ {
+  "name": "rekening-grafik",
+  "path": "/accounts?tampilan=grafik",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Grafik|Chart)$"
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "rekening-grafik-tabungan",
+  "path": "/accounts?tampilan=grafik",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Grafik|Chart)$"
+   },
+   {
+    "click": "^(Tabungan|Savings)Rp"
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "rekening-atur-urutan",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "click": "^(Tindakan lain untuk Rekening|More actions for Accounts)"
+   },
+   {
+    "click": "^(Atur urutan|Arrange)$"
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "rekening-sembunyi",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   }
+  ],
+  "full": true,
+  "cells": [
+   "1440-light",
+   "390-dark"
+  ],
+  "storage": {
+   "hideBalances": "1"
+  }
+ },
+ {
+  "name": "dlg-rincian-kekayaan",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Rincian|Breakdown)$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-rekening-detail",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"Makan & Jajan\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"Makan & Jajan\"; })()",
+    "after": 1200
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-rekening-induk",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per rekening|By account)$"
+   },
+   {
+    "click": "^Jago$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-rekening-kredit",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"SPayLater\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"SPayLater\"; })()",
+    "after": 1200
+   },
+   {
+    "click": "^(Jatuh tempo|Due) "
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-rekening-kredit-tagihan",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"Kartu Kredit Contoh\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"Kartu Kredit Contoh\"; })()",
+    "after": 1200
+   },
+   {
+    "click": "^(Jatuh tempo|Due) "
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-rekening-kredit-tanpa-tanggal",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"Kredivo Contoh\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"Kredivo Contoh\"; })()",
+    "after": 1200
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-produk",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"Saham Bank Nusantara\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"Saham Bank Nusantara\"; })()",
+    "after": 1200
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-produk-nominal",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"Reksa Dana Pasar Uang Sejahtera\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"Reksa Dana Pasar Uang Sejahtera\"; })()",
+    "after": 1200
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-platform",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per rekening|By account)$"
+   },
+   {
+    "click": "^Stockbit$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-rekening-tambah",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Tambah rekening|Add account)$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-rekening-tambah-kredit",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Tambah rekening|Add account)$"
+   },
+   {
+    "click": "^(Kredit|Credit)$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-kantong-tambah",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per rekening|By account)$"
+   },
+   {
+    "click": "^Jago$"
+   },
+   {
+    "click": "^(Tambah kantong|Add pocket)$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-beli",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"Saham Bank Nusantara\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"Saham Bank Nusantara\"; })()",
+    "after": 1200
+   },
+   {
+    "click": "^(Beli|Buy)$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-jual",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"Saham Bank Nusantara\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"Saham Bank Nusantara\"; })()",
+    "after": 1200
+   },
+   {
+    "click": "^(Jual|Sell)$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-topup",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"Reksa Dana Pasar Uang Sejahtera\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"Reksa Dana Pasar Uang Sejahtera\"; })()",
+    "after": 1200
+   },
+   {
+    "click": "^Top up$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-perbarui-nilai",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"Reksa Dana Pasar Uang Sejahtera\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"Reksa Dana Pasar Uang Sejahtera\"; })()",
+    "after": 1200
+   },
+   {
+    "click": "^(Perbarui nilai|Update value)$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-menu-akun",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"GoPay\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"GoPay\"; })()",
+    "after": 1200
+   },
+   {
+    "click": "^(Tindakan lain untuk|More actions for) GoPay"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-sesuaikan-saldo",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"GoPay\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"GoPay\"; })()",
+    "after": 1200
+   },
+   {
+    "click": "^(Tindakan lain untuk|More actions for) GoPay"
+   },
+   {
+    "click": "^(Sesuaikan saldo|Adjust balance)$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-cocokkan",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"GoPay\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"GoPay\"; })()",
+    "after": 1200
+   },
+   {
+    "click": "^(Cocokkan saldo|Check balance)$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-menu-rekening",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Tindakan lain untuk Rekening|More actions for Accounts)"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
  },
  {
   "name": "target",
@@ -206,112 +847,6 @@
    },
    {
     "click": "^Perpindahan$"
-   }
-  ],
-  "cells": [
-   "1440-light",
-   "1440-dark",
-   "390-light"
-  ]
- },
- {
-  "name": "dlg-transaksi-detail",
-  "path": "/ledger",
-  "steps": [
-   {
-    "click": "^SPBU Contoh",
-    "after": 2500
-   }
-  ],
-  "cells": [
-   "1440-light",
-   "1440-dark",
-   "390-light"
-  ]
- },
- {
-  "name": "dlg-transaksi-ubah",
-  "path": "/ledger",
-  "steps": [
-   {
-    "click": "^SPBU Contoh",
-    "after": 2500
-   },
-   {
-    "click": "^Ubah$"
-   }
-  ],
-  "cells": [
-   "1440-light",
-   "1440-dark",
-   "390-light"
-  ]
- },
- {
-  "name": "dlg-transaksi-filter",
-  "path": "/ledger",
-  "steps": [
-   {
-    "click": "^Filter"
-   }
-  ],
-  "cells": [
-   "1440-light",
-   "1440-dark",
-   "390-light"
-  ]
- },
- {
-  "name": "dlg-rekening-detail",
-  "path": "/accounts",
-  "steps": [
-   {
-    "click": "^ATM, kantong di BCA"
-   }
-  ],
-  "cells": [
-   "1440-light",
-   "1440-dark",
-   "390-light"
-  ]
- },
- {
-  "name": "dlg-cocokkan-saldo",
-  "path": "/accounts",
-  "steps": [
-   {
-    "click": "^ATM, kantong di BCA"
-   },
-   {
-    "click": "^Cocokkan saldo$"
-   }
-  ],
-  "cells": [
-   "1440-light",
-   "1440-dark",
-   "390-light"
-  ]
- },
- {
-  "name": "dlg-investasi-detail",
-  "path": "/accounts",
-  "steps": [
-   {
-    "click": "^Saham Contoh Bank"
-   }
-  ],
-  "cells": [
-   "1440-light",
-   "1440-dark",
-   "390-light"
-  ]
- },
- {
-  "name": "dlg-tinjau-item",
-  "path": "/review",
-  "steps": [
-   {
-    "click": "Pembayaran QRIS ?3 Nov"
    }
   ],
   "cells": [
@@ -435,23 +970,6 @@
   ]
  },
  {
-  "name": "dlg-tinjau-ubah-kategori",
-  "path": "/review",
-  "steps": [
-   {
-    "click": "Pembayaran QRIS ?3 Nov"
-   },
-   {
-    "click": "^Ubah kategori"
-   }
-  ],
-  "cells": [
-   "1440-light",
-   "1440-dark",
-   "390-light"
-  ]
- },
- {
   "name": "dlg-laporan-tak-terduga",
   "path": "/laporan",
   "steps": [
@@ -482,6 +1000,191 @@
   "steps": [
    {
     "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "tinjau",
+  "path": "/review",
+  "tinjau": true
+ },
+ {
+  "name": "tinjau-sembunyi",
+  "path": "/review",
+  "tinjau": true,
+  "storage": {
+   "hideBalances": "1"
+  }
+ },
+ {
+  "name": "tinjau-perlu-jawaban",
+  "path": "/review?folder=jawab",
+  "tinjau": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-topup",
+  "path": "/review?folder=pindah",
+  "tinjau": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = [...document.querySelectorAll('.tj-list [data-row]')].find((element) => new RegExp(\"(Utama).*750\").test(element.textContent)); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 900
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-ambigu",
+  "path": "/review?folder=pindah",
+  "tinjau": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = [...document.querySelectorAll('.tj-list [data-row]')].find((element) => new RegExp(\"Dana Darurat\").test(element.textContent)); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 900
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-belum-dikenali-masuk",
+  "path": "/review?folder=apa",
+  "tinjau": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-otomatis",
+  "path": "/review?folder=otomatis",
+  "tinjau": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-saran",
+  "path": "/review?folder=saran",
+  "tinjau": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-dua-kali",
+  "path": "/review?folder=dua",
+  "tinjau": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-dilewati",
+  "path": "/review?folder=lewat",
+  "tinjau": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-sheet",
+  "path": "/review",
+  "tinjau": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = [...document.querySelectorAll('.tj-list [data-row]')].find((element) => new RegExp(\"Pembayaran QRIS\").test(element.textContent)); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 900
+   }
+  ],
+  "cells": [
+   "390-light",
+   "390-dark",
+   "320-light",
+   "320-dark"
+  ]
+ },
+ {
+  "name": "dlg-ubah-kategori",
+  "path": "/review?folder=jawab",
+  "tinjau": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = document.querySelector('.tj-list [data-row]'); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 900
+   },
+   {
+    "click": "^\\d?(Ubah kategori|Change category)"
+   }
+  ]
+ },
+ {
+  "name": "dlg-ganti-nama",
+  "path": "/review?folder=jawab",
+  "tinjau": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = document.querySelector('.tj-list [data-row]'); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 900
+   },
+   {
+    "click": "^\\d?(Ganti nama|Rename)"
+   }
+  ]
+ },
+ {
+  "name": "dlg-jawab-sendiri",
+  "path": "/review?folder=apa",
+  "tinjau": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = document.querySelector('.tj-list [data-row]'); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 900
+   },
+   {
+    "click": "^(Jawab sendiri|Type an answer)$"
+   }
+  ]
+ },
+ {
+  "name": "dlg-saran-riwayat",
+  "path": "/review",
+  "tinjau": true,
+  "steps": [
+   {
+    "click": "^(Tindakan lain untuk Tinjau|More actions for Review)$"
+   },
+   {
+    "click": "^(Cari saran dari riwayat|Find suggestions from history)$"
+   }
+  ]
+ },
+ {
+  "name": "menu-tinjau",
+  "path": "/review",
+  "tinjau": true,
+  "steps": [
+   {
+    "click": "^(Tindakan lain untuk Tinjau|More actions for Review)$"
    }
   ]
  },
@@ -712,5 +1415,322 @@
    }
   ],
   "full": true
+ },
+ {
+  "name": "transaksi",
+  "path": "/ledger?period=cycle",
+  "transaksi": true
+ },
+ {
+  "name": "transaksi-semua-waktu",
+  "path": "/ledger",
+  "transaksi": true
+ },
+ {
+  "name": "transaksi-bulan",
+  "path": "/ledger?period=month",
+  "transaksi": true
+ },
+ {
+  "name": "transaksi-pengeluaran",
+  "path": "/ledger?period=cycle&type=expense",
+  "transaksi": true
+ },
+ {
+  "name": "transaksi-tabungan",
+  "path": "/ledger?period=cycle&type=saving",
+  "transaksi": true
+ },
+ {
+  "name": "transaksi-kredit",
+  "path": "/ledger?period=cycle&type=credit",
+  "transaksi": true
+ },
+ {
+  "name": "transaksi-kredit-penyedia",
+  "path": "/ledger?period=cycle&type=credit",
+  "transaksi": true,
+  "steps": [
+   {
+    "click": "^SPayLater$"
+   },
+   {
+    "wait": 900
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "transaksi-rekening",
+  "path": "/ledger?period=cycle",
+  "transaksi": true,
+  "steps": [
+   {
+    "eval": "fetch('/api/accounts').then((r) => r.json()).then((d) => { const all = d.accounts.flatMap((a) => [a, ...(a.children || [])]); const pocket = all.find((a) => a.name === 'Liburan'); location.assign('/ledger?period=cycle&account=' + pocket.id); return 'opened ' + pocket.name; })",
+    "after": 2500
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "transaksi-cari",
+  "path": "/ledger?q=kopi",
+  "transaksi": true
+ },
+ {
+  "name": "transaksi-filter-aktif",
+  "path": "/ledger?period=cycle&waiting=1&kakeibo=want&source=notification",
+  "transaksi": true
+ },
+ {
+  "name": "transaksi-sembunyi",
+  "path": "/ledger?period=cycle",
+  "transaksi": true,
+  "storage": {
+   "hideBalances": "1"
+  }
+ },
+ {
+  "name": "transaksi-gabung",
+  "path": "/ledger?period=cycle",
+  "transaksi": true,
+  "steps": [
+   {
+    "eval": "(() => { const button = document.querySelector('.tb-actions .ws-icon-btn[aria-haspopup], .tb-actions button[aria-haspopup]'); button?.click(); return button ? 'clicked more' : 'NOT FOUND'; })()",
+    "after": 600
+   },
+   {
+    "click": "^(Gabungkan dua transaksi|Merge two transactions)$"
+   },
+   {
+    "eval": "(() => { const box = document.querySelector('.tx-list input[type=checkbox]:not(:disabled)'); box?.click(); return box ? 'checked one' : 'NOT FOUND'; })()",
+    "after": 600
+   }
+  ]
+ },
+ {
+  "name": "state-transaksi-memuat",
+  "path": "/ledger?period=cycle",
+  "transaksi": true,
+  "steps": [
+   {
+    "wait": 600
+   }
+  ]
+ },
+ {
+  "name": "state-transaksi-galat",
+  "path": "/ledger?period=cycle",
+  "transaksi": true,
+  "steps": [
+   {
+    "wait": 600
+   }
+  ]
+ },
+ {
+  "name": "state-transaksi-tidak-cocok",
+  "path": "/ledger?q=zzzzzzzz",
+  "transaksi": true
+ },
+ {
+  "name": "dlg-menu-transaksi",
+  "path": "/ledger?period=cycle",
+  "transaksi": true,
+  "steps": [
+   {
+    "eval": "(() => { const button = document.querySelector('.tb-actions .ws-icon-btn[aria-haspopup], .tb-actions button[aria-haspopup]'); button?.click(); return button ? 'clicked more' : 'NOT FOUND'; })()",
+    "after": 600
+   }
+  ]
+ },
+ {
+  "name": "dlg-filter",
+  "path": "/ledger?period=cycle",
+  "transaksi": true,
+  "steps": [
+   {
+    "click": "^Filter$"
+   }
+  ]
+ },
+ {
+  "name": "dlg-transaksi-detail",
+  "path": "/ledger?period=cycle",
+  "transaksi": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = [...document.querySelectorAll('.tx-list [data-row]')].find((element) => new RegExp(\"Menunggu jawaban|Needs an answer\").test(element.textContent)); row?.scrollIntoView({ block: 'center' }); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 1200
+   }
+  ]
+ },
+ {
+  "name": "dlg-transaksi-detail-masuk",
+  "path": "/ledger?period=cycle&type=income",
+  "transaksi": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = [...document.querySelectorAll('.tx-list [data-row]')].find((element) => new RegExp(\".\").test(element.textContent)); row?.scrollIntoView({ block: 'center' }); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 1200
+   }
+  ]
+ },
+ {
+  "name": "dlg-transaksi-perpindahan",
+  "path": "/ledger?period=cycle&type=credit",
+  "transaksi": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = [...document.querySelectorAll('.tx-list [data-row]')].find((element) => new RegExp(\"SPayLater.*(bayar tagihan|bill payment)\").test(element.textContent)); row?.scrollIntoView({ block: 'center' }); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 1200
+   }
+  ]
+ },
+ {
+  "name": "dlg-transaksi-topup",
+  "path": "/ledger?period=cycle&type=investment",
+  "transaksi": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = [...document.querySelectorAll('.tx-list [data-row]')].find((element) => new RegExp(\"Top\").test(element.textContent)); row?.scrollIntoView({ block: 'center' }); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 1200
+   }
+  ]
+ },
+ {
+  "name": "dlg-transaksi-kredit",
+  "path": "/ledger?type=credit",
+  "transaksi": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = [...document.querySelectorAll('.tx-list [data-row]')].find((element) => new RegExp(\"Sepatu lari\").test(element.textContent)); row?.scrollIntoView({ block: 'center' }); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 1200
+   }
+  ]
+ },
+ {
+  "name": "dlg-transaksi-hapus",
+  "path": "/ledger?period=cycle",
+  "transaksi": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = [...document.querySelectorAll('.tx-list [data-row]')].find((element) => new RegExp(\"Makan malam|Tiket kereta\").test(element.textContent)); row?.scrollIntoView({ block: 'center' }); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 1200
+   },
+   {
+    "click": "^(Hapus|Delete)$"
+   }
+  ]
+ },
+ {
+  "name": "dlg-transaksi-ubah",
+  "path": "/ledger?type=expense",
+  "transaksi": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = [...document.querySelectorAll('.tx-list [data-row]')].find((element) => new RegExp(\"Tiket kereta\").test(element.textContent)); row?.scrollIntoView({ block: 'center' }); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 1200
+   },
+   {
+    "click": "^(Ubah|Edit)$"
+   }
+  ]
+ },
+ {
+  "name": "dlg-transaksi-ubah-kredit",
+  "path": "/ledger?type=credit",
+  "transaksi": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = [...document.querySelectorAll('.tx-list [data-row]')].find((element) => new RegExp(\"Sepatu lari\").test(element.textContent)); row?.scrollIntoView({ block: 'center' }); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 1200
+   },
+   {
+    "click": "^(Ubah|Edit)$"
+   }
+  ]
+ },
+ {
+  "name": "dlg-transaksi-ubah-perpindahan",
+  "path": "/ledger?period=cycle&type=movement",
+  "transaksi": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = [...document.querySelectorAll('.tx-list [data-row]')].find((element) => new RegExp(\"Isi GoPay\").test(element.textContent)); row?.scrollIntoView({ block: 'center' }); row?.click(); return row ? 'clicked ' + row.textContent.slice(0, 40) : 'NOT FOUND'; })()",
+    "after": 1200
+   },
+   {
+    "click": "^(Ubah|Edit)$"
+   }
+  ]
+ },
+ {
+  "name": "state-rekening-memuat",
+  "path": "/accounts",
+  "rekening": true,
+  "fault": "delay",
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ],
+  "steps": [
+   {
+    "wait": 1200
+   }
+  ]
+ },
+ {
+  "name": "state-rekening-kosong",
+  "path": "/accounts",
+  "rekening": true,
+  "fault": "empty",
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ],
+  "steps": [
+   {
+    "wait": 1200
+   }
+  ]
+ },
+ {
+  "name": "state-rekening-galat",
+  "path": "/accounts",
+  "rekening": true,
+  "fault": "fail",
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ],
+  "steps": [
+   {
+    "wait": 1200
+   }
+  ]
+ },
+ {
+  "name": "state-rekening-hero-galat",
+  "path": "/accounts",
+  "rekening": true,
+  "fault": "herofail",
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ],
+  "steps": [
+   {
+    "wait": 1200
+   }
+  ]
  }
 ]

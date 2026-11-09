@@ -102,7 +102,7 @@ def test_report_windows_ignore_the_estimate(monkeypatch):
     start = datetime.now(timezone.utc) - timedelta(days=40)
     monkeypatch.setattr(report_windows, "load_user_cycle", lambda *_args, **_kwargs: SalaryCycle("open", start, None))
     before = datetime.now(timezone.utc)
-    begin, finish, _, _, label = report_windows.get_timeframe_window(25, "cycle", user_id="synthetic")
+    begin, finish, _, _, label = report_windows.get_timeframe_window(25, "cycle", user_id="synthetic", language="id")
     assert begin == start
     assert finish >= before
     assert label.endswith("berlanjut")

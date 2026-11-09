@@ -1,7 +1,11 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useTranslations } from "next-intl";
+import { useAppCtx } from "@/components/layout/AppLayout";
+import { useFormat } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { MaskedMoney } from "./money";
 
 /**
  * Figure blocks of the Markas+ pages (option-6 SPEC §7, apply-markas-beranda D3 and D4): the hero with its
@@ -15,30 +19,50 @@ export function HeroFigure({
   action,
   figure,
   line,
+  aside,
+  busy = false,
   children,
 }: {
   id: string;
   label: string;
-  /** The colour token of the 16 × 2 px mark above the label. */
-  mark: string;
+  /** The colour token of the 16 × 2 px mark above the label; a count such as Tinjau's has none (apply-markas-tinjau D3). */
+  mark?: string;
   action?: ReactNode;
   figure: ReactNode;
-  line: ReactNode;
+  /** One muted line under the figure; left out when the page has nothing to qualify (apply-markas-transaksi D4). */
+  line?: ReactNode;
+  /** Supporting figures beside the hero (`.hero.is-split`, Transaksi D4); they wrap under it on a narrow column. */
+  aside?: ReactNode;
+  /** The figures are still loading: the section is a busy region. */
+  busy?: boolean;
   children?: ReactNode;
 }) {
-  return (
-    <section className="hero" aria-labelledby={id}>
+  const main = (
+    <>
       <div className="hero-top">
         {/* Inside the label so it stays 3 px above its first line when a longer language wraps it. */}
         <h2 className="t-label" id={id}>
-          <span className="sw-bar" style={{ background: mark }} aria-hidden="true" />
+          {mark && <span className="sw-bar" style={{ background: mark }} aria-hidden="true" />}
           {label}
         </h2>
         {action}
       </div>
       <p className="t-hero hero-fig">{figure}</p>
-      <p className="hero-sub t-body">{line}</p>
+      {line !== undefined && line !== null && line !== false && <p className="hero-sub t-body">{line}</p>}
       {children}
+    </>
+  );
+  if (aside === undefined) {
+    return (
+      <section className="hero" aria-labelledby={id} aria-busy={busy || undefined}>
+        {main}
+      </section>
+    );
+  }
+  return (
+    <section className="hero is-split" aria-labelledby={id} aria-busy={busy || undefined}>
+      <div className="hero-main">{main}</div>
+      <div className="supports hero-aside">{aside}</div>
     </section>
   );
 }
@@ -49,6 +73,8 @@ export function FigureBlock({
   figure,
   caption,
   phoneHidden = false,
+  bar = true,
+  className,
 }: {
   label: string;
   /** The colour token of the bar above the label; without one the slot stays empty so labels align. */
@@ -57,14 +83,18 @@ export function FigureBlock({
   caption?: ReactNode;
   /** Left out below 768 px, where the figure is read in the Rincian instead (D9). */
   phoneHidden?: boolean;
+  /** Without the colour-bar slot: Transaksi's supporting figures have a label only (apply-markas-transaksi D4). */
+  bar?: boolean;
+  /** Classes of the figure itself, such as its kind's colour. */
+  className?: string;
 }) {
   return (
     <div className={cn("fig-block", phoneHidden && "is-phone-hide")}>
       <div className="fb-label">
-        <span className="sw-bar" style={mark ? { background: mark } : undefined} aria-hidden="true" />
+        {bar && <span className="sw-bar" style={mark ? { background: mark } : undefined} aria-hidden="true" />}
         <span className="t-meta">{label}</span>
       </div>
-      <p className="t-fig">{figure}</p>
+      <p className={cn("t-fig", className)}>{figure}</p>
       {caption && <p className="t-meta">{caption}</p>}
     </div>
   );
@@ -110,5 +140,85 @@ export function SplitBar({
         <span key={segment.key} data-segment={segment.key} style={{ flex: segment.amount, background: segment.color }} />
       ))}
     </div>
+  );
+}
+
+/**
+ * The 4 px progress bar (`.prog`, apply-markas-analisis D24): a square fill of `value` percent, clamped to 0–100, in
+ * a colour token. Hidden from assistive technology by default, because the text beside it carries the value.
+ */
+export function Meter({ value, tone = "var(--text)", width, label }: { value: number; tone?: string; width?: number; label?: string }) {
+  const clamped = Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
+  return (
+    <span
+      className="prog"
+      style={width ? { width } : undefined}
+      aria-hidden={label ? undefined : true}
+      role={label ? "img" : undefined}
+      aria-label={label}
+    >
+      <span style={{ width: `${clamped}%`, background: tone }} />
+    </span>
+  );
+}
+
+/**
+ * A change between two server amounts (apply-markas-analisis D5, D24): "▲ Rp 753.830" when the amount rose, "▼ Rp
+ * 120.000" when it fell, "sama" when equal, with the direction as hidden words for screen readers. For spending a
+ * rise reads in the expense ink and a fall in the income ink; the amount hides with "Sembunyikan saldo".
+ */
+export function ChangeFigure({ change, money, riseIsCost = true }: { change: number; money: (amount: number) => string; riseIsCost?: boolean }) {
+  const t = useTranslations("common.change");
+  if (change === 0) return <span className="t-amt">{t("same")}</span>;
+  const rose = change > 0;
+  const tone = rose === riseIsCost ? "c-expense" : "c-income";
+  return (
+    <span className={cn("t-amt chg", tone)}>
+      <span aria-hidden="true">{rose ? "▲" : "▼"} </span>
+      <span className="sr-only">{rose ? t("up") : t("down")} </span>
+      <MaskedMoney text={money(Math.abs(change))} />
+    </span>
+  );
+}
+
+/**
+ * A progress bar (SPEC `.prog`): a 4 px track, 8 px with `thick`, and a square fill of `value` over `max`, capped at
+ * the track. Decorative: the caller writes the values in text beside it (apply-markas-rekening D18).
+ */
+export function ProgressBar({ value, max, thick = false, color }: { value: number; max: number; thick?: boolean; color?: string }) {
+  const share = max > 0 ? Math.min(1, Math.max(0, value / max)) : 0;
+  return (
+    <div className={cn("prog", thick && "is-thick")} aria-hidden="true">
+      <span style={{ width: `${share * 100}%`, ...(color ? { background: color } : {}) }} />
+    </div>
+  );
+}
+
+/** A gain over a set of products: its amount and cost, or `unknown` when a cost basis is missing (D6). */
+export type GainFigure = { amount: number; cost: number } | "unknown";
+
+/**
+ * A capital gain as "▲ +Rp 396.000 · +8,0%" or "▼ −Rp 164.000 · −10,7%" (SPEC `M.gain`, apply-markas-rekening D6):
+ * the triangle, the sign and a hidden "untung" or "rugi" besides the colour, the percent of the cost with one
+ * decimal, and the cost note when one is unknown. Nothing without products. With "Sembunyikan saldo" the amount
+ * and its sign are masked and the percent stays (D17).
+ */
+export function GainText({ gain, unknownLabel, className }: { gain: GainFigure | null; unknownLabel?: string; className?: string }) {
+  const t = useTranslations("accounts.tile");
+  const format = useFormat();
+  const { hideBalances } = useAppCtx();
+  if (!gain) return null;
+  if (gain === "unknown") return <span className={cn("gain", "muted", className)}>{unknownLabel ?? t("costMissing")}</span>;
+  const up = gain.amount >= 0;
+  const sign = up ? "+" : "\u2212";
+  const percent = gain.cost > 0 ? format.percent((Math.abs(gain.amount) / gain.cost) * 100) : null;
+  return (
+    <span className={cn("gain", up ? "c-income" : "c-expense", className)}>
+      <span aria-hidden="true">{up ? "\u25B2" : "\u25BC"} </span>
+      {!hideBalances && sign}
+      <MaskedMoney text={format.money(Math.abs(gain.amount))} />
+      {percent && ` \u00B7 ${sign}${percent}`}
+      <span className="sr-only"> {up ? t("gainUp") : t("gainDown")}</span>
+    </span>
   );
 }

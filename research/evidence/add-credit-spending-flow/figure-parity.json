@@ -1,0 +1,9 @@
+{
+ "owners": [
+  "payments",
+  "plain",
+  "purchases"
+ ],
+ "endpoints_compared": 63,
+ "differences": []
+}

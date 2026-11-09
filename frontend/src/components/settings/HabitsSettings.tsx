@@ -7,10 +7,14 @@ import { kakeiboBucketInfo } from "@/lib/kakeibo";
 import { habitStatus, type HabitList } from "@/lib/habits";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { ErrorState, Skeleton } from "@/components/workspace/primitives";
+import { QuestionRate } from "@/components/settings/QuestionRate";
 import { SettingsCard } from "@/components/settings/SettingsCard";
 import styles from "@/components/accounts/money.module.css";
 
-/** Kebiasaan (D8): what the app has learned, with the server's switches as read-only facts (OD51). */
+/**
+ * Kebiasaan (D8): what the app has learned, with the server's switches as read-only facts (OD51), then the weekly
+ * "Seberapa sering ditanya" panel, moved here from Analisis (apply-markas-analisis D18).
+ */
 export function HabitsSettings() {
   const { bal } = useAppCtx();
   const query = useQuery<HabitList>({ queryKey: queryKeys.habits.list, queryFn: () => api.get("/habits") });
@@ -77,6 +81,9 @@ export function HabitsSettings() {
           )}
         </div>
       )}
+      <div className="qr-moved">
+        <QuestionRate />
+      </div>
     </SettingsCard>
   );
 }

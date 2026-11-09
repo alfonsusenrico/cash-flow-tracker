@@ -225,7 +225,7 @@ def test_suggested_product_of_another_owner_is_refused(client, funds):
     from app.db.pool import db_conn
     with db_conn() as conn:
         other = conn.execute(
-            "INSERT INTO users (username, password_hash, invite_code) VALUES (%s, 'unused', 'fixture') RETURNING id",
+            "INSERT INTO users (username, password_hash, invite_code, language) VALUES (%s, 'unused', 'fixture', 'id') RETURNING id",
             (f"other_{uuid4().hex}",),
         ).fetchone()["id"]
         foreign = conn.execute(
@@ -304,7 +304,7 @@ def test_other_users_conversions_are_never_evidence(client, funds):
 
     with db_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("INSERT INTO users (username, password_hash, invite_code) VALUES (%s, 'unused', 'fixture') RETURNING id",
+            cur.execute("INSERT INTO users (username, password_hash, invite_code, language) VALUES (%s, 'unused', 'fixture', 'id') RETURNING id",
                         (f"other_{uuid4().hex}",))
             other = str(cur.fetchone()["id"])
             cur.execute("INSERT INTO accounts (user_id, name, type, initial_balance) VALUES (%s, 'RDN Lain', 'bank', 500000) RETURNING id", (other,))

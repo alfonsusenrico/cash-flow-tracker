@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.db.pool import db_conn
+from app.errors import ErrorCode, api_error
 from app.services.auth import get_current_user
 from app.services.classification_gaps import (
     FIX_ROW_LIMIT,
@@ -31,7 +32,7 @@ class TransactionPillarsInput(PillarInput):
 
 
 def error_response(error: ClassificationError) -> HTTPException:
-    return HTTPException(status_code=error.status, detail=error.detail)
+    return api_error(error.status, error.code, extra=error.extra, message_key=error.message_key)
 
 
 @router.get("/gaps")
@@ -42,7 +43,7 @@ def get_classification_gaps(
 ):
     """Categories without a pillar and unclassified expenses, in a window or over the whole ledger."""
     if (from_date is None) != (to_date is None):
-        raise HTTPException(status_code=422, detail={"code": "incomplete_window", "message": "Isi tanggal awal dan akhir."})
+        raise api_error(422, ErrorCode.INCOMPLETE_WINDOW)
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")

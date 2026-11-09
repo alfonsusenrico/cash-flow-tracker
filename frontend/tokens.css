@@ -5,8 +5,9 @@
  * neutrals in light and soft charcoal in dark, one coral accent for the primary action and the selection
  * bar, text inks for income, expense, transfer, investment and warning, and mark colours that are never
  * text. Concepts the app had no name for take the prototype's names (--dialog, --field-focus, --ring, --fs-*,
- * --sp-*, --r-*, --t-*). Chart tokens without a prototype counterpart (--heat-*, --band-op, --kind-*) keep
- * their values until their page is rebuilt.
+ * --sp-*, --r-*, --t-*). The prototype's mark colours (--m-income, --m-transfer, --m-invest, --m-warning,
+ * --m-expense) are the --*-solid tokens. Chart tokens without a prototype counterpart (--kind-*) keep their
+ * values until their page is rebuilt; Analisis draws with the mark tokens (apply-markas-analisis D11, D15).
  *
  * Light is the default; the dark theme applies with the `.dark` class on <html>, which the pre-paint
  * theme script in layout.tsx sets before the first paint (light, dark or "Ikuti sistem"). `.theme-light` repeats
@@ -115,19 +116,6 @@
   --k-none: #64748B;
   --k-none-soft: #E6E3DD;
 
-  /* Analisis: calendar heat and Peta Aliran ribbons (heat and band opacity change with their page). */
-  --heat-1: #FFF1F3;
-  --heat-2: #FFDDE2;
-  --heat-3: #FFC4CC;
-  --heat-4: #FFA6B3;
-  --heat-5: #FF8899;
-  --flow-in: #047857;
-  --flow-tr: var(--tr-solid);
-  --flow-inv: #7C3AED;
-  --flow-warn: #B45309;
-  --flow-left: #64748B;
-  --flow-other: #64748B;
-  --band-op: 0.42;
 
   /* Rekening & Kantong uses take the prototype's marks; the investment kind steps change with their page. */
   --use-harian: #64748B;
@@ -220,17 +208,6 @@
   --k-none: #94A3B8;
   --k-none-soft: #26272B;
 
-  --heat-1: #1C1218;
-  --heat-2: #2C1419;
-  --heat-3: #40171F;
-  --heat-4: #571B26;
-  --heat-5: #70202E;
-  --flow-in: #10B981;
-  --flow-inv: #8B5CF6;
-  --flow-warn: #F59E0B;
-  --flow-left: #94A3B8;
-  --flow-other: #94A3B8;
-  --band-op: 0.5;
 
   --use-harian: #94A3B8;
   --use-tabungan: #10B981;

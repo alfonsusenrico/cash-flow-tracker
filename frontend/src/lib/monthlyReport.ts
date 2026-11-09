@@ -128,6 +128,8 @@ export interface ReportComparison {
     previous_spending: number | null;
     spending: number;
     share: number | null;
+    /** Pengeluaran so far as a whole percent of the baseline's; null without a baseline or an older API. */
+    baseline_share?: number | null;
     pillars: { pillar: SpendingBucket; amount: number; previous: number | null; share: number | null }[];
   } | null;
   pillars: ComparisonPillar[];

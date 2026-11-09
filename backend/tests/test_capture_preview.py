@@ -110,7 +110,7 @@ def test_another_owners_memory_and_accounts(client, owner):
     from app.services.auth import get_current_user
     other = str(uuid4())
     with db_conn() as conn:
-        conn.execute("INSERT INTO users (id, username, name, password_hash, invite_code) VALUES (%s, %s, 'Dewi Lain', 'x', 'TEST')",
+        conn.execute("INSERT INTO users (id, username, name, password_hash, invite_code, language) VALUES (%s, %s, 'Dewi Lain', 'x', 'TEST', 'id')",
                      (other, f"lain_{uuid4().hex}"))
         category = conn.execute("INSERT INTO categories (user_id, name, kind, kakeibo_type) VALUES (%s, 'Kopi Lain', 'expense', 'want') RETURNING id",
                                 (other,)).fetchone()["id"]

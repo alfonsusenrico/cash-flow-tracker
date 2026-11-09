@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axe } from "vitest-axe";
 import { api } from "@/lib/api";
+import { renderWithIntl } from "@/lib/i18n/testing";
 import { AmountTrackingSwitchModal } from "./AmountTrackingSwitchModal";
 
 vi.mock("@/lib/api", () => ({ api: { post: vi.fn() } }));
@@ -30,7 +31,7 @@ describe("switching a unit fund to amount tracking", () => {
     expect(screen.getByRole("dialog", { name: "Ubah ke pelacakan nominal" })).toBeInTheDocument();
     expect(screen.getByText(/5\.725\.549/)).toBeInTheDocument();
     expect(screen.getByText(/5\.518\.820/)).toBeInTheDocument();
-    expect(screen.getByText("Perubahan ini tidak dapat dibatalkan.")).toBeInTheDocument();
+    expect(screen.getByText("Perubahan ini tidak bisa dibatalkan.")).toBeInTheDocument();
     expect((await axe(screen.getByRole("dialog"))).violations).toEqual([]);
   });
 
@@ -49,5 +50,14 @@ describe("switching a unit fund to amount tracking", () => {
     await user.click(screen.getByRole("button", { name: "Ubah ke nominal" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("sudah dicatat berdasarkan nominal");
     expect(close).not.toHaveBeenCalled();
+  });
+
+  it("reads in English and sends the same request", async () => {
+    const user = userEvent.setup();
+    const qc = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    renderWithIntl(<QueryClientProvider client={qc}><AmountTrackingSwitchModal product={product} onClose={vi.fn()} /></QueryClientProvider>, { language: "en" });
+    expect(screen.getByRole("dialog", { name: "Switch to tracking by amount" })).toHaveTextContent("This change cannot be undone.");
+    await user.click(screen.getByRole("button", { name: "Switch to amount" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/accounts/fund/amount-tracking"));
   });
 });

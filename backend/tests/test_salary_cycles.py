@@ -41,7 +41,7 @@ def test_report_window_uses_actual_receipt_timestamps(monkeypatch):
     start = dt(2026, 9, 27, 4)
     end = dt(2026, 10, 3, 5)
     monkeypatch.setattr(report_windows, 'load_user_cycle', lambda *_args, **_kwargs: SalaryCycle('closed', start, end))
-    begin, finish, _, _, label = report_windows.get_timeframe_window(25, 'cycle', user_id='synthetic')
+    begin, finish, _, _, label = report_windows.get_timeframe_window(25, 'cycle', user_id='synthetic', language="id")
     assert begin == start
     assert finish == end - timedelta(microseconds=1)
     assert 'Siklus' in label
@@ -52,6 +52,6 @@ def test_report_window_discloses_missing_cycle_and_offers_calendar(monkeypatch):
     from app.services.salary_cycles import SalaryCycle
 
     monkeypatch.setattr(report_windows, 'load_user_cycle', lambda *_args, **_kwargs: SalaryCycle('not_configured'))
-    start, end, _, _, label = report_windows.get_timeframe_window(25, 'cycle', user_id='synthetic')
+    start, end, _, _, label = report_windows.get_timeframe_window(25, 'cycle', user_id='synthetic', language="id")
     assert 'siklus gaji belum tersedia' in label
     assert start <= end

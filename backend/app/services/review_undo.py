@@ -19,6 +19,7 @@ from fastapi import HTTPException
 from psycopg.types.json import Jsonb
 
 from app.db.pool import db_conn
+from app.errors import api_error
 from app.services.merchant_memory import jsonable, memory_row, merchant_match_key, restore_memory
 
 logger = logging.getLogger(__name__)
@@ -70,7 +71,7 @@ def null_token() -> dict[str, None]:
 
 
 def undo_error(status: int, code: str, **extra: Any) -> HTTPException:
-    return HTTPException(status_code=status, detail={"code": code, **extra})
+    return api_error(status, code, extra=extra)
 
 
 def plain(value: Any) -> Any:

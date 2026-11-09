@@ -24,6 +24,7 @@ from app.services.notification_interpretation import PROMPT_VERSION, validate_in
 from app.services.notification_mapping import mapping_decision
 from app.services.notification_resolution import alias_key, endpoint_context, normalize_name
 from app.services.openai_notification_provider import OpenAINotificationProvider, ProviderError
+from app.services.prompt_language import NOTIFICATION_INTERPRETATION, load_prompt
 
 POST_TIME = datetime.fromisoformat("2026-09-29T17:00:00+07:00")
 
@@ -113,7 +114,8 @@ async def run(model: str, effort: str, repeats: int, threshold: float) -> dict:
             facts, context = case_input(case)
             for repeat in range(repeats):
                 try:
-                    proposal = await provider.interpret(context)
+                    # Account mapping is language-neutral; it is measured on the Indonesian rendering.
+                    proposal = await provider.interpret(context, prompt=load_prompt(NOTIFICATION_INTERPRETATION, "id"))
                     row = classify(case, facts, context, proposal, threshold)
                 except ProviderError as exc:
                     row = {"outcome": "provider_error", "code": exc.code}

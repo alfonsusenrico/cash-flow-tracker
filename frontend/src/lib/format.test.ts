@@ -64,6 +64,20 @@ describe("createFormat", () => {
     expect(enUS.decimal(5.4)).toBe("5.4");
   });
 
+  it("writes a Tinjau row's date and time, and a group's range, by language and region (apply-markas-tinjau D18)", () => {
+    const row = new Date("2026-11-04T14:40:00Z"); // 21.40 in Asia/Jakarta
+    const when = (format: typeof idID) => `${format.shortDateAt(row)} ${format.time(row)}`;
+    expect(when(idID)).toBe("4 Nov 21.40");
+    expect(when(enID)).toBe("4 Nov 21.40");
+    expect(when(enUS)).toBe("Nov 4 9:40 PM");
+    expect(idID.dateRangeAt("2026-10-19T05:00:00Z", "2026-10-20T05:00:00Z")).toBe("19 Okt – 20 Okt 2026");
+    expect(enUS.dateRangeAt("2026-10-19T05:00:00Z", "2026-10-20T05:00:00Z")).toBe("Oct 19 – Oct 20, 2026");
+    expect(idID.dateRangeAt("2026-10-20T01:00:00Z", "2026-10-20T05:00:00Z")).toBe("20 Okt 2026");
+    expect(idID.dateRangeAt(null, "2026-10-20T05:00:00Z")).toBeNull();
+    expect(idID.yearDate("2026-10-03")).toBe("3 Okt 2026");
+    expect(enUS.yearDate("2026-10-03")).toBe("Oct 3, 2026");
+  });
+
   it("keeps a calendar date on its day in every time zone of the input", () => {
     expect(enID.shortDate("2026-11-01T00:00:00+07:00")).toBe("1 Nov");
   });
@@ -77,5 +91,36 @@ describe("amount input grouping", () => {
     expect(groupDigits("20,000,00", "ID")).toBe("2.000.000");
     expect(groupDigits("007", "ID")).toBe("7");
     expect(groupDigits("abc", "ID")).toBe("");
+  });
+});
+
+describe("compactMoney (apply-markas-analisis D22)", () => {
+  const idID = createFormat({ language: "id", region: "ID" });
+  const enID = createFormat({ language: "en", region: "ID" });
+  const enUS = createFormat({ language: "en", region: "US" });
+
+  it("writes thousands and millions short in each language", () => {
+    expect(idID.compactMoney(80_500)).toBe("81rb");
+    expect(enID.compactMoney(80_500)).toBe("81K");
+    expect(idID.compactMoney(1_303_500)).toBe("1,3jt");
+    expect(enUS.compactMoney(1_303_500)).toBe("1.3M");
+    expect(enID.compactMoney(1_303_500)).toBe("1,3M");
+    expect(idID.compactMoney(1_000_000)).toBe("1jt");
+    expect(enID.compactMoney(1_000_000)).toBe("1M");
+    expect(idID.compactMoney(999_600)).toBe("1jt");
+    expect(idID.compactMoney(500)).toBe("500");
+    expect(idID.compactMoney(1_234_567_890)).toBe("1,2M");
+    expect(enUS.compactMoney(1_234_567_890)).toBe("1.2B");
+  });
+
+  it("drops the decimal in the narrow form and masks hidden amounts", () => {
+    expect(idID.compactMoney(1_303_500, { narrow: true })).toBe("1jt");
+    expect(idID.compactMoney(1_303_500, { hidden: true })).toBe("••");
+  });
+
+  it("converts the USD display before shortening", () => {
+    const usd = createFormat({ language: "id", region: "ID", currency: "USD", rate: 1000 });
+    expect(usd.compactMoney(1_300_000)).toBe("$1.3K");
+    expect(usd.compactMoney(50_000)).toBe("$50");
   });
 });

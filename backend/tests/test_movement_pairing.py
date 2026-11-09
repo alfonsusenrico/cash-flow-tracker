@@ -398,7 +398,7 @@ def test_complete_validation(client, notification_owner):
     tx_id = str(tx_of_event(outgoing["event_id"])["id"])
     stranger = str(uuid4())
     with db_conn() as conn:
-        conn.execute("INSERT INTO users (id, username, name, password_hash, invite_code) VALUES (%s, %s, 'Lain', 'x', 'TEST')",
+        conn.execute("INSERT INTO users (id, username, name, password_hash, invite_code, language) VALUES (%s, %s, 'Lain', 'x', 'TEST', 'id')",
                      (stranger, f"other_{uuid4().hex}"))
         foreign_account = conn.execute("INSERT INTO accounts (user_id, name, type) VALUES (%s, 'Lain', 'bank') RETURNING id",
                                        (stranger,)).fetchone()["id"]

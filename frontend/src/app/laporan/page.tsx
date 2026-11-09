@@ -5,13 +5,14 @@ import { ReportLayout } from "@/components/report/ReportLayout";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname, useSearchParams } from "next/navigation";
-import styles from "@/components/analysis/analysis.module.css";
+import styles from "@/components/report/laporan.module.css";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { PeriodStepper } from "@/components/ui/PeriodStepper";
 import { PageActions } from "@/components/workspace/context";
 import { Card, CardHeader, EmptyState, ErrorState, Kpi, KpiStrip, Pill, Segmented, Skeleton } from "@/components/workspace/primitives";
 import { replaceSearch } from "@/lib/urlState";
-import { BudgetEditorDialog, BudgetPanel } from "@/components/report/BudgetPanel";
+import { BudgetDialog } from "@/components/categories/BudgetDialog";
+import { BudgetPanel } from "@/components/report/BudgetPanel";
 import { ClassificationDialog } from "@/components/report/ClassificationDialog";
 import {
   ChangeLine,
@@ -242,7 +243,7 @@ function ReportView() {
         onClose={() => setClassifyOpen(false)}
         scope={{ start: report.period.start, end: report.period.end }}
       />
-      <BudgetEditorDialog open={budgetOpen} onClose={() => setBudgetOpen(false)} />
+      <BudgetDialog open={budgetOpen} onClose={() => setBudgetOpen(false)} />
     </div>
   );
 }

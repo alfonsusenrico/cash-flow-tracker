@@ -29,7 +29,8 @@ export interface RincianData {
   notes: string[];
   /** The rows still waiting for an answer, listed under the notes. */
   waiting?: { label: string; amount: string; lines: ExplanationLine[]; link: { href: string; label: string } } | null;
-  link: { href: string; label: string };
+  /** The footer link to the rows behind the figure; left out when the figure has none (Rekening without obligations). */
+  link?: { href: string; label: string };
 }
 
 function Parts({ id, lines, notes = [], link }: { id: string; lines: ExplanationLine[]; notes?: string[]; link?: { href: string; label: string } }) {
@@ -127,7 +128,7 @@ export function ExplanationDialog({ open, onClose, data }: { open: boolean; onCl
       closeLabel={t("close")}
       className="rincian"
       footer={
-        data && (
+        data?.link && (
           <Link href={data.link.href} className="ws-btn">
             {data.link.label}
           </Link>

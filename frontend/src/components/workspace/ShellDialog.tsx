@@ -20,6 +20,9 @@ export function ShellDialog({
   meta,
   footer,
   untranslated: untranslatedContent,
+  fullHeight = false,
+  scrollFocusable = false,
+  initialFocus,
   children,
 }: {
   open: boolean;
@@ -34,6 +37,18 @@ export function ShellDialog({
   footer?: ReactNode;
   /** Content a later phase translates: Indonesian with `lang="id"` and the notice line in an English interface. */
   untranslated?: boolean;
+  /** Below 768 px the whole screen, square and without the grab (Tinjau's item, apply-markas-tinjau D13). */
+  fullHeight?: boolean;
+  /**
+   * The body is a tab stop, so a long body without controls of its own can still be scrolled by keyboard (WCAG
+   * 2.1.1; Transaksi's delete confirmation on a short screen).
+   */
+  scrollFocusable?: boolean;
+  /**
+   * A selector inside the body that takes focus on opening instead of its first control, such as Tinjau's item
+   * heading. Focusing it here, after the body is committed, cannot be overtaken by this effect.
+   */
+  initialFocus?: string;
   children: ReactNode;
 }) {
   const untranslated = useUntranslated(untranslatedContent);
@@ -49,8 +64,11 @@ export function ShellDialog({
     syncDialog(ref.current, open);
     if (!open) return;
     const body = bodyRef.current;
-    const first = body ? focusableIn(body)[0] : undefined;
+    const chosen = initialFocus ? body?.querySelector<HTMLElement>(initialFocus) : null;
+    const first = chosen ?? (body ? focusableIn(body)[0] : undefined);
     (first ?? ref.current?.querySelector<HTMLElement>("button"))?.focus();
+    // Only the opening moment decides the first focus; a later selector change must not move focus.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
   useFocusTrap(ref, open);
   useEscapeLayer(open, close);
@@ -59,7 +77,7 @@ export function ShellDialog({
   return (
     <dialog
       ref={ref}
-      className={["shell-dialog", className].filter(Boolean).join(" ")}
+      className={["shell-dialog", fullHeight && "is-full", className].filter(Boolean).join(" ")}
       style={{ "--dw": `${width}px` } as React.CSSProperties}
       aria-labelledby={titleId}
       onCancel={(event) => {
@@ -85,7 +103,14 @@ export function ShellDialog({
               <Icon name="x" className="h-4 w-4" />
             </button>
           </div>
-          <div ref={bodyRef} className="dlg-b" lang={untranslated ? "id" : undefined}>
+          <div
+            ref={bodyRef}
+            className="dlg-b"
+            lang={untranslated ? "id" : undefined}
+            tabIndex={scrollFocusable ? 0 : undefined}
+            role={scrollFocusable ? "region" : undefined}
+            aria-labelledby={scrollFocusable ? titleId : undefined}
+          >
             {children}
           </div>
           {footer && <div className="dlg-f">{footer}</div>}

@@ -13,6 +13,7 @@ from fastapi import HTTPException, Request
 from pydantic import AwareDatetime, BaseModel, Field, StrictBool, StrictInt, StrictStr, field_validator, model_validator
 
 from app.db.pool import db_conn
+from app.errors import ErrorCode, api_error
 from app.services.auth import hash_token
 
 logger = logging.getLogger(__name__)
@@ -63,7 +64,7 @@ class HealthReport(BaseModel):
 
 
 def device_key_invalid() -> HTTPException:
-    return HTTPException(status_code=401, detail={"code": "device_key_invalid"})
+    return api_error(401, ErrorCode.DEVICE_KEY_INVALID)
 
 
 def get_bearer_device(request: Request) -> dict[str, str]:
