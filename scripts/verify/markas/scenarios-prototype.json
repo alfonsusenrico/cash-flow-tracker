@@ -391,5 +391,59 @@
     "click": "^Ubah$"
    }
   ]
+ },
+ {
+  "name": "dlg-rincian-ketahanan",
+  "path": "/target",
+  "steps": [
+   {
+    "click": "^Rincian$"
+   }
+  ]
+ },
+ {
+  "name": "target-tagihan-semua",
+  "path": "/target",
+  "steps": [
+   {
+    "click": "^dan \\d+ tagihan lain$"
+   }
+  ]
+ },
+ {
+  "name": "target-lunas",
+  "path": "/target",
+  "steps": [
+   {
+    "click": "^Sudah lunas ·"
+   }
+  ]
+ },
+ {
+  "name": "dlg-target-tambah",
+  "path": "/target",
+  "steps": [
+   {
+    "click": "^Tambah target$"
+   }
+  ]
+ },
+ {
+  "name": "dlg-rencana",
+  "path": "/target",
+  "steps": [
+   {
+    "click": "^Rencana$"
+   }
+  ]
+ },
+ {
+  "name": "dlg-menu-target",
+  "path": "/target",
+  "steps": [
+   {
+    "click": "^Tindakan lain$|^…$"
+   }
+  ]
  }
 ]
