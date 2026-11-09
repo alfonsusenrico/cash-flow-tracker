@@ -10,4 +10,3 @@ describe("financial date-time input", () => {
     expect(new Date(localDatetimeToISO(inputValue)).toISOString()).toBe(timestamp);
   });
 });
-
