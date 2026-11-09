@@ -8,6 +8,7 @@ import { headerFor } from "@/components/beranda/BerandaView";
 import { RegionProvider } from "@/lib/format";
 import { renderWithIntl, testWords } from "@/lib/i18n/testing";
 import type { CycleSummary } from "@/components/beranda/types";
+import { WorkspaceContext, type WorkspaceValue } from "@/components/workspace/context";
 import { ShortcutProvider } from "@/components/workspace/shortcuts";
 import BerandaPage from "./page";
 
@@ -22,7 +23,7 @@ vi.mock("@/lib/api", () => ({
 }));
 vi.mock("next/navigation", () => ({ usePathname: () => "/", useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("@/components/recurring/PendingScheduledBanner", () => ({ PendingScheduledBanner: () => null }));
-vi.mock("@/components/recurring/RecurringRulesModal", () => ({ RecurringRulesModal: () => null }));
+vi.mock("@/components/recurring/PlansDialog", () => ({ PlansDialog: () => null }));
 // "Sembunyikan saldo" for the hidden-balance cases; the real context otherwise.
 const display = vi.hoisted(() => ({ hidden: false }));
 vi.mock("@/components/layout/AppLayout", async (importOriginal) => {
@@ -415,6 +416,42 @@ describe("Beranda hero", () => {
 });
 
 describe("Perlu tindakan", () => {
+  it("Paying from Perlu tindakan: an overdue credit bill ranks with overdue plans and opens Perpindahan prefilled, posting nothing", async () => {
+    reviewQueue = { ...queue, questions: [], groups: [], awaiting: [], ambiguous: [] };
+    plans = [{ ...plan, id: "yoga", name: "Kelas Yoga", amount: 150_000, next_due_date: "2026-11-01" }];
+    const base = vi.mocked(api.get).getMockImplementation()!;
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path.startsWith("/credit/bills?")) {
+        return { ok: true, due_dates_unavailable: [], bills: [
+          { account_id: "bca-cc", account_name: "Kartu BCA", due_date: "2026-10-30", statement_date: "2026-10-15", amount: 1_250_000, paid: 0,
+            left_to_pay: 1_250_000, status: "overdue", settled_on: null },
+          { account_id: "lunas", account_name: "Lunas", due_date: "2026-11-02", statement_date: "2026-10-15", amount: 90_000, paid: 90_000,
+            left_to_pay: 0, status: "paid", settled_on: "2026-11-01" },
+        ] };
+      }
+      return base(path);
+    });
+    const openMovementCapture = vi.fn();
+    const workspace = { setHeader: () => {}, openMovementCapture } as unknown as WorkspaceValue;
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    renderWithIntl(
+      <QueryClientProvider client={queryClient}>
+        <WorkspaceContext.Provider value={workspace}>
+          <ShortcutProvider>
+            <BerandaPage />
+          </ShortcutProvider>
+        </WorkspaceContext.Provider>
+      </QueryClientProvider>,
+    );
+    const section = await screen.findByRole("region", { name: "Perlu tindakan" });
+    await waitFor(() => expect(rowTexts(section)[0]).toBe("Tagihan Kartu BCALewat jatuh tempo · KreditRp 1.250.000"));
+    expect(rowTexts(section)[1]).toContain("Kelas Yoga");
+    expect(section).not.toHaveTextContent("Lunas");
+    await userEvent.setup().click(within(section).getByRole("button", { name: /Tagihan Kartu BCA/ }));
+    expect(openMovementCapture).toHaveBeenCalledWith({ targetAccountId: "bca-cc", amount: 1_250_000 });
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
   it("lists the first three items: the question, the awaiting transfers, then the group, with Buka Tinjau and the count", async () => {
     await beranda();
     const section = region("Perlu tindakan");

@@ -17,6 +17,8 @@ export interface WorkspaceNotification {
   /** Where the item leads; absent for items that open "Rencana jatuh tempo" instead (D7). */
   href?: string;
   opensDuePlans?: boolean;
+  /** An action instead of a link: a due credit bill opens Perpindahan prefilled (apply-markas-target D16). */
+  onSelect?: () => void;
 }
 
 export interface PageHeader {

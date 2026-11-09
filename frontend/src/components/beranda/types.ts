@@ -44,7 +44,12 @@ export interface PlanLine {
   label: string;
   due_date: string;
   overdue: boolean;
+  /** For a plan paying a credit bill: the part not yet in Pengeluaran (add-credit-spending-flow D9). */
   amount: number;
+  /** A plan paying a credit bill: its full amount, of which `counted_elsewhere` is already in Pengeluaran. */
+  plan_amount?: number;
+  counted_elsewhere?: number;
+  credit_account_id?: string;
 }
 
 export interface GoalLine {
@@ -62,6 +67,13 @@ export interface ComparisonFigure {
   current: number;
   previous: number | null;
   change: number | null;
+}
+
+/** `spending.credit` (add-credit-spending-flow D11): spending booked on credit, inside Pengeluaran, and cash paid to credit. */
+export interface CreditSpending {
+  spent_on_credit: number;
+  paid_to_credit: number;
+  lines: { key: string; account_id: string; label: string; label_source?: LabelSource; spent_on_credit: number; paid_to_credit: number }[];
 }
 
 export type SafeReason = "no_cycle" | "no_expected_salary" | "salary_overdue";
@@ -89,7 +101,7 @@ export interface CycleSummary {
   };
   keluar: { total: number; offsets_total: number; lines: (SummaryLine & { key: KakeiboBucket })[] };
   /** Pengeluaran: Keluar without the saving bucket (refine-workspace-layout D4). */
-  spending: { amount: number; lines: (SummaryLine & { key: KakeiboBucket })[] };
+  spending: { amount: number; lines: (SummaryLine & { key: KakeiboBucket })[]; credit?: CreditSpending };
   /** Ditabung & investasi: the saving bucket of Keluar. `spending + fresh_saving = keluar`. */
   fresh_saving: { amount: number; lines: (SummaryLine & { key: KakeiboBucket })[] };
   /**

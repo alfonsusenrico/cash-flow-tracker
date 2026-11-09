@@ -1732,5 +1732,247 @@
     "wait": 1200
    }
   ]
+ },
+ {
+  "name": "target-tanpa-dana-darurat",
+  "path": "/goals",
+  "target": true,
+  "full": true,
+  "note": "log in as kosong_contoh (all_liquid, unknown cost)"
+ },
+ {
+  "name": "target-belum-dihitung",
+  "path": "/goals",
+  "target": true,
+  "full": true,
+  "note": "log in as kosong_contoh"
+ },
+ {
+  "name": "target-tagihan-semua",
+  "path": "/goals",
+  "target": true,
+  "steps": [
+   {
+    "click": "^(dan \\d+ tagihan lain|and \\d+ more bills?)$"
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "target-lunas",
+  "path": "/goals",
+  "target": true,
+  "steps": [
+   {
+    "click": "^(Sudah lunas|Paid off) ·"
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "target-kredit",
+  "path": "/goals",
+  "target": true,
+  "steps": [
+   {
+    "click": "^(dan \\d+ tagihan lain|and \\d+ more bills?)$"
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "target-sembunyi",
+  "path": "/goals",
+  "target": true,
+  "storage": {
+   "hideBalances": "1"
+  },
+  "full": true
+ },
+ {
+  "name": "dlg-rincian-ketahanan",
+  "path": "/goals",
+  "target": true,
+  "steps": [
+   {
+    "click": "^(Rincian|Breakdown)$"
+   }
+  ]
+ },
+ {
+  "name": "dlg-target-manual",
+  "path": "/goals",
+  "target": true,
+  "steps": [
+   {
+    "click": "^Kamera Baru Contoh"
+   }
+  ]
+ },
+ {
+  "name": "dlg-target-progres",
+  "path": "/goals",
+  "target": true,
+  "steps": [
+   {
+    "click": "^Kamera Baru Contoh"
+   },
+   {
+    "click": "^(Tambah progres|Add progress)$"
+   }
+  ]
+ },
+ {
+  "name": "dlg-target-tambah",
+  "path": "/goals",
+  "target": true,
+  "steps": [
+   {
+    "click": "^(Tambah target|Add goal)$"
+   }
+  ]
+ },
+ {
+  "name": "dlg-utang",
+  "path": "/goals",
+  "target": true,
+  "steps": [
+   {
+    "click": "^Cicilan Motor"
+   }
+  ]
+ },
+ {
+  "name": "dlg-utang-lunas",
+  "path": "/goals",
+  "target": true,
+  "steps": [
+   {
+    "click": "^(Sudah lunas|Paid off) ·"
+   },
+   {
+    "click": "^Cicilan Laptop"
+   }
+  ]
+ },
+ {
+  "name": "dlg-utang-tambah",
+  "path": "/goals",
+  "target": true,
+  "steps": [
+   {
+    "click": "^(Tindakan lain|More actions)$"
+   },
+   {
+    "click": "^(Tambah utang|Add debt)$"
+   }
+  ]
+ },
+ {
+  "name": "dlg-utang-bayar",
+  "path": "/goals",
+  "target": true,
+  "steps": [
+   {
+    "click": "^Cicilan Motor"
+   },
+   {
+    "click": "^(Kaitkan atau catat pembayaran|Link or record a payment)$"
+   }
+  ]
+ },
+ {
+  "name": "dlg-rencana-jatuh-tempo",
+  "path": "/goals",
+  "target": true,
+  "steps": [
+   {
+    "click": "Kelas Yoga"
+   }
+  ]
+ },
+ {
+  "name": "dlg-menu-target",
+  "path": "/goals",
+  "target": true,
+  "steps": [
+   {
+    "click": "^(Tindakan lain|More actions)$"
+   }
+  ]
+ },
+ {
+  "name": "dlg-kredit-akun",
+  "path": "/goals",
+  "target": true,
+  "steps": [
+   {
+    "click": "^SPayLater · (kredit|credit)"
+   }
+  ]
+ },
+ {
+  "name": "state-target-memuat",
+  "path": "/goals",
+  "target": true,
+  "note": "fault proxy: delay",
+  "full": true
+ },
+ {
+  "name": "state-target-galat",
+  "path": "/goals",
+  "target": true,
+  "note": "fault proxy: fail per source",
+  "full": true
+ },
+ {
+  "name": "state-target-kosong",
+  "path": "/goals",
+  "target": true,
+  "note": "fault proxy: empty",
+  "full": true
+ },
+ {
+  "name": "beranda-kredit",
+  "path": "/",
+  "beranda": true,
+  "target": true,
+  "full": true
+ },
+ {
+  "name": "dlg-rincian-aman-kredit",
+  "path": "/",
+  "beranda": true,
+  "target": true,
+  "steps": [
+   {
+    "click": "^(Rincian aman dipakai sampai gajian|Aman dipakai sampai gajian [−-]?Rp|Breakdown of safe to spend until payday|Safe to spend until payday [−-]?Rp)"
+   },
+   {
+    "click": "^(Pengeluaran|Spending)"
+   }
+  ]
+ },
+ {
+  "name": "dlg-notifikasi-kredit",
+  "path": "/",
+  "beranda": true,
+  "target": true,
+  "steps": [
+   {
+    "click": "^(Notifikasi|Notifications),"
+   }
+  ]
+ },
+ {
+  "name": "dlg-perpindahan-kredit",
+  "path": "/",
+  "beranda": true,
+  "target": true,
+  "steps": [
+   {
+    "click": "(Tagihan Kartu Kredit Contoh|Kartu Kredit Contoh bill)"
+   }
+  ]
  }
 ]
