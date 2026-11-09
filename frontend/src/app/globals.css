@@ -1756,3 +1756,8 @@ button.hbar:hover { background: var(--surface); }
   .choice { min-height: 44px; }
   .ct-toggle { min-height: 40px; }
 }
+/* Below 360 px a calendar cell is about 41 px wide: 2 px side padding leaves room for "310rb" at 12 px. */
+@media (max-width: 359px) {
+  .cal-cell { padding: var(--sp-4) 2px; }
+  .cal .dow { padding: var(--sp-4) 2px; }
+}
