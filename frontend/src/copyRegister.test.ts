@@ -133,13 +133,14 @@ const TRANSLATED_ROOTS = [
   "app/ledger", "components/transactions", "components/ui/ExpenseTopupConversionModal.tsx", "lib/ledgerFilters.ts", "lib/ledgerDays.ts",
   // Analisis (apply-markas-analisis D22).
   "app/insights", "components/analysis", "components/categories", "components/charts",
+  // Rekening & Kantong and its money dialogs (apply-markas-rekening D16).
+  "app/accounts", "components/accounts", "components/ui/InvestmentTradeModal.tsx", "components/ui/InvestmentTopupModal.tsx",
+  "components/ui/AmountTrackingSwitchModal.tsx",
 ];
 /** Indonesian page copy that lives in a translated root until its page's phase moves it (D10). */
 const UNTRANSLATED_FILES = ["components/workspace/untranslatedPages.ts"];
 
-const MONEY_ROOTS = ["components/accounts", "components/goals", "components/settings", "app/accounts", "app/goals", "app/settings",
-  "components/ui/InvestmentTradeModal.tsx", "components/ui/InvestmentTopupModal.tsx",
-  "components/ui/AmountTrackingSwitchModal.tsx", "components/ui/ReconciliationFlag.tsx", "components/ui/DebtAllocationEditor.tsx",
+const MONEY_ROOTS = ["components/goals", "components/settings", "app/goals", "app/settings", "components/ui/ReconciliationFlag.tsx", "components/ui/DebtAllocationEditor.tsx",
   "components/ui/SalarySettingsSection.tsx", "components/ui/SenderAliasesSection.tsx", "components/recurring/RecurringRulesModal.tsx",
   "components/dashboard/EmergencyCoverage.tsx", "lib/habits.ts"];
 

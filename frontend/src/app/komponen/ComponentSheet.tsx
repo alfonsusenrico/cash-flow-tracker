@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/Button";
 import { MonetaryInput } from "@/components/ui/FormField";
 import { Icon } from "@/components/ui/Icon";
 import { Input, Select } from "@/components/ui/Input";
-import { FigureBlock, HeroFigure, SplitBar } from "@/components/workspace/figures";
+import { FigureBlock, GainText, HeroFigure, ProgressBar, SplitBar } from "@/components/workspace/figures";
+import { InstitutionMark } from "@/components/accounts/Tile";
 import { Answer, AnswerList } from "@/components/review/triage/Answers";
 import { DayHeading, ListRow, Panel, PanelBlock, SectionHeader } from "@/components/workspace/lists";
 import { Rail, RailItem, RailRule } from "@/components/workspace/rail";
@@ -363,6 +364,48 @@ export function ComponentSheet() {
                 <FigureBlock label="Terjadwal" mark="var(--warn-solid)" figure="Rp 989.000" caption="tagihan sampai 24 Nov" phoneHidden />
               </div>
             </HeroFigure>
+          </div>
+        )}
+      </Both>
+
+      <Both title="Rekening: grup, kartu, batang">
+        {(theme) => (
+          <div className={styles.scroll} tabIndex={0} role="region" aria-label={`Contoh Rekening ${theme}`}>
+            <section className="grp" style={{ "--rail": "var(--use-investasi)" } as React.CSSProperties} aria-label={`Grup contoh ${theme}`}>
+              <div className="grp-h">
+                <h3 className="t-label">Investasi</h3>
+                <span className="count">5 produk</span>
+                <GainText gain={{ amount: 396_000, cost: 4_950_000 }} />
+                <span className="total t-amt">Rp 30.219.700</span>
+              </div>
+              <ul className="tiles">
+                <li>
+                  <div className="tile">
+                    <span className="tl-top">
+                      <InstitutionMark name="Stockbit" colour="#2E7DF6" />
+                      <span className="names"><span className="tl-name">BBCA</span><span className="t-meta">Stockbit · 12 lot</span></span>
+                    </span>
+                    <span className="tl-bottom"><span className="tl-amt t-amt">Rp 1.000.000</span><GainText gain={{ amount: -164_000, cost: 1_532_710 }} /></span>
+                  </div>
+                </li>
+                <li>
+                  <div className="tile">
+                    <span className="tl-top">
+                      <InstitutionMark name="SPayLater" colour="#F08A24" />
+                      <span className="names"><span className="tl-name">SPayLater</span><span className="t-meta">Sisa limit Rp 2.107.000</span></span>
+                    </span>
+                    <ProgressBar value={893_000} max={3_000_000} color="var(--out-solid)" />
+                    <span className="tl-bottom"><span className="tl-amt t-amt c-expense">−Rp 893.000</span><span className="tl-due t-meta">jatuh tempo 11 Des · Rp 434.000</span></span>
+                  </div>
+                </li>
+              </ul>
+            </section>
+            <div className="hbar">
+              <span className="lbl">Reksa dana</span>
+              <span className="bar" aria-hidden="true"><span style={{ width: "62%", background: "var(--inv-solid)" }} /></span>
+              <span className="amt t-amt">Rp 18.400.000</span>
+              <span className="side"><GainText gain={{ amount: 65_800, cost: 18_334_200 }} /></span>
+            </div>
           </div>
         )}
       </Both>

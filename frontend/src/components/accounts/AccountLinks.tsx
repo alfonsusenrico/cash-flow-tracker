@@ -1,18 +1,21 @@
 "use client";
 
+import { useEffect, useId, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { ConfirmRemove } from "@/components/settings/ConfirmRemove";
+import { useTranslations } from "next-intl";
+import { SectionHeader } from "@/components/workspace/lists";
 import { api, type AccountLink } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
-import styles from "./money.module.css";
 
 /**
  * "Juga dilaporkan" in the Rekening detail (reconcile-linked-account-reports D6): the other apps that report
- * this account, learned from "Benar, satu transaksi" in Tinjau. Links are never added here, only stopped.
+ * this account, learned from "Benar, satu transaksi" in Tinjau. Links are never added here, only stopped, and
+ * "Lepaskan" asks once more in its row.
  */
 export function AccountLinks({ accountId, accountName }: { accountId: string; accountName: string }) {
+  const t = useTranslations("accounts.links");
   const qc = useQueryClient();
+  const headingId = useId();
   const [message, setMessage] = useState<string | null>(null);
   const { data, isError } = useQuery({
     queryKey: queryKeys.accountLinks(accountId),
@@ -23,35 +26,74 @@ export function AccountLinks({ accountId, accountName }: { accountId: string; ac
     onSuccess: async (_, id) => {
       const stopped = data?.links.find((link) => link.id === id);
       await qc.invalidateQueries({ queryKey: ["account-links"] });
-      setMessage(`Tautan dilepas. Laporan ${stopped?.institution_label ?? "aplikasi itu"} untuk ${accountName} akan ditanyakan lagi di Tinjau.`);
+      setMessage(stopped ? t("stopped", { app: stopped.institution_label, account: accountName }) : t("stoppedAny", { account: accountName }));
     },
-    onError: (error: Error) => setMessage(error.message || "Tautan gagal dilepas."),
+    onError: (error: Error) => setMessage(error.message || t("stopFailed")),
   });
-  if (isError) return <p className={styles.detailHeading} role="alert">Daftar aplikasi yang juga melaporkan rekening ini gagal dimuat.</p>;
+  if (isError) return <p className="t-meta" role="alert">{t("loadFailed")}</p>;
   const links = data?.links ?? [];
   if (!links.length && !message) return null;
   return (
-    <section aria-labelledby={`detail-links-${accountId}`}>
-      <h3 id={`detail-links-${accountId}`} className={styles.detailHeading}>Juga dilaporkan</h3>
+    <section aria-labelledby={headingId}>
+      <SectionHeader id={headingId} label={t("title")} />
       {links.length > 0 && (
-        <ul className={styles.detailRows}>
+        <ul className="list">
           {links.map((link) => (
-            <li key={link.id}>
-              <span>{link.institution_label}</span>
-              <ConfirmRemove
-                subject={`tautan ${link.institution_label}`}
-                triggerLabel={`Lepaskan tautan ${link.institution_label}`}
-                pending={stop.isPending}
-                onConfirm={() => stop.mutate(link.id)}
-                verb="Lepaskan"
-                confirmLabel="Ya, lepaskan"
-                pendingLabel="Melepas…"
-              />
+            <li key={link.id} className="row is-plain">
+              <span className="r-main">
+                <span className="r-title">{link.institution_label}</span>
+              </span>
+              <ConfirmStop label={link.institution_label} pending={stop.isPending} onConfirm={() => stop.mutate(link.id)} />
             </li>
           ))}
         </ul>
       )}
-      {message && <p role="status" className="mt-1 text-xs text-[var(--text-2)]">{message}</p>}
+      {message && <p role="status" className="t-meta">{message}</p>}
     </section>
+  );
+}
+
+function ConfirmStop({ label, pending, onConfirm }: { label: string; pending: boolean; onConfirm: () => void }) {
+  const t = useTranslations("accounts.links");
+  const [confirming, setConfirming] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const cancel = useRef<HTMLButtonElement>(null);
+  const returnFocus = useRef(false);
+  useEffect(() => {
+    if (confirming) cancel.current?.focus();
+    else if (returnFocus.current) {
+      returnFocus.current = false;
+      trigger.current?.focus();
+    }
+  }, [confirming]);
+  const stopConfirming = () => {
+    returnFocus.current = true;
+    setConfirming(false);
+  };
+  if (!confirming) {
+    return (
+      <button ref={trigger} type="button" className="ws-btn ws-btn-quiet ws-btn-sm" aria-label={t("removeNamed", { app: label })} onClick={() => setConfirming(true)}>
+        {t("remove")}
+      </button>
+    );
+  }
+  return (
+    <span
+      role="group"
+      aria-label={t("question", { app: label })}
+      className="r-actions"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.stopPropagation();
+          stopConfirming();
+        }
+      }}
+    >
+      <span className="t-meta">{t("question", { app: label })}</span>
+      <button ref={cancel} type="button" className="ws-btn ws-btn-sm" onClick={stopConfirming}>{t("cancel")}</button>
+      <button type="button" className="ws-btn ws-btn-sm" disabled={pending} onClick={() => { stopConfirming(); onConfirm(); }}>
+        {pending ? t("removing") : t("confirm")}
+      </button>
+    </span>
   );
 }

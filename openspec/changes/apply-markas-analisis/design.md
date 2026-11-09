@@ -289,7 +289,7 @@ Unchanged: `?tab=`, `?day=`, `?view=tabel`, written with `replaceSearch` and kee
 - **Server text:** period labels, flow node labels ("Saldo sebelum periode", "Masih ada", "Tidak dihitung belanja") and explanation lines arrive in the account's language from `localize-server-text`. User data (categories, accounts, merchants) is shown as stored, without a `lang` override.
 - **Registry and guards:**
   - `/insights` joins `lib/i18n/translatedRoutes.ts`, and its entry leaves `components/workspace/untranslatedPages.ts`;
-  - the untranslated-page test example, which phase 5 moved to Analisis, moves to Laporan (`/laporan`), untranslated until phase 7;
+  - the untranslated-page test example, which phase 5 moved to Analisis, moves to Pengaturan (`/settings`), untranslated until phase 10 (coordinator, 2026-11-09: phase 7 translates Laporan first);
   - the copy register's translated roots gain `app/insights`, `components/analysis` and `components/categories`, and the untranslated roots lose `components/analysis`, `components/insights` and `app/insights/page.tsx`; `components/settings/QuestionRate.tsx` falls under the existing `components/settings` untranslated root;
   - the Indonesian spending-term guard (`SPENDING_ID`) covers `analysis.*`, so "Belanja" can never label a figure again.
 
@@ -368,8 +368,8 @@ The plan's common gate, with Analisis's scenarios:
 | `custom-category-management` | Category Budget Variance Filtering | MODIFIED |
 | `report-periods-and-drilldown` | Non-Editable Insight Rows | MODIFIED |
 | `indonesian-daily-finance-ui` | Intuitive Daily Finance Terminology | MODIFIED: the Analisis scenario |
-| `monthly-navigation-stepper` | Month-and-Year Stepper Navigation | MODIFIED: example page Laporan (written over phase 5's version) |
-| `tactile-pulse-ui` | No Decorative Effects | MODIFIED: examples Laporan and Rekening, Analisis scenario added (written over phase 5's version) |
+| `monthly-navigation-stepper` | Month-and-Year Stepper Navigation | MODIFIED: example page Pengaturan (written over phase 5's version) |
+| `tactile-pulse-ui` | No Decorative Effects | MODIFIED: examples Laporan and Target & Tagihan, Analisis scenario added (written over phase 5's version) |
 
 No delta: `observed-insights` (behaviour unchanged; "Not shown by the web" still holds), `explainable-figures` (its rules already cover a redesigned page), `interface-language`, `ui-copy-register`, `design-tokens` (the heat tokens are named by no requirement).
 

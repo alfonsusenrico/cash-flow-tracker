@@ -76,6 +76,10 @@ export function createFormat({ language, region, currency = "IDR", rate }: Forma
     decimal(value: number, maximumFractionDigits = 1): string {
       return value.toLocaleString(digits, { maximumFractionDigits });
     },
+    /** A percentage with exactly `fractionDigits` decimals and no sign, such as "8,0%" (ID) or "8.0%" (US). */
+    percent(value: number, fractionDigits = 1): string {
+      return `${value.toLocaleString(digits, { minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits })}%`;
+    },
     /** An amount input's digits grouped by the region: "20.000.000" or "20,000,000". */
     groupDigits(value: string | number | null | undefined): string {
       return groupDigits(value, region);

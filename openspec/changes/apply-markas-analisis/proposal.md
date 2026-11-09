@@ -86,7 +86,7 @@ Each is a decision in `design.md` and is captured for the owner's end review:
 - **Backend, additive and read-only (owner decision D31):** Pengeluaran-basis fields beside the Belanja-basis ones: `daily_cadence[].spending` and `category_variance[].spending` / `spending_percentage_used` in the analytics, `totals.spending`, `days[].spending`, `days[].spending_heat` and `spending_heat_thresholds` in the calendar, and `summary.spending` in the flow, all from one helper that reuses the saving-pillar predicate of `services/saving_flow.py`.
 - **Moved:** "Seberapa sering ditanya" to Pengaturan › Kebiasaan, unchanged in behaviour (D18).
 - **Shared pieces built here and reused by phase 7 (D24):** `Meter` (the 4 px `.prog` bar), `ChangeFigure` (▲/▼ with the words for screen readers, through the money formatter), `ChartTable` (the chart/table toggle), `format.compactMoney` ("79rb", "1,3jt"; "79K", "1.3M"), and the category `BudgetDialog`.
-- **Language:** an `analysis` namespace; Kakeibo names from `terms`; dates and compact amounts through `lib/format.ts`; `/insights` added to the translated routes and removed from `untranslatedPages.ts`; the untranslated-page test example moved from Analisis to Laporan (`/laporan`) (D22).
+- **Language:** an `analysis` namespace; Kakeibo names from `terms`; dates and compact amounts through `lib/format.ts`; `/insights` added to the translated routes and removed from `untranslatedPages.ts`; the untranslated-page test example moved from Analisis to Pengaturan (`/settings`; coordinator, 2026-11-09, because phase 7 translates Laporan) (D22).
 - **Removed** (each with its destination in D25):
   - the KPI row (`KpiStrip` use on Analisis), `ProgressCard`, `BaselineCard` and the dotted `ExplainableFigure` use on Analisis;
   - `HabitsLearnedCard` and its test;
@@ -126,8 +126,8 @@ None.
 - `custom-category-management`: "Category Budget Variance Filtering" describes the category list and the "Kelola kategori" dialog.
 - `report-periods-and-drilldown`: "Non-Editable Insight Rows" in the dialog.
 - `indonesian-daily-finance-ui`: "Intuitive Daily Finance Terminology" names Analisis's new labels.
-- `monthly-navigation-stepper`: the untranslated-page example moves from Analisis to Laporan.
-- `tactile-pulse-ui`: "No Decorative Effects" names Laporan and Rekening as the pages not yet redesigned, and adds an Analisis scenario.
+- `monthly-navigation-stepper`: the untranslated-page example moves from Analisis to Pengaturan.
+- `tactile-pulse-ui`: "No Decorative Effects" names Laporan and Target & Tagihan as pages not yet redesigned (Rekening was redesigned by phase 8), and adds an Analisis scenario.
 
 `interface-language` and `ui-copy-register` (from `add-language-system`) need no delta. Adding `/insights` to the translated routes follows their rule that the set of untranslated pages only shrinks.
 
@@ -155,7 +155,7 @@ No capability in `AGENTS.md` changes.
   - `components/charts/theme.ts` removed;
   - `components/report/BudgetPanel.tsx` and `ComparisonParts.tsx` (imports only: the moved dialog and `format.compactMoney`).
 - **Pengaturan:** `components/settings/HabitsSettings.tsx` gains the moved "Seberapa sering ditanya" panel; its test absorbs `QuestionRate.test.tsx`.
-- **Language:** `messages/en.json` and `id.json` (`analysis`, `terms` additions, `errors` codes if any), `lib/i18n/translatedRoutes.ts` (`/insights`), `components/workspace/untranslatedPages.ts` (the `/insights` entry removed), the copy register roots, and the untranslated-page test of `add-language-system`, which moves its example from Analisis to Laporan.
+- **Language:** `messages/en.json` and `id.json` (`analysis`, `terms` additions, `errors` codes if any), `lib/i18n/translatedRoutes.ts` (`/insights`), `components/workspace/untranslatedPages.ts` (the `/insights` entry removed), the copy register roots, and the untranslated-page test of `add-language-system`, which moves its example from Analisis to Pengaturan.
 - **Backend (additive, read-only, flagged D5):** `services/monthly_comparison.py` (`progress.baseline_share`) and a test in `tests/test_monthly_comparison.py`.
 - **Backend (additive, read-only, owner decision D31):** new `services/spending_basis.py`; `services/saving_flow.py` (the saving-pillar predicate as a named helper), `routers/dashboard.py` (analytics), `services/calendar.py`, `services/money_flow.py`; tests in `tests/test_spending_basis.py`.
 - **Tooling (local only):** `scripts/verify/markas/`: the Analisis scenarios, `analisis-checklist.js`, the keyboard flows `analisis-keys.mjs`, the parity seed extended with a 33-day running cycle, a partial month and an archived category with spending, and the stress and USD seed for Analisis.

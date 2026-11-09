@@ -269,25 +269,10 @@
  {
   "name": "rekening",
   "path": "/accounts",
+  "rekening": true,
   "steps": [
    {
-    "click": "^Kartu$"
-   },
-   {
-    "click": "^Per kegunaan$"
-   }
-  ],
-  "full": true
- },
- {
-  "name": "rekening-grafik",
-  "path": "/accounts",
-  "steps": [
-   {
-    "click": "^Grafik$"
-   },
-   {
-    "click": "^Per kegunaan$"
+    "click": "^(Per kegunaan|By use)$"
    }
   ],
   "full": true
@@ -295,15 +280,490 @@
  {
   "name": "rekening-per-rekening",
   "path": "/accounts",
+  "rekening": true,
   "steps": [
    {
-    "click": "^Kartu$"
-   },
-   {
-    "click": "^Per rekening$"
+    "click": "^(Per rekening|By account)$"
    }
   ],
   "full": true
+ },
+ {
+  "name": "rekening-grafik",
+  "path": "/accounts?tampilan=grafik",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Grafik|Chart)$"
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "rekening-grafik-tabungan",
+  "path": "/accounts?tampilan=grafik",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Grafik|Chart)$"
+   },
+   {
+    "click": "^(Tabungan|Savings)Rp"
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "rekening-atur-urutan",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "click": "^(Tindakan lain untuk Rekening|More actions for Accounts)"
+   },
+   {
+    "click": "^(Atur urutan|Arrange)$"
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "rekening-sembunyi",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   }
+  ],
+  "full": true,
+  "cells": [
+   "1440-light",
+   "390-dark"
+  ],
+  "storage": {
+   "hideBalances": "1"
+  }
+ },
+ {
+  "name": "dlg-rincian-kekayaan",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Rincian|Breakdown)$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-rekening-detail",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"Makan & Jajan\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"Makan & Jajan\"; })()",
+    "after": 1200
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-rekening-induk",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per rekening|By account)$"
+   },
+   {
+    "click": "^Jago$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-rekening-kredit",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"SPayLater\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"SPayLater\"; })()",
+    "after": 1200
+   },
+   {
+    "click": "^(Jatuh tempo|Due) "
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-rekening-kredit-tagihan",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"Kartu Kredit Contoh\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"Kartu Kredit Contoh\"; })()",
+    "after": 1200
+   },
+   {
+    "click": "^(Jatuh tempo|Due) "
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-rekening-kredit-tanpa-tanggal",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"Kredivo Contoh\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"Kredivo Contoh\"; })()",
+    "after": 1200
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-produk",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"Saham Bank Nusantara\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"Saham Bank Nusantara\"; })()",
+    "after": 1200
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-produk-nominal",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"Reksa Dana Pasar Uang Sejahtera\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"Reksa Dana Pasar Uang Sejahtera\"; })()",
+    "after": 1200
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-platform",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per rekening|By account)$"
+   },
+   {
+    "click": "^Stockbit$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-rekening-tambah",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Tambah rekening|Add account)$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-rekening-tambah-kredit",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Tambah rekening|Add account)$"
+   },
+   {
+    "click": "^(Kredit|Credit)$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-kantong-tambah",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per rekening|By account)$"
+   },
+   {
+    "click": "^Jago$"
+   },
+   {
+    "click": "^(Tambah kantong|Add pocket)$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-beli",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"Saham Bank Nusantara\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"Saham Bank Nusantara\"; })()",
+    "after": 1200
+   },
+   {
+    "click": "^(Beli|Buy)$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-jual",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"Saham Bank Nusantara\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"Saham Bank Nusantara\"; })()",
+    "after": 1200
+   },
+   {
+    "click": "^(Jual|Sell)$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-topup",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"Reksa Dana Pasar Uang Sejahtera\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"Reksa Dana Pasar Uang Sejahtera\"; })()",
+    "after": 1200
+   },
+   {
+    "click": "^Top up$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-perbarui-nilai",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"Reksa Dana Pasar Uang Sejahtera\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"Reksa Dana Pasar Uang Sejahtera\"; })()",
+    "after": 1200
+   },
+   {
+    "click": "^(Perbarui nilai|Update value)$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-menu-akun",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"GoPay\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"GoPay\"; })()",
+    "after": 1200
+   },
+   {
+    "click": "^(Tindakan lain untuk|More actions for) GoPay"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-sesuaikan-saldo",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"GoPay\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"GoPay\"; })()",
+    "after": 1200
+   },
+   {
+    "click": "^(Tindakan lain untuk|More actions for) GoPay"
+   },
+   {
+    "click": "^(Sesuaikan saldo|Adjust balance)$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-cocokkan",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Per kegunaan|By use)$"
+   },
+   {
+    "eval": "(() => { const tile = [...document.querySelectorAll('[data-account-row]')].find((element) => element.querySelector('.tl-name')?.textContent === \"GoPay\"); if (!tile) return 'NOT FOUND'; tile.scrollIntoView({ block: 'center' }); (tile.matches('button') ? tile : tile.querySelector('.tl-open')).click(); return 'opened ' + \"GoPay\"; })()",
+    "after": 1200
+   },
+   {
+    "click": "^(Cocokkan saldo|Check balance)$"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "dlg-menu-rekening",
+  "path": "/accounts",
+  "rekening": true,
+  "steps": [
+   {
+    "click": "^(Tindakan lain untuk Rekening|More actions for Accounts)"
+   }
+  ],
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ]
  },
  {
   "name": "target",
@@ -387,51 +847,6 @@
    },
    {
     "click": "^Perpindahan$"
-   }
-  ],
-  "cells": [
-   "1440-light",
-   "1440-dark",
-   "390-light"
-  ]
- },
- {
-  "name": "dlg-rekening-detail",
-  "path": "/accounts",
-  "steps": [
-   {
-    "click": "^ATM, kantong di BCA"
-   }
-  ],
-  "cells": [
-   "1440-light",
-   "1440-dark",
-   "390-light"
-  ]
- },
- {
-  "name": "dlg-cocokkan-saldo",
-  "path": "/accounts",
-  "steps": [
-   {
-    "click": "^ATM, kantong di BCA"
-   },
-   {
-    "click": "^Cocokkan saldo$"
-   }
-  ],
-  "cells": [
-   "1440-light",
-   "1440-dark",
-   "390-light"
-  ]
- },
- {
-  "name": "dlg-investasi-detail",
-  "path": "/accounts",
-  "steps": [
-   {
-    "click": "^Saham Contoh Bank"
    }
   ],
   "cells": [
@@ -1247,6 +1662,74 @@
    },
    {
     "click": "^(Ubah|Edit)$"
+   }
+  ]
+ },
+ {
+  "name": "state-rekening-memuat",
+  "path": "/accounts",
+  "rekening": true,
+  "fault": "delay",
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ],
+  "steps": [
+   {
+    "wait": 1200
+   }
+  ]
+ },
+ {
+  "name": "state-rekening-kosong",
+  "path": "/accounts",
+  "rekening": true,
+  "fault": "empty",
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ],
+  "steps": [
+   {
+    "wait": 1200
+   }
+  ]
+ },
+ {
+  "name": "state-rekening-galat",
+  "path": "/accounts",
+  "rekening": true,
+  "fault": "fail",
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ],
+  "steps": [
+   {
+    "wait": 1200
+   }
+  ]
+ },
+ {
+  "name": "state-rekening-hero-galat",
+  "path": "/accounts",
+  "rekening": true,
+  "fault": "herofail",
+  "cells": [
+   "1440-light",
+   "1440-dark",
+   "390-light",
+   "390-dark"
+  ],
+  "steps": [
+   {
+    "wait": 1200
    }
   ]
  }

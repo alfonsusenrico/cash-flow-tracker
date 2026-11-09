@@ -1,4 +1,4 @@
-/* Rekening & Kantong, Target & Tagihan and Pengaturan (redesign-money-and-settings D2, D4, D6, D12).
+/* Target & Tagihan and Pengaturan; Rekening & Kantong moved to globals.css (apply-markas-rekening D18) (redesign-money-and-settings D2, D4, D6, D12).
    Workspace tokens only; marks and bars are decorative and every value is written as text. */
 
 .root { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
@@ -6,8 +6,6 @@
 .grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; align-items: start; gap: 16px; }
 .grid > .summaryFirst { order: 2; position: sticky; top: calc(var(--topbar-h) + 16px); }
 .stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-.notice { margin: 0; padding: 10px 14px; border-radius: var(--r-panel); background: var(--surface-2); color: var(--text); font-size: 14px; }
-.alert { margin: 0; padding: 10px 14px; border-radius: var(--r-panel); background: var(--out-bg); color: var(--out-fg); font-size: 14px; }
 .plainTitle { margin: 0; font-size: 16px; font-weight: 600; }
 
 .table { table-layout: auto; }
@@ -32,29 +30,6 @@
 .drawerFacts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; margin: 0; font-size: 14px; }
 .drawerFacts dt { color: var(--muted); }
 .drawerFacts dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-/* Account detail (refine-workspace-layout D7): headline facts, pockets, recent rows and one action row. */
-.detailMark { display: grid; flex: none; place-items: center; width: 40px; height: 40px; border-radius: var(--r-panel); font-size: 14px; font-weight: 600; }
-.detailFacts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; }
-.detailFacts > div { min-width: 0; padding: 11px 12px; border-radius: var(--r-panel); background: var(--surface-2); }
-.detailFacts dt { color: var(--muted); font-size: 12px; font-weight: 600; }
-.detailFacts dd { margin: 2px 0 0; overflow-wrap: anywhere; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.detailHeading { margin: 0 0 4px; color: var(--muted); font-size: 14px; font-weight: 600; }
-.detailRows { margin: 0; padding: 0; list-style: none; }
-.detailRows li { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 8px 4px; border-top: 1px solid var(--line); }
-.detailRows li:first-child { border-top: 0; }
-.detailRows li > i { flex: none; width: 8px; height: 8px; border-radius: var(--r-control); }
-.detailRows li > span:first-of-type { flex: 1; min-width: 0; font-weight: 600; }
-.detailRows li > :last-child { margin-left: auto; text-align: right; font-variant-numeric: tabular-nums; }
-.detailRows li > b { font-weight: 600; }
-.detailTx { display: flex; flex-direction: column; }
-.detailTx small { color: var(--muted); font-size: 12px; font-weight: 400; }
-.detailActions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.dangerLink { margin-left: auto; padding: 0 6px; border-radius: var(--r-panel); color: var(--out-fg); font-weight: 600; }
-.dangerLink:hover { text-decoration: underline; }
-@media (max-width: 520px) {
-  .detailFacts { grid-template-columns: 1fr 1fr; }
-  .detailActions > :global(.ws-btn) { flex: 1 1 auto; justify-content: center; }
-}
 
 @container main (max-width: 900px) {
   .grid { grid-template-columns: minmax(0, 1fr); }
@@ -133,11 +108,6 @@
 .linkRow { margin: 0; font-size: 14px; }
 .linkRow :global(.ws-linkbtn) { display: inline-flex; align-items: center; min-height: 24px; }
 
-/* Gains in the account detail. */
-.gainUp { color: var(--in-fg); font-weight: 600; font-variant-numeric: tabular-nums; }
-.gainDown { color: var(--out-fg); font-weight: 600; font-variant-numeric: tabular-nums; }
-.gainUnknown { color: var(--muted); }
-
 /* Target & Tagihan (refine-workspace-layout D11): three equal cards, then the goals at full width. */
 .factsTwo { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 12px; }
 /* Doubled to outrank the shared ".ws-dana-big b" colour. */
@@ -153,25 +123,3 @@
 .billList li > span > span { color: var(--muted); font-size: 12px; }
 .billList b { font-weight: 600; font-variant-numeric: tabular-nums; }
 @container main (max-width: 900px) { .trio { grid-template-columns: minmax(0, 1fr); } }
-
-/* "Cocokkan saldo" (manual-balance-check D7) */
-.checkForm { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
-.checkForm > :first-child { flex: 1 1 240px; min-width: 0; }
-.checkResult { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
-.checkUp { color: var(--in-fg); }
-.checkDown { color: var(--out-fg); }
-.checkNote { margin: 0; padding: 10px 12px; border-radius: var(--r-panel); background: var(--surface-2); color: var(--text-2); font-size: 14px; }
-.checkExplain { display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--surface-2); }
-.checkExplain > b { font-size: 14px; }
-.checkCauses { margin: 0; padding: 0; list-style: none; }
-.checkCauses li { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 8px 2px; border-top: 1px solid var(--line); }
-.checkCauses li:first-child { border-top: 0; }
-.checkCauseText { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
-.checkCauseText b { font-size: 14px; font-weight: 600; }
-.checkCauseText small { overflow-wrap: anywhere; color: var(--muted); font-size: 12px; }
-.checkCauseEnd { display: flex; flex: none; flex-direction: column; align-items: flex-end; gap: 2px; }
-.checkLink { display: inline-flex; align-items: center; min-height: 24px; color: var(--accent-fg); font-size: 12px; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
-@media (max-width: 480px) {
-  .checkCauses li { flex-wrap: wrap; align-items: flex-start; }
-  .checkCauseEnd { flex-direction: row; align-items: center; justify-content: space-between; width: 100%; }
-}

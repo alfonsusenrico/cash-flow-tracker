@@ -89,6 +89,7 @@ function workspaceValue(overrides: Partial<WorkspaceValue> = {}): WorkspaceValue
     collapsed: false,
     toggleCollapsed: vi.fn(),
     openCapture: vi.fn(),
+    openMovementCapture: vi.fn(),
     openHelp: vi.fn(),
     logout: vi.fn(),
     header: null,
@@ -162,7 +163,8 @@ describe("navigation model", () => {
     // Transaksi writes its title from the catalogue since apply-markas-transaksi, so it has no untranslated entry.
     expect({ title: untranslatedPageTitle("/ledger"), width: frameWidth("/ledger") }).toEqual({ title: null, width: 1040 });
     expect({ ...untranslatedPageTitle("/settings/profil"), width: frameWidth("/settings/profil") }).toEqual({ title: "Pengaturan", subtitle: "", width: 1040 });
-    expect(untranslatedPageTitle("/accounts")?.subtitle).toBe("Saldo rekening, kantong, investasi dan utang");
+    // Rekening & Kantong writes its title from the catalogue since apply-markas-rekening; Pengaturan stays the example.
+    expect(untranslatedPageTitle("/accounts")).toBeNull();
     expect(untranslatedPageTitle("/goals")?.subtitle).toBe("Dana darurat, tagihan, utang dan target tabungan");
     expect(frameWidth("/")).toBe(1200);
   });
@@ -979,11 +981,11 @@ describe("pages not translated yet (add-language-system D10)", () => {
     );
   }
 
-  it("shows English Laporan's Indonesian title block and content marked lang=id, with the notice in English", async () => {
-    showPage("/laporan", "en");
+  it("shows English Pengaturan's Indonesian title block and content marked lang=id, with the notice in English", async () => {
+    showPage("/settings", "en");
     const main = await screen.findByRole("main");
     expect(main).toHaveAttribute("lang", "id");
-    expect(within(main).getByRole("heading", { level: 1, name: "Laporan" })).toHaveAttribute("lang", "id");
+    expect(within(main).getByRole("heading", { level: 1, name: "Pengaturan" })).toHaveAttribute("lang", "id");
     const notice = within(main).getByText("This page is in Indonesian for now.");
     expect(notice).toHaveAttribute("lang", "en");
     expect(screen.getByRole("navigation", { name: "Main menu" })).toHaveTextContent("Review");
@@ -998,11 +1000,11 @@ describe("pages not translated yet (add-language-system D10)", () => {
     expect(document.querySelector("[lang='id']")).toBeNull();
   });
 
-  it("shows no notice on an Indonesian Laporan", async () => {
-    showPage("/laporan", "id");
+  it("shows no notice on an Indonesian Pengaturan", async () => {
+    showPage("/settings", "id");
     const main = await screen.findByRole("main");
     expect(main).not.toHaveAttribute("lang");
-    expect(within(main).getByRole("heading", { level: 1, name: "Laporan" })).not.toHaveAttribute("lang");
+    expect(within(main).getByRole("heading", { level: 1, name: "Pengaturan" })).not.toHaveAttribute("lang");
     expect(screen.queryByText("This page is in Indonesian for now.")).not.toBeInTheDocument();
   });
 

@@ -82,15 +82,19 @@ Below 768 px the `/ledger` screen SHALL show, in order: the hero "Pengeluaran", 
 - **THEN** selection mode SHALL start with that row checked, and the selection bar SHALL stay visible below the phone header
 
 ### Requirement: Phone Rekening & Kantong Composition
-At 760 px and below, Rekening & Kantong SHALL use a composition built for phones: the KPI cards first as a two-by-two grid, then "Komposisi aset", then the account cards in one column with their pockets inside, each pocket's balance on its own line beside its name. Every card head and pocket row SHALL open its actions in a bottom sheet, and reordering SHALL use "Ubah urutan" with move controls.
+Below 768 px, Rekening & Kantong SHALL show the hero, its legend and the two controls first, then Uang harian as a sideways-scrolling wallet of 280 px tiles, then every other group with one tile per row. Every tile SHALL open its detail in a bottom sheet, "Perbarui harga" SHALL sit in the "…" menu, and reordering SHALL use "Atur urutan" with move buttons.
 
 #### Scenario: Rekening on a phone
 - **WHEN** the owner opens `/accounts` at 390 px
-- **THEN** the KPI cards SHALL come first, no page SHALL overflow horizontally, and tapping a pocket SHALL open its bottom sheet with its actions without scrolling the page
+- **THEN** the hero SHALL come first, the Uang harian tiles SHALL scroll sideways inside their own row, no page SHALL overflow horizontally, and tapping a tile SHALL open its bottom sheet with its actions without scrolling the page
 
 #### Scenario: Closing a sheet returns focus
-- **WHEN** a keyboard or switch user closes a row's bottom sheet with its close control or Escape
-- **THEN** focus SHALL return to the row that opened it
+- **WHEN** a keyboard or switch user closes a tile's bottom sheet with its close control or Escape
+- **THEN** focus SHALL return to the tile that opened it
+
+#### Scenario: Smallest width
+- **WHEN** the page is shown at 320 px
+- **THEN** the hero figure SHALL be 32 px, the controls SHALL scroll inside their boxes, and nothing SHALL overflow the page
 
 ### Requirement: Phone Target & Tagihan Composition
 At 760 px and below, Target & Tagihan SHALL show Ketahanan Dana first, then Target tabungan, Utang and the bills up to the next salary, each goal and debt opening a bottom sheet.

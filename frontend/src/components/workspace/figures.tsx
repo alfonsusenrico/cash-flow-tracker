@@ -2,6 +2,8 @@
 
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
+import { useAppCtx } from "@/components/layout/AppLayout";
+import { useFormat } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { MaskedMoney } from "./money";
 
@@ -175,6 +177,48 @@ export function ChangeFigure({ change, money, riseIsCost = true }: { change: num
       <span aria-hidden="true">{rose ? "▲" : "▼"} </span>
       <span className="sr-only">{rose ? t("up") : t("down")} </span>
       <MaskedMoney text={money(Math.abs(change))} />
+    </span>
+  );
+}
+
+/**
+ * A progress bar (SPEC `.prog`): a 4 px track, 8 px with `thick`, and a square fill of `value` over `max`, capped at
+ * the track. Decorative: the caller writes the values in text beside it (apply-markas-rekening D18).
+ */
+export function ProgressBar({ value, max, thick = false, color }: { value: number; max: number; thick?: boolean; color?: string }) {
+  const share = max > 0 ? Math.min(1, Math.max(0, value / max)) : 0;
+  return (
+    <div className={cn("prog", thick && "is-thick")} aria-hidden="true">
+      <span style={{ width: `${share * 100}%`, ...(color ? { background: color } : {}) }} />
+    </div>
+  );
+}
+
+/** A gain over a set of products: its amount and cost, or `unknown` when a cost basis is missing (D6). */
+export type GainFigure = { amount: number; cost: number } | "unknown";
+
+/**
+ * A capital gain as "▲ +Rp 396.000 · +8,0%" or "▼ −Rp 164.000 · −10,7%" (SPEC `M.gain`, apply-markas-rekening D6):
+ * the triangle, the sign and a hidden "untung" or "rugi" besides the colour, the percent of the cost with one
+ * decimal, and the cost note when one is unknown. Nothing without products. With "Sembunyikan saldo" the amount
+ * and its sign are masked and the percent stays (D17).
+ */
+export function GainText({ gain, unknownLabel, className }: { gain: GainFigure | null; unknownLabel?: string; className?: string }) {
+  const t = useTranslations("accounts.tile");
+  const format = useFormat();
+  const { hideBalances } = useAppCtx();
+  if (!gain) return null;
+  if (gain === "unknown") return <span className={cn("gain", "muted", className)}>{unknownLabel ?? t("costMissing")}</span>;
+  const up = gain.amount >= 0;
+  const sign = up ? "+" : "\u2212";
+  const percent = gain.cost > 0 ? format.percent((Math.abs(gain.amount) / gain.cost) * 100) : null;
+  return (
+    <span className={cn("gain", up ? "c-income" : "c-expense", className)}>
+      <span aria-hidden="true">{up ? "\u25B2" : "\u25BC"} </span>
+      {!hideBalances && sign}
+      <MaskedMoney text={format.money(Math.abs(gain.amount))} />
+      {percent && ` \u00B7 ${sign}${percent}`}
+      <span className="sr-only"> {up ? t("gainUp") : t("gainDown")}</span>
     </span>
   );
 }

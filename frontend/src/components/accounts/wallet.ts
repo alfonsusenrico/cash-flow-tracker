@@ -9,25 +9,26 @@ export type AssetUse = Exclude<AccountRole, "utang">;
 
 export interface UseInfo {
   key: AccountRole;
-  label: string;
+  /** The `accounts.groups` key of the use's name. */
+  labelKey: "harian" | "tabungan" | "dana" | "investasi" | "utang";
   colour: string;
-  note?: string;
 }
 
 export const USES: (UseInfo & { key: AssetUse })[] = [
-  { key: "harian", label: "Uang harian", colour: "var(--use-harian)" },
-  { key: "tabungan", label: "Tabungan", colour: "var(--use-tabungan)" },
-  { key: "dana_investasi", label: "Dana investasi", colour: "var(--use-dana)", note: "belum dibelikan" },
-  { key: "investasi", label: "Investasi", colour: "var(--use-investasi)" },
+  { key: "harian", labelKey: "harian", colour: "var(--use-harian)" },
+  { key: "tabungan", labelKey: "tabungan", colour: "var(--use-tabungan)" },
+  { key: "dana_investasi", labelKey: "dana", colour: "var(--use-dana)" },
+  { key: "investasi", labelKey: "investasi", colour: "var(--use-investasi)" },
 ];
 
-export const DEBT_USE: UseInfo = { key: "utang", label: "Utang", colour: "var(--out-solid)" };
+export const DEBT_USE: UseInfo = { key: "utang", labelKey: "utang", colour: "var(--out-solid)" };
 
-export const KINDS: { key: InvestmentKind; label: string; colour: string }[] = [
-  { key: "emas", label: "Emas", colour: "var(--kind-emas)" },
-  { key: "reksa_dana", label: "Reksa dana", colour: "var(--kind-reksa-dana)" },
-  { key: "saham", label: "Saham", colour: "var(--kind-saham)" },
-  { key: "lainnya", label: "Lainnya", colour: "var(--use-investasi)" },
+/** Investment kinds in the prototype's order; their names are `accounts.kinds.<key>`. */
+export const KINDS: { key: InvestmentKind; colour: string }[] = [
+  { key: "reksa_dana", colour: "var(--kind-reksa-dana)" },
+  { key: "saham", colour: "var(--kind-saham)" },
+  { key: "emas", colour: "var(--kind-emas)" },
+  { key: "lainnya", colour: "var(--use-investasi)" },
 ];
 
 export function roleInfo(role: AccountRole): UseInfo {
@@ -153,9 +154,9 @@ export function sharesByUse(holdings: Holding[]): { use: (typeof USES)[number]; 
 export interface Section {
   /** A use key under Per kegunaan, a top-level account id under Per rekening. */
   key: string;
-  title: string;
-  colour?: string;
-  note?: string;
+  /** Set under Per kegunaan: the use whose name titles the group. */
+  use?: UseInfo;
+  /** Set under Per rekening: the account whose stored name titles the group. */
   rekening?: AccountItem;
   holdings: Holding[];
 }
@@ -167,15 +168,12 @@ export function sectionsFor(grouping: LayoutGrouping, topLevel: AccountItem[], h
   if (grouping === "use") {
     return SECTION_USES.map((use) => ({
       key: use.key,
-      title: use.label,
-      colour: use.colour,
-      note: use.note,
+      use,
       holdings: holdings.filter((holding) => holding.role === use.key),
     }));
   }
   return topLevel.map((rekening) => ({
     key: rekening.id,
-    title: rekening.name,
     rekening,
     holdings: holdings.filter((holding) => holding.rekening.id === rekening.id),
   }));
@@ -222,34 +220,18 @@ export function moved<T>(items: T[], from: number, to: number): T[] {
   return next;
 }
 
-export function formatPercent(value: number): string {
-  return value.toLocaleString("id-ID", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+/** A row shows when it has cards; empty rows keep their place in the saved order. */
+export function isShown(section: Section): boolean {
+  return section.holdings.length > 0;
 }
 
-/** An active debt from Target & Tagihan (an obligation); it has no rekening and no place in the saved layout. */
-export interface Bill {
-  id: string;
-  name: string;
-  /** What is still owed, as a positive amount. */
-  amount: number;
-}
-
-/** The row key of the bills under Per rekening, after the rows the owner orders. */
-export const BILLS_ROW = "tagihan";
-
-/** Active obligations from the net worth response; the same set its `total_liabilities` counts. */
-export function billsOf(obligations: { id: string; name: string; remaining_amount: number }[] | undefined): Bill[] {
-  return (obligations ?? [])
-    .filter((obligation) => obligation.remaining_amount > 0)
-    .map((obligation) => ({ id: obligation.id, name: obligation.name, amount: obligation.remaining_amount }));
-}
-
-/** The bills a row shows: Utang holds them under Per kegunaan. */
-export function billsIn(section: Section, grouping: LayoutGrouping, bills: Bill[]): Bill[] {
-  return grouping === "use" && section.key === "utang" ? bills : [];
-}
-
-/** A row shows when it has cards, Utang also with bills alone. */
-export function isShown(section: Section, grouping: LayoutGrouping, bills: Bill[]): boolean {
-  return section.holdings.length > 0 || billsIn(section, grouping, bills).length > 0;
+/**
+ * The active obligations that Kekayaan bersih still subtracts: Utang no longer lists them (owner request
+ * 2026-11-05), so the page shows their count and `total_liabilities − credit_owed` as one link to Target & Tagihan.
+ */
+export function obligationsOutside(netWorth: { total_liabilities: number; credit_owed?: number; obligations?: { remaining_amount: number }[] } | undefined): { count: number; amount: number } {
+  if (!netWorth) return { count: 0, amount: 0 };
+  const amount = netWorth.total_liabilities - (netWorth.credit_owed ?? 0);
+  const count = (netWorth.obligations ?? []).filter((obligation) => obligation.remaining_amount > 0).length;
+  return { count, amount: Math.max(0, amount) };
 }
