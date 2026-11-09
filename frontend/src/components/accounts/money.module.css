@@ -81,4 +81,3 @@
 /* A link on its own line keeps a 24px target (WCAG 2.5.8), also at 400% zoom. */
 .linkRow { margin: 0; font-size: 14px; }
 .linkRow :global(.ws-linkbtn) { display: inline-flex; align-items: center; min-height: 24px; }
-
