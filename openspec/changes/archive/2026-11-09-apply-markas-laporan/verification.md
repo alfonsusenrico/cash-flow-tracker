@@ -52,6 +52,13 @@ checklist passes 440 of 446 per language: its "status column width 112" and "exp
 phase 5, which widened the status column to 136 px and made expense amounts red (`RowAmount`); neither file is changed
 here.
 
+After PR #96 merged into `main` (`baa90a8`), `origin/main` was merged on top in `24e9251` ("chore: merge main into
+markas-laporan"); it changed no file against `4eee7ca`. The same checks were re-run on `24e9251`: type-check, lint and
+build passed; `npm test` 99 files, 1,050 tests passed; backend pytest on a fresh `postgres:16` V1 → V54 2197 passed
+(exit 0); `openspec validate --all --strict` 84 of 84; `git diff --check origin/main HEAD` clean; the same smoke
+captures on a freshly seeded owner gave the same results (20 per language, axe 0, console 0, no overflow, Laporan 400
+of 400, Target 168 of 168, Beranda 440 of 446 with the same two outdated checks).
+
 ## For PROJECT_STATE.md
 
 `PROJECT_STATE.md` is untracked in the owner's checkout, which this run does not touch; the coordinator carries these
@@ -63,7 +70,7 @@ over:
   `budget.overall.spending`/`spending_remaining`, `flow.spending_reimbursement_offset`, `comparison.spending_top_merchant`;
   Belanja-basis fields unchanged.
 - Untranslated-page example stays Pengaturan (`/settings`) until phase 10. Translated routes now include `/goals` (phase 9) and `/laporan`.
-- This branch is stacked on phase 9 (`8312696`), so it should merge after PR #96 or replace it.
+- Phase 9 is on `main` (`baa90a8`) and merged into this branch (`24e9251`).
 - `KpiStrip`, `Kpi` and `.ws-kpi*` are removed (Laporan was their last user).
 - Follow-ups: `Meter` (phase 6) and `ProgressBar` (phase 8) still overlap (phase 12); "Rincian tabungan" cannot add up
   when money was paid from savings until the report sends `paid_from_savings` (D6); the recurring charges keep their
