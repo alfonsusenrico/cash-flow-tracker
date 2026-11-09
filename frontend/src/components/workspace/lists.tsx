@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { DOMAttributes, ReactNode } from "react";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { cn } from "@/lib/utils";
 
@@ -57,7 +57,7 @@ export interface ListRowProps {
   phoneMeta?: ReactNode;
   /** The category column of the full variant (Transaksi). */
   category?: ReactNode;
-  /** The status column: a pillar dot and name, or a word such as "Tidak dihitung". */
+  /** The status column: a pillar dot and name, or a word such as a transfer's saving direction ("Ditabung"). */
   status?: ReactNode;
   amount?: ReactNode;
   chevron?: boolean;
@@ -70,6 +70,13 @@ export interface ListRowProps {
   rowKey?: string;
   /** Controls at the end of a plain row, such as Tinjau's "Terima" and "Tolak" for one suggestion. */
   actions?: ReactNode;
+  /**
+   * Selection for a merge (apply-markas-transaksi D9): the row becomes one `label` with a 16 px checkbox before the
+   * time, so the whole row toggles it; a disabled row is dimmed and its checkbox disabled.
+   */
+  selectable?: { checked: boolean; disabled: boolean; onToggle: () => void; label: string };
+  /** Pointer handlers of the row element, such as the phone's long-press that starts a merge. */
+  pressHandlers?: Pick<DOMAttributes<HTMLElement>, "onPointerDown" | "onPointerMove" | "onPointerUp" | "onPointerCancel" | "onContextMenu">;
 }
 
 /**
@@ -78,6 +85,7 @@ export interface ListRowProps {
  */
 export function ListRow({
   href, onClick, time, icon, title, meta, phoneMeta, category, status, amount, chevron, selected, current, layout, rowKey, actions,
+  selectable, pressHandlers,
 }: ListRowProps) {
   const content = (
     <>
@@ -102,6 +110,27 @@ export function ListRow({
       )}
     </>
   );
+  if (selectable) {
+    return (
+      <label
+        className={cn("row", "ws-select-row", "is-selectable", layout === "stacked" && "is-stacked")}
+        data-row={rowKey}
+        data-selected={selectable.checked ? "" : undefined}
+        aria-disabled={selectable.disabled || undefined}
+        {...pressHandlers}
+      >
+        <input
+          type="checkbox"
+          className="r-check"
+          checked={selectable.checked}
+          disabled={selectable.disabled}
+          onChange={selectable.onToggle}
+          aria-label={selectable.label}
+        />
+        {content}
+      </label>
+    );
+  }
   if (!href && !onClick) {
     return (
       <div className={cn("row", "is-plain", layout === "stacked" && "is-stacked")}>
@@ -124,7 +153,7 @@ export function ListRow({
     );
   }
   return (
-    <button type="button" className={className} onClick={onClick} {...selection}>
+    <button type="button" className={className} onClick={onClick} {...selection} {...pressHandlers}>
       {content}
     </button>
   );

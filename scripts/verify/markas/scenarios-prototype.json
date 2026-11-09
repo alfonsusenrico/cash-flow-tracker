@@ -41,7 +41,8 @@
  },
  {
   "name": "transaksi",
-  "path": "/transaksi"
+  "path": "/transaksi",
+  "transaksi": true
  },
  {
   "name": "analisis",
@@ -342,6 +343,52 @@
   "steps": [
    {
     "click": "^Ciutkan menu samping$"
+   }
+  ]
+ },
+ {
+  "name": "dlg-filter",
+  "path": "/transaksi",
+  "transaksi": true,
+  "steps": [
+   {
+    "click": "^Filter"
+   }
+  ]
+ },
+ {
+  "name": "dlg-menu-transaksi",
+  "path": "/transaksi",
+  "transaksi": true,
+  "steps": [
+   {
+    "eval": "(() => { const b = document.querySelector('.title-block [data-d^=\"menu\"], .title-block .icon-btn:last-child'); b?.click(); return b ? 'clicked more' : 'NOT FOUND'; })()",
+    "after": 700
+   }
+  ]
+ },
+ {
+  "name": "dlg-transaksi-detail",
+  "path": "/transaksi",
+  "transaksi": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = document.querySelector('[data-d^=\"transaksi:\"]'); row?.click(); return row ? 'clicked row' : 'NOT FOUND'; })()",
+    "after": 900
+   }
+  ]
+ },
+ {
+  "name": "dlg-transaksi-ubah",
+  "path": "/transaksi",
+  "transaksi": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = document.querySelector('[data-d^=\"transaksi:\"]'); row?.click(); return row ? 'clicked row' : 'NOT FOUND'; })()",
+    "after": 900
+   },
+   {
+    "click": "^Ubah$"
    }
   ]
  }

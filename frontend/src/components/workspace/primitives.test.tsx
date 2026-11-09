@@ -10,7 +10,7 @@ import { DayHeading, ListRow, Panel, PanelBlock, SectionHeader } from "./lists";
 import { Rail, RailItem, RailRule } from "./rail";
 import { ShellDialog } from "./ShellDialog";
 import { MaskedMoney } from "./money";
-import { Card, CardHeader, EmptyState, ErrorState, Kpi, KpiStrip, Pill, Segmented, Skeleton } from "./primitives";
+import { Card, CardHeader, EmptyState, ErrorState, Kpi, KpiStrip, Pill, RadioSegments, Segmented, Skeleton } from "./primitives";
 
 const app = vi.hoisted(() => ({ hideBalances: false, currency: "IDR" as "IDR" | "USD" }));
 vi.mock("@/components/layout/AppLayout", () => ({
@@ -433,5 +433,73 @@ describe("page piece geometry in the stylesheet", () => {
     expect(css).toMatch(/\.rail\.is-chips \.rail-item\[aria-current="true"\] \{ border-color: var\(--line-strong\); background: var\(--surface-2\); \}/);
     expect(css).toMatch(/\.row\.is-stacked \{ align-items: flex-start; min-height: 64px; padding: var\(--sp-12\); \}/);
     expect(css).toMatch(/dialog\.shell-dialog\.is-full \{ height: 100vh; max-height: 100vh; margin: 0; border-radius: 0; \}/);
+  });
+});
+
+describe("Transaksi's shared pieces (apply-markas-transaksi D9, D4, D5, D22)", () => {
+  const css = readFileSync(path.resolve(__dirname, "../../app/globals.css"), "utf8");
+
+  it("renders a selectable row as one label whose checkbox toggles from anywhere on the row", async () => {
+    const user = userEvent.setup();
+    const toggle = vi.fn();
+    const { rerender } = render(
+      <ul className="list"><li><ListRow rowKey="r1" time="12.37" title="Kedai Awan" category="Makan" status="Keinginan" amount="−Rp 30.000" selectable={{ checked: false, disabled: false, onToggle: toggle, label: "Pilih Kedai Awan 12.37" }} /></li></ul>,
+    );
+    const box = screen.getByRole("checkbox", { name: "Pilih Kedai Awan 12.37" });
+    const label = box.closest("label") as HTMLElement;
+    expect(label).toHaveAttribute("data-row", "r1");
+    expect(label).toHaveClass("row", "is-selectable", "ws-select-row");
+    await user.click(within(label).getByText("Makan"));
+    expect(toggle).toHaveBeenCalledTimes(1);
+    rerender(
+      <ul className="list"><li><ListRow rowKey="r1" title="Kedai Awan" selectable={{ checked: true, disabled: false, onToggle: toggle, label: "Pilih" }} /></li></ul>,
+    );
+    expect(screen.getByRole("checkbox", { name: "Pilih" }).closest("label")).toHaveAttribute("data-selected");
+    rerender(
+      <ul className="list"><li><ListRow rowKey="r1" title="Kedai Awan" selectable={{ checked: false, disabled: true, onToggle: toggle, label: "Pilih" }} /></li></ul>,
+    );
+    expect(screen.getByRole("checkbox", { name: "Pilih" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Pilih" }).closest("label")).toHaveAttribute("aria-disabled", "true");
+    expect(css).toMatch(/\.row\.is-selectable\[aria-disabled="true"\] \{ cursor: not-allowed; opacity: 0\.45; \}/);
+    expect(css).toMatch(/\.row \.r-pillar \{ width: 136px; overflow: hidden; \}/);
+  });
+
+  it("splits the hero with supporting figures beside it, and drops the bar slot of a bar-less figure", () => {
+    const { container } = render(
+      <HeroFigure id="h" label="Pengeluaran" figure="Rp 90.000" aside={<FigureBlock bar={false} label="Masuk" figure="+Rp 1" />} />,
+    );
+    const hero = screen.getByRole("region", { name: "Pengeluaran" });
+    expect(hero).toHaveClass("hero", "is-split");
+    expect(hero.querySelector(".hero-sub")).toBeNull();
+    expect(container.querySelector(".hero-aside .sw-bar")).toBeNull();
+    expect(css).toMatch(/\.hero\.is-split \{ display: flex; flex-wrap: wrap; align-items: flex-end; gap: var\(--sp-24\) var\(--sp-48\); margin-bottom: var\(--sp-32\); \}/);
+  });
+
+  it("marks a pressed rail toggle with aria-pressed and the same bar as the current item", () => {
+    render(
+      <Rail label="Jenis dan periode" showLabel={false}>
+        <RailItem label="Pengeluaran" pressed onSelect={vi.fn()} />
+        <RailItem label="Masuk" pressed={false} onSelect={vi.fn()} />
+      </Rail>,
+    );
+    const pressed = screen.getByRole("button", { name: "Pengeluaran" });
+    expect(pressed).toHaveAttribute("aria-pressed", "true");
+    expect(pressed).toHaveAttribute("aria-current", "true");
+    expect(pressed).toHaveClass("ws-select-bar");
+    expect(screen.getByRole("button", { name: "Masuk" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("navigation", { name: "Jenis dan periode" }).querySelector(".rail-label")).toBeNull();
+  });
+
+  it("moves through a segmented radio group with the arrow keys and one tab stop", async () => {
+    const user = userEvent.setup();
+    const change = vi.fn();
+    render(<RadioSegments label="Status" value={null} onChange={change} options={[{ value: "a", label: "A" }, { value: "b", label: "B" }]} />);
+    const [first, second] = screen.getAllByRole("radio");
+    expect(first).toHaveAttribute("tabindex", "0");
+    expect(second).toHaveAttribute("tabindex", "-1");
+    first.focus();
+    await user.keyboard("{ArrowRight}");
+    expect(change).toHaveBeenCalledWith("b");
+    expect(second).toHaveFocus();
   });
 });

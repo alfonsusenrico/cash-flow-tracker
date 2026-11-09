@@ -153,7 +153,7 @@ function PageRows() {
           <ListRow time="08.02" title="Gaji Oktober" meta="BCA · Utama" status="Uang masuk" amount={<span className="t-amt c-income">+Rp 9.518.400</span>} />
         </li>
         <li>
-          <ListRow time="07.55" title="Jago · Kantong Utama → GoPay" meta="Isi GoPay" status="Tidak dihitung" amount={<span className="t-amt c-transfer">Rp 200.000</span>} />
+          <ListRow time="07.55" title="Isi GoPay" meta="Jago · Kantong Utama → GoPay" status="—" amount={<span className="t-amt c-transfer">Rp 200.000</span>} />
         </li>
         <li>
           <ListRow time="07.40" title="Top up Investasi" meta="Stockbit · RDN" status={<Pillar color="var(--k-saving)" label="Tabungan" />}
@@ -278,9 +278,9 @@ export function ComponentSheet() {
               </label>
               <span className="ws-switch w-auto" role="switch" aria-checked="true" aria-label="Sakelar aktif"><span className="ws-switch-track" /></span>
               <span className="ws-switch w-auto" role="switch" aria-checked="false" aria-label="Sakelar mati"><span className="ws-switch-track" /></span>
-              <span className="ws-chip ws-tx-chip-static">
-                BCA
-                <button type="button" tabIndex={-1} className="ws-tx-chip-x" aria-label="Hapus filter BCA"><Icon name="x" className="h-3 w-3" /></button>
+              <span className="chip">
+                <span className="lbl">BCA</span>
+                <button type="button" tabIndex={-1} aria-label="Hapus filter BCA"><Icon name="x" className="h-3 w-3" /></button>
               </span>
               <button type="button" tabIndex={-1} className="ws-chip" aria-pressed="true">Pengeluaran</button>
             </div>
@@ -340,7 +340,8 @@ export function ComponentSheet() {
             <div className="ws-bar" aria-hidden="true"><i style={{ width: "62%", ["--bc" as string]: "var(--text)" }} /></div>
             <div className={styles.row}>
               {KAKEIBO_BUCKETS.map((bucket) => (
-                <span key={bucket.value} className="ws-kk t-meta" data-bucket={bucket.value} style={{ ["--kc" as string]: bucket.color }}>
+                <span key={bucket.value} className="t-meta inline-flex items-center gap-2">
+                  <span className={bucket.value === "unclassified" ? "dot is-unclassified" : "dot"} style={bucket.value === "unclassified" ? undefined : { background: bucket.color }} aria-hidden="true" />
                   {bucket.label}
                 </span>
               ))}

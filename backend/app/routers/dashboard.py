@@ -39,6 +39,7 @@ from app.services.report_windows import (
 )
 from app.services.salary_cycles import resolve_cycle
 from app.services.salary_receipts import receipts as salary_receipts
+from app.services.saving_flow import SAVINGS_ACCOUNT_SQL, SAVINGS_DESTINATION_SQL, counted_movement_sql
 
 router = APIRouter(tags=["Dashboard"])
 
@@ -145,15 +146,6 @@ def generate_financial_narrative(
     return narrative, trend_status
 
 
-# A savings destination (organize-accounts-by-use D3): role tabungan, a goal link or an investment product.
-# The role test is NULL-safe so a row read before V51's backfill counts as it did before V51.
-_PRODUCT_SQL = "({a}.type = 'investment' OR {a}.instrument_type IS NOT NULL)"
-_SAVINGS_DESTINATION_SQL = (
-    "({a}.role IS NOT DISTINCT FROM 'tabungan' OR {a}.type = 'investment' OR {a}.instrument_type IS NOT NULL"
-    " OR EXISTS (SELECT 1 FROM goal_accounts ga_{a} WHERE ga_{a}.account_id = {a}.id))"
-)
-
-
 def get_kakeibo_breakdown(
     cur,
     user_id: str,
@@ -195,10 +187,8 @@ def get_kakeibo_breakdown(
     # (organize-accounts-by-use D3), so a role or goal link set later also applies to earlier movements.
     # A Beli/Jual trade stays outside Kakeibo: a movement touching an investment product counts only as
     # an investment top-up, or as an older row stored as saving before top-ups existed.
-    source_saving = _SAVINGS_DESTINATION_SQL.format(a="sa")
-    target_saving = _SAVINGS_DESTINATION_SQL.format(a="da")
-    source_product = _PRODUCT_SQL.format(a="sa")
-    target_product = _PRODUCT_SQL.format(a="da")
+    source_saving = SAVINGS_DESTINATION_SQL.format(a="sa")
+    target_saving = SAVINGS_DESTINATION_SQL.format(a="da")
     cur.execute(
         f"""
         SELECT
@@ -218,14 +208,7 @@ def get_kakeibo_breakdown(
             WHERE outbound.user_id = %s
               AND outbound.movement_role = 'outbound'
               AND outbound.date >= %s AND outbound.date <= %s
-              AND NOT (
-                  ({source_product} OR {target_product})
-                  AND outbound.kakeibo_type IS DISTINCT FROM 'saving'
-                  AND NOT EXISTS (
-                      SELECT 1 FROM investment_topups it
-                      WHERE it.user_id = outbound.user_id AND it.id = outbound.movement_id
-                  )
-              )
+              AND {counted_movement_sql("outbound", "sa", "da")}
         ) legs
         """,
         (user_id, start_utc, end_utc),
@@ -245,7 +228,7 @@ def get_kakeibo_breakdown(
         WHERE t.user_id = %s
           AND {reportable_expense_sql()}
           AND t.date >= %s AND t.date <= %s
-          AND (a.role IS NOT DISTINCT FROM 'tabungan' OR EXISTS (SELECT 1 FROM goal_accounts ga WHERE ga.account_id = a.id))
+          AND {SAVINGS_ACCOUNT_SQL.format(a="a")}
         """,
         (user_id, start_utc, end_utc),
     )

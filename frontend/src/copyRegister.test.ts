@@ -62,7 +62,7 @@ function englishOffenders(catalogue: Catalogue): string[] {
 function spendingTermOffenders(catalogue: Catalogue, language: "en" | "id"): string[] {
   const rule = language === "en" ? SPEND_EN : SPENDING_ID;
   return messages(catalogue)
-    .filter(([key]) => /^(terms|review)\./.test(key) || (language === "id" && /^(home|breakdown)\./.test(key)))
+    .filter(([key]) => /^(terms|review|transactions)\./.test(key) || (language === "id" && /^(home|breakdown)\./.test(key)))
     .filter(([, value]) => rule.test(value))
     .map(([key]) => key);
 }
@@ -127,6 +127,8 @@ const TRANSLATED_ROOTS = [
   "components/ui/ConfirmActionButton.tsx", "components/settings/TestSessionBanner.tsx", "i18n", "lib/i18n", "lib/format.ts",
   // Tinjau (apply-markas-tinjau D18).
   "components/review", "app/review", "lib/triage.ts", "lib/review.ts", "lib/reviewUndo.ts", "lib/historySuggestions.ts",
+  // Transaksi (apply-markas-transaksi D20).
+  "app/ledger", "components/transactions", "components/ui/ExpenseTopupConversionModal.tsx", "lib/ledgerFilters.ts", "lib/ledgerDays.ts",
 ];
 /** Indonesian page copy that lives in a translated root until its page's phase moves it (D10). */
 const UNTRANSLATED_FILES = ["components/workspace/untranslatedPages.ts"];
@@ -137,9 +139,9 @@ const MONEY_ROOTS = ["components/accounts", "components/goals", "components/sett
   "components/ui/SalarySettingsSection.tsx", "components/ui/SenderAliasesSection.tsx", "components/recurring/RecurringRulesModal.tsx",
   "components/dashboard/EmergencyCoverage.tsx", "lib/habits.ts"];
 
-const UNTRANSLATED_ROOTS = ["components/transactions", "components/capture",
+const UNTRANSLATED_ROOTS = ["components/capture",
   "components/ui/DeviceHealthChecklist.tsx", "components/ui/DevicePairingDialog.tsx", "components/ui/DevicePairingSection.tsx",
-  "app/ledger/page.tsx", "lib/deviceHealth.ts", "lib/provenance.ts", "lib/ledgerFilters.ts", "lib/capture.ts",
+  "lib/deviceHealth.ts", "lib/provenance.ts", "lib/capture.ts", "lib/movementFormSchema.ts", "lib/untranslatedRowLabels.ts",
   // Analisis and Laporan (redesign-analysis-and-reports D13).
   "components/analysis", "components/report", "components/insights", "app/insights/page.tsx", "app/laporan/page.tsx",
   // Rekening & Kantong, Target & Tagihan, Pengaturan and their modals (redesign-money-and-settings D16).
@@ -246,6 +248,9 @@ describe("catalogue copy register", () => {
     expect(spendingTermOffenders(planted.idReview, "id")).toEqual(["review.hero.label"]);
     expect(spendingTermOffenders(planted.enReview, "en")).toEqual(["review.hero.label"]);
     expect(englishOffenders(planted.enReview)).toEqual(["review.answer.typeOwn: you"]);
+    expect(spendingTermOffenders(planted.idTransactions, "id")).toEqual(["transactions.hero.label"]);
+    expect(spendingTermOffenders(planted.enTransactions, "en")).toEqual(["transactions.hero.label"]);
+    expect(englishOffenders(planted.enTransactions)).toEqual(["transactions.page.title: jargon"]);
   });
 });
 

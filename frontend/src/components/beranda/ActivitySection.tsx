@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import type { RowLabels } from "@/components/transactions/rowLabels";
+import { RowAmount, RowStatus, rowMeta, rowPhoneLine, rowTitle, useRowLabels, type RowLine } from "@/components/transactions/rows";
 import { DayHeading, ListRow, SectionHeader } from "@/components/workspace/lists";
-import { MaskedMoney } from "@/components/workspace/money";
-import { activityMeta, activityPhoneStatus, groupByDay, rowKind, rowStatus, rowTime, rowTitle } from "./activity";
+import { groupByDay } from "./activity";
 import type { Words } from "@/lib/i18n/types";
 import type { ActivityRow } from "./types";
-import { rowLabelsFor, useWords } from "./words";
+import { useWords } from "./words";
 
 function dayLabel(day: string, today: string, yesterday: string, { t, format }: Words): string {
   const name = format.weekdayDate(day);
@@ -17,28 +16,7 @@ function dayLabel(day: string, today: string, yesterday: string, { t, format }: 
   return name;
 }
 
-/** The amount with its sign and type colour (D7): expenses in the ink, income green, movements sky, top-ups lavender. */
-function ActivityAmount({ row, bal }: { row: ActivityRow; bal: (amount: number) => string }) {
-  const kind = rowKind(row);
-  if (kind === "topup") return <MaskedMoney text={bal(row.amount)} className="t-amt c-invest" />;
-  if (kind === "movement") return <MaskedMoney text={bal(row.amount)} className="t-amt c-transfer" />;
-  if (kind === "income") return <MaskedMoney text={`+${bal(row.amount)}`} className="t-amt c-income" />;
-  return <MaskedMoney text={`−${bal(row.amount)}`} className="t-amt" />;
-}
-
-function Status({ row, labels }: { row: ActivityRow; labels: RowLabels }) {
-  const status = rowStatus(row, labels);
-  const kind = rowKind(row);
-  if (kind === "income" || kind === "movement") return <span>{status.text}</span>;
-  return (
-    <>
-      <span className={status.bucket === "unclassified" ? "dot is-unclassified" : "dot"} style={status.color ? { background: status.color } : undefined} aria-hidden="true" />
-      <span>{status.text}</span>
-    </>
-  );
-}
-
-function Warning({ text, warning }: { text: string; warning?: boolean }) {
+function Line({ text, warning }: RowLine) {
   return warning ? <span className="c-warning">{text}</span> : <>{text}</>;
 }
 
@@ -60,7 +38,7 @@ export function ActivitySection({
 }) {
   const words = useWords();
   const t = useTranslations("home");
-  const labels = rowLabelsFor(words.t);
+  const labels = useRowLabels();
   return (
     <section aria-labelledby="beranda-activity">
       <SectionHeader
@@ -76,23 +54,23 @@ export function ActivitySection({
             <DayHeading label={dayLabel(group.day, today, yesterday, words)} />
             <ul className="list">
               {group.rows.map((row) => {
-                const meta = activityMeta(row, labels);
-                const phone = activityPhoneStatus(row, labels);
-                const time = rowTime(row, words.format);
+                const meta = rowMeta(row, labels, words.format);
+                const phone = rowPhoneLine(row, labels, words.format);
+                const time = words.format.time(row.date);
                 return (
                   <li key={row.id}>
                     <ListRow
                       onClick={() => onSelect(row)}
                       time={time}
                       title={rowTitle(row, labels)}
-                      meta={meta.text ? <Warning {...meta} /> : undefined}
+                      meta={meta.text ? <Line {...meta} /> : undefined}
                       phoneMeta={
                         <>
-                          {time} · <Warning {...phone} />
+                          {time} · <Line {...phone} />
                         </>
                       }
-                      status={<Status row={row} labels={labels} />}
-                      amount={<ActivityAmount row={row} bal={bal} />}
+                      status={<RowStatus row={row} labels={labels} />}
+                      amount={<RowAmount row={row} money={bal} />}
                     />
                   </li>
                 );

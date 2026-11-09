@@ -158,6 +158,58 @@ export function Segmented<T extends string>({
   );
 }
 
+/**
+ * A segmented radio group (SPEC `.seg`): one tab stop, arrow keys move and choose, `aria-checked` marks the choice.
+ * With `value` null no option is checked, and the first option takes the tab stop.
+ */
+export function RadioSegments<T extends string>({
+  label,
+  labelledBy,
+  options,
+  value,
+  onChange,
+  className,
+}: {
+  label?: string;
+  labelledBy?: string;
+  options: { value: T; label: string; disabled?: boolean }[];
+  value: T | null;
+  onChange: (value: T) => void;
+  className?: string;
+}) {
+  const enabled = options.filter((option) => !option.disabled);
+  const focusable = value !== null && enabled.some((option) => option.value === value) ? value : enabled[0]?.value;
+  const move = (event: React.KeyboardEvent<HTMLButtonElement>, from: T) => {
+    const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
+    if (!step) return;
+    event.preventDefault();
+    const index = enabled.findIndex((option) => option.value === from);
+    const next = enabled[(index + step + enabled.length) % enabled.length];
+    if (!next) return;
+    onChange(next.value);
+    event.currentTarget.parentElement?.querySelector<HTMLElement>(`[data-value="${next.value}"]`)?.focus();
+  };
+  return (
+    <div className={cn("ws-seg", className)} role="radiogroup" aria-label={label} aria-labelledby={labelledBy}>
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="radio"
+          data-value={option.value}
+          aria-checked={option.value === value}
+          disabled={option.disabled}
+          tabIndex={option.value === focusable ? 0 : -1}
+          onClick={() => onChange(option.value)}
+          onKeyDown={(event) => move(event, option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function Skeleton({ className, style }: { className?: string; style?: React.CSSProperties }) {
   return <div className={cn("ws-skeleton", className)} style={style} aria-hidden="true" />;
 }
@@ -181,34 +233,6 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
       {onRetry && (
         <RetryButton onRetry={onRetry} />
       )}
-    </div>
-  );
-}
-
-/** A KPI card: small label with a colour dot, a large figure and one muted line (refine-workspace-layout D5). */
-export function KpiCard({
-  label,
-  tone,
-  hero,
-  value,
-  valueIsWords,
-  caption,
-}: {
-  label: string;
-  tone: "in" | "out" | "save" | "net" | "safe" | "inv" | "neutral";
-  hero?: boolean;
-  value: ReactNode;
-  valueIsWords?: boolean;
-  caption: ReactNode;
-}) {
-  return (
-    <div className="ws-kcard" data-hero={hero || undefined} data-tone={tone}>
-      <div className="ws-kcard-l">
-        {!hero && <span className="ws-kcard-dot" aria-hidden="true" />}
-        {label}
-      </div>
-      <div className={valueIsWords ? "ws-kcard-v is-words" : "ws-kcard-v"}>{value}</div>
-      <div className="ws-kcard-c">{caption}</div>
     </div>
   );
 }

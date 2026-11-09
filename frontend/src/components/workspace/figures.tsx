@@ -15,6 +15,8 @@ export function HeroFigure({
   action,
   figure,
   line,
+  aside,
+  busy = false,
   children,
 }: {
   id: string;
@@ -23,11 +25,16 @@ export function HeroFigure({
   mark?: string;
   action?: ReactNode;
   figure: ReactNode;
-  line: ReactNode;
+  /** One muted line under the figure; left out when the page has nothing to qualify (apply-markas-transaksi D4). */
+  line?: ReactNode;
+  /** Supporting figures beside the hero (`.hero.is-split`, Transaksi D4); they wrap under it on a narrow column. */
+  aside?: ReactNode;
+  /** The figures are still loading: the section is a busy region. */
+  busy?: boolean;
   children?: ReactNode;
 }) {
-  return (
-    <section className="hero" aria-labelledby={id}>
+  const main = (
+    <>
       <div className="hero-top">
         {/* Inside the label so it stays 3 px above its first line when a longer language wraps it. */}
         <h2 className="t-label" id={id}>
@@ -37,8 +44,21 @@ export function HeroFigure({
         {action}
       </div>
       <p className="t-hero hero-fig">{figure}</p>
-      <p className="hero-sub t-body">{line}</p>
+      {line !== undefined && line !== null && line !== false && <p className="hero-sub t-body">{line}</p>}
       {children}
+    </>
+  );
+  if (aside === undefined) {
+    return (
+      <section className="hero" aria-labelledby={id} aria-busy={busy || undefined}>
+        {main}
+      </section>
+    );
+  }
+  return (
+    <section className="hero is-split" aria-labelledby={id} aria-busy={busy || undefined}>
+      <div className="hero-main">{main}</div>
+      <div className="supports hero-aside">{aside}</div>
     </section>
   );
 }
@@ -49,6 +69,8 @@ export function FigureBlock({
   figure,
   caption,
   phoneHidden = false,
+  bar = true,
+  className,
 }: {
   label: string;
   /** The colour token of the bar above the label; without one the slot stays empty so labels align. */
@@ -57,14 +79,18 @@ export function FigureBlock({
   caption?: ReactNode;
   /** Left out below 768 px, where the figure is read in the Rincian instead (D9). */
   phoneHidden?: boolean;
+  /** Without the colour-bar slot: Transaksi's supporting figures have a label only (apply-markas-transaksi D4). */
+  bar?: boolean;
+  /** Classes of the figure itself, such as its kind's colour. */
+  className?: string;
 }) {
   return (
     <div className={cn("fig-block", phoneHidden && "is-phone-hide")}>
       <div className="fb-label">
-        <span className="sw-bar" style={mark ? { background: mark } : undefined} aria-hidden="true" />
+        {bar && <span className="sw-bar" style={mark ? { background: mark } : undefined} aria-hidden="true" />}
         <span className="t-meta">{label}</span>
       </div>
-      <p className="t-fig">{figure}</p>
+      <p className={cn("t-fig", className)}>{figure}</p>
       {caption && <p className="t-meta">{caption}</p>}
     </div>
   );
