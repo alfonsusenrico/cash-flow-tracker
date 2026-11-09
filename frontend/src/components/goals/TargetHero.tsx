@@ -32,7 +32,7 @@ function TargetHeroSkeleton() {
       <Skeleton style={{ width: 240, height: 44, marginTop: 12 }} />
       <Skeleton style={{ width: 280, height: 12, marginTop: 12 }} />
       <Skeleton style={{ width: "100%", height: 8, marginTop: 24 }} />
-      <div className="supports" style={{ "--n": 4 } as React.CSSProperties}>
+      <div className="supports tg-supports" style={{ "--n": 4 } as React.CSSProperties}>
         {[0, 1, 2, 3].map((index) => (
           <div key={index} className={index > 1 ? "fig-block is-phone-hide" : "fig-block"}>
             <Skeleton style={{ width: 80, height: 12 }} />
