@@ -53,7 +53,7 @@ The system SHALL express the emergency runway in days and months as coverage of 
   1. `runway_months` and `coverage_months`: the balance divided by the essential monthly cost, rounded to one decimal.
   2. `runway_days`: the balance times 30.4 divided by the essential monthly cost, rounded. If the balance is 0 or less and the cost is known, `runway_days` SHALL be `0`.
   3. When the essential cost is unknown or zero, `runway_days`, `runway_months` and `coverage_months` SHALL be `null` with status `unknown`; the system SHALL NOT return 999 days or 99.9 months.
-  4. The Target & Tagihan page SHALL render the runway as "Ketahanan Dana" with its balance basis and cost basis; if the balance is zero it SHALL indicate zero runway without false solvency indicators, and if the runway is unknown it SHALL say so. Rekening & Kantong SHALL NOT repeat the runway card.
+  4. The Target & Tagihan page SHALL render the runway as the hero "Ketahanan Dana", with its balance basis in the hero line and its cost basis in the hero's "Rincian"; if the balance is zero it SHALL indicate zero runway without false solvency indicators, and if the runway is unknown it SHALL say so. Rekening & Kantong SHALL NOT repeat the runway.
 
 #### Scenario: Computing runway with zero liquid balance
 - **WHEN** a user has 0 IDR across liquid accounts, no designated reserve and a known essential cost
@@ -66,6 +66,10 @@ The system SHALL express the emergency runway in days and months as coverage of 
 #### Scenario: Runway with an unknown cost
 - **WHEN** a user has a positive balance but no completed period and no `need` budget
 - **THEN** the runway is `null` with status `unknown` and Target & Tagihan shows that it cannot be calculated yet
+
+#### Scenario: Zero runway on the hero
+- **WHEN** the emergency balance is 0 and the essential cost is known
+- **THEN** the hero SHALL read "0 bulan", the bar SHALL be empty, "Jika pemasukan berhenti" SHALL read "0 hari", and no word such as "Aman" SHALL be shown
 
 ### Requirement: Asset Composition on Rekening
 Rekening & Kantong SHALL show the composition of assets in its hero: a split bar of Uang harian, Tabungan, Dana investasi and Investasi, each segment the use's total from the account list, with a legend of each use's share of `total_assets`. Debt SHALL NOT appear in it. The shares SHALL be in the bar's accessible name and in the legend, so the bar is never the only carrier of the values.

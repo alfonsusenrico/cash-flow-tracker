@@ -176,7 +176,7 @@ Code at `6235452` (merge of `origin/main` `3cbd371`); later commits are docs onl
 | `npm run lint` | 0 problems |
 | `npm run build` (`next build --webpack`) | passes (the build the gate captured) |
 | Backend `pytest` on a fresh `postgres:16` (`cft-target-pytest`, 127.0.0.1:9789) migrated V1 → V54 by `flyway/flyway:10` | **2188 passed**, 1 warning, exit 0, on `6235452`; container removed |
-| `openspec validate --all --strict` | 85 passed, 0 failed before the archive; ARCHIVED_COUNT after it |
+| `openspec validate --all --strict` | 85 passed, 0 failed before the archive; 84 passed, 0 failed after it |
 | `git diff --check origin/main` | clean |
 | `git diff --stat origin/main -- backend db mobile nginx` | empty |
 | `frontend/package.json`, `package-lock.json` | unchanged against `origin/main` |

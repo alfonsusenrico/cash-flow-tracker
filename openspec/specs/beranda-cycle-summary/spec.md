@@ -101,7 +101,7 @@ Beranda's hero figure SHALL be "Aman dipakai sampai gajian": the remaining amoun
 - **THEN** the two occurrences SHALL count Rp 200.000 and Rp 100.000 in due-date order, and the rest SHALL be marked as counted elsewhere
 
 ### Requirement: Kerjakan Dulu
-Under "Perlu tindakan" Beranda SHALL list the first three of what needs the owner, ranked: open questions, plans past their due date, plans due today, awaiting transfers, ambiguous pairs, groups that need an answer, automatically linked plans to check, and plans due within two days. Each row SHALL name the merchant or plan, its kind and time, and its amount where it has one, and the whole row SHALL be its one action. A due plan SHALL keep its link, skip and record actions.
+Under "Perlu tindakan" Beranda SHALL list the first three of what needs the owner, ranked: open questions, plans and credit bills past their due date, those due today, awaiting transfers, ambiguous pairs, groups that need an answer, automatically linked plans to check, and plans and credit bills due within two days. Each row SHALL name the item, its kind and time and its amount where it has one, and the whole row SHALL be its one action.
 
 #### Scenario: Items and order
 - **GIVEN** one open question, two awaiting transfer legs, one group that needs an answer and a plan due tomorrow
@@ -125,6 +125,11 @@ Under "Perlu tindakan" Beranda SHALL list the first three of what needs the owne
 #### Scenario: Nothing to do
 - **WHEN** nothing waits and no plan is due
 - **THEN** the section SHALL say "Tidak ada yang perlu dijawab." in one line, and its header link SHALL read "Buka Tinjau" without a count
+
+#### Scenario: Credit bill ranked with plans
+- **GIVEN** an open question, a SPayLater bill due today with Rp 434.000 left and a plan due today
+- **WHEN** the owner opens Beranda
+- **THEN** the rows SHALL be the question, then the plan and the bill due today ordered by due date and then name, the bill reading "Tagihan SPayLater", "Jatuh tempo hari ini · Kredit" and Rp 434.000
 
 ### Requirement: Recent Activity on Beranda
 Under "Aktivitas terbaru" Beranda SHALL list up to eight transactions from today and yesterday that do not wait for an answer, newest first, under one heading per day. Each row SHALL show the time, the merchant or a movement's note or route, the account or route, the pillar, status or saving direction, and the amount with its sign and type colour, expenses in red, plus a link to all transactions. A row SHALL open the shared transaction dialog.
