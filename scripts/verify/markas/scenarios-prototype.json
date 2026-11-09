@@ -550,5 +550,105 @@
    }
   ],
   "pengaturan": true
+ },
+ {
+  "name": "catat-tulis",
+  "path": "/beranda?d=catat",
+  "catat": true,
+  "steps": [
+   {
+    "wait": 400
+   }
+  ]
+ },
+ {
+  "name": "catat-manual",
+  "path": "/beranda?d=catat-manual",
+  "catat": true,
+  "steps": [
+   {
+    "wait": 400
+   }
+  ]
+ },
+ {
+  "name": "catat-pemasukan",
+  "path": "/beranda?d=catat-pemasukan",
+  "catat": true,
+  "steps": [
+   {
+    "wait": 400
+   }
+  ]
+ },
+ {
+  "name": "catat-perpindahan",
+  "path": "/beranda?d=catat-perpindahan",
+  "catat": true,
+  "steps": [
+   {
+    "wait": 400
+   }
+  ]
+ },
+ {
+  "name": "catat-perpindahan-kredit",
+  "path": "/beranda?d=catat-perpindahan-kredit",
+  "catat": true,
+  "steps": [
+   {
+    "wait": 400
+   }
+  ]
+ },
+ {
+  "name": "glob-notifikasi",
+  "path": "/beranda?d=notifikasi",
+  "catat": true,
+  "steps": [
+   {
+    "wait": 400
+   }
+  ]
+ },
+ {
+  "name": "glob-tema",
+  "path": "/beranda?d=tema",
+  "catat": true,
+  "steps": [
+   {
+    "wait": 400
+   }
+  ]
+ },
+ {
+  "name": "glob-akun",
+  "path": "/beranda?d=akun",
+  "catat": true,
+  "steps": [
+   {
+    "wait": 400
+   }
+  ]
+ },
+ {
+  "name": "glob-lainnya",
+  "path": "/beranda?d=lainnya",
+  "catat": true,
+  "steps": [
+   {
+    "wait": 400
+   }
+  ]
+ },
+ {
+  "name": "glob-bantuan",
+  "path": "/beranda?d=bantuan",
+  "catat": true,
+  "steps": [
+   {
+    "wait": 400
+   }
+  ]
  }
 ]
