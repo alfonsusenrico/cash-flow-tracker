@@ -11,17 +11,18 @@ A model `record` that lacks a reference the backend requires (a category or obse
 - **AND** no field of the row SHALL come from the model reply
 
 #### Scenario: Model records without an observed account
-- **WHEN** the model replies `record` for an expense with `account_id` null and the deterministic path cannot resolve the account
-- **THEN** no row SHALL be created and the event SHALL be held in `needs_review` with the backend's hold code
+- **WHEN** the model replies `record` for an expense with `account_id` null
+- **THEN** the model is called once for the event and no field of a row SHALL come from the reply
+- **AND** the deterministic path SHALL record the row with the reason `model_fallback` when it resolves the account, otherwise the event SHALL be held in `needs_review` with the backend's hold code
 
 #### Scenario: Model proposes a movement with one endpoint
 - **WHEN** the model replies `record` with direction `internal_movement` and `target_account_id` null
-- **THEN** the reply SHALL NOT be written and the deterministic movement path SHALL record the movement only if it resolves both pockets, otherwise the event SHALL be held for review
+- **THEN** the reply SHALL NOT be written and the deterministic movement path SHALL record the movement only if it resolves both pockets from the notification, otherwise the event SHALL be held for review
 
 #### Scenario: Incomplete record for an unresolved account name
 - **GIVEN** the notification names a pocket that matches no account or alias
 - **WHEN** the model replies `record` without the observed account
-- **THEN** no row SHALL be created and the existing mapping confirmation or review SHALL apply
+- **THEN** no row SHALL be created, no alias SHALL be learned, and the existing mapping confirmation or review SHALL apply
 
 #### Scenario: Structural failure is still asked again once
 - **WHEN** the model's first reply violates the sent schema and the second reply is a complete valid record

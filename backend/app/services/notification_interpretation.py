@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.services.kakeibo import Pillar
 from app.services.notification_evidence import EvidenceError, NotificationFacts, parse_idr_amount
@@ -46,30 +46,45 @@ class Interpretation(BaseModel):
     review_reason: Literal["uncertain_facts", "uncertain_mapping", "ambiguous_movement", "none"]
     mappings: list[MappingProposal] = Field(default_factory=list, max_length=3)
 
-    @model_validator(mode="after")
-    def check_record_shape(self, info: ValidationInfo):
-        if self.outcome != "record":
-            return self
-        if not self.description.strip() or not self.direction or not self.amount_evidence:
-            raise ValueError("Incomplete financial interpretation")
-        if self.direction == "internal_movement":
-            if not self.source_account_id or not self.target_account_id:
-                raise ValueError("Movement endpoints required")
-            if self.source_account_id == self.target_account_id:
-                raise ValueError("Movement endpoints must differ")
-        elif not self.account_id:
-            raise ValueError("Observed account required")
-        elif not self.category_id and not (info.context or {}).get("allow_uncategorized"):
-            # Only the backend's own deterministic path may record a row without a category.
-            raise ValueError("Category required")
-        return self
+
+# Sources whose interpretation is built by backend code; only these may record a row without a category.
+DETERMINISTIC_SOURCES = frozenset({"deterministic", "deterministic_fallback"})
+
+
+def record_shape_error(interpretation: Interpretation, *, allow_uncategorized: bool = False) -> str | None:
+    """What a record still lacks, as a diagnostic reason, or None.
+
+    These rules are not part of the structured-output schema sent to the provider (strict mode cannot express
+    conditional requirements), so a reply that breaks them is a complete answer that the backend rejects, never
+    an invalid provider output (align-notification-output-contract D1). The reason is diagnostic only: it is
+    reported by the benchmark and is not an error code.
+    """
+    if interpretation.outcome != "record":
+        return None
+    if not interpretation.description.strip() or not interpretation.direction or not interpretation.amount_evidence:
+        return "incomplete_record"
+    if interpretation.direction == "internal_movement":
+        if not interpretation.source_account_id or not interpretation.target_account_id:
+            return "movement_endpoints_required"
+        if interpretation.source_account_id == interpretation.target_account_id:
+            return "movement_endpoints_identical"
+        return None
+    if not interpretation.account_id:
+        return "observed_account_required"
+    if not interpretation.category_id and not allow_uncategorized:
+        return "category_required"
+    return None
 
 
 def validate_interpretation(
-    interpretation: Interpretation, facts: NotificationFacts, context: dict
+    interpretation: Interpretation, facts: NotificationFacts, context: dict, *, allow_uncategorized: bool = False
 ) -> None:
     if interpretation.outcome != "record":
         return
+    if record_shape_error(interpretation, allow_uncategorized=allow_uncategorized):
+        # A model record without a required reference is model uncertainty (D2): the deterministic fallback
+        # decides what can be recorded, and the model is not asked again.
+        raise EvidenceError("model_uncertain")
     if facts.confirmed_source_account_id:
         proposed_source = (interpretation.source_account_id if interpretation.direction == "internal_movement"
                            else interpretation.account_id)

@@ -1,3 +1,9 @@
+## Approval
+
+Plan `095ee4c` approved on 2026-11-09 under the owner's standing complete-all authorization, with every default
+(D1–D10) accepted. D2 was accepted as recommended. The approval covers the offline phases 1–2. Each paid benchmark run
+(tasks 3.1 onwards) still needs the owner's explicit approval of its spend.
+
 ## Why
 
 The 2026-11-08 synthetic benchmark (`gpt-6-luna`, effort `none`, development partition, 3 repeats) failed the

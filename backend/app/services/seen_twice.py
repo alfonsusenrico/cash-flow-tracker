@@ -196,6 +196,7 @@ def record_separately(user_id: str, event_id: str) -> dict:
     from app.core.config import settings
     from app.services.notification_application import classify_without_model, record_observed_leg, resolve_record
     from app.services.notification_context import load_context
+    from app.services.notification_interpretation import DETERMINISTIC_SOURCES
     from app.services.notification_processing import source_event
     from app.services.notification_source_pocket import resolved_facts
     from app.services.provenance import notification_provenance
@@ -215,7 +216,9 @@ def record_separately(user_id: str, event_id: str) -> dict:
                 proposal, source = classify_without_model(facts, context)
                 if proposal.direction not in {"expense", "income"}:
                     raise EvidenceError("unsupported_seen_twice")
-                resolved = resolve_record(facts, proposal, context)
+                resolved = resolve_record(
+                    facts, proposal, context, allow_uncategorized=source in DETERMINISTIC_SOURCES,
+                )
                 record_observed_leg(
                     cur, event, facts, context, observed=resolved["observed"], category_id=resolved["category_id"],
                     kakeibo=resolved["kakeibo"], description=resolved["description"],

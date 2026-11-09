@@ -217,3 +217,59 @@ def test_english_benchmark_costs_about_what_the_indonesian_one_does(partition):
     indonesian = estimated_run_cost(benchmark_cases("id", partition), repeats=3, configurations=1)
     english = estimated_run_cost(benchmark_cases("en", partition), repeats=3, configurations=1)
     assert 0 < english <= indonesian * 1.05
+
+
+def named_case(name):
+    return next(case for case in synthetic_cases() if case.name == name)
+
+
+def test_schema_valid_record_without_category_is_scored_as_incomplete_not_as_schema_failure():
+    case = named_case("integral-decimal")
+    proposal = correct_proposal(case).model_copy(update={"category_id": None, "kakeibo": None})
+    row = score_case(case, proposal, latency=0.1)
+    assert row["schema"] and row["error_code"] is None
+    assert row["incomplete_record"] == "category_required"
+    assert row["validation_rejected"] and row["validation_rejection_code"] == "model_uncertain"
+    assert row["validated_outcome"] == "needs_review"
+    assert row["classification"] is False and row["unsafe_validated_write"] is False
+    report = summarize([row])
+    assert report["incomplete_records"] == 1 and report["failed_requests"] == 0
+    assert report["raw_metrics_percent"]["schema"] == 100
+
+
+def test_invalid_reply_shape_and_synthetic_text_are_recorded():
+    from app.services.openai_notification_provider import OutputDiagnosis
+
+    reply = json.dumps({"outcome": "record", "direction": "expense", "description": "x" * 161,
+                        "account_id": fixture_id(1), "category_id": None, "mappings": [{}]})
+
+    class LongReplyProvider:
+        last_usage = None
+        last_invalid_output = None
+
+        async def interpret(self, context, *, prompt):
+            self.last_usage = {"input_tokens": 3200, "output_tokens": 287}
+            self.last_invalid_output = reply
+            raise ProviderError("provider_invalid_output", diagnosis=OutputDiagnosis(
+                "schema_mismatch", fields=("description:string_too_long",), output_tokens=287,
+            ))
+
+    report = asyncio.run(evaluate_model(LongReplyProvider(), [named_case("bca-qris")], repeats=1, interval=0))
+    [row] = report["cases"]
+    assert row["error_code"] == "provider_invalid_output" and row["schema"] is False
+    failure = row["invalid_output"]
+    assert failure["failure"] == "schema_mismatch" and failure["fields"] == ["description:string_too_long"]
+    assert failure["synthetic_reply"] == reply
+    assert failure["shape"]["string_lengths"]["description"] == 161
+    assert failure["shape"]["null_references"] == [
+        "source_account_id", "target_account_id", "category_id", "candidate_transaction_id",
+    ]
+    assert failure["shape"]["mappings"] == 1 and failure["shape"]["outcome"] == "record"
+    assert report["failed_requests"] == 1 and report["invalid_output_failures"] == {"schema_mismatch": 1}
+
+
+def test_undecodable_captured_reply_still_has_a_shape():
+    from evaluation.notification_benchmark import reply_shape
+
+    assert reply_shape('{"outcome":') == {"decodable": False, "length": 11}
+    assert reply_shape(None) is None

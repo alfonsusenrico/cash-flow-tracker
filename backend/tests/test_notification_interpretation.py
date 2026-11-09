@@ -7,7 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.services.notification_evidence import EvidenceError, collect_facts, parse_idr_amount
-from app.services.notification_interpretation import Interpretation, validate_interpretation
+from app.services.notification_interpretation import Interpretation, record_shape_error, validate_interpretation
 from app.services.prompt_language import load_prompt
 
 
@@ -55,12 +55,51 @@ def test_strict_contract_and_versioned_prompt():
 
 @pytest.mark.parametrize("changes", [
     {"amount": 125000}, {"date": "tomorrow"}, {"confidence": "0.9"},
-    {"kakeibo": "luxury"}, {"outcome": "execute"}, {"description": ""},
+    {"kakeibo": "luxury"}, {"outcome": "execute"},
     {"description": "x" * 161}, {"account_id": "fake"},
 ])
 def test_contract_rejects_extra_or_invalid_values(changes):
     with pytest.raises(ValidationError):
         Interpretation.model_validate_json(json.dumps(proposal(**changes)))
+
+
+MOVEMENT_SOURCE = "00000000-0000-4000-8000-000000000004"
+MOVEMENT_TARGET = "00000000-0000-4000-8000-000000000005"
+
+
+@pytest.mark.parametrize("changes,reason", [
+    ({"description": "  "}, "incomplete_record"),
+    ({"direction": None}, "incomplete_record"),
+    ({"amount_evidence": ""}, "incomplete_record"),
+    ({"account_id": None}, "observed_account_required"),
+    ({"category_id": None, "kakeibo": None}, "category_required"),
+    ({"direction": "internal_movement", "account_id": None, "category_id": None, "kakeibo": None,
+      "source_account_id": MOVEMENT_SOURCE, "target_account_id": None}, "movement_endpoints_required"),
+    ({"direction": "internal_movement", "account_id": None, "category_id": None, "kakeibo": None,
+      "source_account_id": MOVEMENT_SOURCE, "target_account_id": MOVEMENT_SOURCE}, "movement_endpoints_identical"),
+])
+def test_incomplete_record_is_schema_valid_and_rejected_as_model_uncertainty(changes, reason):
+    # The structured-output schema allows these replies; the backend, not the parser, rejects them (D1, D2).
+    interpretation = Interpretation.model_validate_json(json.dumps(proposal(**changes)))
+    assert record_shape_error(interpretation) == reason
+    with pytest.raises(EvidenceError, match="model_uncertain"):
+        validate_interpretation(interpretation, collect_facts(event()), context())
+
+
+def test_only_backend_sources_may_record_without_a_category():
+    interpretation = Interpretation.model_validate_json(json.dumps(proposal(category_id=None, kakeibo=None)))
+    assert record_shape_error(interpretation, allow_uncategorized=True) is None
+    validate_interpretation(interpretation, collect_facts(event()), context(), allow_uncategorized=True)
+
+
+@pytest.mark.parametrize("outcome", ["needs_review", "ignored"])
+def test_review_and_ignored_replies_with_empty_fields_are_complete(outcome):
+    interpretation = Interpretation.model_validate_json(json.dumps(proposal(
+        outcome=outcome, direction=None, description="", account_id=None, category_id=None, kakeibo=None,
+        amount_evidence="", direction_evidence="", confidence=0.3, review_reason="uncertain_facts",
+    )))
+    assert record_shape_error(interpretation) is None
+    validate_interpretation(interpretation, collect_facts(event()), context())
 
 
 @pytest.mark.parametrize("raw", ['{"outcome":', '```json\n{}\n```', 'null', '{}'])

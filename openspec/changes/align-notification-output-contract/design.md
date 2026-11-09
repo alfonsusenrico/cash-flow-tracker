@@ -114,16 +114,21 @@ retry count for structural failures, or the request until phase 4 evidence exist
 ## Decisions
 
 **D1 Separate the structural contract from the record-shape rule.** `Interpretation` validates only what the sent
-schema states (types, enums, nullability, lengths, counts, ranges). The rule in `check_record_shape` becomes a
-backend check, `record_shape_error(proposal, *, allow_uncategorized)`, that returns a domain code
+schema states (types, enums, nullability, lengths, counts, ranges). The rule in the former `check_record_shape`
+model validator becomes `record_shape_error(proposal, *, allow_uncategorized)`, which returns a diagnostic reason
 (`incomplete_record`, `observed_account_required`, `category_required`, `movement_endpoints_required`,
-`movement_endpoints_identical`). `validate_interpretation` runs it first and raises `EvidenceError` with that code.
-`apply_interpretation` passes `allow_uncategorized` only for the `deterministic` and `deterministic_fallback`
-sources, so "only the deterministic path may record without a category" is unchanged. The deterministic builders
-call the same check and raise if their own output is incomplete. The benchmark's `trusted_decision`, the dry run
-and `mapping_benchmark` reach it through `validate_interpretation`. Rejected: expressing the rule in the schema
+`movement_endpoints_identical`) or `None`. `validate_interpretation` runs it first and raises the existing
+`EvidenceError("model_uncertain")`, so no new error code reaches the database, the API or the message catalogues
+(every `EvidenceError` code must be an `ErrorCode` with server and web messages). The reason is reported only by the
+benchmark. `apply_interpretation`, `resolve_record` and the seen-twice path pass `allow_uncategorized` only for the
+`deterministic` and `deterministic_fallback` sources (`DETERMINISTIC_SOURCES`), so "only the deterministic path may
+record without a category" is unchanged. The memory and deterministic builders go through `backend_interpretation`,
+which raises `ValueError` if backend code ever builds an incomplete record: that is a programming error, the same
+exception class the pydantic validator raised before. The benchmark's `trusted_decision`, the dry run and
+`mapping_benchmark` reach the rule through `validate_interpretation`. Rejected: expressing the rule in the schema
 (strict mode has no `if`/`then`, and the root cannot be `anyOf`; see D7); keeping the validator and catching its
-error type in `interpret` (keeps two meanings in one parse step and the mismatch with the sent schema).
+error type in `interpret` (keeps two meanings in one parse step and the mismatch with the sent schema); five new
+error codes (an API and catalogue change for a diagnostic need).
 
 **D2 An incomplete model record is model uncertainty, not a provider failure.** With D1 the provider returns the
 proposal; `apply_claim` reaches `apply_interpretation`, which raises the domain code, and the existing
@@ -135,14 +140,16 @@ three repeats. Rejected: retrying (pays for a forced answer); accepting the mode
 keep the model's description and merchant).
 
 **D3 (default) Content-free failure class on `ProviderError`.** `ProviderError` gains an optional `diagnosis`
-(class `refusal` | `incomplete` | `empty_output` | `json_decode` | `schema_mismatch`, `incomplete_reason`, a list of
-`field_path:error_type` built from pydantic `loc` and `type` only, output tokens). `respond` checks a refusal item
-and `incomplete_details.reason` before reading `output_text`. `process_claim` logs one line per invalid reply with
-the event id, model, effort, prompt version and the diagnosis, and nothing else; the code stays
-`provider_invalid_output` in the database and API. Sibling calls (`normalize_purpose`, `normalize_capture`,
-`suggest_history`) share `respond` and the same parse helper, so they get the same diagnosis. Rejected: new error
-codes per class (changes stored values, message catalogues and clients for a diagnostic need); storing the
-diagnosis on the event (a schema change without a present consumer).
+(`OutputDiagnosis`: failure `refusal` | `incomplete` | `empty_output` | `json_decode` | `schema_mismatch` |
+`malformed_response`, `incomplete_reason`, a tuple of `field_path:error_type` built from pydantic `loc` and `type`
+only, output tokens). A path segment that is not a schema property name or a list position is written `?`, because
+an extra key's name is model-controlled text. `respond` reads a refusal item and `incomplete_details.reason` before
+`output_text`, and never parses partial text. One shared `parse_output` serves `interpret`, `normalize_purpose`,
+`normalize_capture` and `suggest_history` (the separate `history_suggestions.parse_batch` is removed).
+`process_claim` logs one warning line per invalid reply with the event id, model, effort, prompt version and the
+diagnosis, and nothing else. Error codes and stored data do not change. Rejected: new error codes per class
+(changes stored values, message catalogues and clients for a diagnostic need); storing the diagnosis on the event
+(a schema change without a present consumer).
 
 **D4 (default) Reply capture only in the benchmark.** The provider constructor takes
 `capture_invalid_output: bool = False`; only `notification_benchmark.run_live` sets it. When set, the provider keeps
@@ -153,8 +160,10 @@ proposals. Production never sets the flag, and a test asserts the worker's provi
 production sampling log of replies (personal financial data, against the "no content in logs" rule).
 
 **D5 (default) Benchmark scoring.** `schema` stays "a well-formed proposal was returned", now meaning the sent
-schema. Domain-incomplete records count as validation rejections with their code and in a new
-`incomplete_records` count; they remain wrong for classification, references and the validated outcome. The 98%
+schema. Domain-incomplete records count as validation rejections (`model_uncertain`), carry their reason in the
+row's `incomplete_record`, and add to a new `incomplete_records` count. They remain wrong for classification,
+references and the validated outcome. Each failed request carries `invalid_output` (diagnosis, shape, synthetic
+reply), and the summary counts failures by class in `invalid_output_failures`. The 98%
 schema threshold is unchanged. Rejected: counting incomplete records as schema failures (re-creates the conflation
 that hid the cause); lowering the threshold.
 
