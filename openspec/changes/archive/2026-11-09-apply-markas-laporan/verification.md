@@ -24,6 +24,34 @@ Date: 2026-11-09 · Branch `feat/markas-laporan` · Base: `origin/main` `3cbd371
   `details.box`; facts and period labels are rendered by the server in the account's language from their codes;
   the stepper gains `monthStyle="long"` so English reads "October 2026"; no pull request (coordinator).
 
+## Stacked on phase 9 (2026-11-09)
+
+By the coordinator's instruction, `origin/feat/markas-target` (`0d24f26`, PR #96, not merged) was merged into this
+branch in `8312696` ("chore: merge markas-target into markas-laporan"). Ten files conflicted; every resolution keeps
+both phases' intent:
+- `translatedRoutes.ts` lists both `/goals` and `/laporan`; `untranslatedPages.ts` lists neither (the untranslated-page
+  example stays `/settings`); `TitleBlock.tsx` names both pages from the catalogue.
+- Both catalogues hold `report`, `goals` and `plans` and both phases' `terms`/`home` additions (a key-wise three-way
+  merge; no key had two values); the catalogue parity test passes.
+- `copyRegister.test.ts` has both translated roots (`app/laporan`, `components/report`, `components/recurring`,
+  `app/goals`, `components/goals`) and checks `report`, `goals` and `plans` with Laporan's question exception.
+- `globals.css`: phase 9 removed `.ws-dana-*` and this phase `.ws-kpi*`, so neither returns; both pages' blocks stay.
+  Phase 9's `ListRow timeIsDate` and this phase's `SectionHeader level` and `PeriodStepper monthStyle` coexist.
+- `capture.mjs` runs both the Laporan and the Target checklists; `scenarios-app.json` (183) and
+  `scenarios-prototype.json` (56) hold every scenario of both, and Laporan's budget-dialog scenario is renamed
+  `dlg-laporan-anggaran` because Analisis already uses `dlg-anggaran`.
+
+Checks on `8312696`: `npm run type-check`, `npm run lint` and `npm run build` passed; `npm test` **99 files, 1,050
+tests passed**; backend pytest on a fresh `postgres:16` migrated V1 → V54 **2197 passed** (exit 0);
+`openspec validate --all --strict` 84 of 84; `git diff --check origin/main HEAD` clean. Smoke captures on a fresh
+owner seeded with the parity, Transaksi, Analisis, Rekening, Target and Laporan seeds, at 1440 and 390 in light and
+dark, Indonesian and English (`laporan`, `laporan-november`, `target`, `target-tagihan-semua`, `beranda`): 20 captures
+per language, axe serious or critical 0, console errors 0, no horizontal overflow, no untranslated notice or
+`lang="id"` part in English; Laporan checklist 400 of 400 and Target checklist 168 of 168 per language. Beranda's
+checklist passes 440 of 446 per language: its "status column width 112" and "expense amounts in ink" checks predate
+phase 5, which widened the status column to 136 px and made expense amounts red (`RowAmount`); neither file is changed
+here.
+
 ## For PROJECT_STATE.md
 
 `PROJECT_STATE.md` is untracked in the owner's checkout, which this run does not touch; the coordinator carries these
@@ -34,7 +62,8 @@ over:
   `spending.top_spending_merchants`, `budget.categories[].spending`/`spending_remaining`, `budget.total_spending`,
   `budget.overall.spending`/`spending_remaining`, `flow.spending_reimbursement_offset`, `comparison.spending_top_merchant`;
   Belanja-basis fields unchanged.
-- Untranslated-page example stays Pengaturan (`/settings`) until phase 10. Translated routes now include `/laporan`.
+- Untranslated-page example stays Pengaturan (`/settings`) until phase 10. Translated routes now include `/goals` (phase 9) and `/laporan`.
+- This branch is stacked on phase 9 (`8312696`), so it should merge after PR #96 or replace it.
 - `KpiStrip`, `Kpi` and `.ws-kpi*` are removed (Laporan was their last user).
 - Follow-ups: `Meter` (phase 6) and `ProgressBar` (phase 8) still overlap (phase 12); "Rincian tabungan" cannot add up
   when money was paid from savings until the report sends `paid_from_savings` (D6); the recurring charges keep their
