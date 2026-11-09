@@ -126,7 +126,8 @@ export function NotificationsPanel({
               className="notif"
               aria-haspopup="dialog"
               onClick={() => {
-                close(false);
+                // Focus goes back to the bell first, so closing Catat returns it there (apply-markas-catat D16).
+                close(true);
                 select();
               }}
             >

@@ -413,6 +413,18 @@ describe("TopBar", () => {
     expect(bell).toHaveFocus();
   });
 
+  it("A credit bill in the bell opens Perpindahan with focus back on the bell first", async () => {
+    const onSelect = vi.fn();
+    const notifications = [{ id: "credit-kk-2026-11-09", title: "Tagihan Kartu Kredit Contoh Rp 300.000 hari ini", detail: "Kredit · jatuh tempo 9 Nov", onSelect }];
+    const { user } = renderShell(<TopBar />, { notifications, unreadIds: new Set(["credit-kk-2026-11-09"]) });
+    const bell = screen.getByRole("button", { name: "Notifikasi, 1 baru" });
+    await user.click(bell);
+    await user.click(screen.getByRole("button", { name: /Tagihan Kartu Kredit Contoh/ }));
+    expect(onSelect).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("dialog", { name: "Notifikasi" })).not.toBeInTheDocument();
+    expect(bell).toHaveFocus();
+  });
+
   it("closes the notifications on Esc and returns focus to the bell", async () => {
     const { user } = renderShell(<TopBar />);
     const bell = screen.getByRole("button", { name: "Notifikasi, 2 baru" });
