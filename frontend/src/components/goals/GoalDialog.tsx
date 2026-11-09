@@ -56,6 +56,7 @@ export function GoalDialog({
   accounts,
   onClose,
   onAddProgress,
+  onArchived,
 }: {
   /** The goal being edited; null creates one. */
   goal: GoalItem | null;
@@ -64,6 +65,8 @@ export function GoalDialog({
   accounts: AccountItem[];
   onClose: () => void;
   onAddProgress: (goal: GoalItem) => void;
+  /** Called once the archive is confirmed, before the dialog closes, so focus can go to the list. */
+  onArchived?: () => void;
 }) {
   const t = useTranslations("goals");
   const tc = useTranslations("common");
@@ -169,6 +172,7 @@ export function GoalDialog({
         className="ws-btn ws-btn-danger"
         onClick={() => {
           archive.mutate(goal.id);
+          onArchived?.();
           onClose();
         }}
       >

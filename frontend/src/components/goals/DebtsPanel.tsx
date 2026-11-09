@@ -160,7 +160,7 @@ export function DebtsPanel({
   }
   return (
     <Panel label={label}>
-      <section aria-labelledby="tg-debts" aria-busy={data.debtsQuery.isLoading || undefined}>
+      <section aria-labelledby="tg-debts" aria-busy={data.debtsQuery.isLoading || undefined} tabIndex={-1}>
         {body}
       </section>
     </Panel>

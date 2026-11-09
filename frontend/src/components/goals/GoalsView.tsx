@@ -117,6 +117,10 @@ export function GoalsView() {
       if (target?.isConnected) target.focus();
     });
   };
+  // An archived goal or debt leaves its list, so focus goes to the list's section instead of the gone row.
+  const focusSection = (id: string) => () => {
+    opener.current = document.querySelector<HTMLElement>(`[aria-labelledby="${id}"]`);
+  };
   const addDebt = () => {
     remember();
     setNewDebt(true);
@@ -170,6 +174,7 @@ export function GoalsView() {
             restore();
           }}
           onAddProgress={(goal) => openInner(() => setProgressGoal(goal))}
+          onArchived={focusSection("tg-goals")}
         />
       )}
       {newGoal && (
@@ -202,6 +207,7 @@ export function GoalsView() {
             restore();
           }}
           onPay={(debt) => openInner(() => setPayDebt(debt))}
+          onArchived={focusSection("tg-debts")}
         />
       )}
       {newDebt && (

@@ -67,7 +67,7 @@ export function GoalsSection({ data, onOpen, onAdd }: { data: GoalData; onOpen: 
   };
 
   return (
-    <section aria-labelledby="tg-goals">
+    <section aria-labelledby="tg-goals" tabIndex={-1}>
       {header}
       {listed.length === 0 ? (
         <div className="tg-empty">

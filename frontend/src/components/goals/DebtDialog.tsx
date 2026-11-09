@@ -37,7 +37,18 @@ function fieldOf(failure: Error): DebtField {
  * the lifecycle note of a paid-off debt, today's debt form and validation (focus on the failing field), "Kaitkan
  * atau catat pembayaran" for an active debt, and "Arsipkan" confirmed in the footer. Requests are today's.
  */
-export function DebtDialog({ debt, onClose, onPay }: { debt: ObligationItem | null; onClose: () => void; onPay: (debt: ObligationItem) => void }) {
+export function DebtDialog({
+  debt,
+  onClose,
+  onPay,
+  onArchived,
+}: {
+  debt: ObligationItem | null;
+  onClose: () => void;
+  onPay: (debt: ObligationItem) => void;
+  /** Called once the archive is confirmed, before the dialog closes, so focus can go to the list. */
+  onArchived?: () => void;
+}) {
   const t = useTranslations("goals");
   const tc = useTranslations("common");
   const format = useFormat();
@@ -121,6 +132,7 @@ export function DebtDialog({ debt, onClose, onPay }: { debt: ObligationItem | nu
         className="ws-btn ws-btn-danger"
         onClick={() => {
           archive.mutate(debt.id);
+          onArchived?.();
           onClose();
         }}
       >

@@ -503,6 +503,7 @@ describe("goal dialogs", () => {
     await user.click(within(dialog).getByRole("button", { name: "Arsipkan" }));
     await user.click(within(dialog).getByRole("button", { name: "Ya, arsipkan" }));
     await waitFor(() => expect(api.del).toHaveBeenCalledWith("/goals/goal-standalone"));
+    await waitFor(() => expect(screen.getByRole("region", { name: "Target tabungan" })).toHaveFocus());
   });
 });
 
