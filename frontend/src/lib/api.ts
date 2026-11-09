@@ -140,10 +140,6 @@ export async function updateMovement(id: string, payload: CreateMovementPayload)
   return api.patch<CreateMovementResponse>(`/movements/${id}`, payload);
 }
 
-export async function deleteMovement(id: string): Promise<{ ok: boolean }> {
-  return api.del<{ ok: boolean }>(`/movements/${id}`);
-}
-
 export async function splitMovement(id: string): Promise<{ ok: boolean; movement_id: string; transaction_ids: string[] }> {
   return api.post<{ ok: boolean; movement_id: string; transaction_ids: string[] }>(`/movements/${id}/split`);
 }
@@ -155,10 +151,6 @@ export async function uploadTransactionReceipt(transactionId: string, file: File
     `/transactions/${transactionId}/receipt`,
     body,
   );
-}
-
-export async function updateTransaction(id: string, payload: Record<string, unknown>) {
-  return api.patch<{ ok: boolean; transaction?: unknown }>(`/transactions/${id}`, payload);
 }
 
 export interface NotificationAlias {
@@ -232,10 +224,6 @@ export const TEST_SESSIONS_PATH = "/ingest/test-sessions";
 
 export async function getTestSessions(): Promise<{ ok: boolean; sessions: TestSession[] }> {
   return api.get(TEST_SESSIONS_PATH);
-}
-
-export async function getCurrentTestSession(): Promise<{ ok: boolean; session: TestSession | null }> {
-  return api.get(`${TEST_SESSIONS_PATH}/current`);
 }
 
 export async function startTestSession(durationMinutes: number): Promise<{ ok: boolean; session: TestSession }> {

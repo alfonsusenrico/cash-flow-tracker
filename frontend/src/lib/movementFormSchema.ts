@@ -29,5 +29,3 @@ export const movementFormSchema = z
       });
     }
   });
-
-export type MovementFormValues = z.infer<typeof movementFormSchema>;

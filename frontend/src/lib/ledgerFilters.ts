@@ -146,12 +146,6 @@ export function hasDateRange(filters: LedgerFilters): boolean {
   return filters.period === "all" && Boolean(filters.from || filters.to);
 }
 
-export function hasRowFilters(filters: LedgerFilters): boolean {
-  return filters.category !== "all" || filters.kakeibo !== "all" || filters.type !== "all"
-    || filters.account !== "all" || filters.review !== "all" || hasDateRange(filters) || filters.dup
-    || filters.source !== "all" || filters.waiting;
-}
-
 /**
  * Whether the list may show one row per movement. A period, a date range and the Pindah saldo, Investasi,
  * Tabungan & investasi and Kredit types keep it; any other filter lists both legs, because either side may match

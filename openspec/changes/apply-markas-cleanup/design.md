@@ -27,7 +27,7 @@ owning component; make every spec describe the shipped state; give the owner one
 | 4 | Rincian tabungan | Figure = `saving_expenses + net_saving_transfers − paid_from_savings` (`dashboard.py`); the report sends only the first two (`monthly_report.py`), so the two rows miss the third part | Additive field and row (D8) |
 | 5 | Type counts | Re-measured, table below: JIT costs about 55 ms at p95 per request | `SET LOCAL jit = off` (D10) |
 | 6 | Kredit hero vs header | Reproduced (below): the list's window ends at "now" and starts at the salary instant; the page turns it into local days and the overview widens them to whole days | Same window (D9) |
-| 7 | Count-only terms edit | A `system` date exists only when the account's days changed after the bill was due (`keep_past_due_dates`); a count-only edit sends `null`, `write_terms` erases it, and the bill is re-derived from the new days | **Flag F1** |
+| 7 | Count-only terms edit | A `system` date exists only when the account's days changed after the bill was due (`keep_past_due_dates`); a count-only edit sends `null`, `write_terms` erases it, and the bill is re-derived from the new days | F1, owner chose option A (2026-11-09) |
 | 8 | "Sept" | `Intl` `en-ID` and `en-GB` write "Sept"; the server's `periods.month_short` writes "Sep" | Normalise in the formatter (D11) |
 | 9 | target-size | Found in phase 9 with the old non-modal Catat over Beranda; phase 11's Catat is a modal `ShellDialog` and its 384 captures (390/320 included) show 0 serious | Re-verify only (D12) |
 | 10 | Default Dari/Ke | `ManualView` takes the first liquid account as Dari and the first other as Ke; a parent resolves on the server to its default pocket | New default rule (D13) |
@@ -174,7 +174,7 @@ visual references (Inter/Manrope Markas+ tokens, no Coral Terminal/Plus Jakarta 
 **D19 (default) `renderWithIntl` keeps `id` as its default.** The language plan said "until phase 12"; switching
 would rewrite about 2,000 assertions for no product change. Recorded as a decision in `verification.md`.
 
-**F1 (flag, not decided) Count-only edit of a kept due date.** Today: "Ubah transaksi" does not show a `system`
+**F1 (decided 2026-11-09 by the owner: option A, "Keep the date") Count-only edit of a kept due date.** Today: "Ubah transaksi" does not show a `system`
 date, so changing only the count sends `first_due_date: null`; the server erases the kept date and re-derives it
 from the account's current days, which can move an already-due bill to a later due date, change which bill holds
 the purchase, its left-to-pay and on-time facts. Option A (recommended): the dialog sends the stored date on a
@@ -191,7 +191,7 @@ edit nothing moves. Only accounts whose days changed after a bill was due are af
   `to_date` (ISO instants). 422 `period_with_dates` when `period` comes with dates or with `from`/`to`; 422
   `credit_period_invalid` when the start is after the end. Owner scoping unchanged (404 for another owner).
 - `GET /api/transactions`: unchanged contract; the transaction runs with JIT off.
-- F1 (if accepted): `PUT /api/transactions/{id}/credit-terms` with the stored date keeps its setter.
+- F1 (option A): `PUT /api/transactions/{id}/credit-terms` with the stored date keeps its setter.
 - No migration. Rollback is reverting the merge; no stored data is rewritten (F1 only stops an erase).
 
 ## Risks
@@ -219,4 +219,4 @@ edit nothing moves. Only accounts whose days changed after a bill was due are af
 | D16 | Gate | Full matrix before/after with pixel diff | Affected pages only | default |
 | D17 | End review | Prototype side-by-side images | None | default |
 | D19 | Test helper | Keep `id` default | Switch to `en` | default |
-| F1 | Kept due date | Keep it (option A) | Today's behaviour (B) | **flag: stored date** |
+| F1 | Kept due date | Keep it (option A), owner 2026-11-09 | Today's behaviour (B) | **decided: option A** |

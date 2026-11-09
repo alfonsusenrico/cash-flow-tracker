@@ -143,7 +143,7 @@ const TRANSLATED_ROOTS = [
   "components/capture", "lib/capture.ts", "lib/movementFormSchema.ts",
 ];
 
-const MONEY_ROOTS = ["components/settings", "app/settings", "components/ui/ReconciliationFlag.tsx", "components/ui/DebtAllocationEditor.tsx",
+const MONEY_ROOTS = ["components/settings", "app/settings", "components/ui/DebtAllocationEditor.tsx",
   "components/dashboard/EmergencyCoverage.tsx", "lib/habits.ts"];
 
 const UNTRANSLATED_ROOTS = [

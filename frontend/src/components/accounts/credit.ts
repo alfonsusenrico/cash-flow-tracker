@@ -52,8 +52,3 @@ export function billStatusTone(status: CreditBillStatus): "warning" | "muted" | 
   if (status === "paid" || status === "paid_late") return "muted";
   return "plain";
 }
-
-/** A bill that still asks for money: the next one the owner pays from the detail ("Bayar tagihan"). */
-export function isUnpaid(status: CreditBillStatus): boolean {
-  return status === "open" || status === "upcoming" || status === "due_today" || status === "overdue";
-}

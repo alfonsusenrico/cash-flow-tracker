@@ -178,10 +178,6 @@ export function RegionProvider({ value, children }: { value: RegionSettings; chi
   return createElement(RegionContext.Provider, { value }, children);
 }
 
-export function useRegion(): Region {
-  return useContext(RegionContext)?.region ?? DEFAULT_REGION;
-}
-
 /** The formatter for the interface language and the account's region and currency. */
 export function useFormat(): Format {
   const language = parseLanguage(useLocale()) ?? "id";

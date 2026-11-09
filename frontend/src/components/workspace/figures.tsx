@@ -144,25 +144,6 @@ export function SplitBar({
 }
 
 /**
- * The 4 px progress bar (`.prog`, apply-markas-analisis D24): a square fill of `value` percent, clamped to 0–100, in
- * a colour token. Hidden from assistive technology by default, because the text beside it carries the value.
- */
-export function Meter({ value, tone = "var(--text)", width, label }: { value: number; tone?: string; width?: number; label?: string }) {
-  const clamped = Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
-  return (
-    <span
-      className="prog"
-      style={width ? { width } : undefined}
-      aria-hidden={label ? undefined : true}
-      role={label ? "img" : undefined}
-      aria-label={label}
-    >
-      <span style={{ width: `${clamped}%`, background: tone }} />
-    </span>
-  );
-}
-
-/**
  * A change between two server amounts (apply-markas-analisis D5, D24): "▲ Rp 753.830" when the amount rose, "▼ Rp
  * 120.000" when it fell, "sama" when equal, with the direction as hidden words for screen readers. For spending a
  * rise reads in the expense ink and a fall in the income ink; the amount hides with "Sembunyikan saldo".
@@ -182,15 +163,22 @@ export function ChangeFigure({ change, money, riseIsCost = true }: { change: num
 }
 
 /**
- * A progress bar (SPEC `.prog`): a 4 px track, 8 px with `thick`, and a square fill of `value` over `max`, capped at
- * the track. Decorative: the caller writes the values in text beside it (apply-markas-rekening D18).
+ * The progress bar (SPEC `.prog`, apply-markas-analisis D24, apply-markas-rekening D18): a 4 px track, 8 px with
+ * `thick`, optionally `width` px wide, and a square fill of `value` over `max` (a percent by default), clamped to the
+ * track, in a colour token. Decorative: the caller writes the value in text beside it.
  */
-export function ProgressBar({ value, max, thick = false, color }: { value: number; max: number; thick?: boolean; color?: string }) {
-  const share = max > 0 ? Math.min(1, Math.max(0, value / max)) : 0;
+export function ProgressBar({ value, max = 100, thick = false, width, color }: {
+  value: number;
+  max?: number;
+  thick?: boolean;
+  width?: number;
+  color?: string;
+}) {
+  const share = max > 0 && Number.isFinite(value) ? Math.min(1, Math.max(0, value / max)) : 0;
   return (
-    <div className={cn("prog", thick && "is-thick")} aria-hidden="true">
+    <span className={cn("prog", thick && "is-thick")} style={width ? { width } : undefined} aria-hidden="true">
       <span style={{ width: `${share * 100}%`, ...(color ? { background: color } : {}) }} />
-    </div>
+    </span>
   );
 }
 

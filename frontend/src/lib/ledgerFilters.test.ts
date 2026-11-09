@@ -3,7 +3,6 @@ import {
   listsLogicalMovements,
   DEFAULT_LEDGER_FILTERS,
   activeFilterCount,
-  hasRowFilters,
   ledgerApiParams,
   ledgerFilterQuery,
   ledgerHref,
@@ -34,7 +33,7 @@ describe("ledger URL filters", () => {
     expect([filters.kakeibo, filters.dup]).toEqual(["unclassified", true]);
     expect(Object.fromEntries(ledgerApiParams(filters))).toEqual({ kakeibo_type: "unclassified", type: "expense", possible_duplicates: "true" });
     expect(ledgerFilterQuery(filters)).toBe("kakeibo=unclassified&type=expense&dup=1");
-    expect(hasRowFilters(parseLedgerFilters(new URLSearchParams("dup=1")))).toBe(true);
+    expect(activeFilterCount(parseLedgerFilters(new URLSearchParams("dup=1")))).toBe(1);
     expect(parseLedgerFilters(new URLSearchParams("dup=yes")).dup).toBe(false);
   });
 
@@ -50,7 +49,7 @@ describe("ledger URL filters", () => {
     expect([filters.from, filters.to, filters.q]).toEqual([from, to, "Musik Contoh"]);
     expect(Object.fromEntries(ledgerApiParams(filters))).toEqual({ kakeibo_type: "need", type: "expense", from_date: from, to_date: to });
     expect(parseLedgerFilters(new URLSearchParams(ledgerFilterQuery(filters)))).toEqual(filters);
-    expect(hasRowFilters(filters)).toBe(true);
+    expect(activeFilterCount(filters)).toBe(2);
     // A malformed instant is dropped, and a period wins over a range.
     expect(parseLedgerFilters(new URLSearchParams("from=yesterday")).from).toBeNull();
     expect(parseLedgerFilters(new URLSearchParams(`period=month&from=${encodeURIComponent(from)}`)).from).toBeNull();

@@ -1,84 +1,15 @@
 import { isNonReportableCategory } from "@/lib/systemCategories";
 
-export type TransactionSource =
-  | "manual"
-  | "notification"
-  | "recurring"
-  | "payroll"
-  | "movement"
-  | "reconcile"
-  | "investment"
-  | "import"
-  | "capture";
-
-export type ReviewStatus = "auto" | "needs_review" | "reviewed";
-
-export type Classifier = "rule" | "ai" | "owner" | "system" | "habit";
-
 /** How many earlier owner answers a habit-recorded row followed. */
 export interface HabitBasis {
   agreeing: number;
   support: number;
 }
 
-const SOURCE_LABELS: Record<TransactionSource, string> = {
-  manual: "Dicatat manual",
-  notification: "Notifikasi bank",
-  recurring: "Transaksi rutin",
-  payroll: "Alokasi gaji",
-  movement: "Pindah saldo",
-  reconcile: "Penyesuaian saldo",
-  investment: "Investasi",
-  import: "Impor",
-  capture: "Diketik di ponsel",
-};
-
-const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
-  auto: "Otomatis, belum ditinjau",
-  needs_review: "Perlu ditinjau",
-  reviewed: "Sudah ditinjau",
-};
-
-const CLASSIFIER_LABELS: Record<Classifier, string> = {
-  rule: "Aturan",
-  ai: "AI",
-  owner: "Pengguna",
-  system: "Sistem",
-  habit: "Kebiasaan",
-};
-
 export const MERCHANT_MAX_LENGTH = 120;
-
-/** Labels for a value the backend sent; an unknown value is shown as-is rather than guessed. */
-export function sourceLabel(value: string | null | undefined): string | null {
-  if (!value) return null;
-  return SOURCE_LABELS[value as TransactionSource] ?? value;
-}
-
-export function reviewStatusLabel(value: string | null | undefined): string | null {
-  if (!value) return null;
-  return REVIEW_STATUS_LABELS[value as ReviewStatus] ?? value;
-}
-
-export function classifierLabel(value: string | null | undefined): string | null {
-  if (!value) return null;
-  return CLASSIFIER_LABELS[value as Classifier] ?? value;
-}
 
 export function isHabitRecorded(classifiedBy: string | null | undefined, basis: HabitBasis | null | undefined): basis is HabitBasis {
   return classifiedBy === "habit" && Boolean(basis);
-}
-
-export function habitBasisText(basis: HabitBasis): string {
-  return `${basis.agreeing} dari ${basis.support} jawaban sebelumnya`;
-}
-
-export function habitRecordLabel(categoryName: string | null | undefined): string {
-  return categoryName ? `Dicatat dari kebiasaan: ${categoryName}` : "Dicatat dari kebiasaan";
-}
-
-export function needsOwnerReview(value: string | null | undefined): boolean {
-  return value === "auto" || value === "needs_review";
 }
 
 interface OffsetCategoryCandidate {

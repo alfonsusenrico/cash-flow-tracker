@@ -40,54 +40,11 @@ module.exports = {
       display: ["var(--font-display)"],
     },
     extend: {
-      // Workspace tokens only (redesign-money-and-settings D11). Tinted semantic fills are gone (D7), so the
-      // keys are plain variables without an opacity channel.
+      // Workspace tokens only (redesign-money-and-settings D11), and only the keys a class uses (apply-markas-cleanup
+      // D5): the error and warning inks. Everything else paints with `var(--…)` from the stylesheet.
       colors: {
-        canvas: "var(--canvas)",
-        window: "var(--window)",
-        surface: "var(--surface)",
-        "surface-2": "var(--surface-2)",
-        "surface-3": "var(--surface-3)",
-        dialog: "var(--dialog)",
-        line: "var(--line)",
-        "line-strong": "var(--line-strong)",
-        text: "var(--text)",
-        "text-2": "var(--text-2)",
-        muted: "var(--muted)",
-        ink: {
-          DEFAULT: "var(--ink)",
-          hover: "var(--ink-hover)",
-          fg: "var(--ink-fg)",
-        },
-        in: {
-          fg: "var(--in-fg)",
-          bg: "var(--in-bg)",
-          solid: "var(--in-solid)",
-        },
-        out: {
-          fg: "var(--out-fg)",
-          bg: "var(--out-bg)",
-          solid: "var(--out-solid)",
-        },
-        tr: {
-          fg: "var(--tr-fg)",
-          bg: "var(--tr-bg)",
-          solid: "var(--tr-solid)",
-        },
-        inv: {
-          fg: "var(--inv-fg)",
-          bg: "var(--inv-bg)",
-          solid: "var(--inv-solid)",
-        },
-        warn: {
-          fg: "var(--warn-fg)",
-          bg: "var(--warn-bg)",
-          solid: "var(--warn-solid)",
-        },
-        ok: {
-          fg: "var(--ok-fg)",
-          bg: "var(--ok-bg)",
-        },
+        out: { fg: "var(--out-fg)" },
+        warn: { fg: "var(--warn-fg)" },
       },
     },
   },

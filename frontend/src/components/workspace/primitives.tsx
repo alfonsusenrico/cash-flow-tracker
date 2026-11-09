@@ -2,97 +2,8 @@
 
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
-import { Icon, type IconName } from "@/components/ui/Icon";
+import type { IconName } from "@/components/ui/Icon";
 import { cn } from "@/lib/utils";
-
-/** Card on the panel surface: flat, no shadow and no outline (SPEC §5). */
-export function Card({
-  children,
-  className,
-  labelledBy,
-  label,
-  as: Tag = "section",
-}: {
-  children: ReactNode;
-  className?: string;
-  labelledBy?: string;
-  label?: string;
-  as?: "section" | "div" | "article";
-}) {
-  return (
-    <Tag className={cn("ws-card", className)} aria-labelledby={labelledBy} aria-label={label}>
-      {children}
-    </Tag>
-  );
-}
-
-/** Card header: decorative icon tile, title (with optional count), caption and one action. */
-export function CardHeader({
-  id,
-  title,
-  icon,
-  count,
-  countLabel,
-  caption,
-  action,
-  level = 2,
-  extra,
-}: {
-  id?: string;
-  title: ReactNode;
-  icon?: IconName;
-  count?: number;
-  /** Words for the count so it is not a bare number for screen readers. */
-  countLabel?: string;
-  caption?: ReactNode;
-  action?: ReactNode;
-  level?: 2 | 3;
-  extra?: ReactNode;
-}) {
-  const Heading = level === 2 ? "h2" : "h3";
-  return (
-    <div className="ws-card-h">
-      {icon && (
-        <div className="ws-tile" aria-hidden="true">
-          <Icon name={icon} />
-        </div>
-      )}
-      <div className="ws-card-t">
-        <Heading id={id}>
-          {title}
-          {count !== undefined && (
-            <span className="ws-cnt">
-              <span aria-hidden="true">{count}</span>
-              <span className="sr-only">{countLabel ?? <ItemCount count={count} />}</span>
-            </span>
-          )}
-          {extra}
-        </Heading>
-        {caption && <div className="ws-cap">{caption}</div>}
-      </div>
-      {action}
-    </div>
-  );
-}
-
-export type Tone = "in" | "out" | "tr" | "inv" | "warn" | "ok" | "neutral";
-
-export function Pill({ tone = "neutral", icon, children, className }: { tone?: Tone; icon?: IconName; children: ReactNode; className?: string }) {
-  return (
-    <span className={cn("ws-pill", `ws-tone-${tone}`, className)}>
-      {icon && <Icon name={icon} />}
-      {children}
-    </span>
-  );
-}
-
-export function DeltaChip({ tone, children, title }: { tone: Tone; children: ReactNode; title?: string }) {
-  return (
-    <span className={cn("ws-chip-delta", `ws-tone-${tone}`)} title={title}>
-      {children}
-    </span>
-  );
-}
 
 export function Segmented<T extends string>({
   label,
@@ -195,12 +106,6 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
       )}
     </div>
   );
-}
-
-/** "{count} item" for a section count, in the interface language (add-language-system D17). */
-function ItemCount({ count }: { count: number }) {
-  const t = useTranslations("home");
-  return <span>{t("itemCount", { count })}</span>;
 }
 
 function RetryButton({ onRetry }: { onRetry: () => void }) {

@@ -37,7 +37,7 @@ This change closes the redesign so the owner can review and accept it as a whole
 - **Ledger list query:** `GET /api/transactions` turns PostgreSQL JIT off for its own transaction.
 - **English month abbreviation:** the web formatter writes "Sep" instead of CLDR's "Sept".
 - **Catat default Ke:** chosen so it can never resolve to the same account as Dari; changes the preselected pocket.
-- **Credit terms count-only edit (flag F1, needs the owner's answer):** keep a system-kept first due date.
+- **Credit terms count-only edit (F1, owner's option A, 2026-11-09):** keep a system-kept first due date.
 - **Spec sweep:** requirements that still describe pages "not yet redesigned" or a phone navigation drawer are
   updated to the shipped state.
 - **Docs:** `AGENTS.md` and `openspec/config.yaml` facts the redesign made stale.
@@ -104,5 +104,5 @@ PostgreSQL V1 → V54 for tests), multi-user (owner scoping of the new parameter
 2026-11-09, through the coordinator: every default accepted as written (D1–D5, D8–D17, D19), item 11 dropped
 with only a regression test (D14), and D9 accepted because it applies the owner's one-basis rule (the header must
 match the list). Public sign-up, the Tabungan recurring-charge basis and the catalogue-key prune stay follow-ups.
-Flag F1 is pending the owner's answer: until then today's behaviour (option B) is kept and the count-only `PUT` is
-not changed; task 4.9 stays last.
+Flag F1 was decided by the owner on 2026-11-09: option A, "Keep the date". A count-only edit sends the stored first
+due date back, still marked as set by the system; it is built as the last task (group 8).

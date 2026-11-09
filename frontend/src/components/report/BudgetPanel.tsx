@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { Ref } from "react";
 import { useTranslations } from "next-intl";
 import { PILLAR_COLOR } from "@/components/analysis/KakeiboRows";
-import { Meter } from "@/components/workspace/figures";
+import { ProgressBar } from "@/components/workspace/figures";
 import { SectionHeader } from "@/components/workspace/lists";
 import { type MonthlyReport, type SpendingBucket, categoryLedgerHref } from "@/lib/monthlyReport";
 import { cn } from "@/lib/utils";
@@ -56,7 +56,7 @@ export function BudgetPanel({ report, money, onEdit, editRef }: { report: Monthl
                         <span className="r-title">{row.name}</span>
                       </span>
                       <span className="ph-hide lp-meter">
-                        <Meter value={used} width={160} tone={over ? "var(--out-solid)" : pillar ? PILLAR_COLOR[pillar] : "var(--k-none)"} />
+                        <ProgressBar value={used} width={160} color={over ? "var(--out-solid)" : pillar ? PILLAR_COLOR[pillar] : "var(--k-none)"} />
                       </span>
                       <span className="r-amt lp-budget-amt">
                         <span className="t-amt">{t("spentOf", { used: money(row.spending), budget: money(row.budget) })}</span>

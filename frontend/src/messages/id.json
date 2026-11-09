@@ -63,7 +63,6 @@
     "tryAgain": "Coba lagi",
     "hidden": "Disembunyikan",
     "loading": "Memuat…",
-    "closeDetails": "Tutup detail",
     "moreActions": "Tindakan lain",
     "theme": {
       "label": "Tema",
@@ -264,10 +263,6 @@
     "cannotCalculate": "Belum bisa dihitung",
     "kakeiboPeriod": "{period, select, cycle {Kakeibo siklus ini} other {Kakeibo bulan ini}}",
     "chooseInReview": "Perlu dipilih di Tinjau",
-    "viewBreakdownLabel": "{label} {amount}: lihat rincian",
-    "closeExplanation": "Tutup penjelasan",
-    "whyUnavailable": "Kenapa belum ada: ",
-    "itemCount": "{count} item",
     "creditBill": "Tagihan {account}",
     "creditMark": "Kredit",
     "creditWhen": "{when} · Kredit"

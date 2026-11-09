@@ -166,7 +166,7 @@ try {
     const dialog = await styleOf('[...document.querySelectorAll("[role=dialog]")].pop()');
     record(`dialog layer shadow ${theme}`, dialog && dialog.boxShadow.includes(expected.layer), dialog?.boxShadow);
     await browser.key("Escape", "Escape", 27);
-    const cards = await browser.evaluate(`[...document.querySelectorAll(".ws-card, .ws-kcard")].map((card) => getComputedStyle(card).boxShadow)`);
+    const cards = await browser.evaluate(`[...document.querySelectorAll(".panel, .box, .tile")].map((card) => getComputedStyle(card).boxShadow)`);
     record(`cards are flat ${theme}`, cards.length > 0 && cards.every((shadow) => shadow === "none"), { cards: cards.length });
 
     // Primary button text contrast at rest.

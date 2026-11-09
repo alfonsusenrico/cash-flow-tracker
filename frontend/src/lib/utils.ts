@@ -71,20 +71,6 @@ export function fmtMoney(
   return fmtIDR(n);
 }
 
-export function currentMonthYM(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-export function clampNumber(value: number, min = 0, max = 100): number {
-  if (!Number.isFinite(value)) return min;
-  return Math.min(max, Math.max(min, value));
-}
-
-export function parseClampedNumber(value: string, min = 0, max = 100): number {
-  return clampNumber(parseFloat(value) || 0, min, max);
-}
-
 /**
  * Format a Date or ISO timestamp as a value suitable for an `<input type="datetime-local">`.
  *
@@ -101,21 +87,6 @@ export function toDatetimeLocal(value?: string | Date | null): string {
   if (Number.isNaN(source.getTime())) return "";
   const local = new Date(source.getTime() - source.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 19);
-}
-
-/**
- * Convert a `<input type="datetime-local">` value (interpreted by the browser as local time)
- * into an ISO 8601 UTC timestamp suitable for the API. JavaScript already parses
- * "YYYY-MM-DDTHH:mm:ss" as local time, so we just rely on `toISOString()` for the conversion.
- *
- * Returns an empty string for empty / unparseable input so callers can decide whether to
- * fall back to the server default.
- */
-export function fromDatetimeLocal(value: string): string {
-  if (!value) return "";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toISOString();
 }
 
 /**
@@ -248,10 +219,3 @@ export function parseUnits(val: string | number | null | undefined): number {
 }
 
 /** The signed-in owner's username, capitalised for the greeting; none while the profile loads. */
-/** How the app greets the owner everywhere: the first word of the display name, else the capitalised username. */
-export function greetingName(user?: { name?: string | null; username?: string | null } | null): string | null {
-  const name = user?.name?.trim().split(/\s+/)[0];
-  if (name) return name;
-  const username = user?.username?.trim();
-  return username ? username.charAt(0).toUpperCase() + username.slice(1) : null;
-}

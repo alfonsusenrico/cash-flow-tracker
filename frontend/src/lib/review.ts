@@ -179,12 +179,6 @@ export interface LearnedAccountLink {
   created: boolean;
 }
 
-export interface ReviewSummary {
-  ok: boolean;
-  attention: number;
-  unreviewed: number;
-}
-
 export function chunkIds(ids: readonly string[], size = REVIEW_BULK_LIMIT): string[][] {
   const chunks: string[][] = [];
   for (let index = 0; index < ids.length; index += size) chunks.push(ids.slice(index, index + size));

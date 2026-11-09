@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { BudgetDialog } from "@/components/categories/BudgetDialog";
 import { CategoryManagerDialog } from "@/components/categories/CategoryManagerDialog";
-import { Meter } from "@/components/workspace/figures";
+import { ProgressBar } from "@/components/workspace/figures";
 import { SectionHeader } from "@/components/workspace/lists";
 import { MaskedMoney } from "@/components/workspace/money";
 import { useFormat } from "@/lib/format";
@@ -111,7 +111,7 @@ export function CategorySpending({
                     {meta && <span className="r-meta ph-only">{meta}</span>}
                   </span>
                   {anyBudget && (budgeted ? (
-                    <span className="ph-hide cat-meter"><Meter value={used} width={160} tone={used > 100 ? "var(--out-solid)" : PILLAR_COLOR[group]} /></span>
+                    <span className="ph-hide cat-meter"><ProgressBar value={used} width={160} color={used > 100 ? "var(--out-solid)" : PILLAR_COLOR[group]} /></span>
                   ) : (
                     <span className="ph-hide cat-meter" aria-hidden="true" />
                   ))}
