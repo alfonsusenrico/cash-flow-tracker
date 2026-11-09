@@ -1745,7 +1745,8 @@ button.hbar:hover { background: var(--surface); }
   /* "Perlu dipilih" moves under the pillar name, never alone beside the dot. */
   .cmp-row .kk-name .kk-fix { flex-basis: 100%; margin-left: var(--sp-16); }
   .cal-cell { grid-template-rows: 16px 16px 6px; min-height: 56px; padding: var(--sp-4); }
-  .cal-cell .cal-amt { font-size: var(--fs-12); line-height: 16px; font-weight: 500; letter-spacing: 0; }
+  /* 12/400 in ink: the prototype's 500 would make a ninth text style on the phone (SPEC §13). */
+  .cal-cell .cal-amt { font-size: var(--fs-12); line-height: 16px; font-weight: 400; letter-spacing: 0; }
   .cal .dow { padding: var(--sp-4); }
   .supports.flow-supports { --n: 2; gap: var(--sp-16); }
   .flow-toolbar .t-label { flex-basis: 100%; }
