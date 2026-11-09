@@ -33,18 +33,19 @@ The system SHALL provide full category lifecycle management allowing users to cr
 - **THEN** the category is persisted with its selected classification and appears in expense category choices
 
 ### Requirement: Category Budget Variance Filtering
-The `/insights` category budget matrix SHALL strictly filter and display categories of kind `expense`:
-1. Income categories (e.g. "Gaji", "Pendapatan Lain") SHALL NOT be displayed in the Category Spending Variance or Budget table.
-2. Users SHALL be able to click directly on any category's budget cell to edit or set its `monthly_budget` ceiling via an inline modal.
-3. While no expense category has a budget, the table SHALL show no budget figure or column and be titled "Pengeluaran per Kategori".
+Analisis's spending by category SHALL list expense categories only; income categories SHALL appear only in the "Pemasukan" group of "Kelola kategori". Budgets SHALL be set in "Atur anggaran" or the category form, never inline in the list. While no expense category has a budget, the list SHALL show spending only, without budget bars, shares or "tanpa anggaran".
 
 #### Scenario: Viewing the category budget matrix
-- **WHEN** the user views the Category Budget table on the `/insights` page
-- **THEN** only expense categories are shown, each with their `Pokok` or `Opsional` badge, actual spending, and budget ceiling
+- **WHEN** the owner views spending by category on Analisis
+- **THEN** only expense categories SHALL be listed, grouped by pillar, each with its spending and, when budgeted, its bar and share of the budget
 
 #### Scenario: No budget set
 - **WHEN** no expense category has a monthly budget
-- **THEN** the table SHALL list categories with their spending only, without "Tanpa Batas" chips, budget columns or "Atur batas" buttons
+- **THEN** the list SHALL show categories with their spending only, without bars, shares, "tanpa anggaran" or budget buttons in the rows
+
+#### Scenario: Managing categories in the dialog
+- **WHEN** the owner opens "Kelola kategori"
+- **THEN** a centered dialog SHALL list the expense categories by pillar, the income categories and the archived ones, offer "Ubah" and "Arsipkan" per active category and "Pulihkan" per archived one, and add categories with "Tambah kategori" and "Tambah kategori pemasukan"
 
 ### Requirement: Snack and Café Default Category
 Every user SHALL have an expense category for snacks and cafés with the Kakeibo pillar `want`, separate from daily meals: "Jajan & Nongkrong" for Indonesian accounts and "Snacks & going out" for accounts created in English. The migration SHALL create it only where the user has no expense category of that name, SHALL leave an existing one unchanged, and SHALL NOT move any existing transaction into it.

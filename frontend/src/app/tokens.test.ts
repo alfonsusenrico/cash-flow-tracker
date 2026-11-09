@@ -143,6 +143,15 @@ const markPairs: [string, string[]][] = [
   ["--out-solid", ["--window", "--surface"]],
   ["--ok-dot", ["--window", "--surface"]],
   ["--line-strong", ["--window", "--surface", "--surface-2"]],
+  // Analisis (apply-markas-analisis D7, D11): the calendar markers sit on every cell, the selected one on --surface-2;
+  // the daily bars and the peak sit on the page. Each keeps 3:1, so no marker needs a second ink when selected.
+  ["--in-solid", ["--surface-2"]],
+  ["--tr-solid", ["--surface-2"]],
+  ["--inv-solid", ["--surface-2"]],
+  ["--warn-solid", ["--surface-2"]],
+  ["--warn-fg", ["--window", "--surface", "--surface-2"]],
+  ["--out-solid", ["--surface-2"]],
+  ["--k-none", ["--window", "--surface", "--surface-2"]],
 ];
 
 const PILLARS = ["need", "want", "culture", "unexpected", "saving"] as const;
@@ -205,23 +214,18 @@ const MARKAS: Record<string, [string, string]> = {
   "--in-solid": ["#047857", "#10B981"],
   "--ok-dot": ["#047857", "#10B981"],
   "--k-saving": ["#047857", "#10B981"],
-  "--flow-in": ["#047857", "#10B981"],
   "--use-tabungan": ["#047857", "#10B981"],
   "--tr-solid": ["#0284C7", "#0EA5E9"],
   "--use-dana": ["#0284C7", "#0EA5E9"],
   "--inv-solid": ["#7C3AED", "#8B5CF6"],
   "--k-need": ["#7C3AED", "#8B5CF6"],
-  "--flow-inv": ["#7C3AED", "#8B5CF6"],
   "--use-investasi": ["#7C3AED", "#8B5CF6"],
   "--warn-solid": ["#B45309", "#F59E0B"],
-  "--flow-warn": ["#B45309", "#F59E0B"],
   "--k-unexpected": ["#B45309", "#FBBF24"],
   "--out-solid": ["#E11D48", "#FF4757"],
   "--k-want": ["#E11D48", "#FF4757"],
   "--k-culture": ["#0369A1", "#38BDF8"],
   "--k-none": ["#64748B", "#94A3B8"],
-  "--flow-left": ["#64748B", "#94A3B8"],
-  "--flow-other": ["#64748B", "#94A3B8"],
   "--use-harian": ["#64748B", "#94A3B8"],
   "--danger-solid": ["#B8142D", "#E11D48"],
   "--danger-solid-hover": ["#A9122A", "#CF1B42"],
@@ -254,9 +258,16 @@ describe("design tokens", () => {
   });
 
   it("keeps the chart tokens without a prototype counterpart until their page changes", () => {
-    for (const name of ["--heat-1", "--heat-5", "--band-op", "--kind-emas", "--kind-reksa-dana", "--kind-saham"]) {
+    for (const name of ["--kind-emas", "--kind-reksa-dana", "--kind-saham"]) {
       expect(themes[":root"][name], name).toBeDefined();
       expect(themes[".dark"][name], name).toBeDefined();
+    }
+  });
+
+  it("retires the calendar heat fills, the band opacity and the flow colours with Analisis (apply-markas-analisis D25)", () => {
+    for (const name of ["--heat-1", "--heat-5", "--band-op", "--flow-in", "--flow-tr", "--flow-left"]) {
+      expect(themes[":root"][name], name).toBeUndefined();
+      expect(themes[".dark"][name], name).toBeUndefined();
     }
   });
 

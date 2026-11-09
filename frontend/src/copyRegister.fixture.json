@@ -68,5 +68,25 @@
         "title": "Ledger"
       }
     }
+  },
+  "idAnalysis": {
+    "analysis": {
+      "daily": {
+        "title": "Belanja harian"
+      },
+      "flowDetail": {
+        "out": "Keluar"
+      }
+    }
+  },
+  "enAnalysis": {
+    "terms": {
+      "spent": "Spent"
+    },
+    "analysis": {
+      "daily": {
+        "title": "Daily spending"
+      }
+    }
   }
 }

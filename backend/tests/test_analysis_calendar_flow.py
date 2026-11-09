@@ -271,8 +271,8 @@ def count_calls(owner, monkeypatch, path, **params):
 def test_calendar_statement_count_is_constant(rich_owner, monkeypatch):
     params = {"timeframe": "month", "cycle_offset": -1}
     baseline = count_calls(rich_owner, monkeypatch, CALENDAR, **params)
-    # Eight queries plus the read-only isolation statement.
-    assert baseline <= 9
+    # Nine queries (one is the Pengeluaran basis, apply-markas-analisis D31) plus the read-only isolation statement.
+    assert baseline <= 10
     for index in range(20):
         rich_owner.expense(1_000 + index, "jajan", when=at_local(month_day(1 + index % 20)))
         rich_owner.plan(f"p{index}", f"Rencana {index}", 10_000, month_day(2 + index % 20))
@@ -418,7 +418,8 @@ def test_flow_and_rows_statement_counts_are_constant(rich_owner, monkeypatch):
     flow_count = count_calls(rich_owner, monkeypatch, FLOW, **params)
     data = flow(rich_owner)
     rows_count = count_calls(rich_owner, monkeypatch, ROWS, link=data["links"][0]["key"], **params)
-    assert flow_count <= 10 and rows_count <= 4
+    # One of the flow's statements is the Pengeluaran basis of its summary (apply-markas-analisis D31).
+    assert flow_count <= 11 and rows_count <= 4
     for index in range(30):
         rich_owner.account(f"extra{index}", f"Rekening Tambahan {index}")
         rich_owner.expense(2_000 + index, "makan", account=f"extra{index}", when=at_local(month_day(1 + index % 25)))

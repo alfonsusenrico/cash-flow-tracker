@@ -39,6 +39,7 @@ from app.services.report_windows import (
 )
 from app.services.salary_cycles import resolve_cycle
 from app.services.salary_receipts import receipts as salary_receipts
+from app.services.spending_basis import spending_basis
 from app.services.saving_flow import SAVINGS_ACCOUNT_SQL, SAVINGS_DESTINATION_SQL, counted_movement_sql
 
 router = APIRouter(tags=["Dashboard"])
@@ -1009,6 +1010,8 @@ def get_dashboard_analytics(
             )
             daily_rows = {r["tx_day"]: r for r in cur.fetchall()}
             day_offsets = daily_offsets(cur, user_id, start_utc, end_utc, analytics_offsets)
+            # Pengeluaran beside Belanja, so Analisis names one figure "Pengeluaran" (apply-markas-analisis D31).
+            spending = spending_basis(cur, user_id, start_utc, end_utc, analytics_offsets)
 
             daily_cadence = []
             dow_spent = [0] * 7
@@ -1022,6 +1025,7 @@ def get_dashboard_analytics(
                         "date": curr.isoformat(),
                         "label": curr.strftime("%b %d"),
                         "expense": day_expense,
+                        "spending": spending.day(curr),
                         "income": int(r["income"]) if r else 0,
                     }
                 )
@@ -1051,6 +1055,8 @@ def get_dashboard_analytics(
                 spent = r["spent"]
                 budget = int(r["monthly_budget"]) if r["monthly_budget"] else None
                 pct = round((spent / budget) * 100, 1) if budget and budget > 0 else None
+                category_spending = spending.category(r["id"])
+                spending_pct = round((category_spending / budget) * 100, 1) if budget and budget > 0 else None
                 variance = (budget - spent) if budget else None
 
                 status = "unlimited"
@@ -1078,6 +1084,8 @@ def get_dashboard_analytics(
                         "budget": budget,
                         "variance": variance,
                         "percentage_used": pct,
+                        "spending": category_spending,
+                        "spending_percentage_used": spending_pct,
                         "status": status,
                     }
                 )
