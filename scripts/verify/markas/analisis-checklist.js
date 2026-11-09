@@ -70,7 +70,8 @@
     }
     const dot = first(".kk-name .dot");
     if (dot) add("pillar dot 8 × 8 square", `${Math.round(box(dot).width)} × ${Math.round(box(dot).height)} ${px(style(dot).borderTopLeftRadius)}`, "8 × 8 0");
-    const bars = all(".chart svg rect[data-bar]");
+    // Every bar, including a day without spending, whose bar has no height.
+    const bars = [...document.querySelectorAll(".chart svg rect[data-bar]")];
     const chart = first(".chart svg");
     if (chart && bars.length) {
       const width = Number(chart.getAttribute("width"));
@@ -151,7 +152,7 @@
   const weights = [...new Set(texts.map((element) => style(element).fontWeight))];
   add("weights within 400 500 600", weights.filter((weight) => !["400", "500", "600"].includes(weight)).join(" "), "");
   const styles = new Set(texts.filter((element) => element.closest("main")).map((element) => `${px(style(element).fontSize)}/${style(element).fontWeight}/${style(element).textTransform}`));
-  if (!dialog) atMost("text styles per tab", styles.size, 8);
+  if (!dialog) checks.push({ check: "text styles per tab", value: [...styles].join(" | "), expected: "<= 8", pass: styles.size <= 8 });
   const big = texts.filter((element) => parseFloat(style(element).fontSize) >= 33 && !element.closest(".t-hero"));
   add("no other text >= 33 px", big.length, 0);
   const dotted = all("main *").filter((element) => style(element).textDecorationStyle === "dotted" && style(element).textDecorationLine.includes("underline"));
