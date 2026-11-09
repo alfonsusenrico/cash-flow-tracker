@@ -41,8 +41,8 @@ Expected Result: every changed figure matches its source of truth, and the reque
 ## 5. Tooling, specs and docs
 
 - [ ] 5.1 Update `beranda-checklist.js` to 136 px and `--out-fg` expense amounts (D7). Evidence: Beranda checklist passes in full on id and en (count recorded), where it gave 440 of 446 before.
-- [ ] 5.2 Add `scripts/verify/markas/pixel-diff.mjs` (Chrome canvas, counts differing pixels per pair, writes a diff image for any pair above 0) (D16). Evidence: it reports 0 for a capture against itself and a non-zero count with a diff image for two different captures.
-- [ ] 5.3 Update `AGENTS.md` and `openspec/config.yaml` (D18). Evidence: `rg -n "not translated yet|Plus Jakarta|Coral Terminal|until localize-server-text|declares .lang=\"id\"" AGENTS.md openspec/config.yaml` finds nothing.
+- [x] 5.2 Add `scripts/verify/markas/pixel-diff.mjs` (Chrome canvas, counts differing pixels per pair, writes a diff image for any pair above 0) (D16). Evidence: it reports 0 for a capture against itself and a non-zero count with a diff image for two different captures. Done: self-test on two phase-11 captures: a capture against itself reports 0, a different capture 232,125 px with a diff image (scratchpad cleanup/pdtest).
+- [x] 5.3 Update `AGENTS.md` and `openspec/config.yaml` (D18). Evidence: `rg -n "not translated yet|Plus Jakarta|Coral Terminal|until localize-server-text|declares .lang=\"id\"" AGENTS.md openspec/config.yaml` finds nothing. Done: the grep finds nothing in AGENTS.md or openspec/config.yaml; openspec validate --all --strict 85 passed.
 - [ ] 5.4 Complete `end-review.md` (phases 4–11 and the owner checks are compiled at planning time): fill its "Phase 12" section with this change's deviations and every visible difference the pixel diff found, and update "Changed by phase 12" with the F1 outcome. Evidence: the section lists each item with its source and diff image.
 - [ ] 5.5 `openspec validate --all --strict`. Evidence: all pass, count recorded.
 
