@@ -14,6 +14,7 @@ function translatedPageTitle(pathname: string, t: Translate): PageHeader | null 
   if (isActivePath(pathname, "/ledger")) return { title: t("nav.transactions"), subtitle: t("transactions.page.subtitle") };
   if (isActivePath(pathname, "/insights")) return { title: t("nav.analysis"), subtitle: t("analysis.page.subtitle") };
   if (isActivePath(pathname, "/accounts")) return { title: t("nav.accounts"), subtitle: t("accounts.page.subtitle") };
+  if (isActivePath(pathname, "/laporan")) return { title: t("nav.reports"), subtitle: t("report.page.subtitle") };
   return null;
 }
 

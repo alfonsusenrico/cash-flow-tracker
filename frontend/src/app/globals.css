@@ -37,7 +37,7 @@ body {
 
 /* Tabular figures for every amount, count, time, date column, table, field, badge and chart label. */
 .tabular, .tabular-nums, .t-fig-l, .t-fig, .t-amt, .ws-cnt, .ws-kbd, .ws-pill, .ws-badge, .ws-tbl, .ws-xtable,
-.ws-kpi-value, .ws-dana-big b, .ws-dana-foot b,
+.ws-dana-big b, .ws-dana-foot b,
 .ws-bigline, .ws-rows .r,
 .ws-chip-delta, table, dd, input, select, textarea, svg text {
   font-variant-numeric: tabular-nums lining-nums;
@@ -779,17 +779,6 @@ dialog.shell-dialog::backdrop { background: var(--scrim); animation: ws-fade var
 .ws-cnt { padding: 1px 7px; border-radius: var(--r-control); background: var(--surface-2); color: var(--text-2); font-size: 12px; font-weight: 400; }
 .ws-muted { color: var(--muted); }
 
-/* KPI strip */
-.ws-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 22px 8px; }
-.ws-kpi { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 0 16px; border-left: 1px solid var(--line); }
-.ws-kpi:first-child { border-left: 0; }
-.ws-kpi .ws-tile { width: 40px; height: 40px; border-radius: var(--r-panel); }
-.ws-kpi-body { flex: 1; min-width: 0; }
-.ws-kpi-label { overflow: hidden; color: var(--muted); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
-.ws-kpi-row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 4px 8px; }
-.ws-kpi-value { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; white-space: nowrap; }
-.ws-kpi-value.is-words { font-size: 16px; letter-spacing: 0; white-space: normal; }
-.ws-kpi-caption { margin-top: 2px; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .ws-chip-delta { align-self: flex-end; margin-bottom: 4px; padding: 2px 6px; border-radius: var(--r-control); font-size: 12px; font-weight: 600; line-height: 1.35; white-space: nowrap; }
 
 /* Pills */
@@ -965,10 +954,6 @@ dialog.shell-dialog::backdrop { background: var(--scrim); animation: ws-fade var
 .ws-dana-big b { margin-right: 4px; color: var(--text); font-size: 32px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .ws-dana-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; margin-top: 10px; color: var(--muted); font-size: 14px; }
 .ws-dana-foot b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
-@container main (max-width: 900px) {
-  .ws-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 18px; }
-  .ws-kpi:nth-child(3) { border-left: 0; }
-}
 
 /* ======================================================================
  * Markas+ page pieces (apply-markas-beranda D1 to D12), shared by the redesigned pages: the reading and context
@@ -1155,10 +1140,6 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
 /* Page parts on phones; the shell's own phone rules are in the Shell block. */
 @media (max-width: 767px) {
   .ws-card { padding: 16px; border-radius: var(--r-panel); }
-  .ws-kpis { grid-template-columns: 1fr 1fr; padding: 16px 4px; row-gap: 16px; }
-  .ws-kpi { padding: 0 12px; }
-  .ws-kpi .ws-tile { display: none; }
-  .ws-kpi-value { font-size: 20px; }
   /* 16 px above the tab bar (D11). */
   .ws-toast { bottom: calc(var(--tabbar-h) + var(--sp-16) + env(safe-area-inset-bottom, 0px)); }
   .ws-menu { position: fixed; top: 64px; right: 12px; left: 12px; max-width: none; }
@@ -1760,4 +1741,111 @@ button.hbar:hover { background: var(--surface); }
 @media (max-width: 359px) {
   .cal-cell { padding: var(--sp-4) 2px; }
   .cal .dow { padding: var(--sp-4) 2px; }
+}
+
+/* ======================================================================
+ * Laporan (apply-markas-laporan D1 to D16). Values from option-6 styles.css (.q, .q-num, .q-h, .q-body, .bars-v,
+ * .b, details.box, the hatch); `.cols`, `.tbl`, `.panel`, `.list` and `.row` are shared above. Layout switches are
+ * viewport media queries at 1200 and 768 px.
+ * ====================================================================== */
+.lp-article { max-width: 880px; }
+.lp-article > .hero { margin-bottom: var(--sp-48); }
+.lp-hero-part .chg { white-space: nowrap; }
+.lp-running { margin-top: var(--sp-12); }
+
+/* Numbered questions: the number in a 32 px column, 48 px apart with a 1 px rule */
+.q { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: var(--sp-16); }
+.q + .q { margin-top: var(--sp-48); padding-top: var(--sp-48); border-top: 1px solid var(--line); }
+.q-num { color: var(--muted); font-size: var(--fs-20); line-height: 32px; font-weight: 600; font-variant-numeric: tabular-nums lining-nums; font-feature-settings: var(--features-num); }
+.q-h { color: var(--text); font-family: var(--font-display); font-feature-settings: var(--features-display); font-size: var(--fs-24); line-height: 32px; font-weight: 600; letter-spacing: -0.015em; }
+.q-body { margin-top: var(--sp-16); }
+.q-body > * + * { margin-top: var(--sp-24); }
+.lp-fig-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-4) var(--sp-8); }
+
+/* The pillar and category table: every row is one target, its row header's link stretched over the row */
+.lp-tbl tr { position: relative; }
+.lp-tbl tbody tr { transition: background-color var(--t-state); }
+.lp-tbl tbody tr:hover { background: var(--surface); }
+.lp-tbl :is(tbody, tfoot) th { height: 48px; padding-top: 0; padding-bottom: 0; vertical-align: middle; }
+.lp-tbl tbody th.lp-cat { padding-left: 36px; color: var(--text); font-size: var(--fs-14); line-height: 20px; font-weight: 400; letter-spacing: 0; text-transform: none; }
+.lp-tbl tfoot :is(th, td) { border-top: 1px solid var(--line-strong); border-bottom: 0; }
+.lp-rowlink { display: inline-flex; align-items: center; gap: var(--sp-8); min-width: 0; color: inherit; text-decoration: none; overflow-wrap: anywhere; }
+.lp-rowlink::after { content: ""; position: absolute; inset: 0; }
+.lp-rowlink:focus-visible { outline: none; }
+.lp-rowlink:focus-visible::after { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+/* "Rincian pengeluaran": a closed box whose 56 px summary turns its chevron */
+.lp-reimbursed { margin: 0 0 var(--sp-8); }
+details.box.lp-details { display: block; padding: 0; }
+.lp-details > summary { min-height: 56px; padding: 0 var(--sp-24); border: 0; list-style: none; }
+.lp-details > summary::-webkit-details-marker { display: none; }
+.lp-details > summary:hover { background: none; }
+.lp-details .lp-summary-text { flex-direction: column; align-items: flex-start; gap: 0; }
+.lp-details .lp-summary-text > * { max-width: 100%; }
+.lp-details .lp-chev { flex: none; color: var(--muted); transition: transform var(--t-state); }
+.lp-details[open] .lp-chev { transform: rotate(180deg); }
+.lp-details-body { padding: 0 var(--sp-24) var(--sp-24); }
+.lp-details-body > section { padding-top: var(--sp-8); }
+.lp-details-body > section + section { margin-top: var(--sp-24); }
+.lp-details-body .list, .lp-none, .lp-essential, .lp-more { margin-top: var(--sp-8); }
+
+/* Budget rows: the 160 px meter, then the amount over its rest */
+.lp-budget-row .lp-meter { flex: none; width: 160px; }
+.lp-budget-amt { display: flex; flex-direction: column; align-items: flex-end; }
+.lp-budget-total { margin-top: var(--sp-12); }
+
+/* "Pengeluaran per bulan": a 16 px amount, the 112 px bar area and the period label; tops aligned so bars share a base */
+.bars-v { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); align-items: start; gap: var(--sp-24); }
+.bars-v .b { display: flex; flex-direction: column; gap: var(--sp-8); min-width: 0; }
+.bars-v .b-amt { height: 16px; overflow: hidden; text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums lining-nums; }
+.bars-v .b-area { display: flex; align-items: flex-end; height: 112px; }
+.bars-v .bar { display: block; width: 100%; background: var(--k-none); }
+.bars-v .bar.is-viewed { background-color: var(--out-solid); }
+.bars-v .bar.is-running { background-image: repeating-linear-gradient(135deg, transparent 0 4px, var(--window) 4px 6px); }
+.bars-v .b-label { text-align: center; overflow-wrap: anywhere; }
+.bars-v .b-label.is-viewed { color: var(--text); }
+
+/* Facts and the note */
+.lp-fact .r-title { white-space: normal; }
+.lp-fact .lp-fact-link { flex: none; }
+.lp-note-block { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-8); }
+.lp-note-block > .lp-note, .lp-note-block > .lp-note-form { align-self: stretch; }
+.lp-note-h { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-8); }
+.lp-note-text { max-width: 100%; white-space: pre-line; overflow-wrap: anywhere; }
+.lp-note .lp-note-text { margin-top: var(--sp-4); }
+.lp-textarea { height: auto; min-height: 96px; padding: var(--sp-8) var(--sp-12); line-height: 20px; resize: vertical; }
+.lp-note-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-8); margin-top: var(--sp-16); }
+
+/* Context panel: the shown report carries the straight 2 px selection bar */
+.lp-past-row[aria-current="page"] { background: var(--surface-2); }
+.lp-past-row[aria-current="page"]::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 2px; background: var(--accent); }
+.lp-past-row .t-meta { flex: none; }
+
+/* Classification dialog */
+.lp-classify section > * + * { margin-top: var(--sp-8); }
+.lp-classify-status:empty { margin: 0; }
+.lp-classify-row { flex-wrap: wrap; row-gap: var(--sp-8); padding-top: var(--sp-8); padding-bottom: var(--sp-8); }
+.lp-classify-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-8); }
+.lp-select { width: auto; min-width: 152px; border: 1px solid var(--line-strong); background-color: var(--window); }
+.lp-classify-rows { max-height: 288px; overflow-y: auto; }
+.lp-classify-apply { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-8); }
+
+/* Loading blocks */
+.lp-article > .lp-skel-q:first-of-type { margin-top: var(--sp-48); }
+.skel.lp-skel-num { width: 16px; height: 20px; }
+.skel.lp-skel-h { width: 60%; height: 24px; margin-bottom: var(--sp-16); }
+
+@media (max-width: 1199px) {
+  .lp-cols > .panel { max-width: 880px; }
+}
+@media (max-width: 767px) {
+  .q { grid-template-columns: minmax(0, 1fr); gap: var(--sp-8); }
+  .q + .q { margin-top: var(--sp-32); padding-top: var(--sp-32); }
+  .lp-article > .hero { margin-bottom: var(--sp-32); }
+  .lp-tbl tbody th.lp-cat { padding-left: var(--sp-24); }
+  .lp-details > summary { padding: 0 var(--sp-16); }
+  .lp-details-body { padding: 0 var(--sp-16) var(--sp-16); }
+  .bars-v { gap: 6px; }
+  .lp-note-actions .ws-btn { min-height: 44px; }
+  .lp-select { min-height: 44px; }
 }

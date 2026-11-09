@@ -19,6 +19,8 @@ interface PeriodStepperProps {
   unit: "Siklus" | "Bulan";
   minOffset?: number;
   period?: StepperPeriod | null;
+  /** "long" names a month in full ("October 2026"), as Laporan's server labels do (apply-markas-laporan D2). */
+  monthStyle?: "short" | "long";
 }
 
 /**
@@ -26,7 +28,7 @@ interface PeriodStepperProps {
  * language on every page (add-language-system D17): Indonesian keeps the server's label, English names the period
  * from its dates ("Oct 2026", "Cycle 25 Sep – 24 Oct").
  */
-export function PeriodStepper({ label, offset, onChange, unit, minOffset = -36, period }: PeriodStepperProps) {
+export function PeriodStepper({ label, offset, onChange, unit, minOffset = -36, period, monthStyle = "short" }: PeriodStepperProps) {
   const t = useTranslations("common");
   const locale = useLocale();
   const format = useFormat();
@@ -35,7 +37,7 @@ export function PeriodStepper({ label, offset, onChange, unit, minOffset = -36, 
   const shown = (() => {
     if (label === null) return t("loading");
     if (locale === "id" || !period?.start) return label;
-    if (!cycle) return format.shortMonthYear(period.start);
+    if (!cycle) return monthStyle === "long" ? format.monthYear(period.start) : format.shortMonthYear(period.start);
     return period.end
       ? t("period.cycleRange", { start: format.shortDate(period.start), end: format.shortDate(period.end) })
       : t("period.cycleSince", { start: format.shortDate(period.start) });

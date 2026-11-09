@@ -10,7 +10,7 @@ import { DayHeading, ListRow, Panel, PanelBlock, SectionHeader } from "./lists";
 import { Rail, RailItem, RailRule } from "./rail";
 import { ShellDialog } from "./ShellDialog";
 import { MaskedMoney } from "./money";
-import { Card, CardHeader, EmptyState, ErrorState, Kpi, KpiStrip, Pill, RadioSegments, Segmented, Skeleton } from "./primitives";
+import { Card, CardHeader, EmptyState, ErrorState, Pill, RadioSegments, Segmented, Skeleton } from "./primitives";
 
 const app = vi.hoisted(() => ({ hideBalances: false, currency: "IDR" as "IDR" | "USD" }));
 vi.mock("@/components/layout/AppLayout", () => ({
@@ -47,15 +47,6 @@ const PRIMITIVES: [string, () => ReactElement][] = [
         />
         <p>Isi kartu</p>
       </Card>
-    ),
-  ],
-  [
-    "KpiStrip with Kpi",
-    () => (
-      <KpiStrip label="Ringkasan siklus">
-        <Kpi icon="wallet" label="Aman dipakai hari ini" value="Rp 214.000" caption="12 hari lagi gajian" />
-        <Kpi icon="receipt" label="Keluar siklus ini" value="belum tersedia" valueIsWords />
-      </KpiStrip>
     ),
   ],
   [

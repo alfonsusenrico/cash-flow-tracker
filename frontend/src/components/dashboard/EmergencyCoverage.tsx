@@ -61,7 +61,7 @@ export function coverageTone(status: EmergencyRunway["status"]): string {
 }
 
 /** How the essential monthly cost was obtained, in one sentence. */
-export function essentialBasisText(cost: EssentialCost | undefined, t: Translate): string {
+export function essentialBasisText(cost: (Pick<EssentialCost, "method" | "debt_minimum" | "period_count"> & Partial<EssentialCost>) | undefined, t: Translate): string {
   if (!cost || cost.method === "unknown") return t("breakdown.essentialUnknown");
   const debt = cost.debt_minimum > 0 ? t("breakdown.plusMinimumInstallments") : "";
   if (cost.method === "need_budget") return t("breakdown.essentialFromBudget", { debt });

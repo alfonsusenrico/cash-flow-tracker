@@ -23,6 +23,8 @@ const SPEND_EN = /\b(expenses?|spent)\b|(?<!to )\bspend\b/i;
 const SPENDING_ID = /\b(Keluar(?! (ke|dari) )|Belanja)\b/;
 /** "Keluar" in Peta Aliran's node detail is one account's direction (money in, money out), not a spending figure. */
 const DIRECTION_KEYS = new Set(["analysis.flowDetail.out", "analysis.flowDetail.outTo"]);
+/** Laporan's third question asks how much was spent; it is a question, not the spending figure's name (apply-markas-laporan D19). */
+const QUESTION_KEYS = new Set(["report.questions.spending"]);
 
 /**
  * "Aman dipakai sampai gajian" and the two phrases built on it are the hero figure's name as the owner approved it
@@ -58,14 +60,15 @@ function englishOffenders(catalogue: Catalogue): string[] {
 }
 
 /**
- * The glossary and the messages of Tinjau, Transaksi and Analisis in both languages (apply-markas-tinjau D18,
- * apply-markas-analisis D22); in Indonesian also Beranda's and the Rincian's messages, which hold their figure labels.
+ * The glossary and the messages of Tinjau, Transaksi, Analisis and Laporan in both languages (apply-markas-tinjau D18,
+ * apply-markas-analisis D22, apply-markas-laporan D19); in Indonesian also Beranda's and the Rincian's messages, which
+ * hold their figure labels.
  */
 function spendingTermOffenders(catalogue: Catalogue, language: "en" | "id"): string[] {
   const rule = language === "en" ? SPEND_EN : SPENDING_ID;
   return messages(catalogue)
-    .filter(([key]) => /^(terms|review|transactions|analysis)\./.test(key) || (language === "id" && /^(home|breakdown)\./.test(key)))
-    .filter(([key, value]) => rule.test(value) && !(language === "id" && DIRECTION_KEYS.has(key)))
+    .filter(([key]) => /^(terms|review|transactions|analysis|report)\./.test(key) || (language === "id" && /^(home|breakdown)\./.test(key)))
+    .filter(([key, value]) => rule.test(value) && !(language === "id" && DIRECTION_KEYS.has(key)) && !QUESTION_KEYS.has(key))
     .map(([key]) => key);
 }
 
@@ -136,6 +139,8 @@ const TRANSLATED_ROOTS = [
   // Rekening & Kantong and its money dialogs (apply-markas-rekening D16).
   "app/accounts", "components/accounts", "components/ui/InvestmentTradeModal.tsx", "components/ui/InvestmentTopupModal.tsx",
   "components/ui/AmountTrackingSwitchModal.tsx",
+  // Laporan (apply-markas-laporan D19).
+  "app/laporan", "components/report",
 ];
 /** Indonesian page copy that lives in a translated root until its page's phase moves it (D10). */
 const UNTRANSLATED_FILES = ["components/workspace/untranslatedPages.ts"];
@@ -147,8 +152,6 @@ const MONEY_ROOTS = ["components/goals", "components/settings", "app/goals", "ap
 const UNTRANSLATED_ROOTS = ["components/capture",
   "components/ui/DeviceHealthChecklist.tsx", "components/ui/DevicePairingDialog.tsx", "components/ui/DevicePairingSection.tsx",
   "lib/deviceHealth.ts", "lib/provenance.ts", "lib/capture.ts", "lib/movementFormSchema.ts", "lib/untranslatedRowLabels.ts",
-  // Laporan (redesign-analysis-and-reports D13), until phase 7 translates it.
-  "components/report", "app/laporan/page.tsx",
   // Rekening & Kantong, Target & Tagihan, Pengaturan and their modals (redesign-money-and-settings D16).
   ...MONEY_ROOTS];
 
@@ -258,6 +261,8 @@ describe("catalogue copy register", () => {
     expect(englishOffenders(planted.enTransactions)).toEqual(["transactions.page.title: jargon"]);
     expect(spendingTermOffenders(planted.idAnalysis, "id")).toEqual(["analysis.daily.title"]);
     expect(spendingTermOffenders(planted.enAnalysis, "en")).toEqual(["terms.spent"]);
+    expect(spendingTermOffenders(planted.idReport, "id")).toEqual(["report.hero.label"]);
+    expect(spendingTermOffenders(planted.enReport, "en")).toEqual(["terms.expenses", "report.history.title"]);
   });
 });
 
@@ -312,15 +317,6 @@ describe("source copy register for areas not translated yet", () => {
       .filter(({ text }) => figureLabel.test(text))
       .map(({ line, text }) => `${path.relative(__dirname, file)}:${line}: ${text.trim()}`));
     expect(found).toEqual([]);
-  });
-
-  it("writes Laporan impersonally, without the formal Anda", () => {
-    const roots = ["components/report", "app/laporan/page.tsx"];
-    const analysis = roots.flatMap(sources).filter(isSource);
-    const formal = analysis.flatMap((file) => visibleLines(file)
-      .filter(({ text }) => /\bAnda\b/.test(text))
-      .map(({ line, text }) => `${path.relative(__dirname, file)}:${line}: ${text.trim()}`));
-    expect(formal).toEqual([]);
   });
 
   it("writes the money pages, Pengaturan and their modals impersonally, without the formal Anda", () => {
