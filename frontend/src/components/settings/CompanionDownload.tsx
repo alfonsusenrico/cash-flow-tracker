@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import QRCode from "qrcode";
+import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Icon } from "@/components/ui/Icon";
-import { SettingsSubsection } from "@/components/settings/SettingsCard";
+import { SectionHeader } from "@/components/workspace/lists";
+import { QrCode } from "@/components/settings/QrCode";
 
 /** Always the newest signed release: the Android release workflow keeps it marked latest. */
 export const COMPANION_DOWNLOAD_URL =
@@ -12,95 +13,63 @@ export const COMPANION_RELEASE_URL = "https://github.com/alfonsusenrico/cash-flo
 /** minSdk 26 in mobile/app/build.gradle.kts. */
 export const COMPANION_MIN_ANDROID = "Android 8.0";
 
-const QR_SIZE = 160;
-const linkClass =
-  "font-semibold text-[var(--text)] underline underline-offset-2";
+/** The prototype's 136 px box less its 8 px padding and 1 px line on each side. */
+const DOWNLOAD_QR_SIZE = 118;
 
 function DownloadDetails() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const t = useTranslations("settings.devices");
   const [qrFailed, setQrFailed] = useState(false);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    let cancelled = false;
-    // Scanners need dark modules on a light quiet zone, so the code stays black on white in both themes.
-    QRCode.toCanvas(canvas, COMPANION_DOWNLOAD_URL, {
-      width: QR_SIZE,
-      margin: 2,
-      errorCorrectionLevel: "M",
-      color: { dark: "#000000", light: "#ffffff" },
-    }).catch(() => {
-      if (!cancelled) setQrFailed(true);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   return (
-    <div className="flex flex-wrap items-start gap-4 text-xs">
-      <div className="shrink-0 rounded-xl border border-[var(--line)] bg-white p-2">
-        <canvas
-          ref={canvasRef}
-          width={QR_SIZE}
-          height={QR_SIZE}
-          role="img"
-          aria-label="Kode QR tautan unduhan aplikasi pendamping"
-          className="block h-40 w-40"
-        />
+    <div className="set-qr-row">
+      <div className="qr">
+        <QrCode value={COMPANION_DOWNLOAD_URL} size={DOWNLOAD_QR_SIZE} label={t("downloadQr")} onError={() => setQrFailed(true)} />
       </div>
-      <div className="min-w-0 flex-1 basis-56 space-y-2 text-[var(--text-2)]">
-        <p>Pindai dengan kamera ponsel untuk mengunduh, atau buka tautan ini di ponsel.</p>
+      <div className="grow">
+        <a href={COMPANION_DOWNLOAD_URL} className="ws-btn">
+          <Icon name="download" className="h-4 w-4" />
+          {t("downloadButton")}
+        </a>
+        <p className="t-meta set-note">
+          {t.rich("downloadNote", {
+            android: COMPANION_MIN_ANDROID,
+            link: (chunks) => (
+              <a href={COMPANION_RELEASE_URL} className="ws-linkbtn underline">
+                {chunks}
+              </a>
+            ),
+          })}
+        </p>
         {qrFailed && (
-          <p role="alert" className="text-[var(--out-fg)]">
-            Kode QR gagal ditampilkan. Pakai tautan unduhan.
+          <p role="alert" className="set-err set-note">
+            {t("qrFailed")}
           </p>
         )}
-        <p>
-          <a href={COMPANION_DOWNLOAD_URL} className={`${linkClass} inline-flex min-h-11 items-center gap-1 break-all`}>
-            <Icon name="download" className="h-4 w-4 shrink-0" />
-            Unduh cashflow-companion.apk
-          </a>
-        </p>
-        <p>Butuh {COMPANION_MIN_ANDROID} atau lebih baru.</p>
-        <p>
-          Sebelum memasang, cocokkan SHA-256 berkas dengan yang tertulis di{" "}
-          <a href={COMPANION_RELEASE_URL} className={linkClass}>
-            halaman rilis
-          </a>
-          .
-        </p>
       </div>
     </div>
   );
 }
 
-/** Settings → Perangkat & akses: where to get the app before pairing it. */
+/** Pengaturan › HP & perangkat: where to get the app before pairing it (D6). */
 export function CompanionDownloadSection() {
+  const t = useTranslations("settings.devices");
   return (
-    <SettingsSubsection
-      id="companion-download-title"
-      title="Unduh aplikasi pendamping"
-      description="Pasang aplikasi Android ini dulu, lalu hubungkan ponsel dengan kode QR pemasangan."
-    >
+    <section aria-labelledby="companion-download-title">
+      <SectionHeader id="companion-download-title" label={t("download")} />
       <DownloadDetails />
-    </SettingsSubsection>
+    </section>
   );
 }
 
-/** Collapsed in the pairing dialog, so its QR cannot be mistaken for the pairing code. */
+/** Collapsed in the pairing dialog, so its QR cannot be mistaken for the pairing code (D9). */
 export function CompanionDownloadDisclosure() {
+  const t = useTranslations("settings.pairing");
   return (
-    <details className="group rounded-xl border border-[var(--line)]">
-      <summary
-        id="companion-download-disclosure"
-        className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-md px-3 font-semibold text-[var(--text)] [&::-webkit-details-marker]:hidden"
-      >
-        Belum punya aplikasinya? Unduh aplikasi pendamping
-        <Icon name="chevron-down" className="h-4 w-4 shrink-0 text-[var(--muted)] transition-transform group-open:rotate-180" />
+    <details>
+      <summary id="companion-download-disclosure">
+        {t("noApp")}
+        <Icon name="chevron-down" className="h-4 w-4" />
       </summary>
-      <section aria-labelledby="companion-download-disclosure" className="border-t border-[var(--line)] p-3">
+      <section aria-labelledby="companion-download-disclosure">
         <DownloadDetails />
       </section>
     </details>

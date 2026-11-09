@@ -2,60 +2,60 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import {
   ApiError, deleteTestSession, endTestSession, getTestSessionEvents, getTestSessions, labelTestSessionEvent,
   startTestSession, testSessionCsvUrl, type TestSession, type TestSessionEvent,
 } from "@/lib/api";
+import { useFormat, type Format } from "@/lib/format";
 import { queryKeys } from "@/lib/queryKeys";
-import { useAppCtx } from "@/components/layout/AppLayout";
-import { Button } from "@/components/ui/Button";
+import { Field } from "@/components/workspace/Field";
+import { ListRow, SectionHeader } from "@/components/workspace/lists";
+import { MaskedMoney, useMoney } from "@/components/workspace/money";
+import { ErrorState, Skeleton } from "@/components/workspace/primitives";
 import { ConfirmRemove } from "@/components/settings/ConfirmRemove";
-import {
-  SettingsAlert, SettingsCard, SettingsField, SettingsList, SettingsSubsection, settingsControlClass,
-} from "@/components/settings/SettingsCard";
+import { sectionHeadingId } from "@/components/settings/sections";
+import { SettingsAlert, SettingsSection } from "@/components/settings/SettingsSection";
 
 /** Durations offered when starting; the server accepts 15 minutes to 6 hours (notification-test-session OD150). */
 export const DURATION_OPTIONS = [15, 30, 60, 120, 180, 240, 360] as const;
 export const DEFAULT_DURATION = 120;
 
-const TIME = new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
-const DAY = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", timeZone: "Asia/Jakarta" });
-const SECONDS = new Intl.DateTimeFormat("id-ID", {
-  hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Asia/Jakarta",
-});
+type SessionWords = ReturnType<typeof useTranslations<"settings.testSession">>;
 
-export function durationLabel(minutes: number): string {
-  if (minutes < 60) return `${minutes} menit`;
+export function durationLabel(minutes: number, t: SessionWords): string {
+  if (minutes < 60) return t("minutes", { count: minutes });
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
-  return rest ? `${hours} jam ${rest} menit` : `${hours} jam`;
+  return rest ? t("hoursMinutes", { hours: String(hours), minutes: String(rest) }) : t("hours", { count: hours });
 }
 
-function windowText(session: TestSession): string {
+function windowText(session: TestSession, format: Format): string {
   const end = session.ended_at ?? session.planned_end_at;
-  const started = new Date(session.started_at);
-  return `${DAY.format(started)} ${TIME.format(started)} – ${TIME.format(new Date(end))}`;
+  return `${format.shortDateAt(session.started_at)} ${format.time(session.started_at)} – ${format.time(end)}`;
 }
 
-function countText(session: TestSession): string {
-  const labelled = session.labelled_count ? ` · ${session.labelled_count} bernomor kasus` : "";
-  return `${session.event_count} notifikasi${labelled}`;
+function countText(session: TestSession, t: SessionWords): string {
+  const count = t("rowMeta", { count: session.event_count });
+  return session.labelled_count ? `${count} · ${t("labelled", { number: String(session.labelled_count) })}` : count;
 }
 
-function gapText(seconds: number): string {
-  if (seconds < 60) return `${Math.max(0, Math.round(seconds))} dtk`;
-  if (seconds < 3600) return `${Math.round(seconds / 60)} mnt`;
-  return `${Math.round(seconds / 3600)} jam`;
+function gapText(seconds: number, t: SessionWords): string {
+  if (seconds < 60) return t("gapSeconds", { value: String(Math.max(0, Math.round(seconds))) });
+  if (seconds < 3600) return t("gapMinutes", { value: String(Math.round(seconds / 60)) });
+  return t("gapHours", { value: String(Math.round(seconds / 3600)) });
 }
 
-function startError(error: unknown): string {
-  if (error instanceof ApiError && error.status === 409) return "Sesi lain masih berjalan. Akhiri sesi itu dulu.";
-  return "Sesi gagal dimulai. Coba lagi.";
-}
-
+/**
+ * Sesi uji (apply-markas-pengaturan D15): the duration and "Mulai sesi", or the running line with "Akhiri sesi" and
+ * its report; then the previous sessions with their report, CSV and inline "Hapus data". Requests, the 409 message
+ * and the polling intervals are unchanged.
+ */
 export function TestSessionSection() {
+  const t = useTranslations("settings.testSession");
+  const format = useFormat();
   const queryClient = useQueryClient();
-  const { data, isError } = useQuery({
+  const { data, isError, refetch } = useQuery({
     queryKey: queryKeys.testSessions.list,
     queryFn: getTestSessions,
     refetchInterval: 30000,
@@ -72,7 +72,7 @@ export function TestSessionSection() {
       setReportId(session.id);
       refresh();
     },
-    onError: (failure) => setError(startError(failure)),
+    onError: (failure) => setError(failure instanceof ApiError && failure.status === 409 ? t("startConflict") : t("startFailed")),
   });
   const end = useMutation({
     mutationFn: endTestSession,
@@ -80,7 +80,7 @@ export function TestSessionSection() {
       setError("");
       refresh();
     },
-    onError: () => setError("Sesi gagal diakhiri. Coba lagi."),
+    onError: () => setError(t("endFailed")),
   });
   const remove = useMutation({
     mutationFn: deleteTestSession,
@@ -88,9 +88,9 @@ export function TestSessionSection() {
       setError("");
       if (reportId === id) setReportId(null);
       refresh();
-      document.getElementById("settings-sesi-uji-title")?.focus();
+      document.getElementById(sectionHeadingId("sesi-uji"))?.focus();
     },
-    onError: () => setError("Data sesi gagal dihapus. Coba lagi."),
+    onError: () => setError(t("removeFailed")),
   });
 
   const sessions = data?.sessions ?? [];
@@ -98,131 +98,133 @@ export function TestSessionSection() {
   const past = sessions.filter((session) => session.status === "ended");
 
   return (
-    <SettingsCard section="sesi-uji">
+    <SettingsSection section="sesi-uji">
       {error && <SettingsAlert>{error}</SettingsAlert>}
       {isError ? (
-        <SettingsAlert>Sesi uji gagal dimuat.</SettingsAlert>
+        <ErrorState message={t("loadFailed")} onRetry={() => void refetch()} />
       ) : !data ? (
-        <p role="status" className="text-[var(--muted)]">Memuat sesi uji…</p>
+        <div aria-busy="true" aria-label={t("loading")}>
+          <Skeleton style={{ height: 112 }} />
+        </div>
       ) : (
         <>
-          <SettingsSubsection id="sesi-uji-sekarang" title={running ? "Sesi berjalan" : "Mulai sesi"}>
-            {running ? (
-              <div className="space-y-3">
-                <p className="tabular-nums text-[var(--text)]">
-                  Berjalan sampai <b>{TIME.format(new Date(running.planned_end_at))}</b> · {countText(running)}
-                </p>
-                <p className="text-xs text-[var(--muted)]">Notifikasi selama sesi disimpan tanpa dicatat. HP tetap menampilkan notifikasi seperti biasa.</p>
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="primary" className="min-h-11" disabled={end.isPending} onClick={() => end.mutate(running.id)}>
-                    {end.isPending ? "Mengakhiri…" : "Akhiri sesi"}
-                  </Button>
-                  <Button
-                    className="min-h-11"
-                    aria-expanded={reportId === running.id}
-                    onClick={() => setReportId(reportId === running.id ? null : running.id)}
-                  >
-                    {reportId === running.id ? "Tutup laporan" : "Lihat laporan"}
-                  </Button>
-                </div>
-                {reportId === running.id && <SessionReport session={running} />}
+          {running ? (
+            <section aria-label={t("end")} className="form-stack">
+              <p className="t-body tabular-nums">
+                {t("running", { time: format.time(running.planned_end_at), count: running.event_count })}
+                {running.labelled_count ? ` · ${t("labelled", { number: String(running.labelled_count) })}` : ""}
+              </p>
+              <div className="set-actions">
+                <button type="button" className="ws-btn ws-btn-accent" disabled={end.isPending} onClick={() => end.mutate(running.id)}>
+                  {end.isPending ? t("ending") : t("end")}
+                </button>
+                <button type="button" className="ws-btn" aria-expanded={reportId === running.id} onClick={() => setReportId(reportId === running.id ? null : running.id)}>
+                  {reportId === running.id ? t("closeReport") : t("report")}
+                </button>
               </div>
-            ) : (
-              <form
-                className="flex flex-wrap items-end gap-3"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  start.mutate();
-                }}
-              >
-                <SettingsField id="sesi-uji-durasi" label="Durasi" className="w-44">
+              {reportId === running.id && <SessionReport session={running} />}
+            </section>
+          ) : (
+            <form
+              className="form-stack"
+              aria-label={t("start")}
+              onSubmit={(event) => {
+                event.preventDefault();
+                start.mutate();
+              }}
+            >
+              <div className="form-grid">
+                <Field id="sesi-uji-durasi" label={t("duration")}>
                   {(field) => (
-                    <select
-                      {...field}
-                      value={duration}
-                      onChange={(event) => setDuration(Number(event.target.value))}
-                      className={settingsControlClass}
-                    >
+                    <select {...field} value={duration} onChange={(event) => setDuration(Number(event.target.value))} className="field-control border">
                       {DURATION_OPTIONS.map((minutes) => (
-                        <option key={minutes} value={minutes}>{durationLabel(minutes)}</option>
+                        <option key={minutes} value={minutes}>
+                          {durationLabel(minutes, t)}
+                        </option>
                       ))}
                     </select>
                   )}
-                </SettingsField>
-                <Button type="submit" variant="primary" className="min-h-11" disabled={start.isPending}>
-                  {start.isPending ? "Memulai…" : "Mulai sesi"}
-                </Button>
-              </form>
-            )}
-          </SettingsSubsection>
+                </Field>
+              </div>
+              <div className="set-actions">
+                <button type="submit" className="ws-btn ws-btn-accent" disabled={start.isPending}>
+                  {start.isPending ? t("starting") : t("start")}
+                </button>
+              </div>
+            </form>
+          )}
 
-          <SettingsSubsection id="sesi-uji-riwayat" title="Sesi sebelumnya">
+          <section aria-labelledby="sesi-uji-riwayat">
+            <SectionHeader id="sesi-uji-riwayat" label={t("previous")} aside={past.length ? <span className="aside">{past.length}</span> : undefined} />
             {past.length === 0 ? (
-              <p className="text-[var(--muted)]">Belum ada sesi yang selesai.</p>
+              <p className="t-body text-[var(--muted)]">{t("previousEmpty")}</p>
             ) : (
-              <SettingsList label="Sesi uji sebelumnya">
-                {past.map((session) => (
-                  <li key={session.id} className="space-y-3 px-3 py-2.5">
-                    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold tabular-nums text-[var(--text)]">{windowText(session)}</p>
-                        <p className="text-xs tabular-nums text-[var(--muted)]">{countText(session)}</p>
-                      </div>
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        <Button
-                          size="sm"
-                          className="min-h-11"
-                          aria-expanded={reportId === session.id}
-                          aria-label={`${reportId === session.id ? "Tutup laporan" : "Lihat laporan"} sesi ${windowText(session)}`}
-                          onClick={() => setReportId(reportId === session.id ? null : session.id)}
-                        >
-                          {reportId === session.id ? "Tutup laporan" : "Lihat laporan"}
-                        </Button>
-                        <a
-                          href={testSessionCsvUrl(session.id)}
-                          download
-                          className="inline-flex min-h-11 items-center rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 text-xs font-semibold text-[var(--text)] hover:bg-[var(--window)]"
-                          aria-label={`Unduh CSV sesi ${windowText(session)}`}
-                        >
-                          Unduh CSV
-                        </a>
-                        <ConfirmRemove
-                          subject={`sesi ${windowText(session)}`}
-                          triggerLabel={`Hapus data sesi ${windowText(session)}`}
-                          verb="Hapus data"
-                          confirmLabel="Ya, hapus data"
-                          pending={remove.isPending && remove.variables === session.id}
-                          disabled={remove.isPending}
-                          onConfirm={() => remove.mutate(session.id)}
-                        />
-                      </div>
-                    </div>
-                    {reportId === session.id && <SessionReport session={session} />}
-                  </li>
-                ))}
-              </SettingsList>
+              <ul className="list set-list" aria-labelledby="sesi-uji-riwayat">
+                {past.map((session) => {
+                  const sessionWindow = windowText(session, format);
+                  const open = reportId === session.id;
+                  return (
+                    <li key={session.id}>
+                      <ListRow
+                        layout="stacked"
+                        title={<span className="tabular-nums">{sessionWindow}</span>}
+                        meta={countText(session, t)}
+                        actions={
+                          <>
+                            <span className="ws-badge">{t("done")}</span>
+                            <button
+                              type="button"
+                              className="ws-btn ws-btn-quiet"
+                              aria-expanded={open}
+                              aria-label={t("reportName", { action: open ? t("closeReport") : t("report"), window: sessionWindow })}
+                              onClick={() => setReportId(open ? null : session.id)}
+                            >
+                              {open ? t("closeReport") : t("report")}
+                            </button>
+                            <a href={testSessionCsvUrl(session.id)} download className="ws-btn ws-btn-quiet" aria-label={t("csvName", { window: sessionWindow })}>
+                              {t("csv")}
+                            </a>
+                            <ConfirmRemove
+                              kind="removeData"
+                              subject={t("subject", { window: sessionWindow })}
+                              triggerLabel={t("removeDataName", { window: sessionWindow })}
+                              pending={remove.isPending && remove.variables === session.id}
+                              disabled={remove.isPending}
+                              onConfirm={() => remove.mutate(session.id)}
+                            />
+                          </>
+                        }
+                      />
+                      {open && (
+                        <div className="set-inline">
+                          <SessionReport session={session} />
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
             )}
-          </SettingsSubsection>
+          </section>
         </>
       )}
-    </SettingsCard>
+    </SettingsSection>
   );
 }
 
 /** The captured notifications of one session, with the owner's case number and note per notification (D6). */
 function SessionReport({ session }: { session: TestSession }) {
+  const t = useTranslations("settings.testSession");
   const { data, isError } = useQuery({
     queryKey: queryKeys.testSessions.events(session.id),
     queryFn: () => getTestSessionEvents(session.id),
     refetchInterval: session.status === "open" ? 15000 : false,
   });
-  if (isError) return <SettingsAlert>Laporan sesi gagal dimuat.</SettingsAlert>;
-  if (!data) return <p role="status" className="text-[var(--muted)]">Memuat laporan…</p>;
-  if (data.events.length === 0) {
-    return <p className="text-[var(--muted)]">Belum ada notifikasi tersimpan di sesi ini.</p>;
-  }
+  if (isError) return <SettingsAlert>{t("reportLoadFailed")}</SettingsAlert>;
+  if (!data) return <p role="status" className="t-meta">{t("reportLoading")}</p>;
+  if (data.events.length === 0) return <p className="t-body text-[var(--muted)]">{t("reportEmpty")}</p>;
   return (
-    <ol aria-label="Notifikasi sesi" className="divide-y divide-[var(--line)] rounded-xl border border-[var(--line)]">
+    <ol aria-label={t("events")} className="set-report">
       {data.events.map((event) => (
         <ReportRow key={event.event_id} sessionId={session.id} event={event} />
       ))}
@@ -231,7 +233,9 @@ function SessionReport({ session }: { session: TestSession }) {
 }
 
 function ReportRow({ sessionId, event }: { sessionId: string; event: TestSessionEvent }) {
-  const { bal } = useAppCtx();
+  const t = useTranslations("settings.testSession");
+  const format = useFormat();
+  const money = useMoney();
   const queryClient = useQueryClient();
   const [testCase, setTestCase] = useState(event.test_case ?? "");
   const [note, setNote] = useState(event.label_notes ?? "");
@@ -248,29 +252,25 @@ function ReportRow({ sessionId, event }: { sessionId: string; event: TestSession
       queryClient.invalidateQueries({ queryKey: queryKeys.testSessions.all });
     },
   });
-  const direction = event.direction === "income" ? "Uang masuk" : event.direction === "expense" ? "Uang keluar" : "Arah tidak terbaca";
-  const amount = event.amount === null ? "Nominal tidak terbaca" : bal(event.amount);
+  const direction = event.direction === "income" ? t("moneyIn") : event.direction === "expense" ? t("moneyOut") : t("unknownDirection");
   const prefix = `notif-${event.event_id}`;
   return (
-    <li className="space-y-2 px-3 py-2.5">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <p className="font-semibold text-[var(--text)]">
-          {event.app_label} · {direction} <span className="tabular-nums">{amount}</span>
-        </p>
-        <p className="text-xs tabular-nums text-[var(--muted)]">
-          {SECONDS.format(new Date(event.post_time))} · diterima +{gapText(event.gap_seconds)}
-        </p>
-      </div>
-      {event.preview && <p className="break-words text-xs text-[var(--text-2)]">{event.preview}</p>}
+    <li>
+      <p className="t-strong">
+        {event.app_label} · {direction}{" "}
+        {event.amount === null ? t("unknownAmount") : <MaskedMoney text={money(event.amount)} className="tabular-nums" />}
+      </p>
+      <p className="t-meta tabular-nums">{t("received", { time: format.timeSeconds(event.post_time), gap: gapText(event.gap_seconds, t) })}</p>
+      {event.preview && <p className="t-meta set-preview">{event.preview}</p>}
       <form
-        className="flex flex-wrap items-end gap-2"
+        className="set-label-form"
         onSubmit={(submit) => {
           submit.preventDefault();
           setSaved(false);
           save.mutate();
         }}
       >
-        <SettingsField id={`${prefix}-case`} label="Nomor kasus" className="w-28">
+        <Field id={`${prefix}-case`} label={t("caseNumber")} className="set-case">
           {(field) => (
             <input
               {...field}
@@ -281,11 +281,11 @@ function ReportRow({ sessionId, event }: { sessionId: string; event: TestSession
                 setSaved(false);
                 setTestCase(change.target.value);
               }}
-              className={settingsControlClass}
+              className="field-control border"
             />
           )}
-        </SettingsField>
-        <SettingsField id={`${prefix}-note`} label="Catatan" className="min-w-0 flex-1 basis-48">
+        </Field>
+        <Field id={`${prefix}-note`} label={t("note")} className="set-case-note">
           {(field) => (
             <input
               {...field}
@@ -295,15 +295,15 @@ function ReportRow({ sessionId, event }: { sessionId: string; event: TestSession
                 setSaved(false);
                 setNote(change.target.value);
               }}
-              className={settingsControlClass}
+              className="field-control border"
             />
           )}
-        </SettingsField>
-        <Button type="submit" size="sm" className="min-h-11" disabled={!dirty || save.isPending}>
-          {save.isPending ? "Menyimpan…" : "Simpan"}
-        </Button>
-        <p role="status" className="min-h-4 w-full text-xs text-[var(--muted)]">
-          {save.isError ? "Gagal disimpan. Coba lagi." : saved && !dirty ? "Tersimpan." : ""}
+        </Field>
+        <button type="submit" className="ws-btn" disabled={!dirty || save.isPending}>
+          {save.isPending ? t("saving") : t("save")}
+        </button>
+        <p role="status" className="t-meta set-label-status">
+          {save.isError ? t("saveFailed") : saved && !dirty ? t("saved") : ""}
         </p>
       </form>
     </li>

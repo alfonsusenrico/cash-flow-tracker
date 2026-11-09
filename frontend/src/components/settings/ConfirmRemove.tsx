@@ -1,28 +1,28 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Button } from "@/components/ui/Button";
-import { confirmDangerClass, quietDangerClass } from "@/components/settings/SettingsCard";
+import { useTranslations } from "next-intl";
+import { Icon } from "@/components/ui/Icon";
 
 interface ConfirmRemoveProps {
-  /** What is removed, as the owner reads it in the row (e.g. "AN**RA** → Andra"). */
+  /** What is removed, as the owner reads it in the row (e.g. "pemetaan “AN**RA**”"). */
   subject: string;
-  /** Accessible name of the first "Hapus" button. */
+  /** Accessible name of the first button. */
   triggerLabel: string;
   disabled?: boolean;
   pending?: boolean;
   onConfirm: () => void;
-  /** The verb on the first button and in the question, for removals that are not deletions. */
-  verb?: string;
-  confirmLabel?: string;
-  pendingLabel?: string;
+  /** "Hapus data" for a test session's stored notifications; "Hapus" otherwise. */
+  kind?: "remove" | "removeData";
+  /** The first button is a 36 px trash icon button (Pemetaan, Nama pengirim; apply-markas-pengaturan D14). */
+  icon?: boolean;
 }
 
 /** "Hapus" that asks once more in the same row; cancelling or Escape changes nothing and restores focus. */
-export function ConfirmRemove({
-  subject, triggerLabel, disabled = false, pending = false, onConfirm,
-  verb = "Hapus", confirmLabel = "Ya, hapus", pendingLabel = "Menghapus…",
-}: ConfirmRemoveProps) {
+export function ConfirmRemove({ subject, triggerLabel, disabled = false, pending = false, onConfirm, kind = "remove", icon = false }: ConfirmRemoveProps) {
+  const t = useTranslations("settings.remove");
+  const session = useTranslations("settings.testSession");
+  const common = useTranslations("common");
   const [confirming, setConfirming] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
@@ -42,6 +42,8 @@ export function ConfirmRemove({
     setConfirming(false);
   };
 
+  const question = kind === "removeData" ? t("askData", { subject }) : t("ask", { subject });
+
   if (!confirming) {
     return (
       <button
@@ -50,9 +52,9 @@ export function ConfirmRemove({
         aria-label={triggerLabel}
         disabled={disabled}
         onClick={() => setConfirming(true)}
-        className={quietDangerClass}
+        className={icon ? "ws-icon-btn" : "ws-btn ws-btn-quiet c-expense"}
       >
-        {verb}
+        {icon ? <Icon name="trash" className="h-4 w-4" /> : kind === "removeData" ? session("removeData") : t("verb")}
       </button>
     );
   }
@@ -60,8 +62,8 @@ export function ConfirmRemove({
   return (
     <div
       role="group"
-      aria-label={`${verb} ${subject}?`}
-      className="flex flex-wrap items-center justify-end gap-2"
+      aria-label={question}
+      className="set-confirm"
       onKeyDown={(event) => {
         if (event.key === "Escape") {
           event.stopPropagation();
@@ -69,20 +71,20 @@ export function ConfirmRemove({
         }
       }}
     >
-      <span className="text-xs font-semibold text-[var(--text)]">{verb} {subject}?</span>
-      <Button ref={cancel} type="button" variant="secondary" size="sm" className="min-h-11" onClick={stop}>
-        Batal
-      </Button>
+      <span className="t-strong">{question}</span>
+      <button ref={cancel} type="button" className="ws-btn" onClick={stop}>
+        {common("cancel")}
+      </button>
       <button
         type="button"
+        className="ws-btn ws-btn-danger"
         disabled={pending}
         onClick={() => {
           stop();
           onConfirm();
         }}
-        className={`inline-flex min-h-11 items-center justify-center rounded-md px-3 text-xs font-semibold disabled:opacity-50 ${confirmDangerClass}`}
       >
-        {pending ? pendingLabel : confirmLabel}
+        {pending ? t("removing") : kind === "removeData" ? session("removeDataYes") : t("yes")}
       </button>
     </div>
   );

@@ -131,7 +131,8 @@ export function RadioSegments<T extends string>({
 }: {
   label?: string;
   labelledBy?: string;
-  options: { value: T; label: string; disabled?: boolean }[];
+  /** An option may name its own `lang`, such as a language written in its own words. */
+  options: { value: T; label: string; disabled?: boolean; lang?: string }[];
   value: T | null;
   onChange: (value: T) => void;
   className?: string;
@@ -156,6 +157,7 @@ export function RadioSegments<T extends string>({
           type="button"
           role="radio"
           data-value={option.value}
+          lang={option.lang}
           aria-checked={option.value === value}
           disabled={option.disabled}
           tabIndex={option.value === focusable ? 0 : -1}

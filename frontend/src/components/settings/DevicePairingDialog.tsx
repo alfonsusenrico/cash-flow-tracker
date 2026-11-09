@@ -1,20 +1,26 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import QRCode from "qrcode";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { createPairingCode, getDevices, type PairedDevice } from "@/lib/api";
 import { checklistAnnouncement, pairingChecklist } from "@/lib/deviceHealth";
 import { queryKeys } from "@/lib/queryKeys";
-import { Modal } from "@/components/ui/Modal";
-import { Button } from "@/components/ui/Button";
-import { CompanionDownloadDisclosure } from "@/components/ui/CompanionDownload";
-import { DeviceHealthChecklist } from "@/components/ui/DeviceHealthChecklist";
+import { ShellDialog } from "@/components/workspace/ShellDialog";
+import { CompanionDownloadDisclosure } from "@/components/settings/CompanionDownload";
+import { DeviceHealthChecklist } from "@/components/settings/DeviceHealthChecklist";
+import { QrCode } from "@/components/settings/QrCode";
 
-const QR_SIZE = 240;
+/**
+ * The pairing code's side in css px. The owner kept it at 200 px or more (2026-11-08), above the prototype's 118 px,
+ * because a real phone must scan it reliably; the white box adds an 8 px quiet border.
+ */
+export const PAIRING_QR_SIZE = 200;
 export const DEVICE_POLL_MS = 3000;
 /** The phone may take a while to walk the owner through permissions and its self-test. */
 export const DEVICE_POLL_WINDOW_MS = 10 * 60 * 1000;
+/** The countdown is announced once when this much time is left (D9). */
+const LAST_MINUTE_S = 60;
 
 interface IssuedCode {
   code: string;
@@ -40,11 +46,18 @@ function pairedSince(devices: PairedDevice[] | undefined, issuedAt: number) {
   return devices?.find((device) => device.created_via === "pairing" && Date.parse(device.created_at) >= issuedAt);
 }
 
+/**
+ * "Hubungkan ponsel" (apply-markas-pengaturan D9): a centered 520 px `ShellDialog`, a sheet below 768 px. Opening it
+ * issues one code; the device list is polled every 3 s for at most 10 minutes and stops on ready, at the end of the
+ * window or on close. A new code cancels the previous one on the server.
+ */
 export function DevicePairingDialog({ onClose }: { onClose: () => void }) {
+  const t = useTranslations("settings.pairing");
+  const health = useTranslations("settings.health");
+  const common = useTranslations("common");
   const [issued, setIssued] = useState<IssuedCode | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [qrFailed, setQrFailed] = useState(false);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [pending, setPending] = useState(false);
   const [requestError, setRequestError] = useState("");
   const latestRequest = useRef(0);
@@ -70,11 +83,11 @@ export function DevicePairingDialog({ onClose }: { onClose: () => void }) {
     } catch (error) {
       if (request !== latestRequest.current) return;
       setIssued(null);
-      setRequestError((error instanceof Error && error.message) || "Kodenya gagal dibuat. Coba lagi, ya.");
+      setRequestError((error instanceof Error && error.message) || t("failed"));
     } finally {
       if (request === latestRequest.current) setPending(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     // The ref survives React's development double-mount, so opening the dialog issues one code.
@@ -104,128 +117,79 @@ export function DevicePairingDialog({ onClose }: { onClose: () => void }) {
     return () => window.clearInterval(timer);
   }, [issued, ready, pollingOver]);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!active || !canvas) return;
-    let cancelled = false;
-    // Scanners need dark modules on a light quiet zone, so the code stays black on white in both themes.
-    QRCode.toCanvas(canvas, active.payload, {
-      width: QR_SIZE,
-      margin: 2,
-      errorCorrectionLevel: "M",
-      color: { dark: "#000000", light: "#ffffff" },
-    }).catch(() => {
-      if (!cancelled) setQrFailed(true);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [active]);
-
   const gaveUp = paired !== undefined && !ready && pollingOver;
   let announcement = "";
-  if (pending) announcement = "Membuat kode…";
-  else if (paired) announcement = checklistAnnouncement(checklist);
-  else if (expired) announcement = "Kode sudah kedaluwarsa. Buat kode baru untuk menyambungkan HP.";
+  if (pending) announcement = t("creating");
+  else if (paired) announcement = checklistAnnouncement(checklist, health, t("ready"), t("fixOnPhone"));
+  else if (expired) announcement = t("expiredAnnounce");
+  else if (active && remaining <= LAST_MINUTE_S) announcement = t("oneMinute");
+
+  let emptyText = t("creating");
+  if (requestError) emptyText = t("failedShort");
+  else if (expired) emptyText = t("expired");
+
+  const footer = paired ? (
+    <button type="button" className="ws-btn" onClick={onClose}>
+      {t("done")}
+    </button>
+  ) : (
+    <>
+      <button type="button" className="ws-btn" onClick={onClose}>
+        {t("later")}
+      </button>
+      <button type="button" className="ws-btn" disabled={pending} onClick={() => void requestCode()}>
+        {t("newCode")}
+      </button>
+    </>
+  );
 
   return (
-    <Modal open onClose={onClose} title="Hubungkan ponsel" centered>
-      <div className="space-y-4 text-xs">
+    <ShellDialog open onClose={onClose} title={t("title")} meta={t("meta")} width={520} closeLabel={common("close")} footer={footer} initialFocus=".pair-body">
+      {/* The body takes focus on opening, so the steps are read before the download disclosure. */}
+      <div className="pair-body" tabIndex={-1}>
         {!paired && (
           <>
-            <p className="text-[var(--muted)]">
-              Buka aplikasi pendamping di HP, pilih pindai kode QR, terus arahin kamera ke kode ini.
-            </p>
-
-            <div className="flex flex-col items-center gap-3">
+            <div className="set-qr-row">
               {active ? (
-                <>
-                  <div className="rounded-xl border border-[var(--line)] bg-white p-2">
-                    <canvas
-                      ref={canvasRef}
-                      width={QR_SIZE}
-                      height={QR_SIZE}
-                      role="img"
-                      aria-label={`Kode QR pemasangan ponsel, kode ${groupCode(active.code)}`}
-                      className="block h-60 w-60"
-                    />
-                  </div>
-                  {qrFailed && (
-                    <p role="alert" className="text-center text-[var(--out-fg)]">
-                      Kode QR gagal ditampilkan. Ketik kode di bawah ini di HP.
-                    </p>
-                  )}
-                  <p className="text-center text-[var(--muted)]">
-                    Kode{" "}
-                    <span className="tabular-nums text-base font-semibold tracking-widest text-[var(--text)]">
-                      {groupCode(active.code)}
-                    </span>
-                  </p>
-                  <p role="timer" className="font-semibold text-[var(--text)]">
-                    Berlaku <span className="tabular-nums">{formatCountdown(remaining)}</span>
-                  </p>
-                </>
-              ) : (
-                <div className="flex h-64 w-64 max-w-full items-center justify-center rounded-xl border border-dashed border-[var(--line-strong)] p-4 text-center font-semibold text-[var(--text)]">
-                  {requestError ? "Kode gagal dibuat." : expired ? "Kode sudah kedaluwarsa." : "Membuat kode…"}
+                <div className="qr is-pairing">
+                  <QrCode
+                    value={active.payload}
+                    size={PAIRING_QR_SIZE}
+                    label={t("qr", { code: groupCode(active.code) })}
+                    onError={() => setQrFailed(true)}
+                  />
                 </div>
+              ) : (
+                <div className="qr is-pairing is-empty">{emptyText}</div>
               )}
-              {requestError && (
-                <p role="alert" className="text-center text-[var(--out-fg)]">{requestError}</p>
+              {active && (
+                <ol className="pair-steps grow" aria-label={t("steps")}>
+                  <li className="t-body">{t("step1")}</li>
+                  <li className="t-body">{t("step2")}</li>
+                  <li className="t-body tabular-nums">{t("step3", { time: formatCountdown(remaining) })}</li>
+                </ol>
               )}
             </div>
-          </>
-        )}
-
-        {(paired || active) && <DeviceHealthChecklist checklist={checklist} device={paired} />}
-
-        {gaveUp && (
-          <p className="text-[var(--text)]">
-            Aku berhenti ngecek dulu. Lanjutin di aplikasi HP-mu, ya. Statusnya tetap kelihatan di daftar perangkat.
-          </p>
-        )}
-
-        <p role="status" aria-live="polite" className="sr-only">
-          {announcement}
-        </p>
-
-        {!paired && (
-          <>
-            <p className="text-xs text-[var(--muted)]">
-              Kode hanya dapat dipakai sekali dan berlaku 5 menit. Membuat kode baru membatalkan kode sebelumnya.
-            </p>
+            {qrFailed && <p role="alert" className="set-err">{t("qrFailed")}</p>}
+            {requestError && <p role="alert" className="set-err">{requestError}</p>}
+            {active && (
+              <div className="set-box">
+                <p className="t-meta">{t("typeCode")}</p>
+                <p className="t-fig pair-code">{groupCode(active.code)}</p>
+              </div>
+            )}
+            <p className="t-meta">{t("rule")}</p>
             <CompanionDownloadDisclosure />
           </>
         )}
 
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--line)] pt-3">
-          {ready ? (
-            <Button type="button" variant="primary" size="sm" className="min-h-11" onClick={onClose}>
-              Selesai
-            </Button>
-          ) : paired ? (
-            <Button type="button" variant="secondary" size="sm" className="min-h-11" onClick={onClose}>
-              Nanti saja
-            </Button>
-          ) : (
-            <>
-              <Button type="button" variant="secondary" size="sm" className="min-h-11" onClick={onClose}>
-                Tutup
-              </Button>
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                className="min-h-11"
-                disabled={pending}
-                onClick={() => void requestCode()}
-              >
-                Buat kode baru
-              </Button>
-            </>
-          )}
-        </div>
+        {paired && <DeviceHealthChecklist checklist={checklist} device={paired} />}
+        {gaveUp && <p className="t-body">{t("stopped")}</p>}
+
+        <p role="status" aria-live="polite" className="sr-only">
+          {announcement}
+        </p>
       </div>
-    </Modal>
+    </ShellDialog>
   );
 }

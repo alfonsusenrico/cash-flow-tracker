@@ -16,6 +16,8 @@ function translatedPageTitle(pathname: string, t: Translate): PageHeader | null 
   if (isActivePath(pathname, "/accounts")) return { title: t("nav.accounts"), subtitle: t("accounts.page.subtitle") };
   if (isActivePath(pathname, "/laporan")) return { title: t("nav.reports"), subtitle: t("report.page.subtitle") };
   if (isActivePath(pathname, "/goals")) return { title: t("nav.goals"), subtitle: t("goals.page.subtitle") };
+  // Pengaturan has no subtitle (prototype `titleBlock("Pengaturan", "")`, apply-markas-pengaturan D1).
+  if (isActivePath(pathname, "/settings")) return { title: t("nav.settings"), subtitle: "" };
   return null;
 }
 

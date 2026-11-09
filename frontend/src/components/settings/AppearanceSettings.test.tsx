@@ -37,11 +37,11 @@ afterEach(() => {
 describe("Language control", () => {
   it("offers both languages, each named and marked in its own language, without flags", async () => {
     const { container } = show();
-    const group = screen.getByRole("group", { name: "Bahasa" });
+    const group = screen.getByRole("radiogroup", { name: "Bahasa" });
     const english = within(group).getByRole("radio", { name: "English" });
     const indonesian = within(group).getByRole("radio", { name: "Bahasa Indonesia" });
-    expect(english.closest("label")).toHaveAttribute("lang", "en");
-    expect(indonesian.closest("label")).toHaveAttribute("lang", "id");
+    expect(english).toHaveAttribute("lang", "en");
+    expect(indonesian).toHaveAttribute("lang", "id");
     expect(indonesian).toBeChecked();
     expect(group.querySelector("img, svg")).toBeNull();
     expect((await axe(container)).violations).toHaveLength(0);
@@ -73,9 +73,14 @@ describe("Language control", () => {
 
   it("reads Language in English and keeps the theme names translated", () => {
     show("en");
-    expect(screen.getByRole("group", { name: "Language" })).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "Language" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "English" })).toBeChecked();
-    expect(screen.getByRole("group", { name: "Theme" })).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "Theme" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Match system" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Appearance" })).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Single-key shortcuts" })).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Hide balances" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open help" })).toBeInTheDocument();
+    expect(document.querySelector("[lang='id']:not([data-value='id'])")).toBeNull();
   });
 });

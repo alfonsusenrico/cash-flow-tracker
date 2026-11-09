@@ -7,6 +7,7 @@ import { axe } from "vitest-axe";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPairingCode, getDevices, type DeviceHealth, type PairedDevice } from "@/lib/api";
 import { healthReport, pairedPhone } from "@/test/deviceHealthFixtures";
+import { renderWithIntl } from "@/lib/i18n/testing";
 import { DevicePairingDialog } from "./DevicePairingDialog";
 
 vi.mock("qrcode", () => ({ default: { toCanvas: vi.fn() } }));
@@ -56,7 +57,7 @@ function report(overrides: Parameters<typeof healthReport>[1] = {}) {
 function stepStates(dialog: HTMLElement) {
   const list = within(dialog).getByRole("list", { name: "Langkah pengaturan HP" });
   return within(list).getAllByRole("listitem").map((item) => [
-    item.querySelector("span.text-sm")?.textContent,
+    item.querySelector("span.t-body")?.textContent,
     item.getAttribute("data-state"),
   ]);
 }
@@ -98,15 +99,25 @@ describe("live pairing checklist", () => {
     vi.unstubAllGlobals();
   });
 
-  it("waits for the phone with every step open", async () => {
+  it("shows the QR at 200 px or more, three numbered steps, the code and the countdown until a phone pairs", async () => {
     const dialog = await openDialog();
 
-    expect(within(dialog).getByText("Menunggu HP…")).toBeInTheDocument();
-    expect(within(dialog).getByText(/Tidak perlu dimuat ulang/)).toBeInTheDocument();
-    expect(stepStates(dialog)).toEqual([
-      ["Terhubung", "todo"], ["Izin notifikasi", "todo"], ["Jalan di latar belakang", "todo"], ["Tes tangkap notifikasi", "todo"],
+    // The owner kept the pairing QR at 200 px or more (2026-11-08) for a reliable scan on a real phone.
+    const qr = within(dialog).getByRole("img", { name: "Kode QR pemasangan ponsel, kode ABCDE 12345" });
+    expect(parseInt(qr.style.width, 10)).toBeGreaterThanOrEqual(200);
+    expect(QRCode.toCanvas).toHaveBeenCalledWith(
+      expect.any(HTMLCanvasElement),
+      expect.stringContaining("code=ABCDE12345"),
+      expect.objectContaining({ margin: 2, color: { dark: "#000000", light: "#ffffff" } }),
+    );
+    const steps = within(dialog).getByRole("list", { name: "Langkah" });
+    expect(within(steps).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "Buka aplikasi pendamping di HP.", "Pilih Hubungkan ke web.", "Pindai kode ini. Berlaku 05:00.",
     ]);
-    expect(within(dialog).getAllByText("Belum")).toHaveLength(4);
+    expect(within(dialog).getByText("Atau ketik kode")).toBeInTheDocument();
+    expect(within(dialog).getByText("ABCDE 12345")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("list", { name: "Langkah pengaturan HP" })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Nanti saja" })).toBeInTheDocument();
     const live = within(dialog).getByRole("status");
     expect(live).toHaveAttribute("aria-live", "polite");
     expect(live).toHaveTextContent("");
@@ -126,7 +137,7 @@ describe("live pairing checklist", () => {
     expect(stepStates(dialog).map(([, state]) => state)).toEqual(["ok", "wait", "todo", "todo"]);
     expect(within(dialog).getByText("Sedang diatur di HP")).toBeInTheDocument();
     expect(live).toHaveTextContent("HP terhubung. Lanjutkan pengaturan di HP.");
-    expect(within(dialog).getByRole("button", { name: "Nanti saja" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Selesai" })).toBeInTheDocument();
     await expectNoAxeViolations(dialog);
 
     phonePairs(report({ listener_connected: false, self_test: { status: "not_run", at: null } }));
@@ -143,9 +154,9 @@ describe("live pairing checklist", () => {
     phonePairs(report({ app_version: "2.4.0" }));
     await advance(3_000);
     expect(stepStates(dialog).map(([, state]) => state)).toEqual(["ok", "ok", "ok", "ok"]);
-    expect(statusCard(dialog).getByText("HP-mu siap! Mulai sekarang transaksi tercatat sendiri.")).toBeInTheDocument();
+    expect(statusCard(dialog).getByText("HP siap. Transaksi dari notifikasi bank kini tercatat otomatis.")).toBeInTheDocument();
     expect(within(dialog).getByText(/TECNO CN7c · aplikasi pendamping v2\.4\.0/)).toBeInTheDocument();
-    expect(live).toHaveTextContent("HP-mu siap! Mulai sekarang transaksi tercatat sendiri.");
+    expect(live).toHaveTextContent("HP siap. Transaksi dari notifikasi bank kini tercatat otomatis.");
     expect(document.activeElement).toBe(focused);
     await expectNoAxeViolations(dialog);
 
@@ -165,14 +176,14 @@ describe("live pairing checklist", () => {
 
     phonePairs(report({ battery_unrestricted: false }));
     await advance(3_000);
-    expect(statusCard(dialog).getByText("HP-mu siap! Mulai sekarang transaksi tercatat sendiri.")).toBeInTheDocument();
-    expect(within(background).getByText(/izinkan aplikasinya jalan tanpa batasan baterai/)).toBeInTheDocument();
+    expect(statusCard(dialog).getByText("HP siap. Transaksi dari notifikasi bank kini tercatat otomatis.")).toBeInTheDocument();
+    expect(within(background).getByText(/izinkan aplikasinya berjalan tanpa batasan baterai/)).toBeInTheDocument();
   });
 
   it.each([
     ["post", "HP tidak dapat menampilkan notifikasi tes."],
     ["capture", "Notifikasi tes tidak tertangkap oleh aplikasi."],
-    ["server", "HP belum bisa ngirim ke server."],
+    ["server", "HP belum dapat mengirim ke server."],
   ] as const)("shows a self-test that failed at %s", async (step, text) => {
     const dialog = await openDialog();
 
@@ -184,7 +195,7 @@ describe("live pairing checklist", () => {
     expect(selfTest).toHaveAttribute("data-state", "fail");
     expect(within(selfTest).getByText("Belum berjalan")).toBeInTheDocument();
     expect(within(selfTest).getByText(text)).toBeInTheDocument();
-    expect(within(dialog).getByText("Tenang, aplikasi di HP-mu bakal nunjukin cara benerinnya.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Aplikasi di HP menunjukkan cara memperbaikinya.")).toBeInTheDocument();
     expect(within(dialog).getByRole("status")).toHaveTextContent(`Tes tangkap notifikasi gagal. ${text}`);
     await expectNoAxeViolations(dialog);
   });
@@ -200,7 +211,7 @@ describe("live pairing checklist", () => {
 
     expect(within(dialog).getByText(`Ada yang belum siap: ${label}`)).toBeInTheDocument();
     expect(within(dialog).getByText(label).closest("li")).toHaveAttribute("data-state", "fail");
-    expect(within(dialog).getByRole("status")).toHaveTextContent(`${label} belum jalan.`);
+    expect(within(dialog).getByRole("status")).toHaveTextContent(`${label} belum berjalan.`);
     await expectNoAxeViolations(dialog);
   });
 });
@@ -238,7 +249,7 @@ describe("pairing dialog polling", () => {
 
     phonePairs(report());
     await advance(3_000);
-    expect(statusCard(screen.getByRole("dialog")).getByText("HP-mu siap! Mulai sekarang transaksi tercatat sendiri.")).toBeInTheDocument();
+    expect(statusCard(screen.getByRole("dialog")).getByText("HP siap. Transaksi dari notifikasi bank kini tercatat otomatis.")).toBeInTheDocument();
     const atReady = vi.mocked(getDevices).mock.calls.length;
 
     await advance(60_000);
@@ -250,8 +261,7 @@ describe("pairing dialog polling", () => {
     const dialog = await openDialog();
     await advance(3_000);
 
-    // The footer button; the header's ✕ shares the name.
-    await user.click(within(dialog).getAllByRole("button", { name: "Tutup" }).at(-1) as HTMLElement);
+    await user.click(within(dialog).getByRole("button", { name: "Nanti saja" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     const atClose = vi.mocked(getDevices).mock.calls.length;
 
@@ -265,10 +275,45 @@ describe("pairing dialog polling", () => {
 
     await advance(10 * 60_000);
     const atWindowEnd = vi.mocked(getDevices).mock.calls.length;
-    expect(within(dialog).getByText(/Aku berhenti ngecek dulu/)).toBeInTheDocument();
+    expect(within(dialog).getByText("Pengecekan dihentikan. Lanjutkan di aplikasi HP; statusnya tetap tampil di Status HP.")).toBeInTheDocument();
     await expectNoAxeViolations(dialog);
 
     await advance(60_000);
     expect(vi.mocked(getDevices).mock.calls.length).toBe(atWindowEnd);
+  });
+});
+
+describe("pairing dialog in English", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: true }));
+    devices = [];
+    vi.mocked(getDevices).mockImplementation(async () => ({ ok: true, devices }));
+    vi.mocked(QRCode.toCanvas).mockResolvedValue(undefined as never);
+    vi.mocked(createPairingCode).mockResolvedValue({
+      ok: true,
+      code: "ABCDE12345",
+      expires_at: new Date(Date.now() + 300_000).toISOString(),
+      expires_in_seconds: 300,
+      qr_payload: "cashflow://pair?v=1&server=https%3A%2F%2Ffinance.example.test&code=ABCDE12345",
+    });
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("reads the steps, the code box and the actions in plain English", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderWithIntl(
+      <QueryClientProvider client={queryClient}>
+        <DevicePairingDialog onClose={() => {}} />
+      </QueryClientProvider>,
+      { language: "en" },
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Connect a phone" });
+    expect(await within(dialog).findByText("Open the companion app on the phone.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Or type the code")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Not now" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Create a new code" })).toBeInTheDocument();
+    expect(dialog.querySelector("[lang='id']")).toBeNull();
   });
 });

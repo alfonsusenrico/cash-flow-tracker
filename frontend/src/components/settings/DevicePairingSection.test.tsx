@@ -1,12 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import QRCode from "qrcode";
 import { axe } from "vitest-axe";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPairingCode, getDevices, revokeDevice, type PairedDevice } from "@/lib/api";
+import { renderWithIntl } from "@/lib/i18n/testing";
 import { healthReport, pairedPhone } from "@/test/deviceHealthFixtures";
 import { DevicePairingSection } from "./DevicePairingSection";
+import { PhoneStatus } from "./PhoneStatus";
 
 vi.mock("qrcode", () => ({ default: { toCanvas: vi.fn() } }));
 vi.mock("@/lib/api", () => ({
@@ -44,6 +46,12 @@ function renderSection() {
   );
 }
 
+/** Escape on a modal <dialog> fires its `cancel` event in a browser; jsdom has no such default, so it is sent here. */
+function pressEscape() {
+  const dialog = screen.getByRole("dialog");
+  fireEvent(dialog, new Event("cancel", { cancelable: true }));
+}
+
 async function tick(ms: number) {
   await act(async () => {
     vi.advanceTimersByTime(ms);
@@ -73,8 +81,7 @@ describe("paired devices in Settings", () => {
 
     const section = await screen.findByRole("region", { name: "Perangkat terhubung" });
     expect(await within(section).findByText("TECNO CN7c")).toBeInTheDocument();
-    expect(within(section).getByText(/Dipasangkan 20 Okt 2026/)).toBeInTheDocument();
-    expect(within(section).getByText(/Terakhir aktif 28 Okt 2026/)).toBeInTheDocument();
+    expect(within(section).getByText("dipasangkan 20 Okt 2026 · terakhir aktif 28 Okt 2026 16.30")).toBeInTheDocument();
     expect(within(section).queryByText("API key manual")).not.toBeInTheDocument();
     expect((await axe(section)).violations).toHaveLength(0);
   });
@@ -100,7 +107,7 @@ describe("paired devices in Settings", () => {
     expect(screen.getByRole("button", { name: "Cabut TECNO CN7c" })).toHaveFocus();
 
     await user.click(screen.getByRole("button", { name: "Cabut TECNO CN7c" }));
-    await user.keyboard("{Escape}");
+    pressEscape();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(revokeDevice).not.toHaveBeenCalled();
 
@@ -126,19 +133,19 @@ describe("paired devices in Settings", () => {
     await waitFor(() => expect(QRCode.toCanvas).toHaveBeenCalledWith(
       qr,
       "cashflow://pair?v=1&server=https%3A%2F%2Ffinance.alfonsusenrico.com&code=ABCDE12345",
-      expect.objectContaining({ width: 240 }),
+      expect.objectContaining({ width: 200 }),
     ));
-    expect(qr).toHaveAttribute("width", "240");
+    expect(qr).toHaveStyle({ width: "200px" });
     expect(within(dialog).getByText("ABCDE 12345")).toBeInTheDocument();
-    expect(within(dialog).getByRole("timer")).toHaveTextContent("Berlaku 05:00");
+    expect(within(dialog).getByText("Pindai kode ini. Berlaku 05:00.")).toBeInTheDocument();
     expect(within(dialog).getByText(/hanya dapat dipakai sekali/)).toBeInTheDocument();
     expect(dialog).toContainElement(document.activeElement as HTMLElement);
     expect((await axe(dialog)).violations).toHaveLength(0);
 
     await tick(61_000);
-    expect(within(dialog).getByRole("timer")).toHaveTextContent("Berlaku 03:59");
+    expect(within(dialog).getByText("Pindai kode ini. Berlaku 03:59.")).toBeInTheDocument();
 
-    await user.keyboard("{Escape}");
+    pressEscape();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });
@@ -154,13 +161,14 @@ describe("paired devices in Settings", () => {
 
     expect(within(dialog).getByRole("status")).toHaveTextContent("Kode sudah kedaluwarsa. Buat kode baru untuk menyambungkan HP.");
     expect(within(dialog).queryByRole("img", { name: /Kode QR pemasangan ponsel/ })).not.toBeInTheDocument();
-    expect(within(dialog).queryByRole("timer")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/Pindai kode ini/)).not.toBeInTheDocument();
+    expect(within(dialog).getByText("Kode sudah kedaluwarsa.")).toBeInTheDocument();
     expect((await axe(dialog)).violations).toHaveLength(0);
 
     await user.click(within(dialog).getByRole("button", { name: "Buat kode baru" }));
     expect(await within(dialog).findByRole("img", { name: /FGHJK 67890/ })).toBeInTheDocument();
     expect(createPairingCode).toHaveBeenCalledTimes(2);
-    expect(within(dialog).getByRole("timer")).toHaveTextContent("Berlaku 05:00");
+    expect(within(dialog).getByText("Pindai kode ini. Berlaku 05:00.")).toBeInTheDocument();
     expect(within(dialog).getByRole("status")).toHaveTextContent("");
   });
 
@@ -176,7 +184,7 @@ describe("paired devices in Settings", () => {
 
     expect(await within(dialog).findByText("FGHJK 67890")).toBeInTheDocument();
     expect(within(dialog).queryByText("ABCDE 12345")).not.toBeInTheDocument();
-    expect(within(dialog).getByRole("timer")).toHaveTextContent("Berlaku 05:00");
+    expect(within(dialog).getByText("Pindai kode ini. Berlaku 05:00.")).toBeInTheDocument();
   });
 
   it("switches to the checklist when the phone pairs while the dialog is open", async () => {
@@ -195,8 +203,9 @@ describe("paired devices in Settings", () => {
 
     await waitFor(() => expect(within(dialog).getByRole("status")).toHaveTextContent("HP terhubung. Lanjutkan pengaturan di HP."));
     expect(within(dialog).queryByRole("img", { name: /Kode QR pemasangan ponsel/ })).not.toBeInTheDocument();
-    await user.click(within(dialog).getByRole("button", { name: "Nanti saja" }));
+    await user.click(within(dialog).getByRole("button", { name: "Selesai" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hubungkan ponsel" })).toHaveFocus();
   });
 
   it("reports a code that could not be created", async () => {
@@ -213,76 +222,95 @@ describe("paired devices in Settings", () => {
   });
 });
 
-describe("phone readiness in Settings", () => {
+describe("Status HP (apply-markas-pengaturan D7)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers({ shouldAdvanceTime: true, now: NOW });
-    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: true }));
   });
 
   afterEach(() => {
     vi.useRealTimers();
-    vi.unstubAllGlobals();
   });
 
-  async function phoneRow(device: PairedDevice) {
-    vi.mocked(getDevices).mockResolvedValue({ ok: true, devices: [device, manualKey] });
-    renderSection();
-    const section = await screen.findByRole("region", { name: "Perangkat terhubung" });
-    const row = (await within(section).findByText(device.name)).closest("li") as HTMLElement;
-    return { section, row };
+  function renderStatus(devices: PairedDevice[], language: "en" | "id" = "id") {
+    vi.mocked(getDevices).mockResolvedValue({ ok: true, devices: [...devices, manualKey] });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return renderWithIntl(
+      <QueryClientProvider client={queryClient}>
+        <PhoneStatus />
+      </QueryClientProvider>,
+      { language },
+    );
   }
 
-  it("shows a ready phone with its last report and app version, and no problems", async () => {
-    const { section, row } = await phoneRow(
-      pairedPhone(healthReport(NOW, { reported_at: new Date(NOW - 3600_000).toISOString(), app_version: "2.4.0" })),
-    );
+  async function checks(name: string) {
+    const list = await screen.findByRole("list", { name: `Pemeriksaan ${name}` });
+    return within(list).getAllByRole("listitem").map((item) => item.textContent);
+  }
 
-    expect(within(row).getByText("Siap")).toBeInTheDocument();
-    expect(within(row).getByText(/Lapor terakhir 29 Okt 2026/)).toHaveTextContent("Aplikasi v2.4.0");
-    expect(within(row).queryByRole("list")).not.toBeInTheDocument();
-    expect((await axe(section)).violations).toHaveLength(0);
+  it("shows a ready phone with its last report, app version and every check as Baik", async () => {
+    const { container } = renderStatus([
+      pairedPhone(healthReport(NOW, { reported_at: new Date(NOW - 3600_000).toISOString(), app_version: "2.4.0" })),
+    ]);
+    const box = await screen.findByRole("region", { name: "Status HP" });
+    expect(await within(box).findByText(/TECNO CN7c ·/)).toHaveTextContent("TECNO CN7c · siap");
+    expect(within(box).getByText(/Laporan terakhir 29 Okt 2026/)).toHaveTextContent("aplikasi 2.4.0");
+    expect(await checks("TECNO CN7c")).toEqual([
+      "Izin baca notifikasiBaik", "Jalan di latar belakangBaik", "Tes tangkap notifikasiBaik", "Mengirim kabarBaik",
+    ]);
+    // The companion line comes first, as text.
+    expect(within(box).getByText("HP terhubung").compareDocumentPosition(within(box).getByText(/TECNO CN7c ·/)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(container.querySelector("[class*='in-bg'], [class*='warn-bg'], [class*='out-bg']")).toBeNull();
+    expect((await axe(container)).violations).toHaveLength(0);
   });
 
-  it("lists each problem of a phone that needs attention", async () => {
-    const { section, row } = await phoneRow(pairedPhone(healthReport(NOW, {
+  it("lists each problem of a phone that needs attention beside its check", async () => {
+    renderStatus([pairedPhone(healthReport(NOW, {
       notification_access: false,
       listener_connected: false,
       self_test: { status: "failed", failed_step: "capture" },
-    })));
-
-    expect(within(row).getByText("Perlu dicek")).toBeInTheDocument();
-    const problems = within(row).getByRole("list", { name: "Masalah di TECNO CN7c" });
-    expect(within(problems).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
-      "Izin notifikasi mati.",
-      "Aplikasi tidak berjalan di latar belakang.",
-      "Tes tangkap notifikasi gagal. Notifikasi tes tidak tertangkap oleh aplikasi.",
+    }))]);
+    expect(await screen.findByText(/TECNO CN7c ·/)).toHaveTextContent("TECNO CN7c · perlu dicek");
+    expect(await checks("TECNO CN7c")).toEqual([
+      "Izin baca notifikasiIzin notifikasi mati.",
+      "Jalan di latar belakangAplikasi tidak berjalan di latar belakang.",
+      "Tes tangkap notifikasiTes tangkap notifikasi gagal. Notifikasi tes tidak tertangkap oleh aplikasi.",
+      "Mengirim kabarBaik",
     ]);
-    expect((await axe(section)).violations).toHaveLength(0);
   });
 
   it("names a self-test that never ran", async () => {
-    const { row } = await phoneRow(pairedPhone(healthReport(NOW, { self_test: { status: "not_run", at: null } })));
-
-    expect(within(row).getByText("Perlu dicek")).toBeInTheDocument();
-    expect(within(row).getByRole("listitem")).toHaveTextContent("Tes tangkap notifikasi belum dijalankan.");
+    renderStatus([pairedPhone(healthReport(NOW, { self_test: { status: "not_run", at: null } }))]);
+    expect((await checks("TECNO CN7c"))[2]).toBe("Tes tangkap notifikasiTes tangkap notifikasi belum dijalankan.");
   });
 
   it("flags a ready phone that has been silent for more than 24 hours", async () => {
-    const { section, row } = await phoneRow(
-      pairedPhone(healthReport(NOW, { reported_at: new Date(NOW - 25 * 3600_000).toISOString() })),
-    );
+    renderStatus([pairedPhone(healthReport(NOW, { reported_at: new Date(NOW - 25 * 3600_000).toISOString() }))]);
+    expect(await screen.findByText(/TECNO CN7c ·/)).toHaveTextContent("perlu dicek");
+    expect((await checks("TECNO CN7c"))[3]).toBe("Mengirim kabarLebih dari 24 jam tidak ada kabar dari HP ini.");
+  });
 
-    expect(within(row).getByText("Perlu dicek")).toBeInTheDocument();
-    expect(within(row).getByRole("listitem")).toHaveTextContent("Lebih dari 24 jam tidak ada kabar dari HP ini.");
-    expect((await axe(section)).violations).toHaveLength(0);
+  it("shows one block per phone, with the access problem only on the second", async () => {
+    renderStatus([
+      pairedPhone(healthReport(NOW), { id: "phone-a", name: "Ponsel A" }),
+      pairedPhone(healthReport(NOW, { notification_access: false }), { id: "phone-b", name: "Ponsel B" }),
+    ]);
+    expect((await checks("Ponsel A"))[0]).toBe("Izin baca notifikasiBaik");
+    expect((await checks("Ponsel B"))[0]).toBe("Izin baca notifikasiIzin notifikasi mati.");
   });
 
   it("says when a phone has never reported", async () => {
-    const { row } = await phoneRow(pairedPhone(null));
+    renderStatus([pairedPhone(null)]);
+    expect(await screen.findByText("Belum pernah mengirim status. Buka aplikasinya di HP.")).toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+  });
 
-    expect(within(row).getByText("Belum pernah kirim status. Buka aplikasinya di HP, ya.")).toBeInTheDocument();
-    expect(within(row).queryByText("Siap")).not.toBeInTheDocument();
-    expect(within(row).queryByText("Perlu dicek")).not.toBeInTheDocument();
+  it("reads the box in English", async () => {
+    renderStatus([pairedPhone(healthReport(NOW, { notification_access: false }))], "en");
+    const box = await screen.findByRole("region", { name: "Phone status" });
+    expect(await within(box).findByText(/TECNO CN7c ·/)).toHaveTextContent("TECNO CN7c · needs a check");
+    const list = within(box).getByRole("list", { name: "Checks on TECNO CN7c" });
+    expect(within(list).getAllByRole("listitem")[0]).toHaveTextContent("Notification accessNotification access is off.");
+    expect(within(list).getAllByRole("listitem")[1]).toHaveTextContent("Runs in the backgroundGood");
   });
 });

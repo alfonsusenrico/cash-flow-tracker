@@ -2,12 +2,16 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
-import { Button } from "@/components/ui/Button";
-import { Icon } from "@/components/ui/Icon";
-import {
-  SettingsAlert, SettingsCard, SettingsField, SettingsList, SettingsSubsection, settingsControlClass,
-} from "@/components/settings/SettingsCard";
+import { useFormat } from "@/lib/format";
+import { DisclosureSummary } from "@/components/ui/DisclosureSummary";
+import { KindAmount } from "@/components/transactions/rows";
+import { Field } from "@/components/workspace/Field";
+import { ListRow, SectionHeader } from "@/components/workspace/lists";
+import { useMoney } from "@/components/workspace/money";
+import { Skeleton } from "@/components/workspace/primitives";
+import { SettingsAlert, SettingsSection } from "@/components/settings/SettingsSection";
 
 type Income = {
   id: string;
@@ -23,13 +27,6 @@ type Receipt = Income & { confirmation_method: string };
 type SalaryAction = { kind: "source" | "confirm" | "revoke" | "reject"; id: string } | { kind: "detect" };
 
 const PAGE_SIZE = 50;
-const quietButton = "min-h-11 text-[var(--text-2)]";
-
-function describe(row: Income) {
-  const date = new Date(row.date).toLocaleDateString("id-ID", { dateStyle: "medium" });
-  const amount = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(row.amount);
-  return `${date} · ${amount} · ${row.merchant || row.notes || "Tanpa keterangan"}`;
-}
 
 function request(action: SalaryAction) {
   if (action.kind === "detect") return api.post("/salary/detect");
@@ -39,20 +36,16 @@ function request(action: SalaryAction) {
   return api.del(`/salary/receipts/${action.id}`);
 }
 
-function IncomeRow({ row, detail, children }: { row: Income; detail?: string; children: React.ReactNode }) {
-  return (
-    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2.5">
-      <p className="min-w-0 flex-1 break-words tabular-nums text-[var(--text)]">
-        {describe(row)}
-        {detail && <span className="block text-xs text-[var(--muted)]">{detail}</span>}
-      </p>
-      <div className="flex flex-wrap justify-end gap-2">{children}</div>
-    </li>
-  );
-}
-
-/** Salary cycles start only from confirmed receipts; the owner picks the source and reviews unclear income. */
+/**
+ * Gaji & siklus (apply-markas-pengaturan D12): the source box with "Periksa pemasukan dari sumber ini" and the picker
+ * behind "Ganti sumber", the receipts to review, and the confirmed salaries with their amounts in the income colour.
+ * Salary cycles start only from confirmed receipts; every request is the one the section sent before.
+ */
 export function SalarySettingsSection() {
+  const t = useTranslations("settings.salary");
+  const terms = useTranslations("terms");
+  const format = useFormat();
+  const money = useMoney();
   const qc = useQueryClient();
   const [offset, setOffset] = useState(0);
   const [selected, setSelected] = useState("");
@@ -87,8 +80,11 @@ export function SalarySettingsSection() {
         void qc.invalidateQueries({ queryKey: [key] });
       }
     },
-    onError: (err: Error) => setError(err.message || "Gagal menyimpan pilihan gaji."),
+    onError: (err: Error) => setError(err.message || t("saveFailed")),
   });
+
+  const name = (row: Income) => row.merchant || row.notes || terms("noDescription");
+  const describe = (row: Income) => t("row", { date: format.yearDateAt(row.date), amount: money(row.amount), name: name(row) });
 
   const queries = [source, candidates, invalidated, receipts, incomes];
   const failed = queries.some((query) => query.isError);
@@ -108,154 +104,142 @@ export function SalarySettingsSection() {
   };
 
   return (
-    <SettingsCard section="gaji">
-      <p className="text-xs text-[var(--muted)]">
-        Pemasukan dari sumber yang menyebut gaji atau salary dikenali otomatis; bonus, refund dan pemasukan lain ditinjau dulu.
-        Akhir siklus berjalan baru diketahui saat gaji berikutnya diterima.
-      </p>
-      {pending && <p role="status" className="text-[var(--muted)]">Memuat data gaji…</p>}
-      {failed && <SettingsAlert>Data gaji tidak dapat dimuat. Muat ulang halaman untuk mencoba lagi.</SettingsAlert>}
+    <SettingsSection section="gaji">
+      {pending && (
+        <div aria-busy="true" aria-label={t("loading")}>
+          <Skeleton style={{ height: 112 }} />
+        </div>
+      )}
+      {failed && <SettingsAlert>{t("loadFailed")}</SettingsAlert>}
       {error && <SettingsAlert>{error}</SettingsAlert>}
 
       {!pending && !failed && (
         <>
-          <SettingsSubsection id="salary-source-title" title="Sumber gaji saat ini">
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--line)] bg-[var(--surface-2)]/40 px-3 py-2.5">
+          <section aria-labelledby="salary-source-title">
+            <SectionHeader id="salary-source-title" label={t("source")} />
+            <div className="set-box">
               {configured ? (
-                <p className="min-w-0 flex-1 break-words text-[var(--text)]">
-                  <span className="font-semibold">{configured.value}</span>
-                  <span className="block text-xs text-[var(--muted)]">
-                    Dikenali dari {configured.field === "merchant" ? "nama pengirim" : "keterangan"}
-                  </span>
-                </p>
+                <>
+                  <p className="t-strong">{configured.value}</p>
+                  <p className="t-meta">{configured.field === "merchant" ? t("bySender") : t("byDescription")}</p>
+                  <p className="t-meta">{t("cycleNote")}</p>
+                  <div className="set-actions set-box-actions">
+                    <button type="button" className="ws-btn" disabled={busy} onClick={() => action.mutate({ kind: "detect" })}>
+                      {t("check")}
+                    </button>
+                  </div>
+                </>
               ) : (
-                <p className="min-w-0 flex-1 text-[var(--text-2)]">
-                  Sumber gaji belum dipilih. Laporan memakai bulan kalender sampai ada gaji terkonfirmasi.
-                </p>
+                <>
+                  <p className="t-body">{t("none")}</p>
+                  <p className="t-meta">{t("cycleNote")}</p>
+                </>
               )}
-              {configured && (
-                <Button type="button" size="sm" className="min-h-11" disabled={busy} onClick={() => action.mutate({ kind: "detect" })}>
-                  Periksa pemasukan dari sumber ini
-                </Button>
-              )}
+              <details open={!configured} className="set-picker">
+                <DisclosureSummary>{configured ? t("change") : t("choose")}</DisclosureSummary>
+                <div className="form-stack">
+                  {eligible.length === 0 ? (
+                    <p className="t-meta">{t("noIncome")}</p>
+                  ) : (
+                    <Field id="salary-income" label={t("pickLabel")} hint={t("pickHint")}>
+                      {(field) => (
+                        <select {...field} value={selected} onChange={(event) => setSelected(event.target.value)} className="field-control border tabular-nums">
+                          <option value="">{t("pickPlaceholder")}</option>
+                          {eligible.map((row) => (
+                            <option key={row.id} value={row.id}>
+                              {describe(row)}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </Field>
+                  )}
+                  <div role="group" aria-label={t("pages")} className="set-actions">
+                    <button type="button" className="ws-btn" disabled={offset === 0} onClick={() => changePage(Math.max(0, offset - PAGE_SIZE))}>
+                      {t("newer")}
+                    </button>
+                    <button type="button" className="ws-btn" disabled={offset + PAGE_SIZE >= (incomes.data?.total ?? 0)} onClick={() => changePage(offset + PAGE_SIZE)}>
+                      {t("older")}
+                    </button>
+                  </div>
+                  <div className="set-actions">
+                    <button
+                      type="button"
+                      className="ws-btn"
+                      disabled={!selected || busy || confirmedIds.has(selected)}
+                      onClick={() => action.mutate({ kind: "confirm", id: selected })}
+                    >
+                      {t("markSalary")}
+                    </button>
+                    <button type="button" className="ws-btn ws-btn-accent" disabled={!selected || busy} onClick={() => action.mutate({ kind: "source", id: selected })}>
+                      {t("makeSource")}
+                    </button>
+                  </div>
+                </div>
+              </details>
             </div>
+          </section>
 
-            <details open={!configured} className="group rounded-xl border border-[var(--line)]">
-              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-md px-3 font-semibold text-[var(--text)] [&::-webkit-details-marker]:hidden">
-                {configured ? "Ganti sumber" : "Pilih sumber"}
-                <Icon name="chevron-down" className="h-4 w-4 text-[var(--muted)] transition-transform group-open:rotate-180" />
-              </summary>
-              <div className="space-y-3 border-t border-[var(--line)] p-3">
-                {eligible.length === 0 ? (
-                  <p className="text-[var(--muted)]">Belum ada pemasukan tercatat yang bisa dipilih.</p>
-                ) : (
-                  <SettingsField id="salary-income" label="Pilih pemasukan yang sudah tercatat" help="Pilih satu pemasukan dari pemberi gaji.">
-                    {(field) => (
-                      <select {...field} value={selected} onChange={(event) => setSelected(event.target.value)} className={`${settingsControlClass} tabular-nums`}>
-                        <option value="">Pilih pemasukan</option>
-                        {eligible.map((row) => <option key={row.id} value={row.id}>{describe(row)}</option>)}
-                      </select>
-                    )}
-                  </SettingsField>
-                )}
-                <div role="group" aria-label="Halaman pemasukan" className="flex flex-wrap gap-2">
-                  <Button type="button" size="sm" className="min-h-11" disabled={offset === 0} onClick={() => changePage(Math.max(0, offset - PAGE_SIZE))}>
-                    Lebih baru
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="min-h-11"
-                    disabled={offset + PAGE_SIZE >= (incomes.data?.total ?? 0)}
-                    onClick={() => changePage(offset + PAGE_SIZE)}
-                  >
-                    Lebih lama
-                  </Button>
-                </div>
-                <div className="flex flex-wrap justify-end gap-2 border-t border-[var(--line)] pt-3">
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="min-h-11"
-                    disabled={!selected || busy || confirmedIds.has(selected)}
-                    onClick={() => action.mutate({ kind: "confirm", id: selected })}
-                  >
-                    Tandai sebagai gaji
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="sm"
-                    className="min-h-11"
-                    disabled={!selected || busy}
-                    onClick={() => action.mutate({ kind: "source", id: selected })}
-                  >
-                    Jadikan sumber gaji
-                  </Button>
-                </div>
-              </div>
-            </details>
-          </SettingsSubsection>
-
-          <SettingsSubsection id="salary-review-title" title="Perlu ditinjau" description="Pemasukan dari sumber gaji yang belum jelas gaji atau bukan.">
+          <section aria-labelledby="salary-review-title">
+            <SectionHeader id="salary-review-title" label={t("review")} aside={reviewRows.size ? <span className="aside">{reviewRows.size}</span> : undefined} />
             {reviewRows.size === 0 ? (
-              <p className="text-[var(--muted)]">Tidak ada pemasukan yang perlu ditinjau.</p>
+              <p className="t-body text-[var(--muted)]">{t("reviewEmpty")}</p>
             ) : (
-              <SettingsList label="Pemasukan yang perlu ditinjau">
+              <ul className="list set-list" aria-labelledby="salary-review-title">
                 {Array.from(reviewRows.values()).map((row) => (
-                  <IncomeRow key={row.id} row={row}>
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="min-h-11"
-                      disabled={busy}
-                      onClick={() => action.mutate({ kind: "confirm", id: row.id })}
-                      aria-label={`Konfirmasi gaji: ${describe(row)}`}
-                    >
-                      Ini gaji
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className={quietButton}
-                      disabled={busy}
-                      onClick={() => action.mutate({ kind: "reject", id: row.id })}
-                      aria-label={`Bukan gaji: ${describe(row)}`}
-                    >
-                      Bukan gaji
-                    </Button>
-                  </IncomeRow>
+                  <li key={row.id}>
+                    <ListRow
+                      layout="stacked"
+                      title={name(row)}
+                      meta={format.yearDateAt(row.date)}
+                      amount={<KindAmount kind="income" amount={row.amount} money={money} />}
+                      actions={
+                        <>
+                          <button type="button" className="ws-btn" disabled={busy} aria-label={t("isSalaryName", { row: describe(row) })} onClick={() => action.mutate({ kind: "confirm", id: row.id })}>
+                            {t("isSalary")}
+                          </button>
+                          <button type="button" className="ws-btn ws-btn-quiet" disabled={busy} aria-label={t("notSalaryName", { row: describe(row) })} onClick={() => action.mutate({ kind: "reject", id: row.id })}>
+                            {t("notSalary")}
+                          </button>
+                        </>
+                      }
+                    />
+                  </li>
                 ))}
-              </SettingsList>
+              </ul>
             )}
-          </SettingsSubsection>
+          </section>
 
-          <SettingsSubsection id="salary-receipts-title" title="Gaji terkonfirmasi">
+          <section aria-labelledby="salary-receipts-title">
+            <SectionHeader
+              id="salary-receipts-title"
+              label={t("confirmed")}
+              aside={receipts.data?.receipts.length ? <span className="aside">{receipts.data.receipts.length}</span> : undefined}
+            />
             {!receipts.data?.receipts.length ? (
-              <p className="text-[var(--muted)]">Belum ada gaji terkonfirmasi.</p>
+              <p className="t-body text-[var(--muted)]">{t("confirmedEmpty")}</p>
             ) : (
-              <SettingsList label="Gaji terkonfirmasi">
+              <ul className="list set-list" aria-labelledby="salary-receipts-title">
                 {receipts.data.receipts.map((row) => (
-                  <IncomeRow key={row.id} row={row} detail={row.confirmation_method === "detected" ? "Dikenali otomatis" : "Dikonfirmasi pemilik"}>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className={quietButton}
-                      disabled={busy}
-                      onClick={() => action.mutate({ kind: "revoke", id: row.id })}
-                      aria-label={`Batalkan konfirmasi gaji: ${describe(row)}`}
-                    >
-                      Batalkan
-                    </Button>
-                  </IncomeRow>
+                  <li key={row.id}>
+                    <ListRow
+                      layout="stacked"
+                      title={name(row)}
+                      meta={`${format.yearDateAt(row.date)} · ${row.confirmation_method === "detected" ? t("detected") : t("byOwner")}`}
+                      amount={<KindAmount kind="income" amount={row.amount} money={money} />}
+                      actions={
+                        <button type="button" className="ws-btn ws-btn-quiet" disabled={busy} aria-label={t("undoName", { row: describe(row) })} onClick={() => action.mutate({ kind: "revoke", id: row.id })}>
+                          {t("undo")}
+                        </button>
+                      }
+                    />
+                  </li>
                 ))}
-              </SettingsList>
+              </ul>
             )}
-          </SettingsSubsection>
+          </section>
         </>
       )}
-    </SettingsCard>
+    </SettingsSection>
   );
 }

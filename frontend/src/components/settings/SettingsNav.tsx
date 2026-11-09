@@ -1,53 +1,45 @@
-import Link from "next/link";
-import { cn } from "@/lib/utils";
-import { Icon } from "@/components/ui/Icon";
-import { groupedSections, type SettingsSectionSlug } from "@/components/settings/sections";
-import styles from "@/components/accounts/money.module.css";
+"use client";
 
-/** Wide-screen section list beside the selected section, with the "Akun" group under its own heading. */
-export function SettingsSectionNav({ current, className }: { current: SettingsSectionSlug; className?: string }) {
-  return (
-    <nav aria-label="Bagian pengaturan" className={cn(styles.settingsNav, className)}>
-      {groupedSections().map(({ group, sections }) => (
-        <div key={group ?? "main"} className={styles.settingsGroup}>
-          {group && <h2 id={`settings-group-${group}`} className={styles.settingsGroupTitle}>{group}</h2>}
-          <ul aria-labelledby={group ? `settings-group-${group}` : undefined}>
-            {sections.map((section) => (
-              <li key={section.slug}>
-                <Link href={section.href} aria-current={section.slug === current ? "page" : undefined} className={styles.settingsLink}>
-                  {section.title}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-    </nav>
-  );
-}
+import { Fragment } from "react";
+import { useTranslations } from "next-intl";
+import { Rail, RailItem, RailLabel, RailRule } from "@/components/workspace/rail";
+import { useWorkspace } from "@/components/workspace/context";
+import { groupedSections, type SettingsGroup, type SettingsSectionSlug } from "@/components/settings/sections";
 
-/** Narrow-screen index: each section opens on its own screen. */
-export function SettingsSectionList({ className }: { className?: string }) {
+const GROUP_KEY: Record<SettingsGroup, "groupDevices" | "groupAppearance" | "groupAccount"> = {
+  devices: "groupDevices",
+  appearance: "groupAppearance",
+  account: "groupAccount",
+};
+
+/**
+ * The Pengaturan rail (apply-markas-pengaturan D2, D5): a navigation of three labelled lists of section links, the
+ * current one with `aria-current="page"` and the selection bar, then a rule and "Keluar", which signs out exactly as
+ * the account menu does. The same vertical rail serves every width; below 768 px it sits above the section.
+ */
+export function SettingsRail({ current }: { current: SettingsSectionSlug }) {
+  const t = useTranslations("settings");
+  const shell = useTranslations("shell");
+  const { logout } = useWorkspace();
   return (
-    <nav aria-label="Daftar bagian pengaturan" className={cn(styles.settingsList, className)}>
-      {groupedSections().map(({ group, sections }) => (
-        <div key={group ?? "main"}>
-          {group && <h2 id={`settings-list-${group}`} className={styles.settingsGroupTitle}>{group}</h2>}
-          <ul className="ws-card" aria-labelledby={group ? `settings-list-${group}` : undefined}>
-            {sections.map((section) => (
-              <li key={section.slug}>
-                <Link href={section.href} className={styles.settingsListLink}>
-                  <span>
-                    <b>{section.title}</b>
-                    <span>{section.purpose}</span>
-                  </span>
-                  <Icon name="chevron-right" className="h-4 w-4 shrink-0" />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-    </nav>
+    <Rail label={t("nav.label")} showLabel={false} className="set-rail">
+      {groupedSections().map(({ group, sections }) => {
+        const labelId = `settings-group-${group}`;
+        return (
+          <Fragment key={group}>
+            <RailLabel id={labelId}>{t(`nav.${GROUP_KEY[group]}`)}</RailLabel>
+            <ul className="rail-group" aria-labelledby={labelId}>
+              {sections.map((section) => (
+                <li key={section.slug}>
+                  <RailItem href={section.href} current={section.slug === current} label={t(`sections.${section.slug}.title`)} />
+                </li>
+              ))}
+            </ul>
+          </Fragment>
+        );
+      })}
+      <RailRule />
+      <RailItem icon="logout" label={shell("signOut")} onSelect={logout} />
+    </Rail>
   );
 }

@@ -1,127 +1,67 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import type { PairedDevice } from "@/lib/api";
-import {
-  BATTERY_HINT,
-  FIX_ON_PHONE,
-  READY_MESSAGE,
-  STEP_STATE_TEXT,
-  type ChecklistStepState,
-  type PairingChecklist,
-} from "@/lib/deviceHealth";
+import type { ChecklistStepState, PairingChecklist } from "@/lib/deviceHealth";
 import { Icon } from "@/components/ui/Icon";
-import { cn } from "@/lib/utils";
 
-// Badge text sits on the soft fills in the family's darker ink (or --text for amber, which has no
-// text ink), so each state reads at 4.5:1 or better without relying on hue alone.
-const STATE_STYLE: Record<ChecklistStepState, { icon: string; mark: string; badge: string }> = {
-  ok: {
-    icon: "check",
-    mark: "bg-[var(--in-bg)] text-[var(--in-fg)]",
-    badge: "bg-[var(--in-bg)] text-[var(--in-fg)]",
-  },
-  fail: {
-    icon: "x",
-    mark: "bg-[var(--out-bg)] text-[var(--out-fg)]",
-    badge: "bg-[var(--out-bg)] text-[var(--out-fg)]",
-  },
-  wait: {
-    icon: "smartphone",
-    mark: "bg-[var(--warn-bg)] text-[var(--text)]",
-    badge: "bg-[var(--warn-bg)] text-[var(--text)]",
-  },
-  todo: {
-    icon: "minus-circle",
-    mark: "bg-[var(--surface)] text-[var(--muted)]",
-    badge: "bg-[var(--surface)] text-[var(--muted)]",
-  },
+/** Each state's icon and ink; the status word beside it carries the meaning, never the colour alone (D9). */
+const STATE_MARK: Record<ChecklistStepState, { icon: string; className: string }> = {
+  ok: { icon: "check", className: "c-income" },
+  fail: { icon: "alert", className: "c-warning" },
+  wait: { icon: "smartphone", className: "c-warning" },
+  todo: { icon: "minus-circle", className: "text-[var(--muted)]" },
 };
 
-function Pulse() {
-  return (
-    <span
-      aria-hidden="true"
-      className="h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--warn-solid)] motion-safe:animate-pulse"
-    />
-  );
-}
-
-interface DeviceHealthChecklistProps {
-  checklist: PairingChecklist;
-  device: PairedDevice | undefined;
-}
-
-/** The pairing dialog's live "Status HP" card; announcements are made by the dialog's live region. */
-export function DeviceHealthChecklist({ checklist, device }: DeviceHealthChecklistProps) {
-  let headline = "Menunggu HP…";
-  let detail: string | null = "Halaman ini diperbarui otomatis begitu HP tersambung. Tidak perlu dimuat ulang.";
+/**
+ * The pairing dialog's live checklist (apply-markas-pengaturan D9): four 32 px lines with an icon and a status word,
+ * on the dialog surface without tinted fills. Announcements are made by the dialog's live region.
+ */
+export function DeviceHealthChecklist({ checklist, device }: { checklist: PairingChecklist; device: PairedDevice | undefined }) {
+  const t = useTranslations("settings.health");
+  const pairing = useTranslations("settings.pairing");
+  const devices = useTranslations("settings.devices");
+  let headline = t("waiting");
+  let detail: string | null = t("waitingDetail");
   if (checklist.stage === "setting-up") {
-    headline = "Terhubung. Lanjutkan pengaturan di HP.";
-    detail = device ? `${device.name} sedang menampilkan langkah-langkahnya.` : null;
+    headline = t("settingUp");
+    detail = device ? t("settingUpDetail", { name: device.name }) : null;
   } else if (checklist.stage === "failed" && checklist.failed) {
-    headline = `Ada yang belum siap: ${checklist.failed.label}`;
+    headline = t("failedHeadline", { step: t(`steps.${checklist.failed.key}`) });
     detail = null;
   } else if (checklist.stage === "ready") {
-    headline = READY_MESSAGE;
-    detail = device?.health
-      ? `${device.name} · aplikasi pendamping v${device.health.app_version} · notifikasi tes tertangkap dan tidak dicatat sebagai transaksi.`
-      : null;
+    headline = pairing("ready");
+    detail = device?.health ? t("readyDetail", { name: device.name, version: device.health.app_version }) : null;
   }
-  const busy = checklist.stage === "waiting" || checklist.stage === "setting-up";
 
   return (
-    <section
-      aria-labelledby="device-health-title"
-      className="space-y-2.5 rounded-xl border border-[var(--line-strong)] bg-[var(--surface)] p-3.5"
-    >
-      <h3 id="device-health-title" className="text-xs font-semibold uppercase tracking-wider text-[var(--text-2)]">
-        Status HP
+    <section aria-labelledby="device-health-title" className="set-box">
+      <h3 id="device-health-title" className="t-label">
+        {devices("status")}
       </h3>
-      <p className="flex items-center gap-2.5 text-sm font-semibold text-[var(--text)]">
-        {busy && <Pulse />}
-        <span>{headline}</span>
-      </p>
-      {detail && <p className="text-xs text-[var(--text-2)]">{detail}</p>}
-
-      <ul className="grid gap-1.5" aria-label="Langkah pengaturan HP">
+      <p className="t-strong set-note">{headline}</p>
+      {detail && <p className="t-meta set-note">{detail}</p>}
+      <ul className="set-checks" aria-label={t("stepsLabel")}>
         {checklist.steps.map((step) => {
-          const style = STATE_STYLE[step.state];
+          const mark = STATE_MARK[step.state];
           const showBattery = step.key === "background" && checklist.batteryRestricted;
-          const showTestProblem = step.key === "selfTest" && step.state === "fail" && checklist.selfTestProblem;
+          const showTestProblem = step.key === "selfTest" && step.state === "fail" && checklist.selfTestStep;
           return (
-            <li
-              key={step.key}
-              data-state={step.state}
-              className="rounded-xl bg-[var(--window)] px-2.5 py-2"
-            >
-              <div className="grid grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-2.5">
-                <span aria-hidden="true" className={cn("grid h-7 w-7 place-items-center rounded-full", style.mark)}>
-                  <Icon name={style.icon} className="h-4 w-4" strokeWidth={2.5} />
-                </span>
-                <span className="text-sm font-semibold text-[var(--text)]">{step.label}</span>
-                <span className={cn("rounded-md px-2 py-0.5 text-xs font-semibold", style.badge)}>
-                  {STEP_STATE_TEXT[step.state]}
-                </span>
-              </div>
-              {showTestProblem && (
-                <p className="mt-1.5 pl-[38px] text-xs text-[var(--text)]">{checklist.selfTestProblem}</p>
-              )}
+            <li key={step.key} data-state={step.state}>
+              <Icon name={mark.icon} className={`h-4 w-4 ${mark.className}`} />
+              <span className="t-body">{t(`steps.${step.key}`)}</span>
+              <span className="t-meta">{t(`stepState.${step.state}`)}</span>
+              {showTestProblem && checklist.selfTestStep && <span className="t-meta set-check-note">{t(`testStep.${checklist.selfTestStep}`)}</span>}
               {showBattery && (
-                <p className="mt-1.5 rounded-xl bg-[var(--warn-bg)] px-2.5 py-2 text-xs text-[var(--text)]">
-                  <span className="font-semibold">Saran: </span>
-                  {BATTERY_HINT}
-                </p>
+                <span className="t-meta set-check-note">
+                  <span className="t-strong">{t("batteryTip")}</span> {t("batteryHint")}
+                </span>
               )}
             </li>
           );
         })}
       </ul>
-
-      {checklist.stage === "failed" && (
-        <p className="rounded-xl bg-[var(--out-bg)] px-3 py-2.5 text-xs text-[var(--text)]">
-          {FIX_ON_PHONE}
-        </p>
-      )}
+      {checklist.stage === "failed" && <p className="t-body set-note">{pairing("fixOnPhone")}</p>}
     </section>
   );
 }
