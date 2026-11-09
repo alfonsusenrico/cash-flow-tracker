@@ -29,11 +29,11 @@ The global capture form SHALL allow optional direct linking of an expense to one
 
   The global capture form SHALL allow optional direct linking to savings goals and debt obligations:
   1. When recording an expense, the user can select an active Goal (marking it as a milestone contribution) or one or more active Obligations (marking a debt repayment, split by amount).
-  2. Upon submission, the transaction SHALL record the corresponding `goal_id`, `obligation_id` or `obligation_allocations` and automatically update the goal's progress or decrement each obligation's `remaining_amount` in the database.
+  2. Upon submission, the transaction SHALL record the corresponding `goal_id`, `obligation_id` or `obligation_allocations`, and SHALL decrement each linked obligation's `remaining_amount` in the database. A goal link is a label: it SHALL NOT change the goal's progress by itself (a goal follows its own amount or its linked accounts' balance).
 
 #### Scenario: Contributing to a goal via quick capture
 - **WHEN** the user presses `N`, chooses "Isi manual", enters `500000`, selects account "Main Bank", opens "Detail tambahan" and chooses goal "Emergency Fund"
-- **THEN** an expense of 500,000 IDR is recorded and linked to "Emergency Fund", and the goal's saved amount increases by 500,000 IDR immediately
+- **THEN** an expense of 500,000 IDR is recorded with the `goal_id` of "Emergency Fund", and the hint under the goal field says that the link does not add to the goal's progress
 
 #### Scenario: Details open when needed
 - **WHEN** the form holds a goal passed by its caller or an error inside "Detail tambahan"

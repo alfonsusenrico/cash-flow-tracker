@@ -1,6 +1,6 @@
 ## 1. Approval, dependencies and baseline
 
-- [ ] 1.1 Record the approval and the flagged review:
+- [x] 1.1 Record the approval and the flagged review:
   - in `proposal.md` (already written: "Approved under the owner's standing instruction 'complete all until finished' (2026-11-06, renewed 2026-11-08); decisions take their recommended defaults") and in `PROJECT_STATE.md`, with the date;
   - the outcome of the flagged decisions D9, D10, D11, D12, D20, D21 and D22 (default, or the recorded fallback) in `design.md` and the spec delta before any code.
 

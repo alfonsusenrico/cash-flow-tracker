@@ -34,6 +34,55 @@ See proposal.md for the motivation. Code facts were read on `origin/main` `0308b
 | 10 Pengaturan | "Hubungkan ponsel", "Cabut", API key confirmation, inline removals; Keluar out of Lainnya |
 | **11 Catat (this)** | Catat (sentence and manual), notification popover, theme menu, account menu, Lainnya, Bantuan, toast frame, "Rencana jatuh tempo"; removes `Modal`, `Drawer`, `InfoHelp`, `AccountOptions`, the `explain.tsx` popover and the dialog `untranslated` path |
 
+## Reconciliation with phases 4 to 10 (2026-11-09)
+
+This plan was written before phases 4 to 10 were built. Read on `feat/markas-catat` after merging
+`feat/markas-pengaturan` (`8e2c36c`, phase 10, which contains `origin/main` `2e891fe` with phases 1 to 9, the language
+system, `localize-server-text` and the credit flow up to V54). Where this design and the code differ, the code and the
+note here win; each item is in `verification.md`.
+
+1. **No `MovementEditFields`.** Phase 5 built `MovementEditDialog` with its own Dari/Ke selects. Catat writes its own
+   pair with the same parts (`AccountSelectOptions`, `useAccountOptionLabels`, credit on one side only, a credit
+   source offering cash targets only). D6's "phase 5's `MovementEditFields`" reads as "the same fields and rules".
+2. **"Dari" default.** The form preselects the first liquid account, as `QuickCaptureModal` did (phase 9 calls it "its
+   default account"); kept for request parity. No "primary spend account" rule is added.
+3. **Translated shared parts.** `DebtAllocationEditor` is translated under `transactions.debts` and the account
+   options under `transactions.accountOptions` (phase 5). Catat reuses both; D18's `common.accounts` and
+   `transactions.debtSplit` are not created. `allocationError` (Indonesian, kept "for Catat") is removed: Catat words
+   `allocationIssue` from `transactions.debts.errors`.
+4. **Hint wording that the server contradicts.** A goal link does not change a goal's progress (`POST /transactions`
+   only checks the goal; a goal tied to accounts follows their balance). D8's goal hint "Pengeluaran yang dikaitkan
+   mengurangi progres target." would be false, so Catat uses phase 5's approved `transactions.edit.goalHelp`. The debt
+   editor keeps its own phase 5 hint ("Jumlah bayar mengikuti sisa tagihan…"), because D8's "kelebihan dicatat
+   sebagai pengeluaran biasa" does not describe the split rule (the split must equal the amount). The spec delta's
+   goal scenario no longer claims that the saved amount grows.
+5. **`InfoHelp` has a second user.** `FormField` (used by `MonetaryInput` in `BalanceCheckDialog` and `/komponen`)
+   shows its `description` through `InfoHelp`. No caller passes a description; `FormField` now renders it as a hint
+   line, so `InfoHelp` has no user and goes (D8, D22). `FormSection` and `PendingSubmitButton` had only
+   `QuickCaptureModal` and go; `FormField`, `MonetaryInput`, `ChoiceGroup` and `FormErrorSummary` stay.
+6. **`explain.tsx`.** `ExplainableFigure` has no user (phases 6 and 8 moved to `ExplanationDialog`), `ExplainProvider`
+   is mounted only by `AppLayout`, and `ExplanationBody` has no user. The popover, provider, body, `.ws-explain` rules
+   and the now unused `home.closeExplanation` key go; the two types (`ExplanationLine`, `ExplanationData`) move to
+   `components/workspace/explanation.ts` for their three importers.
+7. **`Drawer`.** Its users are the bell's and Beranda's due-plans views (D20); both move to one
+   `DuePlansDialog` (`ShellDialog` 560). `/komponen` draws static `.ws-drawer` samples with classes only, so the
+   `.ws-drawer*` and `.ws-grab` rules stay until phase 12 retires the sheet; the component goes.
+8. **Classes still used elsewhere.** `ws-btn-ink` and `ws-btn-accent` have many users and stay. `.ws-tx-error` and
+   `.ws-tx-actions` have no CSS rule left (phase 5 removed them); only `CatatDialog`'s class names go.
+9. **Callers of `openMovementCapture`.** Rekening's "Bayar tagihan" (`AccountDetailDialog`), Beranda's Perlu tindakan
+   and the bell call it. Target & Tagihan lists credit bills without a pay action, so it is not a caller; this phase
+   adds none.
+10. **Untranslated paths.** No `ShellDialog` caller passes `untranslated`; `Modal` (Catat) and `Drawer` (its prop is
+    never set) are the only dialog users. `sharedLanguage.test.tsx` tests the dialog path through `Modal`; it moves to
+    the page-level region on `/komponen`.
+11. **Server errors.** `ApiError.message` already renders `errors.<code>` in the interface language for `same_account`,
+    `credit_terms_*` and `insufficient_funds`; no catalogue entry is added.
+12. **Pull request.** The workflow follow-up says to create the pull request; the owner's delegate for this run asked
+    for the branch to be pushed without one. The branch is pushed and the owner opens the pull request.
+
+Flag review (task 1.1, 2026-11-09): D9, D10, D11, D12, D20, D21 and D22 take their defaults under the standing
+instruction, with the adjustments above (items 3 to 7).
+
 ## Goals / Non-Goals
 
 **Goals:** one capture dialog that matches the prototype; H11 complete; every request unchanged except `credit_terms`; English and Indonesian; the unowned global surfaces measured and the leftover dialog primitives removed.
