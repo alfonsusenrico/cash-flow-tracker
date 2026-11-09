@@ -46,7 +46,28 @@
  },
  {
   "name": "analisis",
-  "path": "/analisis"
+  "path": "/analisis",
+  "analisis": true
+ },
+ {
+  "name": "analisis-kalender",
+  "path": "/analisis/kalender",
+  "analisis": true
+ },
+ {
+  "name": "analisis-peta-aliran",
+  "path": "/analisis/peta-aliran",
+  "analisis": true
+ },
+ {
+  "name": "dlg-kategori",
+  "path": "/analisis",
+  "analisis": true,
+  "steps": [
+   {
+    "click": "^Kelola kategori$"
+   }
+  ]
  },
  {
   "name": "laporan",
