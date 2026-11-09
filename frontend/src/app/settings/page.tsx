@@ -1,6 +1,6 @@
 import { DevicesSettings } from "@/components/settings/DevicesSettings";
 
-/** Wide screens open HP & perangkat here (OD53); narrow screens show only the section list from the layout. */
+/** `/settings` shows HP & perangkat under the rail on every width (apply-markas-pengaturan D3). */
 export default function SettingsIndexPage() {
   return <DevicesSettings />;
 }

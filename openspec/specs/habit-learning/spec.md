@@ -177,15 +177,19 @@ A habit-recorded row SHALL be explained everywhere it is shown: the companion re
 - **THEN** the question SHALL count as asked but not answered, and no correction SHALL be counted
 
 ### Requirement: Seberapa Sering Ditanya Panel
-Analisis SHALL show a "Seberapa sering ditanya" panel listing the weeks newest first with "Ditanya <n> dari <m> (<p>%)", the shares by memory, habit, AI, other rules and answered, and the corrections; a week without recorded payments SHALL say so, no data SHALL give an honest empty state, and a failed load SHALL show no figures.
+Pengaturan › Kebiasaan SHALL show a "Seberapa sering ditanya" panel listing the weeks newest first with "Ditanya <n> dari <m> (<p>%)", the shares by memory, habit, AI, other rules and answered, and the corrections; a week without recorded payments SHALL say so, no data SHALL give an honest empty state, and a failed load SHALL show no figures. Analisis SHALL NOT show the panel.
 
 #### Scenario: Weekly figures
 - **WHEN** the current week has 20 recorded payments, 3 asked and 5 by habit
-- **THEN** it SHALL be marked "berjalan" and show "Ditanya 3 dari 20 (15%)" and "Kebiasaan 5 (25%)"
+- **THEN** Pengaturan › Kebiasaan SHALL mark it "berjalan" and show "Ditanya 3 dari 20 (15%)" and "Kebiasaan 5 (25%)"
 
 #### Scenario: No data
 - **WHEN** no notification or capture payment was recorded in the eight weeks
 - **THEN** the panel SHALL say so and show no figures
+
+#### Scenario: Not on Analisis
+- **WHEN** the owner opens any tab of Analisis
+- **THEN** no "Seberapa sering ditanya" or "Kebiasaan dihafal" panel SHALL be shown, and Pengaturan › Kebiasaan SHALL show the weekly panel after the habit and top-up tables
 
 ### Requirement: Habit List API
 `GET /api/habits` SHALL return, for the authenticated owner only and without changing any state, the learned habits, the learned top-up patterns, the auto-record switch states (`auto_record.habits`, `auto_record.topups`) and the thresholds in use, at most 100 entries per list, newest first, with `truncated` when more exist. It SHALL never return a notification text signature, SHALL use a constant number of statements, and SHALL log no merchant name, amount or label.
@@ -236,11 +240,15 @@ A top-up entry SHALL describe one learned pattern (source account and exact amou
 - **THEN** `topups` SHALL hold one entry with that source, amount and product, `confirmations` 2 and `state` "learning"
 
 ### Requirement: Kebiasaan Settings Section
-Pengaturan SHALL have a Kebiasaan section at `/settings/kebiasaan` that shows `GET /api/habits`: the auto-record state of habits and of top-ups as read-only facts controlled by the server setting, a table of habits ("Saat ditemukan", "Dicatat sebagai", "Dikonfirmasi", "Status") and a table of learned top-ups ("Debit", "Dicatat sebagai", "Dikonfirmasi", "Status"). It SHALL offer no edit or forget action, and amounts SHALL respect "Sembunyikan saldo".
+Pengaturan SHALL have a Kebiasaan section at `/settings/kebiasaan` that shows `GET /api/habits`: the auto-record states of habits and of top-ups as read-only status rows set by the server, a list of payment habits and a list of learned top-ups, each row with what was found, what it is recorded as, how often it was confirmed and its status. It SHALL offer no edit, forget or switch control, and amounts SHALL respect "Sembunyikan saldo".
 
 #### Scenario: Viewing learned habits
 - **WHEN** the owner opens Kebiasaan with one ready habit and one learning top-up
-- **THEN** the habit row SHALL read "Kedai Awan · Dompet Digital", "Makanan & Minuman · Keinginan", "3×" and "Dicatat otomatis", and the top-up row SHALL read "Rp 112.590 dari RDN Contoh", "Bibit Contoh · Reksa Dana A", "2×" and "Masih belajar · 2 dari 3"
+- **THEN** the habit row SHALL read "Kedai Awan · Dompet Digital", "Makanan & Minuman · Keinginan · 3× dikonfirmasi" and "Dicatat otomatis", and the top-up row SHALL read "Rp 112.590 dari RDN Contoh", "Bibit Contoh · Reksa Dana A · 2× dikonfirmasi" and "Masih belajar · 2 dari 3"
+
+#### Scenario: Server states are not switches
+- **WHEN** the owner reaches "Pencatatan otomatis dari kebiasaan" by keyboard
+- **THEN** it SHALL read "Aktif" or "Nonaktif" as text, and no switch, checkbox or button SHALL be offered for it
 
 ### Requirement: Kebiasaan Status and Empty States
 Each Kebiasaan row SHALL state its status in words: "Dicatat otomatis", "Masih belajar · <n> dari 3", "Jawaban berbeda, tetap ditanya", or "Siap, pencatatan otomatis nonaktif" when the server switch is off. An empty list SHALL say plainly that nothing has been learned yet and how learning happens. A failed load SHALL show an error with a retry, never an empty table.

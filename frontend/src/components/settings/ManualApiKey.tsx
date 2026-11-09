@@ -1,21 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { getApiKeyInfo, rotateApiKey, type ApiKeyMetadata } from "@/lib/api";
+import { useFormat } from "@/lib/format";
 import { queryKeys } from "@/lib/queryKeys";
-import { Button } from "@/components/ui/Button";
-import { Icon } from "@/components/ui/Icon";
-import { SettingsAlert, confirmDangerClass } from "@/components/settings/SettingsCard";
+import { ListRow, SectionHeader } from "@/components/workspace/lists";
+import { ErrorState } from "@/components/workspace/primitives";
+import { SettingsAlert } from "@/components/settings/SettingsSection";
 
-function formatUsed(value: string) {
-  return new Date(value).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
-}
-
-/** Fallback Bearer key for phones that cannot scan the pairing QR; rotation never touches paired devices. */
+/**
+ * "Kunci API manual (cadangan)" (apply-markas-pengaturan D8): an open section with the key's prefix, creation and
+ * last use, the inline rotation confirmation and the once-only box. Rotation replaces only manual keys, so paired
+ * phones stay connected. The new key lives in this component's state until "Tutup" and is never logged.
+ */
 export function ManualApiKey() {
+  const t = useTranslations("settings.apiKey");
+  const common = useTranslations("common");
+  const format = useFormat();
   const qc = useQueryClient();
-  const { data, isError } = useQuery<{ ok: boolean; api_key: ApiKeyMetadata | null }>({
+  const { data, isError, refetch } = useQuery<{ ok: boolean; api_key: ApiKeyMetadata | null }>({
     queryKey: queryKeys.auth.apiKey,
     queryFn: getApiKeyInfo,
   });
@@ -23,6 +28,17 @@ export function ManualApiKey() {
   const [plainKey, setPlainKey] = useState<string | null>(null);
   const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle");
   const [error, setError] = useState("");
+  const newButton = useRef<HTMLButtonElement>(null);
+  const cancelButton = useRef<HTMLButtonElement>(null);
+  const keyField = useRef<HTMLInputElement>(null);
+  const returnFocus = useRef(false);
+
+  useEffect(() => {
+    if (confirming) cancelButton.current?.focus();
+    else if (plainKey) keyField.current?.focus();
+    else if (returnFocus.current) newButton.current?.focus();
+    returnFocus.current = false;
+  }, [confirming, plainKey]);
 
   const rotate = useMutation({
     mutationFn: rotateApiKey,
@@ -32,7 +48,7 @@ export function ManualApiKey() {
       setConfirming(false);
       void qc.invalidateQueries({ queryKey: queryKeys.auth.apiKey });
     },
-    onError: (e: Error) => setError(e.message || "Gagal memperbarui kunci API"),
+    onError: (e: Error) => setError(e.message || t("rotateFailed")),
   });
 
   const copyKey = async () => {
@@ -46,99 +62,91 @@ export function ManualApiKey() {
   };
 
   const key = data?.api_key;
+  const dateTime = (iso: string) => `${format.yearDateAt(iso)} ${format.time(iso)}`;
 
   return (
-    <details className="group rounded-xl border border-[var(--line)]">
-      <summary
-        id="manual-api-key-title"
-        className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-md px-3 font-semibold text-[var(--text)] [&::-webkit-details-marker]:hidden"
-      >
-        Kunci API manual (cadangan)
-        <Icon name="chevron-down" className="h-4 w-4 text-[var(--muted)] transition-transform group-open:rotate-180" />
-      </summary>
-      <section aria-labelledby="manual-api-key-title" className="space-y-3 border-t border-[var(--line)] p-3">
-        <p className="text-xs text-[var(--muted)]">
-          Pakai hanya jika ponsel tidak bisa memindai kode QR. Membuat kunci baru hanya mengganti kunci manual; ponsel
-          yang dipasangkan lewat QR tetap terhubung.
-        </p>
-        {isError && <SettingsAlert>Info kunci API gagal dimuat.</SettingsAlert>}
-        {error && <SettingsAlert>{error}</SettingsAlert>}
+    <section aria-labelledby="manual-api-key-title">
+      <SectionHeader id="manual-api-key-title" label={t("title")} />
+      {error && <SettingsAlert>{error}</SettingsAlert>}
+      {/* A failed load never reads as "Belum ada kunci" (D21). */}
+      {isError ? (
+        <ErrorState message={t("loadFailed")} onRetry={() => void refetch()} />
+      ) : (
+        <ul className="list set-list">
+          <li>
+            <ListRow
+              layout="stacked"
+              title={key?.key_prefix ? t("row", { prefix: `${key.key_prefix}••••••••••••` }) : t("none")}
+              meta={
+                key
+                  ? t("meta", {
+                      created: format.yearDateAt(key.created_at),
+                      used: key.last_used_at ? dateTime(key.last_used_at) : t("never"),
+                    })
+                  : undefined
+              }
+            />
+          </li>
+        </ul>
+      )}
+      <p className="t-meta set-note">{t("note")}</p>
 
-        {plainKey ? (
-          <div className="space-y-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-3">
-            <p className="font-semibold text-[var(--text)]">Salin kunci API baru sekarang</p>
-            <p className="text-xs text-[var(--text-2)]">Kunci ini hanya ditampilkan sekali. Masukkan ke aplikasi pendamping di ponsel.</p>
-            <div className="flex flex-wrap items-center gap-2">
-              <input
-                type="text"
-                aria-label="Kunci API baru"
-                readOnly
-                value={plainKey}
-                className="min-h-11 min-w-0 flex-1 select-all rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 tabular-nums text-xs text-[var(--text)]"
-              />
-              <Button type="button" size="sm" className="min-h-11" onClick={() => void copyKey()}>
-                {copy === "copied" ? "Tersalin" : "Salin"}
-              </Button>
-            </div>
-            {copy === "failed" && <p role="alert" className="text-xs text-[var(--text)]">Gagal menyalin. Pilih teks kunci lalu salin manual.</p>}
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="min-h-11"
-                onClick={() => {
-                  setPlainKey(null);
-                  setCopy("idle");
-                }}
-              >
-                Tutup & selesai
-              </Button>
-            </div>
+      {plainKey ? (
+        <div className="set-box set-note">
+          <p className="t-meta">{t("once")}</p>
+          <div className="set-actions set-note">
+            <input
+              ref={keyField}
+              type="text"
+              aria-label={t("keyLabel")}
+              readOnly
+              value={plainKey}
+              className="field-control border tabular-nums min-w-0 flex-1 select-all"
+            />
+            <button type="button" className="ws-btn" onClick={() => void copyKey()}>
+              {copy === "copied" ? t("copied") : t("copy")}
+            </button>
+            <button
+              type="button"
+              className="ws-btn ws-btn-quiet"
+              onClick={() => {
+                returnFocus.current = true;
+                setPlainKey(null);
+                setCopy("idle");
+              }}
+            >
+              {t("close")}
+            </button>
           </div>
-        ) : (
-          <>
-            <dl className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <dt className="text-xs text-[var(--muted)]">Awalan kunci aktif</dt>
-                <dd className="tabular-nums font-semibold text-[var(--text)]">{key?.key_prefix ? `${key.key_prefix}••••••••••••` : "Belum ada kunci"}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-[var(--muted)]">Terakhir digunakan</dt>
-                <dd className="tabular-nums text-[var(--text)]">{key?.last_used_at ? formatUsed(key.last_used_at) : "Belum pernah"}</dd>
-              </div>
-            </dl>
-            {confirming ? (
-              <div className="space-y-2 rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-3">
-                <p className="text-xs font-semibold text-out-fg">
-                  Kunci manual lama langsung dicabut. Ponsel yang dipasangkan lewat QR tetap terhubung. Lanjutkan?
-                </p>
-                <div className="flex flex-wrap justify-end gap-2">
-                  <Button type="button" size="sm" className="min-h-11" onClick={() => setConfirming(false)}>
-                    Batal
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="danger"
-                    size="sm"
-                    className={`min-h-11 ${confirmDangerClass}`}
-                    disabled={rotate.isPending}
-                    onClick={() => rotate.mutate()}
-                  >
-                    {rotate.isPending ? "Membuat…" : "Ya, Buat Kunci Baru"}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex justify-end">
-                <Button type="button" size="sm" className="min-h-11" onClick={() => setConfirming(true)}>
-                  Buat Kunci Baru (Reset)
-                </Button>
-              </div>
-            )}
-          </>
-        )}
-      </section>
-    </details>
+          {copy === "failed" && <p role="alert" className="set-err set-note">{t("copyFailed")}</p>}
+        </div>
+      ) : confirming ? (
+        <div className="set-box set-note" role="group" aria-label={t("new")}>
+          <p className="t-body">{t("confirmText")}</p>
+          <div className="set-actions set-note">
+            <button
+              ref={cancelButton}
+              type="button"
+              className="ws-btn"
+              onClick={() => {
+                returnFocus.current = true;
+                setConfirming(false);
+              }}
+            >
+              {common("cancel")}
+            </button>
+            <button type="button" className="ws-btn ws-btn-danger" disabled={rotate.isPending} onClick={() => rotate.mutate()}>
+              {rotate.isPending ? t("creating") : t("confirm")}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="set-actions set-note">
+          <button ref={newButton} type="button" className="ws-btn" onClick={() => setConfirming(true)}>
+            {t("new")}
+          </button>
+        </div>
+      )}
+    </section>
   );
 }

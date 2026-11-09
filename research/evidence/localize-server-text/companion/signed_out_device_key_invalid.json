@@ -1,0 +1,12 @@
+{
+  "status": 401,
+  "content_language": "en",
+  "body": {
+    "ok": false,
+    "detail": {
+      "code": "device_key_invalid",
+      "params": {},
+      "message": "The device key was rejected. Pair the phone again."
+    }
+  }
+}

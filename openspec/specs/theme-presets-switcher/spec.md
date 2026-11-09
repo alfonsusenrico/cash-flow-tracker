@@ -65,7 +65,7 @@ The web app SHALL offer "Terang", "Gelap" and "Ikuti sistem" themes, default to 
 - **THEN** the app SHALL follow the operating system and keep working without an error
 
 ### Requirement: Tampilan Settings Section
-Pengaturan SHALL have a Tampilan section at `/settings/tampilan` with the theme as a labelled radio group ("Ikuti sistem", "Terang", "Gelap"), the "Pintasan satu tombol" switch and "Sembunyikan saldo". Each control SHALL use the same stored setting as its shell counterpart (the top bar's theme menu, the single-key shortcut setting and the top bar's "Sembunyikan saldo" button), apply immediately and stay in sync with it without a reload.
+Pengaturan SHALL have a Tampilan section at `/settings/tampilan` with, in order, the language choice, the theme as a labelled segment ("Terang", "Gelap", "Ikuti sistem"), the "Pintasan satu tombol" and "Sembunyikan saldo" switches, and "Bantuan & pintasan". Each control SHALL use the same stored setting as its shell counterpart, apply immediately and stay in sync with it without a reload.
 
 #### Scenario: Choosing a theme in Tampilan
 - **WHEN** the owner selects "Gelap" in Tampilan
@@ -82,3 +82,7 @@ Pengaturan SHALL have a Tampilan section at `/settings/tampilan` with the theme 
 #### Scenario: Storage unavailable
 - **WHEN** browser storage throws while the owner changes a Tampilan control
 - **THEN** the change SHALL apply for the open page, no error SHALL be shown, and the next visit SHALL start from the defaults
+
+#### Scenario: Switches and segment semantics
+- **WHEN** a screen reader user reaches the theme and the two switches
+- **THEN** the theme SHALL be a radio group with the chosen option checked, and each switch SHALL have `role="switch"`, its row title as name and its state as `aria-checked`

@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.services.kakeibo import Pillar
+from app.services.prompt_language import INDONESIAN_VERSIONS, PURPOSE_NORMALIZATION, is_placeholder_description
 
 
-PURPOSE_PROMPT_VERSION = "purpose-normalization-1"
-PURPOSE_PROMPT_PATH = Path(__file__).with_name("prompts") / "purpose_normalization.md"
+PURPOSE_PROMPT_VERSION = INDONESIAN_VERSIONS[PURPOSE_NORMALIZATION]
 
 
 class PurposeNormalization(BaseModel):
@@ -29,15 +28,16 @@ class InvalidNormalization(ValueError):
     pass
 
 
-def purpose_prompt() -> str:
-    return PURPOSE_PROMPT_PATH.read_text(encoding="utf-8")
+def validate_normalization(result: PurposeNormalization, context: dict, direction: str, *, output_language: str) -> dict:
+    """Checked values to apply; raises InvalidNormalization for any reference outside the context.
 
-
-def validate_normalization(result: PurposeNormalization, context: dict, direction: str) -> dict:
-    """Checked values to apply; raises InvalidNormalization for any reference outside the context."""
+    English output also refuses a generic placeholder such as "Payment"; the Indonesian checks are as before.
+    """
     description = " ".join(result.description.split())
     if not description:
         raise InvalidNormalization("empty_description")
+    if output_language == "en" and is_placeholder_description(description, "en"):
+        raise InvalidNormalization("generic_description")
     merchant = " ".join((result.merchant or "").split()) or None
     categories = {str(row["id"]): row for row in context["categories"]}
     category_id = str(result.category_id) if result.category_id else None

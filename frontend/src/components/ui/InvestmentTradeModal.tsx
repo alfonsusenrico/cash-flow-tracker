@@ -1,11 +1,15 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
+import { MaskedMoney } from "@/components/workspace/money";
+import { ShellDialog } from "@/components/workspace/ShellDialog";
+import { UntranslatedRegion } from "@/components/workspace/untranslated";
 import { api, ApiError } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
 import { listLiquidAccountChoices } from "@/lib/accountOptions";
-import { Modal } from "@/components/ui/Modal";
-import { fmtMoney, parseNumberFromDots } from "@/lib/utils";
+import { useFormat } from "@/lib/format";
+import { parseNumberFromDots } from "@/lib/utils";
 
 interface AccountItem {
   id: string;
@@ -31,61 +35,40 @@ interface Props {
   pocket: AccountItem | null;
   /** All accounts, used to populate funding account selector */
   allAccounts: AccountItem[];
-  /** Pre-selected action: "buy" or "sell" */
+  /** The trade the caller opened: the product detail offers "Beli" and "Jual" separately (apply-markas-rekening D10). */
   defaultAction?: "buy" | "sell";
 }
 
-// Instrument-specific field config
-function getInstrumentConfig(instType?: string | null) {
+type Instrument = "gold" | "fund" | "crypto" | "stock";
+
+/** The unit an instrument is traded in; a stock is entered in lots of 100 shares. */
+function instrumentOf(instType?: string | null): { kind: Instrument; step: string; isLotBased: boolean; noteUnit: string } {
   switch (instType) {
     case "gold":
-      return {
-        unitLabel: "Berat (Gram)",
-        unitPlaceholder: "Contoh: 0.5 atau 10",
-        unitStep: "0.001",
-        unitUnit: "gram",
-        priceLabel: "Harga / Gram (IDR)",
-        isLotBased: false,
-      };
+      return { kind: "gold", step: "0.001", isLotBased: false, noteUnit: "gram" };
     case "mutual_fund":
-      return {
-        unitLabel: "Unit Penyertaan (UP)",
-        unitPlaceholder: "Contoh: 2871.45",
-        unitStep: "0.0001",
-        unitUnit: "UP",
-        priceLabel: "NAB / Harga per Unit (IDR)",
-        isLotBased: false,
-      };
+      return { kind: "fund", step: "0.0001", isLotBased: false, noteUnit: "UP" };
     case "crypto":
-      return {
-        unitLabel: "Jumlah Token / Koin",
-        unitPlaceholder: "Contoh: 0.05",
-        unitStep: "0.000001",
-        unitUnit: "token",
-        priceLabel: "Harga / Koin (IDR)",
-        isLotBased: false,
-      };
+      return { kind: "crypto", step: "0.000001", isLotBased: false, noteUnit: "token" };
     case "stock":
     default:
-      return {
-        unitLabel: "Jumlah Lot",
-        unitPlaceholder: "Contoh: 5",
-        unitStep: "1",
-        unitUnit: "lot",
-        priceLabel: "Harga / Lembar (IDR)",
-        isLotBased: true,
-      };
+      return { kind: "stock", step: "1", isLotBased: true, noteUnit: "lot" };
   }
 }
 
-function cn(...classes: (string | boolean | undefined | null)[]) {
-  return classes.filter(Boolean).join(" ");
-}
+const FORM_ID = "investment-trade-form";
 
+/**
+ * Beli and Jual (apply-markas-rekening D10): a 520 px shell dialog with the units and price, the funding account,
+ * the note, and the "Perkiraan total" box with the position after the trade. The trade request is unchanged.
+ */
 export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defaultAction = "buy" }: Props) {
   const qc = useQueryClient();
+  const t = useTranslations("accounts.trade");
+  const common = useTranslations("common");
+  const format = useFormat();
 
-  const [action, setAction] = useState<"buy" | "sell">(defaultAction);
+  const action = defaultAction;
   const [fundingAccountId, setFundingAccountId] = useState("");
   const [inputUnits, setInputUnits] = useState(""); // lots for stock, raw units otherwise
   const [inputPrice, setInputPrice] = useState(""); // price per lembar (stock) or per unit
@@ -93,7 +76,7 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
   const [error, setError] = useState("");
   const [errorField, setErrorField] = useState<"units" | "funding" | null>(null);
 
-  const cfg = getInstrumentConfig(pocket?.instrument_type);
+  const cfg = instrumentOf(pocket?.instrument_type);
 
   // Derived: actual units to trade (lots × 100 for stocks)
   const parsedInputUnits = parseFloat(inputUnits.replace(/[^0-9.]/g, "")) || 0;
@@ -112,9 +95,7 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
   const projectedAvg =
     action === "buy" && tradeUnits > 0 && parsedPrice > 0
       ? Math.round((currentUnits * currentAvg + tradeUnits * parsedPrice) / (currentUnits + tradeUnits))
-      : action === "sell"
-      ? currentAvg // avg doesn't change on sell
-      : currentAvg;
+      : currentAvg; // avg doesn't change on sell
   // Candidate funding accounts: all non-investment, non-pocket accounts
   const fundingCandidates = useMemo(
     () => listLiquidAccountChoices(allAccounts)
@@ -130,7 +111,6 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
   // Reset on open
   useEffect(() => {
     if (!open) return;
-    setAction(defaultAction);
     setInputUnits("");
     setInputPrice("");
     setNotes("");
@@ -148,7 +128,6 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
     }
   }, [open, defaultAction, pocket, allAccounts, fundingCandidates]);
 
-  // Recalculate when fundingCandidates changes (avoid stale closure)
   const handleClose = useCallback(() => {
     setError("");
     setErrorField(null);
@@ -157,19 +136,26 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
 
   const tradeMutation = useMutation({
     mutationFn: async () => {
-      if (!pocket) throw new Error("Tidak ada instrumen yang dipilih");
-      if (tradeUnits <= 0) throw new Error("Masukkan jumlah unit yang valid");
-      if (action === "sell" && tradeUnits > currentUnits) {
-        throw new Error("Jumlah jual melebihi unit yang dimiliki");
-      }
-      if (parsedPrice <= 0) throw new Error("Masukkan harga per unit yang valid");
-      if (!fundingAccountId) throw new Error("Pilih rekening sumber / tujuan dana");
-      if (tradeAmount <= 0) throw new Error("Nominal transaksi tidak valid");
+      if (!pocket) throw new Error(t("errors.noProduct"));
+      if (tradeUnits <= 0) throw new Error(t("errors.units"));
+      if (action === "sell" && tradeUnits > currentUnits) throw new Error(t("tooMany"));
+      if (parsedPrice <= 0) throw new Error(t("errors.price"));
+      if (!fundingAccountId) throw new Error(t("errors.funding"));
+      if (tradeAmount <= 0) throw new Error(t("errors.amount"));
 
       // Buy: money flows FROM funding account TO investment pocket
       // Sell: money flows FROM investment pocket TO funding account
       const accountId = action === "buy" ? fundingAccountId : pocket.id;
       const targetAccountId = action === "buy" ? pocket.id : fundingAccountId;
+      // The generated note is stored data, written as it always was ("BBCA 2 lot @ Rp 9.100").
+      const generatedNote = [
+        pocket.instrument_symbol ?? pocket.name,
+        String(cfg.isLotBased ? parsedInputUnits : tradeUnits),
+        cfg.noteUnit,
+        "@",
+        "Rp",
+        parsedPrice.toLocaleString("id-ID"),
+      ].join(" ");
 
       return api.post("/transactions", {
         type: action === "buy" ? "expense" : "income",
@@ -179,11 +165,7 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
         investment_action: action,
         units: tradeUnits,
         price_per_unit: parsedPrice,
-        notes:
-          notes.trim() ||
-          (cfg.isLotBased
-            ? `${pocket.instrument_symbol ?? pocket.name} ${parsedInputUnits} lot @ Rp ${parsedPrice.toLocaleString("id-ID")}`
-            : `${pocket.instrument_symbol ?? pocket.name} ${tradeUnits} ${cfg.unitUnit} @ Rp ${parsedPrice.toLocaleString("id-ID")}`),
+        notes: notes.trim() || generatedNote,
         date: new Date().toISOString(),
       });
     },
@@ -197,268 +179,205 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
       const code = err instanceof ApiError && typeof err.detail !== "string" ? err.detail.code : null;
       const field = code === "insufficient_units" ? "units" : code === "insufficient_funds" ? "funding" : null;
       setErrorField(field);
-      setError(err.message || "Transaksi gagal");
+      setError(err.message || t("errors.failed"));
       if (field) document.getElementById(`investment-trade-${field}`)?.focus();
     },
   });
 
   if (!pocket) return null;
 
-  const fundingLabel = action === "buy" ? "Dana dari Rekening" : "Dana masuk ke Rekening";
-  const submitLabel = action === "buy" ? "Catat Pembelian" : "Catat Penjualan";
+  const amount = (value: number) => <MaskedMoney text={format.money(value)} />;
+  const unitsText = (units: number) =>
+    cfg.isLotBased
+      ? t("sharesAndLots", { shares: format.decimal(units, 4), lots: format.decimal(units / 100, 4) })
+      : t(`unitsOf.${cfg.kind}`, { units: format.decimal(units, 6) });
+  const busy = tradeMutation.isPending;
+  const unitsInvalid = exceedsPosition || errorField === "units";
+
+  const footer = (
+    <>
+      <button type="button" className="ws-btn" onClick={handleClose}>{common("cancel")}</button>
+      <button
+        type="submit"
+        form={FORM_ID}
+        className="ws-btn ws-btn-ink"
+        disabled={busy || exceedsPosition || insufficientDisplayedBalance}
+      >
+        {busy ? t("processing") : action === "buy" ? t("buy") : t("sell")}
+      </button>
+    </>
+  );
 
   return (
-    <Modal
-      open={open}
-      onClose={handleClose}
-      title={`Transaksi Investasi — ${pocket.instrument_symbol ?? pocket.name}`}
-    >
-      <form
-        className="space-y-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          tradeMutation.mutate();
-        }}
+    <UntranslatedRegion active={false}>
+      <ShellDialog
+        open={open}
+        onClose={handleClose}
+        title={action === "buy" ? t("buy") : t("sell")}
+        meta={pocket.instrument_symbol ? `${pocket.name} · ${pocket.instrument_symbol}` : pocket.name}
+        width={520}
+        closeLabel={common("close")}
+        footer={footer}
       >
-        <div className="flex rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-1" role="group" aria-label="Aksi investasi">
-          {(["buy", "sell"] as const).map((act) => (
-            <button
-              key={act}
-              type="button"
-              onClick={() => setAction(act)}
-              aria-pressed={action === act}
-              className={cn(
-                  "min-h-11 flex-1 rounded-md px-3 text-sm font-semibold transition-colors motion-reduce:transition-none",
-                  action === act
-                  ? "ws-seg-on"
-                  : "text-[var(--muted)] hover:text-[var(--text)]"
+        <form
+          id={FORM_ID}
+          className="form-stack"
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
+            tradeMutation.mutate();
+          }}
+        >
+          {currentUnits > 0 && (
+            <dl className="dl" aria-label={t("position")}>
+              <dt>{t("owned")}</dt>
+              <dd className="tabular-nums">{unitsText(currentUnits)}</dd>
+              <dt>{t("avgPrice")}</dt>
+              <dd className="tabular-nums">{amount(currentAvg)}</dd>
+              {pocket.last_price ? (
+                <>
+                  <dt>{t("marketPrice")}</dt>
+                  <dd className="tabular-nums">{amount(pocket.last_price)}</dd>
+                </>
+              ) : null}
+            </dl>
+          )}
+
+          <div className="form-grid">
+            <div className="field">
+              <label htmlFor="investment-trade-units">{t(`unitLabel.${cfg.kind}`)}</label>
+              <input
+                id="investment-trade-units"
+                name="units"
+                type="number"
+                min="0"
+                max={action === "sell" ? cfg.isLotBased ? currentUnits / 100 : currentUnits : undefined}
+                step={cfg.step}
+                value={inputUnits}
+                onChange={(e) => { setInputUnits(e.target.value); setErrorField(null); setError(""); }}
+                aria-invalid={unitsInvalid || undefined}
+                aria-describedby={unitsInvalid ? "investment-trade-units-error" : cfg.isLotBased && parsedInputUnits > 0 ? "investment-trade-units-hint" : undefined}
+                className="field-control tabular-nums"
+              />
+              {unitsInvalid && (
+                <p id="investment-trade-units-error" className="err" role="alert">
+                  {exceedsPosition ? t("tooMany") : error}
+                </p>
               )}
+              {cfg.isLotBased && parsedInputUnits > 0 && !unitsInvalid && (
+                <p id="investment-trade-units-hint" className="hint">
+                  {t("sharesHint", { shares: format.decimal(parsedInputUnits * 100, 4) })}
+                </p>
+              )}
+            </div>
+            <div className="field">
+              <label htmlFor="investment-trade-price">{t(`priceLabel.${cfg.kind}`)}</label>
+              <input
+                id="investment-trade-price"
+                name="price_per_unit"
+                type="text"
+                inputMode="numeric"
+                value={inputPrice}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/[^0-9]/g, "");
+                  setInputPrice(raw ? parseInt(raw, 10).toLocaleString("id-ID") : "");
+                }}
+                className="field-control tabular-nums"
+              />
+              {(pocket.last_price || pocket.avg_buy_price) && (
+                <p className="hint">
+                  {t("quickFill")}{" "}
+                  {pocket.last_price ? (
+                    <button
+                      type="button"
+                      className="ws-linkbtn"
+                      onClick={() => setInputPrice(Math.round(pocket.last_price!).toLocaleString("id-ID"))}
+                    >
+                      {t("market", { price: format.money(pocket.last_price) })}
+                    </button>
+                  ) : null}
+                  {pocket.last_price && pocket.avg_buy_price ? " · " : null}
+                  {pocket.avg_buy_price ? (
+                    <button
+                      type="button"
+                      className="ws-linkbtn"
+                      onClick={() => setInputPrice(Math.round(pocket.avg_buy_price!).toLocaleString("id-ID"))}
+                    >
+                      {t("cost", { price: format.money(pocket.avg_buy_price) })}
+                    </button>
+                  ) : null}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="field">
+            <label htmlFor="investment-trade-funding">{action === "buy" ? t("from") : t("into")}</label>
+            <select
+              id="investment-trade-funding"
+              name="funding_account_id"
+              value={fundingAccountId}
+              onChange={(e) => { setFundingAccountId(e.target.value); setErrorField(null); setError(""); }}
+              aria-invalid={errorField === "funding" || undefined}
+              aria-describedby={errorField === "funding" ? "investment-trade-funding-error" : undefined}
+              className="field-control"
             >
-              {act === "buy" ? "Beli" : "Jual"}
-            </button>
-          ))}
-        </div>
-
-        {/* Instrument & Symbol badge */}
-        <div className="flex items-center gap-2 px-1">
-          <span className="text-xs text-[var(--muted)] uppercase font-medium">Instrumen:</span>
-          <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-[var(--surface-2)] text-inv-fg">
-            {pocket.instrument_type ?? "investasi"}
-          </span>
-          {pocket.instrument_symbol && (
-            <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-[var(--surface-2)] border border-[var(--line)] text-[var(--text)]">
-              {pocket.instrument_symbol}
-            </span>
-          )}
-        </div>
-
-        {/* Current position */}
-        {currentUnits > 0 && (
-          <div className="px-3 py-2.5 rounded-xl bg-[var(--surface-2)] border border-[var(--line)] text-xs space-y-0.5">
-            <div className="font-semibold text-[var(--muted)] uppercase tracking-wider mb-1">Posisi Saat Ini</div>
-            <div className="flex justify-between">
-              <span className="text-[var(--muted)]">Unit dimiliki</span>
-              <span className="font-semibold tabular">
-                {cfg.isLotBased
-                  ? `${currentUnits} lembar (${currentUnits / 100} lot)`
-                  : `${currentUnits} ${cfg.unitUnit}`}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-[var(--muted)]">Avg. harga beli (Modal)</span>
-              <span className="font-semibold tabular">{fmtMoney(currentAvg)}</span>
-            </div>
-            {pocket.last_price && (
-              <div className="flex justify-between">
-                <span className="text-[var(--muted)]">Harga pasar terkini</span>
-                <span className="font-semibold tabular">{fmtMoney(pocket.last_price)}</span>
-              </div>
-            )}
+              <option value="">{t("chooseAccount")}</option>
+              {fundingCandidates.map((account) => (
+                <option key={account.id} value={account.id}>{account.name}</option>
+              ))}
+            </select>
+            {errorField === "funding" && <p id="investment-trade-funding-error" role="alert" className="err">{error}</p>}
           </div>
-        )}
 
-        {/* Unit input */}
-        <div>
-          <label htmlFor="investment-trade-units" className="block text-xs font-medium text-[var(--muted)] mb-1">{cfg.unitLabel}</label>
-          <input
-            id="investment-trade-units"
-            name="units"
-            type="number"
-            min="0"
-            max={action === "sell" ? cfg.isLotBased ? currentUnits / 100 : currentUnits : undefined}
-            step={cfg.unitStep}
-            placeholder={cfg.unitPlaceholder}
-            value={inputUnits}
-            onChange={(e) => { setInputUnits(e.target.value); setErrorField(null); setError(""); }}
-            aria-invalid={exceedsPosition || errorField === "units" || undefined}
-            aria-describedby={exceedsPosition || errorField === "units" ? "investment-trade-units-error" : undefined}
-            className="min-h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] outline-none"
-          />
-          {(exceedsPosition || errorField === "units") && (
-            <p id="investment-trade-units-error" className="mt-1 text-xs font-medium text-out-fg" role="alert">
-              {exceedsPosition ? "Jumlah jual melebihi unit yang dimiliki." : error}
-            </p>
+          {tradeUnits > 0 && parsedPrice > 0 && (
+            <section className="box" aria-labelledby="investment-trade-estimate">
+              <div className="grow">
+                <h3 id="investment-trade-estimate" className="t-label">{t("estimate")}</h3>
+                <p className="t-fig">{amount(tradeAmount)}</p>
+                <p className="t-body">
+                  {action === "buy"
+                    ? t.rich("buyEffect", { amount: () => amount(tradeAmount), account: selectedFundingAccount?.name ?? t("sourceAccount") })
+                    : t.rich("sellEffect", { units: format.decimal(tradeUnits, 6), amount: () => amount(tradeAmount), account: selectedFundingAccount?.name ?? t("targetAccount") })}
+                </p>
+                <dl className="dl">
+                  <dt>{t("unitsAfter")}</dt>
+                  <dd className="tabular-nums">{unitsText(projectedUnits)}</dd>
+                  {selectedFundingAccount && projectedFundingBalance !== null && (
+                    <>
+                      <dt>{t("balanceAfter")}</dt>
+                      <dd className={insufficientDisplayedBalance ? "tabular-nums c-expense" : "tabular-nums"}>{amount(projectedFundingBalance)}</dd>
+                    </>
+                  )}
+                  {action === "buy" && (
+                    <>
+                      <dt>{t("newAvg")}</dt>
+                      <dd className="tabular-nums">{amount(projectedAvg)}</dd>
+                    </>
+                  )}
+                </dl>
+                {action === "sell" && tradeUnits === currentUnits && <p className="t-meta">{t("sellAll")}</p>}
+                {insufficientDisplayedBalance && <p role="alert" className="err">{t("insufficient")}</p>}
+              </div>
+            </section>
           )}
-          {cfg.isLotBased && parsedInputUnits > 0 && (
-            <p className="text-xs text-[var(--muted)] mt-1">
-              = {(parsedInputUnits * 100).toLocaleString("id-ID")} lembar
-            </p>
-          )}
-        </div>
 
-        {/* Price input */}
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label htmlFor="investment-trade-price" className="block text-xs font-medium text-[var(--muted)]">{cfg.priceLabel}</label>
-            {(pocket.last_price || pocket.avg_buy_price) && (
-              <div className="flex items-center gap-1.5 text-xs">
-                <span className="text-[var(--muted)]">Isi cepat:</span>
-                {pocket.last_price && (
-                  <button
-                    type="button"
-                    onClick={() => setInputPrice(Math.round(pocket.last_price!).toLocaleString("id-ID"))}
-                    className="inline-flex min-h-6 items-center px-1.5 py-0.5 rounded-md bg-[var(--surface-2)] hover:bg-[var(--line)] border border-[var(--line)] text-in-fg font-semibold transition-colors motion-reduce:transition-none"
-                    title="Gunakan harga pasar terkini"
-                  >
-                    Pasar ({fmtMoney(pocket.last_price)})
-                  </button>
-                )}
-                {pocket.avg_buy_price && (
-                  <button
-                    type="button"
-                    onClick={() => setInputPrice(Math.round(pocket.avg_buy_price!).toLocaleString("id-ID"))}
-                    className="inline-flex min-h-6 items-center px-1.5 py-0.5 rounded-md bg-[var(--surface-2)] hover:bg-[var(--line)] border border-[var(--line)] text-[var(--text)] font-semibold transition-colors motion-reduce:transition-none"
-                    title="Gunakan harga modal rata-rata"
-                  >
-                    Modal ({fmtMoney(pocket.avg_buy_price)})
-                  </button>
-                )}
-              </div>
-            )}
+          <div className="field">
+            <label htmlFor="investment-trade-notes">{t("note")}</label>
+            <input
+              id="investment-trade-notes"
+              name="notes"
+              type="text"
+              placeholder={t("notePlaceholder")}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="field-control"
+            />
           </div>
-          <input
-            id="investment-trade-price"
-            name="price_per_unit"
-            type="text"
-            inputMode="numeric"
-            placeholder={
-              pocket.last_price
-                ? `Harga pasar: ${pocket.last_price.toLocaleString("id-ID")}`
-                : "Contoh: 3.340"
-            }
-            value={inputPrice}
-            onChange={(e) => {
-              // Format with dots as user types
-              const raw = e.target.value.replace(/[^0-9]/g, "");
-              setInputPrice(raw ? parseInt(raw, 10).toLocaleString("id-ID") : "");
-            }}
-            className="min-h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] outline-none"
-          />
-        </div>
 
-        <div>
-          <label htmlFor="investment-trade-funding" className="mb-1 block text-sm font-medium text-[var(--text)]">{fundingLabel}</label>
-          <select
-            id="investment-trade-funding"
-            name="funding_account_id"
-            value={fundingAccountId}
-            onChange={(e) => { setFundingAccountId(e.target.value); setErrorField(null); setError(""); }}
-            aria-invalid={errorField === "funding" || undefined}
-            aria-describedby={errorField === "funding" ? "investment-trade-funding-error" : undefined}
-            className="min-h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] outline-none"
-          >
-            <option value="">Pilih rekening</option>
-            {fundingCandidates.map((account) => (
-              <option key={account.id} value={account.id}>{account.name}</option>
-            ))}
-          </select>
-          {errorField === "funding" && <p id="investment-trade-funding-error" role="alert" className="mt-1 text-xs text-out-fg">{error}</p>}
-        </div>
-
-        {/* Live total preview */}
-        {tradeUnits > 0 && parsedPrice > 0 && (
-          <div
-            className="space-y-1 rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-3 text-xs text-[var(--text)]"
-          >
-            <div className="mb-1 text-sm font-semibold">
-              {action === "buy" ? "Dampak pembelian" : "Dampak penjualan"}
-            </div>
-            <div>
-              {action === "buy"
-                ? `${fmtMoney(tradeAmount)} keluar dari ${selectedFundingAccount?.name ?? "rekening sumber"} dan masuk ke posisi investasi.`
-                : `${tradeUnits} unit keluar dari posisi investasi dan ${fmtMoney(tradeAmount)} masuk ke ${selectedFundingAccount?.name ?? "rekening tujuan"}.`}
-            </div>
-            <div className="flex justify-between">
-              <span>Nominal transaksi</span>
-              <span className="font-semibold tabular">{fmtMoney(tradeAmount)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Unit setelah transaksi</span>
-              <span className="font-semibold tabular">
-                {cfg.isLotBased
-                  ? `${projectedUnits.toLocaleString("id-ID")} lembar (${(projectedUnits / 100).toLocaleString("id-ID")} lot)`
-                  : `${projectedUnits} ${cfg.unitUnit}`}
-              </span>
-            </div>
-            {action === "sell" && tradeUnits === currentUnits && (
-              <p className="font-medium text-[var(--muted)]">Seluruh unit dijual; posisi menjadi kosong.</p>
-            )}
-            {selectedFundingAccount && projectedFundingBalance !== null && (
-              <div className="flex justify-between">
-                <span>Saldo rekening setelah transaksi</span>
-                <span className={cn("font-semibold tabular", insufficientDisplayedBalance && "text-out-fg")}>{fmtMoney(projectedFundingBalance)}</span>
-              </div>
-            )}
-            {insufficientDisplayedBalance && <p role="alert" className="font-medium text-out-fg">Saldo rekening yang ditampilkan tidak cukup untuk pembelian ini.</p>}
-            {action === "buy" && (
-              <div className="flex justify-between">
-                <span>Avg. beli baru</span>
-                <span className="font-semibold tabular">{fmtMoney(projectedAvg)}</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Notes */}
-        <div>
-          <label htmlFor="investment-trade-notes" className="block text-xs font-medium text-[var(--muted)] mb-1">Catatan (opsional)</label>
-          <input
-            id="investment-trade-notes"
-            name="notes"
-            type="text"
-            placeholder="Kosongkan untuk auto-generate"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            className="min-h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] outline-none"
-          />
-        </div>
-
-        {error && !errorField && (
-          <p role="alert" aria-live="assertive" className="text-xs text-out-fg bg-[var(--surface-2)] border border-[var(--line)] rounded-xl px-3 py-2">
-            {error}
-          </p>
-        )}
-
-        {/* Actions */}
-        <div className="flex gap-2 pt-1">
-          <button
-            type="submit"
-            disabled={tradeMutation.isPending || exceedsPosition || insufficientDisplayedBalance}
-            className={cn(
-              "min-h-11 flex-1 rounded-md bg-[var(--text)] px-4 text-sm font-semibold text-[var(--surface)] transition-colors hover:opacity-90 disabled:opacity-50",
-            )}
-          >
-            {tradeMutation.isPending ? "Memproses…" : submitLabel}
-          </button>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="px-4 py-2.5 rounded-md text-sm font-semibold bg-[var(--surface-2)] text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--line)]/50 transition-colors"
-          >
-            Batal
-          </button>
-        </div>
-      </form>
-    </Modal>
+          {error && !errorField && <p role="alert" className="form-alert">{error}</p>}
+        </form>
+      </ShellDialog>
+    </UntranslatedRegion>
   );
 }

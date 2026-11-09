@@ -34,9 +34,11 @@ export interface HabitList {
   truncated: boolean;
 }
 
-/** The status words of a row (spec "Kebiasaan Status and Empty States"). */
-export function habitStatus(state: HabitState, confirmations: number, needed: number, autoOn: boolean): string {
-  if (state === "learning") return `Masih belajar · ${confirmations} dari ${needed}`;
-  if (state === "conflicting") return "Jawaban berbeda, tetap ditanya";
-  return autoOn ? "Dicatat otomatis" : "Siap, pencatatan otomatis nonaktif";
+/** A row's status as a code; `settings.habits.status.<code>` words it (spec "Kebiasaan Status and Empty States"). */
+export type HabitStatus = "learning" | "conflicting" | "auto" | "readyOff";
+
+export function habitStatus(state: HabitState, autoOn: boolean): HabitStatus {
+  if (state === "learning") return "learning";
+  if (state === "conflicting") return "conflicting";
+  return autoOn ? "auto" : "readyOff";
 }

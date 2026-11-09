@@ -36,4 +36,14 @@ describe("PeriodStepper", () => {
     rerender(<PeriodStepper unit="Siklus" label={null} offset={0} onChange={vi.fn()} />);
     expect(screen.getByText("Loading…")).toBeInTheDocument();
   });
+
+  it("is the SPEC stepper: a labelled group of two icon buttons around a live label, with the reset kept", () => {
+    const { container } = renderWithIntl(<PeriodStepper unit="Siklus" label="Siklus 23 Sep – 22 Okt" offset={-1} minOffset={-1} onChange={vi.fn()} />);
+    const group = screen.getByRole("group", { name: "Periode" });
+    expect(group).toHaveClass("stepper");
+    expect(container.querySelector(".stepper .cur")).toHaveAttribute("aria-live", "polite");
+    expect(screen.getByRole("button", { name: "Siklus sebelumnya" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Siklus berikutnya" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Siklus ini" })).toHaveClass("ws-btn-quiet");
+  });
 });

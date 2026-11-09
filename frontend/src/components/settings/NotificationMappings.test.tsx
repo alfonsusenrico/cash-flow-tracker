@@ -31,6 +31,8 @@ describe("Pemetaan notifikasi", () => {
     const section = await screen.findByRole("region", { name: "Pemetaan notifikasi" });
     expect(await within(section).findByText(/Dipetakan otomatis/)).toBeInTheDocument();
     expect(within(section).getByText(/Dikonfirmasi pemilik/)).toBeInTheDocument();
+    expect(within(section).getByText("“GoPay Tabungan”")).toBeInTheDocument();
+    expect(within(section).getByRole("list", { name: "Nama rekening di notifikasi" })).toBeInTheDocument();
     expect((await axe(section)).violations).toHaveLength(0);
 
     await user.click(within(section).getByRole("button", { name: "Hapus pemetaan GoPay Tabungan" }));
@@ -44,7 +46,7 @@ describe("Pemetaan notifikasi", () => {
     const user = show();
     const remove = await screen.findByRole("button", { name: "Hapus pemetaan Tabungan Liburan" });
     await user.click(remove);
-    expect(screen.getByRole("group", { name: "Hapus pemetaan Tabungan Liburan?" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Hapus pemetaan “Tabungan Liburan”?" })).toBeInTheDocument();
     await user.keyboard("{Escape}");
     expect(screen.getByRole("button", { name: "Hapus pemetaan Tabungan Liburan" })).toHaveFocus();
     expect(deleteNotificationAlias).not.toHaveBeenCalled();

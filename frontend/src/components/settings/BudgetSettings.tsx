@@ -3,15 +3,15 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { useInterfaceLang } from "@/components/workspace/untranslated";
 import { parseRegion } from "@/i18n/language";
 import { api } from "@/lib/api";
+import { useFormat } from "@/lib/format";
 import { queryKeys } from "@/lib/queryKeys";
-import { formatNumberWithDots } from "@/lib/utils";
-import { Button } from "@/components/ui/Button";
-import {
-  SETTINGS_FIELD_WIDTH, SettingsAlert, SettingsCard, SettingsField, SettingsSaveStatus, settingsControlClass,
-} from "@/components/settings/SettingsCard";
+import { useAppCtx } from "@/components/layout/AppLayout";
+import { Field } from "@/components/workspace/Field";
+import { MaskedMoney } from "@/components/workspace/money";
+import { RadioSegments } from "@/components/workspace/primitives";
+import { SettingsAlert, SettingsSaveStatus, SettingsSection } from "@/components/settings/SettingsSection";
 
 interface BudgetUser {
   currency?: string | null;
@@ -19,6 +19,8 @@ interface BudgetUser {
   emergency_fund_multiplier?: number | null;
   monthly_spending_budget?: number | null;
 }
+
+type Currency = "IDR" | "USD";
 
 /** Every view that shows money in the display currency or against these limits. */
 const MONEY_CONSUMERS = [
@@ -32,17 +34,24 @@ const MONEY_CONSUMERS = [
   queryKeys.recurring.all,
 ];
 
-function validate(currency: string, months: number) {
-  if (!Number.isInteger(months) || months < 1 || months > 36) return "Target dana darurat harus antara 1 dan 36 bulan";
-  if (currency !== "IDR" && currency !== "USD") return "Mata uang yang didukung hanya IDR dan USD";
-  return "";
+function validate(currency: string, months: number): "monthsRange" | "currencyUnsupported" | null {
+  if (!Number.isInteger(months) || months < 1 || months > 36) return "monthsRange";
+  if (currency !== "IDR" && currency !== "USD") return "currencyUnsupported";
+  return null;
 }
 
-/** Display currency, emergency-fund target and the monthly operational limit; saved together and nothing else. */
+/**
+ * Mata uang & anggaran (apply-markas-pengaturan D13, D18): region, the IDR/USD segment with today's rate, the
+ * emergency-fund months and "Batas pengeluaran bulanan", saved together and nothing else. While balances are hidden
+ * the limit is a read-only mask and saving sends the stored limit unchanged, never an empty value.
+ */
 export function BudgetSettings() {
-  const qc = useQueryClient();
+  const t = useTranslations("settings.budget");
+  const words = useTranslations("settings.common");
   const regionText = useTranslations("settings.region");
-  const islandLang = useInterfaceLang();
+  const format = useFormat();
+  const { hideBalances, bal } = useAppCtx();
+  const qc = useQueryClient();
   const { data, isError } = useQuery<{ ok: boolean; user: BudgetUser }>({
     queryKey: queryKeys.auth.me,
     queryFn: () => api.get("/auth/me"),
@@ -56,7 +65,8 @@ export function BudgetSettings() {
   const savedCurrency = (user?.currency || "IDR").toUpperCase();
   const savedRegion = parseRegion(user?.region) ?? "ID";
   const savedMonths = String(user?.emergency_fund_multiplier || 6);
-  const savedBudget = user?.monthly_spending_budget != null ? formatNumberWithDots(user.monthly_spending_budget) : "";
+  const storedLimit = user?.monthly_spending_budget ?? null;
+  const savedBudget = storedLimit != null ? format.groupDigits(storedLimit) : "";
 
   const [currency, setCurrency] = useState("IDR");
   const [region, setRegion] = useState<string>("ID");
@@ -81,7 +91,7 @@ export function BudgetSettings() {
       setSaved(true);
       for (const queryKey of MONEY_CONSUMERS) void qc.invalidateQueries({ queryKey });
     },
-    onError: (e: Error) => setError(e.message || "Pengaturan gagal disimpan. Coba lagi."),
+    onError: (e: Error) => setError(e.message || t("saveFailed")),
   });
 
   const edit = (setter: (value: string) => void) => (value: string) => {
@@ -89,83 +99,63 @@ export function BudgetSettings() {
     setter(value);
   };
   const dirty = loaded && (currency !== savedCurrency || region !== savedRegion || months !== savedMonths || budget !== savedBudget);
-  const monthCount = Number.parseInt(months, 10);
 
   return (
-    <form
-      noValidate
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (save.isPending) return;
-        const multiplier = Number(months);
-        const problem = validate(currency, multiplier);
-        setSaved(false);
-        if (problem) {
-          setError(problem);
-          return;
-        }
-        const digits = budget.replace(/[^0-9]/g, "");
-        save.mutate({
-          currency,
-          region,
-          emergency_fund_multiplier: multiplier,
-          monthly_spending_budget: digits ? Number.parseInt(digits, 10) : null,
-        });
-      }}
-    >
-      <SettingsCard
-        section="anggaran"
-        footer={
-          <>
-            <SettingsSaveStatus dirty={dirty} saved={saved} />
-            <Button type="submit" variant="primary" size="sm" className="min-h-11" disabled={!loaded || save.isPending}>
-              {save.isPending ? "Menyimpan…" : "Simpan anggaran"}
-            </Button>
-          </>
-        }
+    <SettingsSection section="anggaran">
+      <form
+        noValidate
+        className="form-stack"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (save.isPending) return;
+          const multiplier = Number(months);
+          const problem = validate(currency, multiplier);
+          setSaved(false);
+          if (problem) {
+            setError(t(problem));
+            return;
+          }
+          const digits = budget.replace(/[^0-9]/g, "");
+          save.mutate({
+            currency,
+            region,
+            emergency_fund_multiplier: multiplier,
+            // A hidden limit cannot be edited, so the stored value goes back unchanged.
+            monthly_spending_budget: hideBalances ? storedLimit : digits ? Number.parseInt(digits, 10) : null,
+          });
+        }}
       >
-        {isError && <SettingsAlert>Pengaturan tidak dapat dimuat. Muat ulang halaman untuk mencoba lagi.</SettingsAlert>}
+        {isError && <SettingsAlert>{t("loadFailed")}</SettingsAlert>}
         {error && <SettingsAlert>{error}</SettingsAlert>}
-        <div className={`space-y-4 ${SETTINGS_FIELD_WIDTH}`}>
-          {/* A translated island ahead of phase 10 (add-language-system D11), marked with its own language. */}
-          <div lang={islandLang}>
-            <SettingsField id="settings-region" label={regionText("label")} help={regionText("hint")}>
-              {(field) => (
-                <select {...field} name="region" value={region} onChange={(event) => edit(setRegion)(event.target.value)} className={settingsControlClass}>
-                  <option value="ID">{regionText("indonesia")}</option>
-                  <option value="US">{regionText("unitedStates")}</option>
-                </select>
-              )}
-            </SettingsField>
-          </div>
-          <SettingsField
-            id="settings-currency"
-            label="Mata uang tampilan"
-            help={
-              <span className="tabular-nums">
-                {rates?.usdidr ? `Kurs: 1 USD ≈ Rp ${rates.usdidr.toLocaleString("id-ID")}. ` : "Kurs belum tersedia. "}
-                Hanya tampilan; catatan tetap dalam rupiah.
-              </span>
-            }
-          >
-            {(field) => (
-              <select {...field} name="currency" value={currency} onChange={(event) => edit(setCurrency)(event.target.value)} className={settingsControlClass}>
-                <option value="IDR">IDR (Rupiah Indonesia)</option>
-                <option value="USD">USD (Dolar Amerika Serikat)</option>
-              </select>
-            )}
-          </SettingsField>
-
-          <SettingsField
-            id="settings-emergency-multiplier"
-            label="Target dana darurat (bulan)"
-            help="Berapa bulan pengeluaran pokok yang ingin dicadangkan, 1–36 bulan (umumnya 6)."
-            aside={
-              Number.isInteger(monthCount) && monthCount > 0 ? (
-                <span className="text-xs font-semibold tabular-nums text-[var(--text-2)]">{monthCount}× pengeluaran pokok</span>
-              ) : undefined
-            }
-          >
+        <Field id="settings-region" label={regionText("label")} hint={regionText("hint")}>
+          {(field) => (
+            <select {...field} name="region" value={region} onChange={(event) => edit(setRegion)(event.target.value)} className="field-control border">
+              <option value="ID">{regionText("indonesia")}</option>
+              <option value="US">{regionText("unitedStates")}</option>
+            </select>
+          )}
+        </Field>
+        <div className="field">
+          <span className="flabel" id="settings-currency-label">
+            {t("currency")}
+          </span>
+          <RadioSegments<Currency>
+            labelledBy="settings-currency-label"
+            options={[
+              { value: "IDR", label: "IDR" },
+              { value: "USD", label: "USD" },
+            ]}
+            value={currency === "USD" ? "USD" : "IDR"}
+            onChange={(value) => edit(setCurrency)(value)}
+          />
+          <p className="hint tabular-nums">
+            {rates?.usdidr
+              ? t.rich("rateHint", { rate: () => <MaskedMoney text={`Rp ${format.integer(rates.usdidr)}`} /> })
+              : t("rateMissing")}
+          </p>
+        </div>
+        <div className="form-grid">
+          <Field id="settings-emergency-multiplier" label={t("emergencyMonths")}>
             {(field) => (
               <input
                 {...field}
@@ -176,31 +166,35 @@ export function BudgetSettings() {
                 max={36}
                 value={months}
                 onChange={(event) => edit(setMonths)(event.target.value)}
-                className={`${settingsControlClass} tabular-nums`}
+                className="field-control border tabular-nums"
               />
             )}
-          </SettingsField>
-
-          <SettingsField
-            id="settings-monthly-budget"
-            label="Batas belanja operasional bulanan (IDR)"
-            help="Dipakai untuk sisa batas belanja. Kosongkan untuk memakai total anggaran kategori."
-          >
-            {(field) => (
-              <input
-                {...field}
-                name="monthly_spending_budget"
-                type="text"
-                inputMode="numeric"
-                value={budget}
-                onChange={(event) => edit(setBudget)(formatNumberWithDots(event.target.value))}
-                placeholder="Contoh: 10.000.000"
-                className={`${settingsControlClass} tabular-nums`}
-              />
-            )}
-          </SettingsField>
+          </Field>
+          <Field id="settings-monthly-budget" label={t("limit")} hint={hideBalances ? t("limitHidden") : t("limitHint")}>
+            {(field) =>
+              hideBalances ? (
+                <input {...field} name="monthly_spending_budget" type="text" readOnly value={storedLimit != null ? bal(0, "IDR") : ""} className="field-control border tabular-nums" />
+              ) : (
+                <input
+                  {...field}
+                  name="monthly_spending_budget"
+                  type="text"
+                  inputMode="numeric"
+                  value={budget}
+                  onChange={(event) => edit(setBudget)(format.groupDigits(event.target.value))}
+                  className="field-control border tabular-nums"
+                />
+              )
+            }
+          </Field>
         </div>
-      </SettingsCard>
-    </form>
+        <div className="set-actions">
+          <button type="submit" className="ws-btn ws-btn-accent" disabled={!loaded || save.isPending}>
+            {save.isPending ? words("saving") : t("save")}
+          </button>
+          <SettingsSaveStatus dirty={dirty} saved={saved} />
+        </div>
+      </form>
+    </SettingsSection>
   );
 }

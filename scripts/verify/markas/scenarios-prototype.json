@@ -40,20 +40,34 @@
   ]
  },
  {
-  "name": "tinjau",
-  "path": "/tinjau"
- },
- {
   "name": "transaksi",
-  "path": "/transaksi"
+  "path": "/transaksi",
+  "transaksi": true
  },
  {
   "name": "analisis",
-  "path": "/analisis"
+  "path": "/analisis",
+  "analisis": true
  },
  {
-  "name": "laporan",
-  "path": "/laporan"
+  "name": "analisis-kalender",
+  "path": "/analisis/kalender",
+  "analisis": true
+ },
+ {
+  "name": "analisis-peta-aliran",
+  "path": "/analisis/peta-aliran",
+  "analisis": true
+ },
+ {
+  "name": "dlg-kategori",
+  "path": "/analisis",
+  "analisis": true,
+  "steps": [
+   {
+    "click": "^Kelola kategori$"
+   }
+  ]
  },
  {
   "name": "rekening",
@@ -83,6 +97,107 @@
   "steps": [
    {
     "wait": 300
+   }
+  ]
+ },
+ {
+  "name": "tinjau",
+  "path": "/tinjau",
+  "tinjau": true
+ },
+ {
+  "name": "tinjau-perlu-jawaban",
+  "path": "/tinjau/perlu_jawaban",
+  "tinjau": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-dua-kali",
+  "path": "/tinjau/terlihat_dua_kali",
+  "tinjau": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-dilewati",
+  "path": "/tinjau/dilewati_otomatis",
+  "tinjau": true,
+  "steps": [
+   {
+    "wait": 300
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "tinjau-sheet",
+  "path": "/tinjau",
+  "tinjau": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = [...document.querySelectorAll('.tj-list a.row')][1]; row?.click(); return row ? 'clicked' : 'NOT FOUND'; })()",
+    "after": 900
+   }
+  ],
+  "cells": [
+   "390-light",
+   "390-dark"
+  ]
+ },
+ {
+  "name": "state-tinjau-memuat",
+  "path": "/tinjau?state=memuat",
+  "tinjau": true
+ },
+ {
+  "name": "state-tinjau-galat",
+  "path": "/tinjau?state=galat",
+  "tinjau": true
+ },
+ {
+  "name": "state-tinjau-kosong",
+  "path": "/tinjau?state=kosong",
+  "tinjau": true
+ },
+ {
+  "name": "dlg-ubah-kategori",
+  "path": "/tinjau/perlu_jawaban",
+  "tinjau": true,
+  "steps": [
+   {
+    "click": "^\\d?Ubah kategori"
+   }
+  ]
+ },
+ {
+  "name": "dlg-saran-riwayat",
+  "path": "/tinjau",
+  "tinjau": true,
+  "steps": [
+   {
+    "click": "^Tindakan lain untuk Tinjau$"
+   },
+   {
+    "click": "^Cari saran dari riwayat$"
+   }
+  ]
+ },
+ {
+  "name": "menu-tinjau",
+  "path": "/tinjau",
+  "tinjau": true,
+  "steps": [
+   {
+    "click": "^Tindakan lain untuk Tinjau$"
    }
   ]
  },
@@ -247,5 +362,193 @@
     "click": "^Ciutkan menu samping$"
    }
   ]
+ },
+ {
+  "name": "dlg-filter",
+  "path": "/transaksi",
+  "transaksi": true,
+  "steps": [
+   {
+    "click": "^Filter"
+   }
+  ]
+ },
+ {
+  "name": "dlg-menu-transaksi",
+  "path": "/transaksi",
+  "transaksi": true,
+  "steps": [
+   {
+    "eval": "(() => { const b = document.querySelector('.title-block [data-d^=\"menu\"], .title-block .icon-btn:last-child'); b?.click(); return b ? 'clicked more' : 'NOT FOUND'; })()",
+    "after": 700
+   }
+  ]
+ },
+ {
+  "name": "dlg-transaksi-detail",
+  "path": "/transaksi",
+  "transaksi": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = document.querySelector('[data-d^=\"transaksi:\"]'); row?.click(); return row ? 'clicked row' : 'NOT FOUND'; })()",
+    "after": 900
+   }
+  ]
+ },
+ {
+  "name": "dlg-transaksi-ubah",
+  "path": "/transaksi",
+  "transaksi": true,
+  "steps": [
+   {
+    "eval": "(() => { const row = document.querySelector('[data-d^=\"transaksi:\"]'); row?.click(); return row ? 'clicked row' : 'NOT FOUND'; })()",
+    "after": 900
+   },
+   {
+    "click": "^Ubah$"
+   }
+  ]
+ },
+ {
+  "name": "laporan",
+  "path": "/laporan/2026-10",
+  "laporan": true
+ },
+ {
+  "name": "laporan-juli",
+  "path": "/laporan/2026-07",
+  "laporan": true
+ },
+ {
+  "name": "laporan-november",
+  "path": "/laporan/2026-11",
+  "laporan": true
+ },
+ {
+  "name": "laporan-siklus",
+  "path": "/laporan/2026-11?basis=siklus&siklus=-1",
+  "laporan": true
+ },
+ {
+  "name": "laporan-rincian",
+  "path": "/laporan/2026-10",
+  "laporan": true,
+  "full": true,
+  "steps": [
+   {
+    "click": "^Rincian pengeluaran",
+    "after": 700
+   }
+  ]
+ },
+ {
+  "name": "dlg-rincian-ketahanan",
+  "path": "/target",
+  "steps": [
+   {
+    "click": "^Rincian$"
+   }
+  ]
+ },
+ {
+  "name": "target-tagihan-semua",
+  "path": "/target",
+  "steps": [
+   {
+    "click": "^dan \\d+ tagihan lain$"
+   }
+  ]
+ },
+ {
+  "name": "target-lunas",
+  "path": "/target",
+  "steps": [
+   {
+    "click": "^Sudah lunas ·"
+   }
+  ]
+ },
+ {
+  "name": "dlg-target-tambah",
+  "path": "/target",
+  "steps": [
+   {
+    "click": "^Tambah target$"
+   }
+  ]
+ },
+ {
+  "name": "dlg-rencana",
+  "path": "/target",
+  "steps": [
+   {
+    "click": "^Rencana$"
+   }
+  ]
+ },
+ {
+  "name": "dlg-menu-target",
+  "path": "/target",
+  "steps": [
+   {
+    "click": "^Tindakan lain$|^…$"
+   }
+  ]
+ },
+ {
+  "name": "pengaturan-perangkat",
+  "path": "/pengaturan/perangkat",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-kebiasaan",
+  "path": "/pengaturan/kebiasaan",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-tampilan",
+  "path": "/pengaturan/tampilan",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-profil",
+  "path": "/pengaturan/profil",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-gaji",
+  "path": "/pengaturan/gaji",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-anggaran",
+  "path": "/pengaturan/anggaran",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-pemetaan",
+  "path": "/pengaturan/pemetaan",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-pengirim",
+  "path": "/pengaturan/pengirim",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-sesi-uji",
+  "path": "/pengaturan/sesi-uji",
+  "pengaturan": true
+ },
+ {
+  "name": "dlg-hubungkan-ponsel",
+  "path": "/pengaturan/perangkat",
+  "steps": [
+   {
+    "click": "^Hubungkan ponsel$",
+    "after": 900
+   }
+  ],
+  "pengaturan": true
  }
 ]

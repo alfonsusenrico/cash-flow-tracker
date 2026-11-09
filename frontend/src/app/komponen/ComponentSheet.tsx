@@ -5,8 +5,11 @@ import { Button } from "@/components/ui/Button";
 import { MonetaryInput } from "@/components/ui/FormField";
 import { Icon } from "@/components/ui/Icon";
 import { Input, Select } from "@/components/ui/Input";
-import { FigureBlock, HeroFigure, SplitBar } from "@/components/workspace/figures";
+import { FigureBlock, GainText, HeroFigure, ProgressBar, SplitBar } from "@/components/workspace/figures";
+import { InstitutionMark } from "@/components/accounts/Tile";
+import { Answer, AnswerList } from "@/components/review/triage/Answers";
 import { DayHeading, ListRow, Panel, PanelBlock, SectionHeader } from "@/components/workspace/lists";
+import { Rail, RailItem, RailRule } from "@/components/workspace/rail";
 import { EmptyState, ErrorState, Pill, Segmented, Skeleton } from "@/components/workspace/primitives";
 import { KAKEIBO_BUCKETS } from "@/lib/kakeibo";
 import styles from "./komponen.module.css";
@@ -151,7 +154,7 @@ function PageRows() {
           <ListRow time="08.02" title="Gaji Oktober" meta="BCA · Utama" status="Uang masuk" amount={<span className="t-amt c-income">+Rp 9.518.400</span>} />
         </li>
         <li>
-          <ListRow time="07.55" title="Jago · Kantong Utama → GoPay" meta="Isi GoPay" status="Tidak dihitung" amount={<span className="t-amt c-transfer">Rp 200.000</span>} />
+          <ListRow time="07.55" title="Isi GoPay" meta="Jago · Kantong Utama → GoPay" status="—" amount={<span className="t-amt c-transfer">Rp 200.000</span>} />
         </li>
         <li>
           <ListRow time="07.40" title="Top up Investasi" meta="Stockbit · RDN" status={<Pillar color="var(--k-saving)" label="Tabungan" />}
@@ -165,6 +168,41 @@ function PageRows() {
           <ListRow icon="help" title="TRF BIFAST 88213 ANDI S" meta="Belum dikenali · 4 Nov 09.12" amount={<span className="t-amt">−Rp 120.000</span>} chevron />
         </li>
       </ul>
+    </div>
+  );
+}
+
+/** Tinjau's pieces (apply-markas-tinjau D19): the rail (chips under 768 px), stacked rows and numbered answers. */
+function TinjauPieces({ theme }: { theme: "light" | "dark" }) {
+  return (
+    <div className={styles.tinjau}>
+      <Rail label={`Folder ${theme}`} chips>
+        <RailItem label="Semua" count="6" countName="6 item" current onSelect={() => undefined} />
+        <RailItem label="Belum dikenali" count="2" countName="2 item" onSelect={() => undefined} />
+        <RailItem label="Pindah saldo belum lengkap" count="1" countName="1 item" onSelect={() => undefined} />
+        <RailRule />
+        <RailItem label="Dicatat otomatis" count="4" countName="4 item" onSelect={() => undefined} />
+      </Rail>
+      <ul className="list" aria-label={`Baris bertumpuk ${theme}`}>
+        {ROW_STATES.map(([state, className]) => (
+          <li key={state} className={className}>
+            <ListRow layout="stacked" icon="help" title={`TRF BIFAST 88213 (${state})`} meta="Belum dikenali · 4 Nov 09.12"
+              amount={<span className="t-amt c-expense">−Rp 120.000</span>} onClick={() => undefined} />
+          </li>
+        ))}
+        <li>
+          <ListRow layout="stacked" icon="alert" title="Kedai Awan (terpilih)" meta="Perlu jawaban · 4 Nov 12.10" selected current
+            amount={<span className="t-amt c-expense">−Rp 54.000</span>} onClick={() => undefined} />
+        </li>
+      </ul>
+      <div>
+        <p id={`ks-question-${theme}`} className="t-lead">Kategori untuk Kedai Awan: Makan & Minum?</p>
+        <AnswerList labelledBy={`ks-question-${theme}`}>
+          <Answer n={1} primary label="Terima semua (3)" detail="Kategorinya sudah benar" onClick={() => undefined} />
+          <Answer n={2} label="Ubah kategori" detail="Kategori dan pilar Kakeibo" onClick={() => undefined} />
+          <Answer n={3} label="Ganti nama" detail="Nama toko dan catatan" disabled onClick={() => undefined} />
+        </AnswerList>
+      </div>
     </div>
   );
 }
@@ -239,11 +277,11 @@ export function ComponentSheet() {
                 <input type="checkbox" defaultChecked className="h-4 w-4" />
                 <span className="t-body">Kotak centang</span>
               </label>
-              <span className="ws-switch w-auto" role="switch" aria-checked="true" aria-label="Sakelar aktif"><span className="ws-switch-track" /></span>
-              <span className="ws-switch w-auto" role="switch" aria-checked="false" aria-label="Sakelar mati"><span className="ws-switch-track" /></span>
-              <span className="ws-chip ws-tx-chip-static">
-                BCA
-                <button type="button" tabIndex={-1} className="ws-tx-chip-x" aria-label="Hapus filter BCA"><Icon name="x" className="h-3 w-3" /></button>
+              <span className="switch" role="switch" aria-checked="true" aria-label="Sakelar aktif" />
+              <span className="switch" role="switch" aria-checked="false" aria-label="Sakelar mati" />
+              <span className="chip">
+                <span className="lbl">BCA</span>
+                <button type="button" tabIndex={-1} aria-label="Hapus filter BCA"><Icon name="x" className="h-3 w-3" /></button>
               </span>
               <button type="button" tabIndex={-1} className="ws-chip" aria-pressed="true">Pengeluaran</button>
             </div>
@@ -303,7 +341,8 @@ export function ComponentSheet() {
             <div className="ws-bar" aria-hidden="true"><i style={{ width: "62%", ["--bc" as string]: "var(--text)" }} /></div>
             <div className={styles.row}>
               {KAKEIBO_BUCKETS.map((bucket) => (
-                <span key={bucket.value} className="ws-kk t-meta" data-bucket={bucket.value} style={{ ["--kc" as string]: bucket.color }}>
+                <span key={bucket.value} className="t-meta inline-flex items-center gap-2">
+                  <span className={bucket.value === "unclassified" ? "dot is-unclassified" : "dot"} style={bucket.value === "unclassified" ? undefined : { background: bucket.color }} aria-hidden="true" />
                   {bucket.label}
                 </span>
               ))}
@@ -329,6 +368,48 @@ export function ComponentSheet() {
         )}
       </Both>
 
+      <Both title="Rekening: grup, kartu, batang">
+        {(theme) => (
+          <div className={styles.scroll} tabIndex={0} role="region" aria-label={`Contoh Rekening ${theme}`}>
+            <section className="grp" style={{ "--rail": "var(--use-investasi)" } as React.CSSProperties} aria-label={`Grup contoh ${theme}`}>
+              <div className="grp-h">
+                <h3 className="t-label">Investasi</h3>
+                <span className="count">5 produk</span>
+                <GainText gain={{ amount: 396_000, cost: 4_950_000 }} />
+                <span className="total t-amt">Rp 30.219.700</span>
+              </div>
+              <ul className="tiles">
+                <li>
+                  <div className="tile">
+                    <span className="tl-top">
+                      <InstitutionMark name="Stockbit" colour="#2E7DF6" />
+                      <span className="names"><span className="tl-name">BBCA</span><span className="t-meta">Stockbit · 12 lot</span></span>
+                    </span>
+                    <span className="tl-bottom"><span className="tl-amt t-amt">Rp 1.000.000</span><GainText gain={{ amount: -164_000, cost: 1_532_710 }} /></span>
+                  </div>
+                </li>
+                <li>
+                  <div className="tile">
+                    <span className="tl-top">
+                      <InstitutionMark name="SPayLater" colour="#F08A24" />
+                      <span className="names"><span className="tl-name">SPayLater</span><span className="t-meta">Sisa limit Rp 2.107.000</span></span>
+                    </span>
+                    <ProgressBar value={893_000} max={3_000_000} color="var(--out-solid)" />
+                    <span className="tl-bottom"><span className="tl-amt t-amt c-expense">−Rp 893.000</span><span className="tl-due t-meta">jatuh tempo 11 Des · Rp 434.000</span></span>
+                  </div>
+                </li>
+              </ul>
+            </section>
+            <div className="hbar">
+              <span className="lbl">Reksa dana</span>
+              <span className="bar" aria-hidden="true"><span style={{ width: "62%", background: "var(--inv-solid)" }} /></span>
+              <span className="amt t-amt">Rp 18.400.000</span>
+              <span className="side"><GainText gain={{ amount: 65_800, cost: 18_334_200 }} /></span>
+            </div>
+          </div>
+        )}
+      </Both>
+
       <Both title="Kepala bagian, baris, judul hari">
         {(theme) => (
           <>
@@ -338,6 +419,10 @@ export function ComponentSheet() {
             </div>
           </>
         )}
+      </Both>
+
+      <Both title="Rail Tinjau, baris bertumpuk, jawaban bernomor">
+        {(theme) => <TinjauPieces theme={theme} />}
       </Both>
 
       <Both title="Panel konteks dan Kakeibo">

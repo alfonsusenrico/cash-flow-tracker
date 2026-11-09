@@ -40,7 +40,7 @@ Net worth SHALL use Beranda's cycle-summary helper: `liquid` (cash, bank and wal
 
 #### Scenario: Net worth unavailable on the page
 - **WHEN** `GET /api/dashboard/net-worth` fails
-- **THEN** Rekening & Kantong SHALL show "Kekayaan bersih belum dapat dihitung" with a retry action and SHALL NOT show Rp 0 or a sum computed in the browser
+- **THEN** the hero of Rekening & Kantong SHALL show "Kekayaan bersih belum dapat dihitung." with a retry action and SHALL NOT show Rp 0 or a sum computed in the browser, and the account groups SHALL still be shown
 
 ### Requirement: Cash Flow Runway Forecast
 The system SHALL express the emergency runway in days and months as coverage of the essential monthly cost defined by `emergency-cost-estimation`, without a trailing burn rate or a placeholder value.
@@ -53,7 +53,7 @@ The system SHALL express the emergency runway in days and months as coverage of 
   1. `runway_months` and `coverage_months`: the balance divided by the essential monthly cost, rounded to one decimal.
   2. `runway_days`: the balance times 30.4 divided by the essential monthly cost, rounded. If the balance is 0 or less and the cost is known, `runway_days` SHALL be `0`.
   3. When the essential cost is unknown or zero, `runway_days`, `runway_months` and `coverage_months` SHALL be `null` with status `unknown`; the system SHALL NOT return 999 days or 99.9 months.
-  4. The Target & Tagihan page SHALL render the runway as "Ketahanan Dana" with its balance basis and cost basis; if the balance is zero it SHALL indicate zero runway without false solvency indicators, and if the runway is unknown it SHALL say so. Rekening & Kantong SHALL NOT repeat the runway card.
+  4. The Target & Tagihan page SHALL render the runway as the hero "Ketahanan Dana", with its balance basis in the hero line and its cost basis in the hero's "Rincian"; if the balance is zero it SHALL indicate zero runway without false solvency indicators, and if the runway is unknown it SHALL say so. Rekening & Kantong SHALL NOT repeat the runway.
 
 #### Scenario: Computing runway with zero liquid balance
 - **WHEN** a user has 0 IDR across liquid accounts, no designated reserve and a known essential cost
@@ -67,26 +67,30 @@ The system SHALL express the emergency runway in days and months as coverage of 
 - **WHEN** a user has a positive balance but no completed period and no `need` budget
 - **THEN** the runway is `null` with status `unknown` and Target & Tagihan shows that it cannot be calculated yet
 
+#### Scenario: Zero runway on the hero
+- **WHEN** the emergency balance is 0 and the essential cost is known
+- **THEN** the hero SHALL read "0 bulan", the bar SHALL be empty, "Jika pemasukan berhenti" SHALL read "0 hari", and no word such as "Aman" SHALL be shown
+
 ### Requirement: Asset Composition on Rekening
-Rekening & Kantong SHALL show "Komposisi aset": a segmented bar and a legend of every top-level account with its share of Total aset and its amount, from the server's figures, ordered by amount. Debt SHALL NOT appear in this card. Segments SHALL carry the account colours and each legend row SHALL name its account, so the bar is never the only carrier of the values.
+Rekening & Kantong SHALL show the composition of assets in its hero: a split bar of Uang harian, Tabungan, Dana investasi and Investasi, each segment the use's total from the account list, with a legend of each use's share of `total_assets`. Debt SHALL NOT appear in it. The shares SHALL be in the bar's accessible name and in the legend, so the bar is never the only carrier of the values.
 
 #### Scenario: Shares add up
-- **GIVEN** Total aset Rp 68.763.549 across eight top-level accounts
+- **GIVEN** Uang harian Rp 11.680.520, Tabungan Rp 16.300.000, Dana investasi Rp 771.060 and Investasi Rp 30.219.700, with Total aset Rp 58.971.280
 - **WHEN** the owner opens Rekening & Kantong
-- **THEN** the eight legend amounts SHALL add up to Rp 68.763.549, and no debt line SHALL be shown in the card
+- **THEN** the legend SHALL read 20%, 28%, 1% and 51%, and no debt SHALL be part of the bar
 
 #### Scenario: Net worth unavailable
 - **WHEN** the net worth request fails
-- **THEN** the card SHALL say that the composition cannot be shown and SHALL show no Rp 0
+- **THEN** the hero SHALL say that the figure cannot be calculated, SHALL show no split bar and no Rp 0
 
 ### Requirement: Investment Gain in the Account List
-`GET /api/accounts` SHALL add `group_capital_gain` and `group_cost_basis` to a parent account whose children are investments, computed on the server with the per-product capital gain rule. Rekening SHALL show each product's value with its `capital_gain` and `capital_gain_pct`, and each platform with its group gain, marked by a sign and ▲ or ▼, never by colour alone.
+`GET /api/accounts` SHALL add `group_capital_gain` and `group_cost_basis` to a parent account whose children are investments, computed on the server with the per-product capital gain rule. Rekening SHALL show each product's value with its gain, and each platform with its group gain, as "▲ +Rp … · +x,y%" or "▼ −Rp … · −x,y%" with one decimal, never by colour alone.
 
 #### Scenario: Gain and loss on one platform
 - **GIVEN** a platform holding one stock with a loss of Rp 480.000 and one with a gain of Rp 192.000
 - **WHEN** the owner opens Rekening & Kantong
-- **THEN** the product rows SHALL read "▼ −Rp 480.000 (−8,28%)" and "▲ +Rp 192.000 (+15,24%)", and the platform head SHALL read "▼ −Rp 288.000" with its percentage from `group_cost_basis`
+- **THEN** the product tiles SHALL read "▼ −Rp 480.000 · −8,3%" and "▲ +Rp 192.000 · +15,2%", and the platform group SHALL read "▼ −Rp 288.000" with its percentage from `group_cost_basis`
 
 #### Scenario: Missing cost basis
 - **WHEN** one product of a platform has no recorded cost basis
-- **THEN** that product SHALL say "Modal belum dicatat", `group_capital_gain` SHALL be `null`, and the platform head SHALL say "Modal belum lengkap" instead of a gain
+- **THEN** that product SHALL say "Modal belum diisi", `group_capital_gain` SHALL be `null`, and the platform group SHALL say "Modal belum lengkap" instead of a gain

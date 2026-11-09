@@ -1,19 +1,17 @@
-import { CompanionDownloadSection } from "@/components/ui/CompanionDownload";
-import { DevicePairingSection } from "@/components/ui/DevicePairingSection";
+import { CompanionDownloadSection } from "@/components/settings/CompanionDownload";
+import { DevicePairingSection } from "@/components/settings/DevicePairingSection";
 import { ManualApiKey } from "@/components/settings/ManualApiKey";
-import { SettingsCard } from "@/components/settings/SettingsCard";
-import { CompanionStatus } from "@/components/workspace/CompanionStatus";
+import { PhoneStatus } from "@/components/settings/PhoneStatus";
+import { SettingsSection } from "@/components/settings/SettingsSection";
 
+/** HP & perangkat (apply-markas-pengaturan D6): Status HP, the download, the paired phones, then the manual key. */
 export function DevicesSettings() {
   return (
-    <SettingsCard section="perangkat">
-      {/* Moved here from the sidebar foot (refine-workspace-layout D3). */}
-      <CompanionStatus />
+    <SettingsSection section="perangkat">
+      <PhoneStatus />
       <CompanionDownloadSection />
       <DevicePairingSection />
-      <div className="border-t border-[var(--line)] pt-5">
-        <ManualApiKey />
-      </div>
-    </SettingsCard>
+      <ManualApiKey />
+    </SettingsSection>
   );
 }

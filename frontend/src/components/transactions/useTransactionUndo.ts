@@ -2,10 +2,11 @@
 
 import { useCallback, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { useToast } from "@/components/workspace/overlays";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
-import { NOTHING_TO_UNDO, UndoStack, batchOf, undoEntry, undoMessage, type UndoEntry, type UndoFields, type UndoResponse } from "@/lib/reviewUndo";
+import { UndoStack, batchOf, undoEntry, undoMessage, undoText, type UndoEntry, type UndoFields, type UndoResponse } from "@/lib/reviewUndo";
 
 /** Every view a drawer action can change (transaction-ledger-management "Consistent Post-Mutation Refresh"). */
 export function useRefreshTransactionViews() {
@@ -32,13 +33,14 @@ export function useTransactionUndo() {
   const stack = useRef(new UndoStack());
   const { showToast } = useToast();
   const refresh = useRefreshTransactionViews();
+  const t = useTranslations();
 
   const undo = useCallback(async (entry: UndoEntry) => {
     const outcome = await undoEntry(entry, (token) => api.post<UndoResponse>("/review/undo", { undo_token: token }));
     if (outcome.failure !== "network") stack.current.drop(entry.id);
     refresh();
-    showToast(undoMessage(outcome, entry));
-  }, [refresh, showToast]);
+    showToast(undoText(t, undoMessage(outcome, entry)));
+  }, [refresh, showToast, t]);
 
   /** Shows the toast for a saved action and keeps its token for "Urungkan" and Z. */
   const record = useCallback((text: string, label: string, response: UndoFields | null | undefined, transactionId: string) => {
@@ -50,8 +52,8 @@ export function useTransactionUndo() {
   const undoNewest = useCallback(() => {
     const entry = stack.current.newest();
     if (entry) void undo(entry);
-    else showToast(NOTHING_TO_UNDO);
-  }, [showToast, undo]);
+    else showToast(t("review.undo.nothing"));
+  }, [showToast, undo, t]);
 
   return { record, undoNewest };
 }

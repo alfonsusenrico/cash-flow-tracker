@@ -117,6 +117,23 @@ export function NotificationsPanel({
             </span>
           </>
         );
+        if (item.onSelect) {
+          const select = item.onSelect;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              className="notif"
+              aria-haspopup="dialog"
+              onClick={() => {
+                close(false);
+                select();
+              }}
+            >
+              {body}
+            </button>
+          );
+        }
         if (item.opensDuePlans || !item.href) {
           return (
             <button

@@ -1,3 +1,4 @@
+import type { useTranslations } from "next-intl";
 import type { DeviceHealth, PairedDevice, SelfTestFailedStep } from "@/lib/api";
 
 export type ChecklistStepKey = "connected" | "notification" | "background" | "selfTest";
@@ -6,7 +7,6 @@ export type ChecklistStepState = "ok" | "fail" | "wait" | "todo";
 
 export interface ChecklistStep {
   key: ChecklistStepKey;
-  label: string;
   state: ChecklistStepState;
 }
 
@@ -15,45 +15,24 @@ export interface PairingChecklist {
   steps: ChecklistStep[];
   /** The first failed step, named in the header. */
   failed: ChecklistStep | null;
-  /** Explanation of a failed self-test, from the step the phone says failed. */
-  selfTestProblem: string | null;
+  /** The step the phone says failed in its self-test, explained under the step. */
+  selfTestStep: SelfTestFailedStep | null;
   /** Advisory only: a battery-restricted phone can still be ready. */
   batteryRestricted: boolean;
 }
 
-export const STEP_LABELS: Record<ChecklistStepKey, string> = {
-  connected: "Terhubung",
-  notification: "Izin notifikasi",
-  background: "Jalan di latar belakang",
-  selfTest: "Tes tangkap notifikasi",
-};
+/** The words of the checklist and the problems: `settings.health` (apply-markas-pengaturan D19). */
+export type HealthWords = ReturnType<typeof useTranslations<"settings.health">>;
 
-export const STEP_STATE_TEXT: Record<ChecklistStepState, string> = {
-  ok: "Selesai",
-  fail: "Belum berjalan",
-  wait: "Sedang diatur di HP",
-  todo: "Belum",
-};
-
-export const READY_MESSAGE = "HP-mu siap! Mulai sekarang transaksi tercatat sendiri.";
-export const FIX_ON_PHONE = "Tenang, aplikasi di HP-mu bakal nunjukin cara benerinnya.";
-export const BATTERY_HINT =
-  "Biar nggak dimatiin diam-diam, izinkan aplikasinya jalan tanpa batasan baterai. Di HP TECNO/Infinix (HiOS) atau Xiaomi (MIUI), biasanya perlu izin tambahan biar aplikasinya nggak dibekukan.";
-
-export const SELF_TEST_STEP_TEXT: Record<SelfTestFailedStep, string> = {
-  post: "HP tidak dapat menampilkan notifikasi tes.",
-  capture: "Notifikasi tes tidak tertangkap oleh aplikasi.",
-  server: "HP belum bisa ngirim ke server.",
-};
+export const STEP_KEYS: ChecklistStepKey[] = ["connected", "notification", "background", "selfTest"];
 
 /** A report older than this means the phone has gone quiet (frozen, uninstalled or offline). */
 export const STALE_REPORT_MS = 24 * 60 * 60 * 1000;
 
 type Known = boolean | null;
 
-function selfTestProblem(health: DeviceHealth | null) {
-  const step = health?.self_test.status === "failed" ? health.self_test.failed_step : null;
-  return step ? SELF_TEST_STEP_TEXT[step] : null;
+function failedSelfTestStep(health: DeviceHealth | null): SelfTestFailedStep | null {
+  return health?.self_test.status === "failed" ? health.self_test.failed_step ?? null : null;
 }
 
 /**
@@ -65,9 +44,9 @@ export function pairingChecklist(device: PairedDevice | undefined): PairingCheck
   if (!device) {
     return {
       stage: "waiting",
-      steps: (Object.keys(STEP_LABELS) as ChecklistStepKey[]).map((key) => ({ key, label: STEP_LABELS[key], state: "todo" })),
+      steps: STEP_KEYS.map((key) => ({ key, state: "todo" })),
       failed: null,
-      selfTestProblem: null,
+      selfTestStep: null,
       batteryRestricted: false,
     };
   }
@@ -91,7 +70,7 @@ export function pairingChecklist(device: PairedDevice | undefined): PairingCheck
     if (result === true) state = "ok";
     else if (result === false) state = "fail";
     else if (key === firstOpen) state = "wait";
-    return { key, label: STEP_LABELS[key], state };
+    return { key, state };
   });
   const failed = steps.find((step) => step.state === "fail") ?? null;
   let stage: PairingChecklist["stage"] = "setting-up";
@@ -102,38 +81,46 @@ export function pairingChecklist(device: PairedDevice | undefined): PairingCheck
     stage,
     steps,
     failed,
-    selfTestProblem: selfTestProblem(health),
+    selfTestStep: failedSelfTestStep(health),
     batteryRestricted: health?.battery_unrestricted === false,
   };
 }
 
 /** One sentence for the polite live region; it changes only when the checklist changes. */
-export function checklistAnnouncement(checklist: PairingChecklist): string {
+export function checklistAnnouncement(checklist: PairingChecklist, t: HealthWords, ready: string, fix: string): string {
   if (checklist.stage === "waiting") return "";
-  if (checklist.stage === "ready") return READY_MESSAGE;
+  if (checklist.stage === "ready") return ready;
   if (checklist.failed?.key === "selfTest") {
-    return `Tes tangkap notifikasi gagal. ${checklist.selfTestProblem ?? ""} ${FIX_ON_PHONE}`.replace(/\s+/g, " ").trim();
+    const problem = checklist.selfTestStep ? t(`testStep.${checklist.selfTestStep}`) : "";
+    return t("announceSelfTestFailed", { problem, fix }).replace(/\s+/g, " ").trim();
   }
-  if (checklist.failed) return `${checklist.failed.label} belum jalan. ${FIX_ON_PHONE}`;
+  if (checklist.failed) return t("announceStepFailed", { step: t(`steps.${checklist.failed.key}`), fix });
   const lastDone = [...checklist.steps].reverse().find((step) => step.state === "ok");
-  if (!lastDone || lastDone.key === "connected") return "HP terhubung. Lanjutkan pengaturan di HP.";
-  return `${lastDone.label} selesai.`;
+  if (!lastDone || lastDone.key === "connected") return t("announceConnected");
+  return t("announceStepDone", { step: t(`steps.${lastDone.key}`) });
 }
 
 export function isStale(health: DeviceHealth, now: number) {
   return now - Date.parse(health.reported_at) > STALE_REPORT_MS;
 }
 
-/** Problems Settings lists for one phone, most actionable first. */
-export function deviceProblems(health: DeviceHealth, now: number): string[] {
-  const problems: string[] = [];
-  if (!health.notification_access) problems.push("Izin notifikasi mati.");
-  if (!health.listener_connected) problems.push("Aplikasi tidak berjalan di latar belakang.");
-  if (health.self_test.status === "failed") {
-    problems.push(`Tes tangkap notifikasi gagal. ${selfTestProblem(health) ?? ""}`.trim());
-  } else if (health.self_test.status === "not_run") {
-    problems.push("Tes tangkap notifikasi belum dijalankan.");
-  }
-  if (isStale(health, now)) problems.push("Lebih dari 24 jam tidak ada kabar dari HP ini.");
+/** A phone's problem, as a code its readers word (apply-markas-pengaturan D7, D19). */
+export type DeviceProblem = "notificationOff" | "listenerOff" | "selfTestFailed" | "selfTestNotRun" | "silent";
+
+/** The problems of one phone, most actionable first. */
+export function deviceProblems(health: DeviceHealth, now: number): DeviceProblem[] {
+  const problems: DeviceProblem[] = [];
+  if (!health.notification_access) problems.push("notificationOff");
+  if (!health.listener_connected) problems.push("listenerOff");
+  if (health.self_test.status === "failed") problems.push("selfTestFailed");
+  else if (health.self_test.status === "not_run") problems.push("selfTestNotRun");
+  if (isStale(health, now)) problems.push("silent");
   return problems;
+}
+
+/** A problem in words; a failed self-test adds the step the phone reported. */
+export function problemText(problem: DeviceProblem, health: DeviceHealth, t: HealthWords): string {
+  if (problem !== "selfTestFailed") return t(problem);
+  const step = failedSelfTestStep(health);
+  return step ? `${t("selfTestFailed")} ${t(`testStep.${step}`)}` : t("selfTestFailed");
 }

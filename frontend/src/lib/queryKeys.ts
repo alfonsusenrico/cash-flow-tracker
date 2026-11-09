@@ -6,6 +6,8 @@ export const queryKeys = {
   categoryManagement: ["categories", "management"] as const,
   goals: ["goals"] as const,
   obligations: ["obligations"] as const,
+  /** Paid-off debts too (Target & Tagihan's "Sudah lunas"); under `obligations`, so every debt change refreshes it. */
+  obligationsWithArchived: ["obligations", "with-archived"] as const,
   pulse: ["pulse"] as const,
   insights: ["insights"] as const,
   transactions: {
@@ -13,6 +15,10 @@ export const queryKeys = {
     ledger: (params?: string) => ["transactions", "ledger", params ?? ""] as const,
     recent: (from: string) => ["transactions", "recent", from] as const,
     detail: (id: string) => ["transactions", "detail", id] as const,
+    /** A credit account's overview for a window; under `transactions` so every ledger change refreshes it. */
+    creditOverview: (accountId: string, window: string) => ["transactions", "credit-overview", accountId, window] as const,
+    /** Credit bills across accounts for one request path; a payment or purchase changes them. */
+    creditBills: (path: string) => ["transactions", "credit-bills", path] as const,
   },
   dashboard: {
     all: ["dashboard"] as const,

@@ -44,12 +44,20 @@ export function createFormat({ language, region, currency = "IDR", rate }: Forma
   const longDay = dayFormat({ day: "numeric", month: "long" });
   const weekdayDay = dayFormat({ weekday: "long", day: "numeric", month: "long" });
   const monthName = dayFormat({ month: "long" });
+  const shortMonth = dayFormat({ month: "short" });
+  const weekdayShort = dayFormat({ weekday: "short" });
   const monthYear = dayFormat({ month: "long", year: "numeric" });
   const shortMonthYear = dayFormat({ month: "short", year: "numeric" });
   const weekdayInstant = zoneFormat({ weekday: "long", day: "numeric", month: "long" });
   const shortInstant = zoneFormat({ day: "numeric", month: "short" });
+  const yearDay = dayFormat({ day: "numeric", month: "short", year: "numeric" });
+  const yearInstant = zoneFormat({ day: "numeric", month: "short", year: "numeric" });
+  const zoneDay = zoneFormat({ year: "numeric", month: "2-digit", day: "2-digit" });
   // Indonesia writes "18.23" with two-digit hours; the United States "6:23 PM".
   const clock = zoneFormat(region === "US" ? { hour: "numeric", minute: "2-digit" } : { hour: "2-digit", minute: "2-digit" });
+  const clockSeconds = zoneFormat(
+    region === "US" ? { hour: "numeric", minute: "2-digit", second: "2-digit" } : { hour: "2-digit", minute: "2-digit", second: "2-digit" },
+  );
 
   /** A whole number with the region's grouping, such as "1.234.567". */
   const integer = (value: number) => Math.round(value).toLocaleString(digits);
@@ -71,6 +79,10 @@ export function createFormat({ language, region, currency = "IDR", rate }: Forma
     decimal(value: number, maximumFractionDigits = 1): string {
       return value.toLocaleString(digits, { maximumFractionDigits });
     },
+    /** A percentage with exactly `fractionDigits` decimals and no sign, such as "8,0%" (ID) or "8.0%" (US). */
+    percent(value: number, fractionDigits = 1): string {
+      return `${value.toLocaleString(digits, { minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits })}%`;
+    },
     /** An amount input's digits grouped by the region: "20.000.000" or "20,000,000". */
     groupDigits(value: string | number | null | undefined): string {
       return groupDigits(value, region);
@@ -83,6 +95,10 @@ export function createFormat({ language, region, currency = "IDR", rate }: Forma
     weekdayDate: (iso: string) => weekdayDay.format(calendarDay(iso)),
     /** The month's name of a calendar date. */
     monthName: (iso: string) => monthName.format(calendarDay(iso)),
+    /** "Sen" (ID) or "Mon" (EN) for a calendar date. */
+    weekdayShort: (iso: string) => weekdayShort.format(calendarDay(iso)),
+    /** "Agu" (ID) or "Aug" (EN) for a calendar date. */
+    shortMonth: (iso: string) => shortMonth.format(calendarDay(iso)),
     /** "November 2026" for a calendar date. */
     monthYear: (iso: string) => monthYear.format(calendarDay(iso)),
     /** "Nov 2026" for a calendar date. */
@@ -91,8 +107,50 @@ export function createFormat({ language, region, currency = "IDR", rate }: Forma
     weekdayAt: (value: Date | string) => weekdayInstant.format(instant(value)),
     /** "5 Nov" for an instant in the app's time zone. */
     shortDateAt: (value: Date | string) => shortInstant.format(instant(value)),
+    /** "5 Nov 2026" (ID) or "Nov 5, 2026" (US) for a calendar date. */
+    yearDate: (iso: string) => yearDay.format(calendarDay(iso)),
+    /** "5 Nov 2026" for an instant in the app's time zone. */
+    yearDateAt: (value: Date | string) => yearInstant.format(instant(value)),
+    /**
+     * Two instants as one range in the app's time zone: "3 Okt 2026" on one day, else "3 Okt – 17 Okt 2026"
+     * (the start without its year, as Tinjau has always written it); null without both ends.
+     */
+    dateRangeAt(first: string | null, last: string | null): string | null {
+      if (!first || !last) return null;
+      if (zoneDay.format(instant(first)) === zoneDay.format(instant(last))) return yearInstant.format(instant(last));
+      return `${shortInstant.format(instant(first))} – ${yearInstant.format(instant(last))}`;
+    },
     /** "18.23" (ID) or "6:23 PM" (US) for an instant in the app's time zone. */
     time: (value: Date | string) => clock.format(instant(value)),
+    /** "18.23.05" (ID) or "6:23:05 PM" (US), for a test session's notification times. */
+    timeSeconds: (value: Date | string) => clockSeconds.format(instant(value)),
+    /**
+     * A short amount for a calendar cell or a chart tick (apply-markas-analisis D22): "79rb", "1,3jt" in Indonesian,
+     * "79K", "1.3M" in English, the decimal mark by region. `narrow` drops the decimal ("1jt") for a 45 px cell;
+     * `hidden` returns the mask "••" while balances are hidden. The USD display converts first and writes "$1.3K".
+     */
+    compactMoney(amountInIdr: number, { narrow = false, hidden = false }: { narrow?: boolean; hidden?: boolean } = {}): string {
+      if (hidden) return "••";
+      const usd = currency === "USD";
+      const value = usd ? amountInIdr / ((rate ?? getCurrencyConfig().rate) || 16500) : amountInIdr;
+      const sign = value < 0 ? "-" : "";
+      const units = usd || language === "en" ? ["K", "M", "B"] : ["rb", "jt", "M"];
+      const prefix = usd ? "$" : "";
+      // The USD display keeps en-US digits, as `money` does.
+      const marks = usd ? "en-US" : digits;
+      let scaled = Math.abs(value);
+      let step = -1;
+      // Step up while the rounded figure would read 1000 of the unit, so 999.600 reads "1jt", never "1000rb".
+      while (step < units.length - 1 && Math.round(scaled) >= 1000) {
+        scaled /= 1000;
+        step += 1;
+      }
+      if (step < 0) return `${sign}${prefix}${Math.round(scaled).toLocaleString(marks)}`;
+      // One decimal below 10 of a unit ("1,3jt", "1,5rb"); whole units above it ("81rb", "12jt").
+      const decimals = narrow || scaled >= 10 ? 0 : 1;
+      const text = scaled.toLocaleString(marks, { maximumFractionDigits: decimals });
+      return `${sign}${prefix}${text}${units[step]}`;
+    },
   };
 }
 

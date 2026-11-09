@@ -1,4 +1,4 @@
-import { SalarySettingsSection } from "@/components/ui/SalarySettingsSection";
+import { SalarySettingsSection } from "@/components/settings/SalarySettingsSection";
 
 export default function SalarySettingsPage() {
   return <SalarySettingsSection />;

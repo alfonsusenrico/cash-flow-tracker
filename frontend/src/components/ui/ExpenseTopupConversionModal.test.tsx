@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { ExpenseTopupConversionModal } from "./ExpenseTopupConversionModal";
 
 vi.mock("@/lib/api", () => ({ api: { post: vi.fn() } }));
+vi.mock("@/components/layout/AppLayout", () => ({ useAppCtx: () => ({ hideBalances: false, bal: (amount: number) => `Rp ${amount}` }) }));
 const fund = (id: string, name: string) => ({ id, name, type: "investment", instrument_type: "mutual_fund", units: null, parent_id: "bibit" });
 const accounts = [
   { id: "bibit", name: "Bibit", type: "investment", children: [fund("sucor", "Sucorinvest Money Market Fund"), fund("trim", "TRIM Kas 2 Kelas A")] },
@@ -26,7 +27,7 @@ function show(overrides: Partial<React.ComponentProps<typeof ExpenseTopupConvers
   return { ...view, close, converted };
 }
 
-describe("turning a recorded debit into a top-up", () => {
+describe("turning a recorded debit into a top-up (D17)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(api.post).mockResolvedValue({ ok: true });
@@ -35,14 +36,14 @@ describe("turning a recorded debit into a top-up", () => {
   it("asks for the product and converts the existing debit", async () => {
     const user = userEvent.setup();
     const { converted } = show();
-    expect(screen.getByText(/112\.590/)).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Catat sebagai top up investasi" })).toHaveTextContent("Debit Rp 112.590 dari RDN BCA dicatat sebagai top up");
     expect((await axe(screen.getByRole("dialog"))).violations).toEqual([]);
-    await user.click(screen.getByRole("button", { name: "Jadikan top up" }));
+    await user.click(screen.getByRole("button", { name: "Catat sebagai top up" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Pilih produk reksadana tujuan.");
-    expect(screen.getByRole("combobox", { name: "Produk tujuan" })).toHaveFocus();
+    expect(screen.getByRole("combobox", { name: "Produk investasi" })).toHaveFocus();
     expect(api.post).not.toHaveBeenCalled();
-    await user.selectOptions(screen.getByRole("combobox", { name: "Produk tujuan" }), "trim");
-    await user.click(screen.getByRole("button", { name: "Jadikan top up" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Produk investasi" }), "trim");
+    await user.click(screen.getByRole("button", { name: "Catat sebagai top up" }));
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/investment-topups/from-transaction", { transaction_id: "debit", target_account_id: "trim" }));
     expect(converted).toHaveBeenCalledOnce();
   });
@@ -50,17 +51,17 @@ describe("turning a recorded debit into a top-up", () => {
   it("explains how to make a product eligible when none is amount-tracked", () => {
     show({ accounts: [{ id: "bibit", name: "Bibit", type: "investment", children: [{ ...fund("sucor", "Sucor"), units: 10 }] }] });
     expect(screen.getByText(/Ubah ke pelacakan nominal/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Jadikan top up" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Catat sebagai top up" })).toBeDisabled();
   });
 
   it("keeps the selection and announces a failure", async () => {
     const user = userEvent.setup();
     vi.mocked(api.post).mockRejectedValueOnce(new Error("Transaksi ini tidak dapat dijadikan top up."));
     const { converted } = show();
-    await user.selectOptions(screen.getByRole("combobox", { name: "Produk tujuan" }), "sucor");
-    await user.click(screen.getByRole("button", { name: "Jadikan top up" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Produk investasi" }), "sucor");
+    await user.click(screen.getByRole("button", { name: "Catat sebagai top up" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("tidak dapat dijadikan top up");
-    expect(screen.getByRole("combobox", { name: "Produk tujuan" })).toHaveValue("sucor");
+    expect(screen.getByRole("combobox", { name: "Produk investasi" })).toHaveValue("sucor");
     expect(converted).not.toHaveBeenCalled();
   });
 });

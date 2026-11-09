@@ -12,10 +12,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from fastapi import HTTPException
 
 from app.core.config import settings
 from app.db.pool import db_conn
+from app.errors import ErrorCode, api_error
+from app.i18n import account_language, t
 from app.services.capture_parsing import MONEY_PATTERN, fold, is_money_expression, parse_kind
 from app.services.capture_time import time_word_spans
 from app.services.merchant_memory import merchant_match_key
@@ -33,9 +34,9 @@ MONTH_WEIGHT = 0.5
 HOUR_WEIGHT = 3
 WEEKDAY_TYPE_WEIGHT = 2
 FREQUENT_COUNT = 3
-REASON_TIME = "biasanya jam segini"
-REASON_FREQUENT = "sering"
-REASON_RECENT = "terakhir"
+REASON_TIME = "reasons.capture.time"
+REASON_FREQUENT = "reasons.capture.frequent"
+REASON_RECENT = "reasons.capture.recent"
 # A prefill text must parse back to the suggested kind, so a bare label gets the verb the word table knows.
 KIND_VERBS = {"expense": "bayar", "income": "terima"}
 WEEKEND_DAYS = frozenset({6, 7})
@@ -60,9 +61,9 @@ def parse_device_time(value: str) -> datetime:
     try:
         device_time = datetime.fromisoformat(value.strip())
     except ValueError:
-        raise HTTPException(status_code=422, detail={"code": "invalid_device_time"}) from None
+        raise api_error(422, ErrorCode.INVALID_DEVICE_TIME) from None
     if device_time.tzinfo is None or device_time > datetime.now(timezone.utc) + DEVICE_CLOCK_SKEW:
-        raise HTTPException(status_code=422, detail={"code": "invalid_device_time"})
+        raise api_error(422, ErrorCode.INVALID_DEVICE_TIME)
     return device_time
 
 
@@ -200,7 +201,7 @@ def prefill_text(used: list[Entry], kind: str, amount: int, label: str) -> str:
     return built_text(label, kind, amount)
 
 
-def suggestion(entries: list[Entry], reference: datetime) -> tuple[tuple, dict] | None:
+def suggestion(entries: list[Entry], reference: datetime, language: str) -> tuple[tuple, dict] | None:
     """(sort key, suggestion) for one merchant key, or None when its last entry was undone (D2)."""
     if max(entries, key=lambda entry: (entry.moment, entry.undone)).undone:
         return None
@@ -224,7 +225,7 @@ def suggestion(entries: list[Entry], reference: datetime) -> tuple[tuple, dict] 
     return (-score, -last_used.timestamp(), entries[0].key), {
         "text": prefill_text(used, latest.kind, amount, label), "label": label, "amount": amount,
         "category_name": most_common(used, "category_name"), "account_name": most_common(used, "account_name"),
-        "reason": reason,
+        "reason": t(language, reason), "reason_code": reason,
     }
 
 
@@ -234,10 +235,11 @@ def capture_suggestions(user_id: str, device_time: datetime) -> list[dict]:
     with db_conn() as conn:
         with conn.cursor() as cur:
             entries = ledger_entries(cur, user_id, since) + undone_entries(cur, user_id, since)
+            language, _region = account_language(cur, user_id)
     groups: dict[str, list[Entry]] = {}
     for entry in entries:
         if entry.moment > since:
             groups.setdefault(entry.key, []).append(entry)
-    ranked = sorted((item for item in (suggestion(group, device_time) for group in groups.values()) if item),
+    ranked = sorted((item for item in (suggestion(group, device_time, language) for group in groups.values()) if item),
                     key=lambda item: item[0])
     return [item for _, item in ranked[:SUGGESTION_LIMIT]]

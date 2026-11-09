@@ -1,6 +1,7 @@
 /** Response shapes of the Analisis endpoints (redesign-analysis-and-reports D3, D6, D8, D9). Amounts are integer rupiah. */
 
 export type AnalysisTab = "ringkasan" | "kalender" | "aliran";
+export type FlowView = "peta" | "tabel";
 export type PeriodBasis = "cycle" | "month";
 export type KakeiboBucket = "need" | "want" | "culture" | "unexpected" | "saving" | "unclassified";
 
@@ -24,7 +25,10 @@ export interface ServerExplanation {
 export interface DailyCadenceEntry {
   date: string;
   label: string;
+  /** Belanja of the day, saving-pillar expenses included. */
   expense: number;
+  /** Pengeluaran of the day (apply-markas-analisis D31); the figure Analisis shows. */
+  spending: number;
   income: number;
 }
 
@@ -56,21 +60,13 @@ export interface CategoryVariance {
   budget: number | null;
   monthly_budget?: number | null;
   spent: number;
+  /** Pengeluaran in the category (D31) and its share of the budget; the figures Analisis shows. */
+  spending: number;
+  spending_percentage_used?: number | null;
   variance?: number | null;
   percentage_used?: number | null;
   status: string;
 }
-
-export interface ComparisonWindow {
-  start: string;
-  end: string;
-  start_date: string;
-  end_date: string;
-  inflow: number;
-  outflow: number;
-  net: number;
-}
-
 
 export interface CalendarPlan {
   rule_id: string;
@@ -91,6 +87,9 @@ export interface CalendarWaitingRow {
 export interface CalendarDay {
   date: string;
   spend: number;
+  /** Pengeluaran of the day and its level (D31); the figures Kalender shows. */
+  spending: number;
+  spending_heat: number;
   spend_count: number;
   heat: number;
   income_total: number;
@@ -118,12 +117,13 @@ export interface CalendarResponse {
     open: boolean;
   };
   expected_salary: { date: string | null; available: boolean; status: string; reason: string | null };
-  totals: { spend: number; gross_spend: number; offset_applied: number };
+  totals: { spend: number; gross_spend: number; offset_applied: number; spending: number };
   days: CalendarDay[];
   upcoming: { date: string; rule_id: string; label: string; amount: number; status: CalendarPlan["status"] }[];
   upcoming_total: number;
   upcoming_basis: "expected_salary" | "window_end";
   heat_thresholds: number[];
+  spending_heat_thresholds: number[];
 }
 
 export type FlowNodeKind =
@@ -185,6 +185,8 @@ export interface FlowResponse {
     belanja_gross: number;
     reimbursement_offset: number;
     belanja: number;
+    /** Pengeluaran of the window (D31), the flow's figure named Pengeluaran. */
+    spending: number;
     keluar: number;
     saving_net: number;
     investment_net: number;

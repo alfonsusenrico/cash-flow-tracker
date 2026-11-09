@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAppCtx } from "@/components/layout/AppLayout";
-import { Button } from "@/components/ui/Button";
-import { Modal } from "@/components/ui/Modal";
+import { useTranslations } from "next-intl";
+import { PILLAR_TERM } from "@/components/analysis/KakeiboRows";
+import { jakartaDay } from "@/components/transactions/rows";
+import { useMoney } from "@/components/workspace/money";
+import { ShellDialog } from "@/components/workspace/ShellDialog";
 import { api } from "@/lib/api";
+import { useFormat } from "@/lib/format";
 import { KAKEIBO_PILLARS, type KakeiboPillar } from "@/lib/kakeibo";
-import { shortDate } from "@/lib/monthlyReport";
 import { queryKeys } from "@/lib/queryKeys";
 
 interface Gaps {
@@ -25,26 +27,31 @@ interface Gaps {
   transaction_limit: number;
 }
 
-const SELECT_CLASS =
-  "min-h-11 rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm text-[var(--text)]";
-
 function PillarSelect({ id, label, value, onChange }: { id: string; label: string; value: KakeiboPillar | ""; onChange: (value: KakeiboPillar | "") => void }) {
+  const t = useTranslations();
   return (
     <>
       <label htmlFor={id} className="sr-only">{label}</label>
-      <select id={id} value={value} onChange={(event) => onChange(event.target.value as KakeiboPillar | "")} className={SELECT_CLASS}>
-        <option value="">Pilih pilar</option>
+      <select id={id} value={value} onChange={(event) => onChange(event.target.value as KakeiboPillar | "")} className="field-control is-select ws-select lp-select">
+        <option value="">{t("report.classify.choosePillar")}</option>
         {KAKEIBO_PILLARS.map((pillar) => (
-          <option key={pillar.value} value={pillar.value}>{pillar.label}</option>
+          <option key={pillar.value} value={pillar.value}>{t(`terms.${PILLAR_TERM[pillar.value]}`)}</option>
         ))}
       </select>
     </>
   );
 }
 
-/** "Lengkapi klasifikasi": set a pillar per category, or for one or many unclassified rows at once. */
+/**
+ * "Lengkapi klasifikasi" (apply-markas-laporan D15): the shell dialog at 560 px, a sheet below 768 px. A pillar per
+ * category without one, or one pillar for several unclassified rows at once, with today's requests and statuses.
+ */
 export function ClassificationDialog({ open, onClose, scope }: { open: boolean; onClose: () => void; scope: { start: string; end: string } | null }) {
-  const { bal } = useAppCtx();
+  const t = useTranslations("report.classify");
+  const common = useTranslations("common");
+  const terms = useTranslations("terms");
+  const money = useMoney();
+  const format = useFormat();
   const queryClient = useQueryClient();
   const params = scope ? `?from_date=${encodeURIComponent(scope.start)}&to_date=${encodeURIComponent(scope.end)}` : "";
   const { data, isLoading, isError } = useQuery<Gaps>({
@@ -77,20 +84,20 @@ export function ClassificationDialog({ open, onClose, scope }: { open: boolean; 
     mutationFn: ({ id, pillar }: { id: string; name: string; pillar: KakeiboPillar }) =>
       api.post<{ corrections: number }>(`/classification/categories/${id}`, { kakeibo_type: pillar }),
     onSuccess: async (result, variables) => {
-      setStatus(`${variables.name} disimpan. ${result.corrections} transaksi ikut terklasifikasi.`);
+      setStatus(t("savedCategory", { name: variables.name, count: result.corrections }));
       await refresh();
     },
-    onError: (error: Error) => setStatus(error.message || "Belum tersimpan. Coba lagi."),
+    onError: (error: Error) => setStatus(error.message || t("saveFailed")),
   });
   const classifyRows = useMutation({
     mutationFn: ({ ids, pillar }: { ids: string[]; pillar: KakeiboPillar }) =>
       api.post<{ transaction_count: number }>("/classification/transactions", { transaction_ids: ids, kakeibo_type: pillar }),
     onSuccess: async (result) => {
-      setStatus(`${result.transaction_count} transaksi diklasifikasi.`);
+      setStatus(t("appliedRows", { count: result.transaction_count }));
       setSelected(new Set());
       await refresh();
     },
-    onError: (error: Error) => setStatus(error.message || "Belum tersimpan. Coba lagi."),
+    onError: (error: Error) => setStatus(error.message || t("saveFailed")),
   });
 
   const rows = data?.transactions ?? [];
@@ -104,49 +111,50 @@ export function ClassificationDialog({ open, onClose, scope }: { open: boolean; 
   const allSelected = rows.length > 0 && rows.every((row) => selected.has(row.id));
 
   return (
-    <Modal open={open} onClose={onClose} title="Lengkapi klasifikasi" wide>
-      <div className="space-y-5">
-        <p className="text-sm text-[var(--text-2)]">
-          Pengeluaran tanpa pilar tampil sebagai Belum diklasifikasi. Pilihan ini juga dipakai untuk mempelajari kebiasaan.
-        </p>
-        <p role="status" className="min-h-5 text-sm font-semibold text-[var(--text)]">{status}</p>
-        {isLoading && <p className="text-sm text-[var(--muted)]">Memuat…</p>}
-        {isError && <p role="alert" className="text-sm text-[var(--out-fg)]">Daftar belum bisa dimuat.</p>}
-        {data && data.categories.length === 0 && data.transaction_count === 0 && (
-          <p className="text-sm text-[var(--text)]">Semua pengeluaran sudah punya pilar.</p>
-        )}
+    <ShellDialog
+      open={open}
+      onClose={onClose}
+      title={t("title")}
+      width={560}
+      closeLabel={common("close")}
+      footer={<button type="button" className="ws-btn" onClick={onClose}>{t("done")}</button>}
+    >
+      <div className="form-stack lp-classify">
+        <p className="t-body muted">{t("intro")}</p>
+        <p role="status" className="t-strong lp-classify-status">{status}</p>
+        {isLoading && <p className="t-meta">{common("loading")}</p>}
+        {isError && <p role="alert" className="form-alert">{t("loadFailed")}</p>}
+        {data && data.categories.length === 0 && data.transaction_count === 0 && <p className="t-body">{t("allDone")}</p>}
 
         {data && data.categories.length > 0 && (
-          <section aria-labelledby="classify-categories" className="space-y-2">
-            <h3 id="classify-categories" className="text-sm font-semibold text-[var(--text)]">Kategori tanpa pilar</h3>
-            <p className="text-xs text-[var(--text-2)]">Berlaku untuk transaksinya yang belum punya pilar sendiri.</p>
-            <ul className="divide-y divide-[var(--line)]">
+          <section aria-labelledby="classify-categories">
+            <h3 id="classify-categories" className="t-label">{t("categories")}</h3>
+            <p className="t-meta">{t("categoriesHelp")}</p>
+            <ul className="list lp-classify-list">
               {data.categories.map((category) => {
                 const value = categoryPillars[category.id] ?? "";
                 return (
-                  <li key={category.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                    <span className="min-w-0 text-sm text-[var(--text)]">
-                      <span className="block font-semibold">{category.name}</span>
-                      <span className="block text-xs text-[var(--muted)] tabular-nums">
-                        {category.unclassified_count} transaksi · {bal(category.unclassified_amount)}
-                      </span>
+                  <li key={category.id} className="row is-plain lp-classify-row">
+                    <span className="r-main">
+                      <span className="r-title">{category.name}</span>
+                      <span className="r-meta">{t("categoryMeta", { count: category.unclassified_count, amount: money(category.unclassified_amount) })}</span>
                     </span>
-                    <span className="flex items-center gap-2">
+                    <span className="lp-classify-actions">
                       <PillarSelect
                         id={`classify-category-${category.id}`}
-                        label={`Pilar untuk ${category.name}`}
+                        label={t("pillarFor", { name: category.name })}
                         value={value}
                         onChange={(next) => setCategoryPillars((current) => ({ ...current, [category.id]: next }))}
                       />
-                      <Button
+                      <button
                         type="button"
-                        className="min-h-11"
+                        className="ws-btn"
                         disabled={!value || classifyCategory.isPending}
-                        aria-label={`Simpan pilar ${category.name}`}
+                        aria-label={t("saveFor", { name: category.name })}
                         onClick={() => value && classifyCategory.mutate({ id: category.id, name: category.name, pillar: value })}
                       >
-                        Simpan
-                      </Button>
+                        {t("save")}
+                      </button>
                     </span>
                   </li>
                 );
@@ -156,56 +164,43 @@ export function ClassificationDialog({ open, onClose, scope }: { open: boolean; 
         )}
 
         {rows.length > 0 && (
-          <section aria-labelledby="classify-rows" className="space-y-2">
-            <h3 id="classify-rows" className="text-sm font-semibold text-[var(--text)]">
-              Transaksi belum diklasifikasi <span className="tabular-nums text-[var(--muted)]">({data?.transaction_count})</span>
-            </h3>
-            {data && data.transaction_count > rows.length && (
-              <p className="text-xs text-[var(--text-2)]">Menampilkan {rows.length} terbaru.</p>
-            )}
-            <label className="flex min-h-11 items-center gap-2 text-sm text-[var(--text)]">
-              <input
-                type="checkbox"
-                className="h-5 w-5"
-                checked={allSelected}
-                onChange={() => setSelected(allSelected ? new Set() : new Set(rows.map((row) => row.id)))}
-              />
-              Pilih semua
+          <section aria-labelledby="classify-rows">
+            <h3 id="classify-rows" className="t-label">{t("rows", { count: data?.transaction_count ?? rows.length })}</h3>
+            {data && data.transaction_count > rows.length && <p className="t-meta">{t("showingLatest", { count: rows.length })}</p>}
+            <label className="field-check">
+              <input type="checkbox" checked={allSelected} onChange={() => setSelected(allSelected ? new Set() : new Set(rows.map((row) => row.id)))} />
+              {t("selectAll")}
             </label>
-            <ul className="max-h-72 divide-y divide-[var(--line)] overflow-y-auto rounded-xl border border-[var(--line)] px-3">
+            <ul className="list lp-classify-rows">
               {rows.map((row) => (
                 <li key={row.id}>
-                  <label className="flex min-h-11 items-center gap-3 py-1.5 text-sm text-[var(--text)]">
-                    <input type="checkbox" className="h-5 w-5 shrink-0" checked={selected.has(row.id)} onChange={() => toggle(row.id)} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate">{row.merchant || row.notes || "Tanpa keterangan"}</span>
-                      <span className="block truncate text-xs text-[var(--muted)]">
-                        {shortDate(row.date.slice(0, 10))} · {row.category_name ?? "Tanpa kategori"} · {row.account_name}
+                  <label className="row is-selectable lp-classify-pick">
+                    <input type="checkbox" className="r-check" checked={selected.has(row.id)} onChange={() => toggle(row.id)} />
+                    <span className="r-main">
+                      <span className="r-title">{row.merchant || row.notes || terms("noDescription")}</span>
+                      <span className="r-meta">
+                        {t("rowMeta", { date: format.shortDate(jakartaDay(row.date)), category: row.category_name ?? terms("noCategory"), account: row.account_name })}
                       </span>
                     </span>
-                    <span className="shrink-0 font-semibold tabular-nums">{bal(row.amount)}</span>
+                    <span className="r-amt t-amt">{money(row.amount)}</span>
                   </label>
                 </li>
               ))}
             </ul>
-            <div className="flex flex-wrap items-center gap-2">
-              <PillarSelect id="classify-rows-pillar" label="Pilar untuk transaksi yang dipilih" value={rowPillar} onChange={setRowPillar} />
-              <Button
+            <div className="lp-classify-apply">
+              <PillarSelect id="classify-rows-pillar" label={t("rowsPillar")} value={rowPillar} onChange={setRowPillar} />
+              <button
                 type="button"
-                variant="primary"
-                className="min-h-11"
+                className="ws-btn ws-btn-ink"
                 disabled={!rowPillar || selected.size === 0 || classifyRows.isPending}
                 onClick={() => rowPillar && classifyRows.mutate({ ids: [...selected], pillar: rowPillar })}
               >
-                Terapkan ke {selected.size} transaksi
-              </Button>
+                {t("apply", { count: selected.size })}
+              </button>
             </div>
           </section>
         )}
-        <div className="flex justify-end">
-          <Button type="button" className="min-h-11" onClick={onClose}>Selesai</Button>
-        </div>
       </div>
-    </Modal>
+    </ShellDialog>
   );
 }

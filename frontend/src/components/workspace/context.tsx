@@ -17,11 +17,20 @@ export interface WorkspaceNotification {
   /** Where the item leads; absent for items that open "Rencana jatuh tempo" instead (D7). */
   href?: string;
   opensDuePlans?: boolean;
+  /** An action instead of a link: a due credit bill opens Perpindahan prefilled (apply-markas-target D16). */
+  onSelect?: () => void;
 }
 
 export interface PageHeader {
   title: string;
   subtitle: string;
+}
+
+export interface MovementCaptureDefaults {
+  sourceAccountId?: string;
+  targetAccountId?: string;
+  /** A whole IDR amount to prefill, such as the next credit bill's `left_to_pay`. */
+  amount?: number;
 }
 
 export interface WorkspaceValue {
@@ -43,6 +52,11 @@ export interface WorkspaceValue {
   collapsed: boolean;
   toggleCollapsed: () => void;
   openCapture: () => void;
+  /**
+   * Opens the Perpindahan form with its accounts and amount filled in; nothing is posted until the owner saves
+   * (apply-markas-rekening D8: "Bayar tagihan"; phase 9 reuses it for due credit bills).
+   */
+  openMovementCapture: (defaults: MovementCaptureDefaults) => void;
   openHelp: () => void;
   logout: () => void;
   header: PageHeader | null;
@@ -87,7 +101,16 @@ export interface PageMoreAction {
  * labelled "Tindakan lain". The page keeps every handler; only where the controls render changes. Outside the
  * shell (page tests) they render in place.
  */
-export function PageActions({ children, more = [] }: { children?: ReactNode; more?: PageMoreAction[] }) {
+export function PageActions({
+  children,
+  more = [],
+  moreLabel,
+}: {
+  children?: ReactNode;
+  more?: PageMoreAction[];
+  /** The "…" button's name when the page names it, such as "Tindakan lain untuk Tinjau"; "Tindakan lain" otherwise. */
+  moreLabel?: string;
+}) {
   const context = useContext(WorkspaceContext);
   const t = useTranslations("common");
   const lang = useInterfaceLang();
@@ -98,8 +121,8 @@ export function PageActions({ children, more = [] }: { children?: ReactNode; mor
       {children}
       {listed.length > 0 && (
         <MenuButton
-          label={t("moreActions")}
-          lang={lang}
+          label={moreLabel ?? t("moreActions")}
+          lang={moreLabel ? undefined : lang}
           className="ws-icon-btn"
           menuLabel={t("moreActions")}
           width={260}

@@ -106,7 +106,7 @@ def other_owner(notification_owner):
     from app.services.auth import get_current_user
     user_id = str(uuid4())
     with db() as conn:
-        conn.execute("INSERT INTO users (id, username, name, password_hash, invite_code) VALUES (%s, %s, 'Dewi Lain', 'x', 'TEST')",
+        conn.execute("INSERT INTO users (id, username, name, password_hash, invite_code, language) VALUES (%s, %s, 'Dewi Lain', 'x', 'TEST', 'id')",
                      (user_id, f"lain_{uuid4().hex}"))
         conn.commit()
     owner_identity = app.dependency_overrides[get_current_user]
@@ -354,7 +354,7 @@ def test_an_edit_in_transaksi_meanwhile_refuses_the_undo(client, owner):
     edited_image = image(first)
     refused = undo(client, token)
     assert refused.status_code == 409
-    assert refused.json()["detail"] == {"code": "undo_conflict", "transaction_ids": [first]}
+    assert (refused.json()["detail"]["code"], refused.json()["detail"]["transaction_ids"]) == ("undo_conflict", [first])
     assert image(first) == edited_image
     assert [row["kind"] for row in feedback_rows(owner)].count("undo") == 0
 
@@ -723,7 +723,8 @@ def test_undone_correction_restores_the_earlier_label_and_redo_counts_once(clien
                                      account_id=owner["bca"], amount=int(tx(row_id)["amount"]))
                 ranked = rank_suggestions(cur, owner["user_id"], direction="expense", signature=stored["text_signature"],
                                           account_id=owner["bca"], amount=int(tx(row_id)["amount"]),
-                                          moment=tx(row_id)["date"], current=None, repayment_note=None)
+                                          moment=tx(row_id)["date"], current=None, repayment_note=None,
+                                          language="id")
         own = [(label.transaction_id, label.kind, label.category_id) for label in labels if label.transaction_id == row_id]
         return own, [item["category_id"] for item in ranked]
 

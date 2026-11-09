@@ -7,7 +7,9 @@ import { listLiquidAccountChoices } from "@/lib/accountOptions";
 import { InvestmentAccount, InvestmentScheduleDraft, InvestmentTopup } from "@/lib/investmentTopups";
 import { queryKeys } from "@/lib/queryKeys";
 import { formatNumberWithDots, localDatetimeToISO, parseNumberFromDots, toDatetimeLocal } from "@/lib/utils";
-import { Modal } from "./Modal";
+import { useTranslations } from "next-intl";
+import { ShellDialog } from "@/components/workspace/ShellDialog";
+import { UntranslatedRegion } from "@/components/workspace/untranslated";
 import { ConfirmActionButton } from "./ConfirmActionButton";
 
 interface Props {
@@ -19,8 +21,17 @@ interface Props {
   onSchedule?: (draft: InvestmentScheduleDraft) => void;
 }
 
+const FORM_ID = "investment-topup-form";
+
+/**
+ * Top up into an amount-tracked product (apply-markas-rekening D10, handed over by apply-markas-transaksi): a 520 px
+ * shell dialog with the 56 px amount, the funding account, the debit time and the note. Opened from Rekening and
+ * from Transaksi; the create, correction and delete requests are unchanged.
+ */
 export function InvestmentTopupModal({ open, onClose, product, allAccounts, editingTopup, onSchedule }: Props) {
   const qc = useQueryClient();
+  const t = useTranslations("accounts.topup");
+  const common = useTranslations("common");
   const [sourceId, setSourceId] = useState("");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState("");
@@ -60,9 +71,9 @@ export function InvestmentTopupModal({ open, onClose, product, allAccounts, edit
       if (remove && editingTopup) return api.del(`/investment-topups/${editingTopup.id}`);
       const parsedAmount = parseNumberFromDots(amount);
       const isoDate = localDatetimeToISO(date);
-      if (!Number.isSafeInteger(parsedAmount) || parsedAmount <= 0) throw new Error("Masukkan nominal rupiah lebih dari 0.");
-      if (!isoDate) throw new Error("Pilih tanggal dan waktu debit yang valid.");
-      if (!product || !sourceId) throw new Error("Pilih rekening sumber dana.");
+      if (!Number.isSafeInteger(parsedAmount) || parsedAmount <= 0) throw new Error(t("errors.amount"));
+      if (!isoDate) throw new Error(t("errors.date"));
+      if (!product || !sourceId) throw new Error(t("errors.source"));
       const correction = { amount: parsedAmount, date: isoDate, notes: notes.trim() };
       return editingTopup
         ? api.patch(`/investment-topups/${editingTopup.id}`, correction)
@@ -71,57 +82,109 @@ export function InvestmentTopupModal({ open, onClose, product, allAccounts, edit
         });
     },
     onSuccess: () => { refresh(); onClose(); },
-    onError: (failure: Error) => setError(failure.message || "Top up gagal dicatat. Periksa saldo dan coba lagi."),
+    onError: (failure: Error) => setError(failure.message || t("errors.failed")),
   });
   if (!product) return null;
-  const inputClass = "min-h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]";
   const busy = mutation.isPending;
+  const close = () => { if (!busy) onClose(); };
+
+  const footer = (
+    <>
+      {editingTopup && (
+        <ConfirmActionButton
+          label={t("delete")}
+          confirmation={t("deleteConfirm")}
+          onConfirm={() => mutation.mutate(true)}
+          disabled={busy}
+          className="ws-btn ws-btn-quiet c-expense"
+        >
+          {t("deleteShort")}
+        </ConfirmActionButton>
+      )}
+      <span className="grow" />
+      <button type="button" className="ws-btn" onClick={onClose} disabled={busy}>{common("cancel")}</button>
+      <button type="submit" form={FORM_ID} className="ws-btn ws-btn-ink" disabled={busy}>
+        {busy ? t("saving") : editingTopup ? t("saveChanges") : t("submit")}
+      </button>
+    </>
+  );
 
   return (
-    <Modal open={open} onClose={() => { if (!busy) onClose(); }} title={editingTopup ? "Ubah Top up Investasi" : "Top up Investasi"}>
-      <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); setError(""); mutation.mutate(false); }}>
-        <div className="rounded-xl border border-[var(--line)] bg-inv-bg p-3 text-inv-fg">
-          <p className="text-xs">Produk reksadana</p>
-          <p className="break-words font-semibold">{product.name}</p>
-          <p className="mt-1 text-xs">Catat jumlah yang dibayarkan. Nilai investasi menjadi estimasi hingga nilainya diperbarui dari Bibit.</p>
-        </div>
-        {error && <p role="alert" className="text-sm text-out-fg">{error}</p>}
-        <div>
-          {editingTopup
-            ? <p className="mb-1 text-xs font-medium">Dari rekening</p>
-            : <label htmlFor="topup-source" className="mb-1 block text-xs font-medium">Dari rekening</label>}
-          {editingTopup ? <p className="text-sm">{allAccounts.find((account) => account.id === sourceId)?.name ?? "Rekening sumber"}</p> : (
-            <select id="topup-source" className={inputClass} value={sourceId} onChange={(event) => setSourceId(event.target.value)} required disabled={busy}>
-              <option value="">Pilih rekening sumber…</option>
-              {funding.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-            </select>
+    <UntranslatedRegion active={false}>
+      <ShellDialog
+        open={open}
+        onClose={close}
+        title={editingTopup ? t("editTitle") : t("title")}
+        meta={product.name}
+        width={520}
+        closeLabel={common("close")}
+        footer={footer}
+      >
+        <form
+          id={FORM_ID}
+          className="form-stack"
+          noValidate
+          onSubmit={(event) => { event.preventDefault(); setError(""); mutation.mutate(false); }}
+        >
+          <div className="field">
+            <label htmlFor="topup-amount">{t("amount")}</label>
+            <input
+              id="topup-amount"
+              name="amount"
+              type="text"
+              inputMode="numeric"
+              className="field-control ws-money-input h-14 text-xl leading-5 font-semibold tabular-nums tracking-[-0.01em]"
+              value={amount}
+              onChange={(event) => setAmount(formatNumberWithDots(event.target.value))}
+              placeholder="112.590"
+              aria-describedby="topup-amount-hint"
+              required
+              disabled={busy}
+            />
+            <p id="topup-amount-hint" className="hint">{t("amountHint")}</p>
+          </div>
+          <div className="field">
+            {editingTopup ? (
+              <>
+                <p className="flabel">{t("from")}</p>
+                <p className="t-body">{allAccounts.find((account) => account.id === sourceId)?.name ?? t("sourceFallback")}</p>
+              </>
+            ) : (
+              <>
+                <label htmlFor="topup-source">{t("from")}</label>
+                <select id="topup-source" className="field-control" value={sourceId} onChange={(event) => setSourceId(event.target.value)} required disabled={busy}>
+                  <option value="">{t("chooseSource")}</option>
+                  {funding.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                </select>
+              </>
+            )}
+          </div>
+          <div className="form-grid">
+            <div className="field">
+              <label htmlFor="topup-date">{t("date")}</label>
+              <input id="topup-date" type="datetime-local" step="1" className="field-control tabular-nums" value={date} onChange={(event) => setDate(event.target.value)} required disabled={busy} />
+            </div>
+            <div className="field">
+              <label htmlFor="topup-notes">{t("note")}</label>
+              <input id="topup-notes" type="text" maxLength={500} className="field-control" value={notes} onChange={(event) => setNotes(event.target.value)} disabled={busy} />
+            </div>
+          </div>
+          {onSchedule && !editingTopup && (
+            <button
+              type="button"
+              className="ws-btn ws-btn-quiet"
+              disabled={busy || !sourceId || parseNumberFromDots(amount) <= 0}
+              onClick={() => {
+                onSchedule({ sourceAccountId: sourceId, targetAccountId: product.id, amount: parseNumberFromDots(amount), productName: product.name });
+              }}
+            >
+              {t("plan")}
+            </button>
           )}
-        </div>
-        <div>
-          <label htmlFor="topup-amount" className="mb-1 block text-xs font-medium">Nominal top up (IDR)</label>
-          <input id="topup-amount" data-autofocus inputMode="numeric" className={`${inputClass} tabular-nums`} value={amount} onChange={(event) => setAmount(formatNumberWithDots(event.target.value))} placeholder="112.590" required disabled={busy} />
-        </div>
-        <div>
-          <label htmlFor="topup-date" className="mb-1 block text-xs font-medium">Tanggal dan waktu debit</label>
-          <input id="topup-date" type="datetime-local" step="1" className={`${inputClass} min-w-0 tabular-nums`} value={date} onChange={(event) => setDate(event.target.value)} required disabled={busy} />
-        </div>
-        <div>
-          <label htmlFor="topup-notes" className="mb-1 block text-xs font-medium">Catatan (opsional)</label>
-          <textarea id="topup-notes" maxLength={500} className={inputClass} value={notes} onChange={(event) => setNotes(event.target.value)} disabled={busy} />
-        </div>
-        {onSchedule && !editingTopup && (
-          <button type="button" className="min-h-11 text-sm font-semibold underline underline-offset-4 disabled:opacity-50" disabled={busy || !sourceId || parseNumberFromDots(amount) <= 0} onClick={() => {
-            onSchedule({ sourceAccountId: sourceId, targetAccountId: product.id, amount: parseNumberFromDots(amount), productName: product.name });
-          }}>Buat rencana bulanan (tidak mencatat)</button>
-        )}
-        {!editingTopup && <p className="text-xs text-[var(--text-2)]">Catat setelah debit berhasil. Pastikan debit yang sama belum tercatat di buku kas.</p>}
-        {editingTopup && <p className="text-xs text-[var(--text-2)]">Koreksi nominal menyesuaikan modal dan estimasi nilai. Periksa kembali nilai aktual di Bibit setelah mengubahnya.</p>}
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--line)] pt-3">
-          {editingTopup && <ConfirmActionButton label="Hapus top up" confirmation="Hapus top up? Modal dan estimasi nilai investasi ikut berkurang. Top up dari pengeluaran tercatat kembali menjadi pengeluaran biasa; top up lainnya mengembalikan saldo sumber." onConfirm={() => mutation.mutate(true)} disabled={busy} className="min-h-11 rounded-xl border border-[var(--line)] px-3 text-sm text-out-fg">Hapus</ConfirmActionButton>}
-          <button type="button" onClick={onClose} disabled={busy} className="min-h-11 rounded-md border border-[var(--line)] px-3 text-sm">Batal</button>
-          <button type="submit" disabled={busy} className="ws-btn ws-btn-accent disabled:opacity-50">{busy ? "Menyimpan…" : editingTopup ? "Simpan perubahan" : "Catat top up"}</button>
-        </div>
-      </form>
-    </Modal>
+          <p className="t-meta">{editingTopup ? t("editNote") : t("createNote")}</p>
+          {error && <p role="alert" className="form-alert">{error}</p>}
+        </form>
+      </ShellDialog>
+    </UntranslatedRegion>
   );
 }

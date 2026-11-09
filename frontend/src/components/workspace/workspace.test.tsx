@@ -89,6 +89,7 @@ function workspaceValue(overrides: Partial<WorkspaceValue> = {}): WorkspaceValue
     collapsed: false,
     toggleCollapsed: vi.fn(),
     openCapture: vi.fn(),
+    openMovementCapture: vi.fn(),
     openHelp: vi.fn(),
     logout: vi.fn(),
     header: null,
@@ -159,10 +160,14 @@ describe("navigation model", () => {
   });
 
   it("gives Transaksi and Pengaturan the 1040 frame and the prototype's subtitles", () => {
-    expect({ ...untranslatedPageTitle("/ledger"), width: frameWidth("/ledger") }).toEqual({ title: "Transaksi", subtitle: "Semua uang masuk, pengeluaran, dan pindah saldo", width: 1040 });
-    expect({ ...untranslatedPageTitle("/settings/profil"), width: frameWidth("/settings/profil") }).toEqual({ title: "Pengaturan", subtitle: "", width: 1040 });
-    expect(untranslatedPageTitle("/accounts")?.subtitle).toBe("Saldo rekening, kantong, investasi dan utang");
-    expect(untranslatedPageTitle("/goals")?.subtitle).toBe("Dana darurat, tagihan, utang dan target tabungan");
+    // Transaksi writes its title from the catalogue since apply-markas-transaksi, so it has no untranslated entry.
+    expect({ title: untranslatedPageTitle("/ledger"), width: frameWidth("/ledger") }).toEqual({ title: null, width: 1040 });
+    // Every product page writes its title from the catalogue since its phase; Pengaturan was the last
+    // (apply-markas-pengaturan D19), so the local component sheet is the untranslated example.
+    expect({ title: untranslatedPageTitle("/settings/profil"), width: frameWidth("/settings/profil") }).toEqual({ title: null, width: 1040 });
+    expect(untranslatedPageTitle("/komponen")).toEqual({ title: "Komponen", subtitle: "Lembar komponen Markas+, hanya di build lokal" });
+    expect(untranslatedPageTitle("/accounts")).toBeNull();
+    expect(untranslatedPageTitle("/goals")).toBeNull();
     expect(frameWidth("/")).toBe(1200);
   });
 
@@ -482,6 +487,43 @@ describe("planNotifications", () => {
   });
 });
 
+describe("planNotifications with credit bills (apply-markas-target D16)", () => {
+  const now = new Date("2026-11-05T07:00:00+07:00");
+  const bill = (account: string, name: string, due: string, extra: Record<string, unknown> = {}) => ({
+    account_id: account, account_name: name, due_date: due, statement_date: "2026-10-25", amount: 434_000, paid: 0, left_to_pay: 434_000,
+    status: due < "2026-11-05" ? "overdue" : due === "2026-11-05" ? "due_today" : "upcoming", settled_on: null, ...extra,
+  }) as never;
+  const transferPlan: RecurringRule = {
+    id: "r-spay", name: "Bayar SPayLater", type: "transfer", amount: 434_000, source_account_id: "jago", target_account_id: "spay",
+    schedule_type: "monthly_day", is_payroll_allocation: false, auto_post: false, next_due_date: "2026-11-06", is_active: true,
+  };
+
+  it("Due credit bill: lists unpaid bills once per account and due date, opening the payment form", () => {
+    const pay = vi.fn();
+    const items = planNotifications([], [], [], testWords(), now, [
+      bill("bca-cc", "Kartu BCA", "2026-11-01", { left_to_pay: 1_250_000 }),
+      bill("bca-cc", "Kartu BCA", "2026-11-01", { left_to_pay: 1_250_000 }),
+      bill("akulaku", "Akulaku", "2026-11-05"),
+      bill("lunas", "Lunas", "2026-11-05", { status: "paid", left_to_pay: 0 }),
+      bill("later", "Nanti", "2026-11-20"),
+    ], pay);
+    expect(items.map((item) => [item.id, item.title, item.detail])).toEqual([
+      ["credit-bca-cc-2026-11-01", "Tagihan Kartu BCA Rp 1.250.000 lewat jatuh tempo", "Kredit · jatuh tempo 1 Nov"],
+      ["credit-akulaku-2026-11-05", "Tagihan Akulaku Rp 434.000 hari ini", "Kredit · jatuh tempo 5 Nov"],
+    ]);
+    items[0].onSelect?.();
+    expect(pay).toHaveBeenCalledWith(expect.objectContaining({ account_id: "bca-cc", left_to_pay: 1_250_000 }));
+    expect(items[0].href).toBeUndefined();
+  });
+
+  it("lists a bill that a listed plan pays once, as the plan, and words English titles", () => {
+    const items = planNotifications([transferPlan], [], [], testWords("en"), now, [bill("spay", "SPayLater", "2026-11-06")], vi.fn());
+    expect(items.map((item) => item.title)).toEqual(["Bayar SPayLater Rp 434.000 due tomorrow"]);
+    const english = planNotifications([], [], [], testWords("en"), now, [bill("spay", "SPayLater", "2026-11-05")], vi.fn());
+    expect(english.map((item) => [item.title, item.detail])).toEqual([["SPayLater bill Rp 434.000 due today", "Credit · due 5 Nov"]]);
+  });
+});
+
 function TitleWithActions({ more, children }: { more?: Parameters<typeof PageActions>[0]["more"]; children?: ReactNode }) {
   return (
     <>
@@ -619,20 +661,21 @@ describe("Phone shell", () => {
     expect(screen.getByRole("button", { name: "Lainnya" })).toHaveAttribute("aria-current", "page");
   });
 
-  it("Reaching every page on a phone: Lainnya lists the pages in the sidebar order, Notifikasi, Tema and Keluar", async () => {
-    const { user, value, baseElement } = renderShell(<PhoneTabBar />, { themeChoice: "dark" });
+  it("Reaching every page on a phone: Lainnya lists the pages in the sidebar order, Notifikasi and Tema", async () => {
+    const { user, baseElement } = renderShell(<PhoneTabBar />, { themeChoice: "dark" });
     const more = screen.getByRole("button", { name: "Lainnya" });
     await user.click(more);
     expect(more).toHaveAttribute("aria-expanded", "true");
     const sheet = screen.getByRole("dialog", { name: "Lainnya" });
     const rows = within(sheet).getAllByRole("listitem").map((row) => row.textContent);
-    expect(rows).toEqual(["Analisis", "Laporan1 baru", "Rekening & Kantong", "Target & Tagihan", "Pengaturan", "Notifikasi2 baru", "TemaGelap", "Keluar"]);
+    expect(rows).toEqual(["Analisis", "Laporan1 baru", "Rekening & Kantong", "Target & Tagihan", "Pengaturan", "Notifikasi2 baru", "TemaGelap"]);
     expect(within(sheet).getByRole("link", { name: "Laporan, laporan baru siap" })).toHaveAttribute("href", "/laporan");
-    expect(within(sheet).queryByText(/Tanya|Bantuan/)).not.toBeInTheDocument();
+    // Keluar lives at the end of Pengaturan's rail since apply-markas-pengaturan D5.
+    expect(within(sheet).queryByText(/Tanya|Bantuan|Keluar/)).not.toBeInTheDocument();
     expect(sheet).toContainElement(document.activeElement as HTMLElement);
     expect((await axe(baseElement)).violations).toHaveLength(0);
-    await user.click(within(sheet).getByRole("button", { name: "Keluar" }));
-    expect(value.logout).toHaveBeenCalledOnce();
+    await user.keyboard("{Escape}");
+    expect(more).toHaveFocus();
   });
 
   it("traps Tab inside Lainnya and returns focus to Lainnya on Esc", async () => {
@@ -911,7 +954,7 @@ describe("the shell in English (add-language-system)", () => {
     expect(within(more).getByRole("link", { name: "Reports, new report ready" })).toHaveTextContent("1 new");
     expect(within(more).getByRole("button", { name: /Notifications/ })).toHaveTextContent("2 new");
     expect(within(more).getByRole("button", { name: /Theme/ })).toHaveTextContent("Match system");
-    expect(within(more).getByRole("button", { name: "Sign out" })).toBeInTheDocument();
+    expect(within(more).queryByRole("button", { name: "Sign out" })).not.toBeInTheDocument();
     expect(within(more).getByRole("button", { name: "Close More" })).toBeInTheDocument();
   });
 
@@ -978,11 +1021,12 @@ describe("pages not translated yet (add-language-system D10)", () => {
     );
   }
 
-  it("shows English Tinjau's Indonesian title block and content marked lang=id, with the notice in English", async () => {
-    showPage("/review", "en");
+  // The example is the local component sheet, the last route no phase translates (apply-markas-pengaturan D19).
+  it("shows an English untranslated page's Indonesian title block and content marked lang=id, with the notice in English", async () => {
+    showPage("/komponen", "en");
     const main = await screen.findByRole("main");
     expect(main).toHaveAttribute("lang", "id");
-    expect(within(main).getByRole("heading", { level: 1, name: "Tinjau" })).toHaveAttribute("lang", "id");
+    expect(within(main).getByRole("heading", { level: 1, name: "Komponen" })).toHaveAttribute("lang", "id");
     const notice = within(main).getByText("This page is in Indonesian for now.");
     expect(notice).toHaveAttribute("lang", "en");
     expect(screen.getByRole("navigation", { name: "Main menu" })).toHaveTextContent("Review");
@@ -997,11 +1041,49 @@ describe("pages not translated yet (add-language-system D10)", () => {
     expect(document.querySelector("[lang='id']")).toBeNull();
   });
 
-  it("shows no notice on an Indonesian Tinjau", async () => {
-    showPage("/review", "id");
+  it("shows no notice and no lang=id on an English Pengaturan, which apply-markas-pengaturan translated", async () => {
+    showPage("/settings/anggaran", "en");
     const main = await screen.findByRole("main");
     expect(main).not.toHaveAttribute("lang");
-    expect(within(main).getByRole("heading", { level: 1, name: "Tinjau" })).not.toHaveAttribute("lang");
+    expect(within(main).getByRole("heading", { level: 1, name: "Settings" })).not.toHaveAttribute("lang");
     expect(screen.queryByText("This page is in Indonesian for now.")).not.toBeInTheDocument();
+  });
+
+  it("shows no notice on an Indonesian Pengaturan", async () => {
+    showPage("/settings", "id");
+    const main = await screen.findByRole("main");
+    expect(main).not.toHaveAttribute("lang");
+    expect(within(main).getByRole("heading", { level: 1, name: "Pengaturan" })).not.toHaveAttribute("lang");
+    expect(screen.queryByText("This page is in Indonesian for now.")).not.toBeInTheDocument();
+  });
+
+  it("shows no notice and no lang=id on an English Analisis, which apply-markas-analisis translated", async () => {
+    showPage("/insights", "en");
+    const main = await screen.findByRole("main");
+    expect(main).not.toHaveAttribute("lang");
+    expect(within(main).getByRole("heading", { level: 1, name: "Analysis" })).not.toHaveAttribute("lang");
+    expect(within(main).getByText("Where the money went, compared with the last period")).toBeInTheDocument();
+    expect(screen.queryByText("This page is in Indonesian for now.")).not.toBeInTheDocument();
+    expect(document.querySelector("main [lang='id']")).toBeNull();
+  });
+
+  it("shows no notice and no lang=id on an English Transaksi, which apply-markas-transaksi translated", async () => {
+    showPage("/ledger", "en");
+    const main = await screen.findByRole("main");
+    expect(main).not.toHaveAttribute("lang");
+    expect(within(main).getByRole("heading", { level: 1, name: "Transactions" })).not.toHaveAttribute("lang");
+    expect(within(main).getByText("All income, spending and transfers")).toBeInTheDocument();
+    expect(screen.queryByText("This page is in Indonesian for now.")).not.toBeInTheDocument();
+    expect(document.querySelector("main [lang='id']")).toBeNull();
+  });
+
+  it("shows no notice and no lang=id on an English Tinjau, which apply-markas-tinjau translated", async () => {
+    showPage("/review", "en");
+    const main = await screen.findByRole("main");
+    expect(main).not.toHaveAttribute("lang");
+    expect(within(main).getByRole("heading", { level: 1, name: "Review" })).not.toHaveAttribute("lang");
+    expect(within(main).getByText("What needs an answer and what was recorded automatically")).toBeInTheDocument();
+    expect(screen.queryByText("This page is in Indonesian for now.")).not.toBeInTheDocument();
+    expect(document.querySelector("main [lang='id']")).toBeNull();
   });
 });

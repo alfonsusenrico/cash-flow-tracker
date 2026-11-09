@@ -63,6 +63,40 @@ const SECTION_KEYS = {
   groups: "breakdown.sectionGroups",
 } as const satisfies Record<WaitingSection, string>;
 
+/**
+ * The two credit lines after the buckets (add-credit-spending-flow D11, apply-markas-target D17): spending booked on
+ * credit, already inside the buckets, and cash paid to credit bills, outside Pengeluaran by rule. Neither is added to
+ * the total; each note names the accounts with their amounts, as stored.
+ */
+function creditLines(summary: CycleSummary, money: Money, { t }: Words): ExplanationLine[] {
+  const credit = summary.spending.credit;
+  if (!credit) return [];
+  const creditAccounts = credit.lines;
+  const accounts = (pick: (line: (typeof creditAccounts)[number]) => number) =>
+    creditAccounts
+      .filter((line) => pick(line) > 0)
+      .map((line) => `${line.label} ${money(pick(line))}`)
+      .join(", ");
+  const lines: ExplanationLine[] = [];
+  if (credit.spent_on_credit > 0) {
+    const named = accounts((line) => line.spent_on_credit);
+    lines.push({
+      label: t("breakdown.spentOnCredit"),
+      note: named ? t("breakdown.creditNoteWithAccounts", { note: t("breakdown.spentOnCreditNote"), accounts: named }) : t("breakdown.spentOnCreditNote"),
+      amount: money(credit.spent_on_credit),
+    });
+  }
+  if (credit.paid_to_credit > 0) {
+    const named = accounts((line) => line.paid_to_credit);
+    lines.push({
+      label: t("breakdown.paidToCredit"),
+      note: named ? t("breakdown.creditNoteWithAccounts", { note: t("breakdown.paidToCreditNote"), accounts: named }) : t("breakdown.paidToCreditNote"),
+      amount: money(credit.paid_to_credit),
+    });
+  }
+  return lines;
+}
+
 export function spendingExplanation(summary: CycleSummary, money: Money, words: Words): ExplanationData {
   const { t } = words;
   const notes = [t("breakdown.spendingNote")];
@@ -71,7 +105,7 @@ export function spendingExplanation(summary: CycleSummary, money: Money, words: 
   return {
     title: t("breakdown.spendingTitle", { period: periodBasis(summary) }),
     rule: t("breakdown.spendingRule"),
-    lines: summary.spending.lines.map((line) => lineOf(line, money, words)),
+    lines: [...summary.spending.lines.map((line) => lineOf(line, money, words)), ...creditLines(summary, money, words)],
     total: { label: t("breakdown.totalSpending"), amount: money(summary.spending.amount) },
     notes,
     link: { href: `${ledgerPeriod(summary)}&type=expense`, label: t("breakdown.viewSpending") },

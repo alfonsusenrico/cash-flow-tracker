@@ -1,18 +1,26 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { renderWithIntl } from "@/lib/i18n/testing";
 import SettingsLayout from "./layout";
 
 const navigation = vi.hoisted(() => ({ pathname: "/settings" }));
+const workspace = vi.hoisted(() => ({ logout: vi.fn() }));
 vi.mock("next/navigation", () => ({ usePathname: () => navigation.pathname }));
+vi.mock("@/components/workspace/context", () => ({ useWorkspace: () => workspace }));
+
+const probe = (
+  <section aria-labelledby="probe-title">
+    <h2 id="probe-title" data-settings-heading tabIndex={-1}>
+      Isi bagian
+    </h2>
+  </section>
+);
 
 function renderAt(pathname: string) {
   navigation.pathname = pathname;
-  return render(
-    <SettingsLayout>
-      <section aria-labelledby="probe-title"><h2 id="probe-title" data-settings-heading tabIndex={-1}>Isi bagian</h2></section>
-    </SettingsLayout>,
-  );
+  return render(<SettingsLayout>{probe}</SettingsLayout>);
 }
 
 const TITLES = [
@@ -20,57 +28,64 @@ const TITLES = [
   "Nama pengirim", "Sesi uji",
 ];
 
-describe("settings section navigation", () => {
+/** Spec "Sectioned Settings Page" and "Sign Out in Pengaturan" (apply-markas-pengaturan D2, D3, D5, D20). */
+describe("Pengaturan rail", () => {
   beforeEach(() => {
     navigation.pathname = "/settings";
+    vi.clearAllMocks();
   });
 
-  it("lists the nine sections with the Akun group in both navigations and marks HP & perangkat current at /settings", async () => {
+  it("lists the nine sections in three labelled groups and marks HP & perangkat current at /settings", async () => {
     const { container } = renderAt("/settings");
-    const wide = screen.getByRole("navigation", { name: "Bagian pengaturan" });
-    // The phone index and the back link are hidden by the wide layout's styles; their markup is still checked.
-    const narrow = screen.getByRole("navigation", { name: "Daftar bagian pengaturan", hidden: true });
-    expect(within(wide).getAllByRole("link").map((link) => link.textContent)).toEqual(TITLES);
-    expect(within(wide).getByRole("link", { name: "HP & perangkat" })).toHaveAttribute("aria-current", "page");
-    expect(within(wide).getByRole("heading", { name: "Akun" })).toBeInTheDocument();
-    expect(within(wide).getByRole("list", { name: "Akun" }).querySelectorAll("a")).toHaveLength(6);
-    expect(within(narrow).getAllByRole("link", { hidden: true })).toHaveLength(9);
-    expect(within(narrow).getByRole("link", { name: /Nama pengirim/, hidden: true })).toHaveAttribute("href", "/settings/pengirim");
-    expect(within(narrow).queryByRole("link", { current: "page", hidden: true })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Semua pengaturan", hidden: true })).not.toBeInTheDocument();
+    const rail = screen.getByRole("navigation", { name: "Bagian pengaturan" });
+    expect(within(rail).getAllByRole("link").map((link) => link.textContent)).toEqual(TITLES);
+    expect(within(rail).getByRole("link", { name: "HP & perangkat" })).toHaveAttribute("aria-current", "page");
+    expect(within(within(rail).getByRole("list", { name: "Perangkat" })).getAllByRole("link")).toHaveLength(2);
+    expect(within(within(rail).getByRole("list", { name: "Tampilan" })).getAllByRole("link")).toHaveLength(1);
+    expect(within(within(rail).getByRole("list", { name: "Akun" })).getAllByRole("link")).toHaveLength(6);
+    expect(screen.queryByRole("link", { name: "Semua pengaturan" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("navigation")).toHaveLength(1);
+    expect(container.querySelector(".set")).not.toBeNull();
     expect((await axe(container)).violations).toHaveLength(0);
   });
 
-  it("keeps old addresses and the two new sections working", () => {
-    for (const slug of ["profil", "gaji", "anggaran", "perangkat", "pemetaan", "pengirim", "kebiasaan", "tampilan", "sesi-uji"]) {
+  it("keeps every section address and marks only the open one current", () => {
+    for (const slug of ["perangkat", "kebiasaan", "tampilan", "profil", "gaji", "anggaran", "pemetaan", "pengirim", "sesi-uji"]) {
       const view = renderAt(`/settings/${slug}`);
-      expect(within(screen.getByRole("navigation", { name: "Bagian pengaturan" })).getByRole("link", { current: "page" })).toHaveAttribute("href", `/settings/${slug}`);
+      const rail = screen.getByRole("navigation", { name: "Bagian pengaturan" });
+      expect(within(rail).getByRole("link", { current: "page" })).toHaveAttribute("href", `/settings/${slug}`);
+      expect(within(rail).getAllByRole("link").filter((link) => link.hasAttribute("aria-current"))).toHaveLength(1);
       view.unmount();
     }
   });
 
-  it("marks the open section current and offers the way back on narrow screens", () => {
-    renderAt("/settings/perangkat");
-    const navs = screen.getAllByRole("navigation");
-    expect(navs).toHaveLength(1);
-    expect(within(navs[0]).getByRole("link", { name: "HP & perangkat" })).toHaveAttribute("aria-current", "page");
-    expect(within(navs[0]).getByRole("link", { name: "Profil" })).not.toHaveAttribute("aria-current");
-    // Hidden on wide screens by the layout's styles, so its accessible name is not computed here.
-    expect(screen.getByText("Semua pengaturan").closest("a")).toHaveAttribute("href", "/settings");
-  });
-
-  it("keeps focus on page load and moves it to the section heading when the activated link disappears", () => {
+  it("keeps focus on page load and moves it to the section title after a rail choice", () => {
     const view = renderAt("/settings");
     expect(document.body).toHaveFocus();
-    const link = screen.getByRole("link", { name: /Pemetaan notifikasi.*dipetakan ke rekening/, hidden: true });
-    link.focus();
+    screen.getByRole("link", { name: "Pemetaan notifikasi" }).focus();
     navigation.pathname = "/settings/pemetaan";
-    view.rerender(
-      <SettingsLayout>
-        <section aria-labelledby="probe-title"><h2 id="probe-title" data-settings-heading tabIndex={-1}>Isi bagian</h2></section>
-      </SettingsLayout>,
-    );
-    // jsdom has no layout, so the link reads as hidden once its screen opens; the section heading takes focus.
+    view.rerender(<SettingsLayout>{probe}</SettingsLayout>);
     expect(screen.getByRole("heading", { name: "Isi bagian" })).toHaveFocus();
+  });
+
+  it("ends with Keluar, which signs out exactly as the account menu does", async () => {
+    renderAt("/settings/tampilan");
+    const rail = screen.getByRole("navigation", { name: "Bagian pengaturan" });
+    const signOut = within(rail).getByRole("button", { name: "Keluar" });
+    expect(rail.lastElementChild).toBe(signOut);
+    await userEvent.setup().click(signOut);
+    expect(workspace.logout).toHaveBeenCalledOnce();
+  });
+
+  it("reads the rail in English for an English account", () => {
+    navigation.pathname = "/settings/anggaran";
+    renderWithIntl(<SettingsLayout>{probe}</SettingsLayout>, { language: "en" });
+    const rail = screen.getByRole("navigation", { name: "Settings sections" });
+    expect(within(rail).getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Phone & devices", "Habits", "Appearance", "Profile", "Salary & cycle", "Currency & budget", "Notification mapping",
+      "Sender names", "Test session",
+    ]);
+    expect(within(rail).getByRole("list", { name: "Account" })).toBeInTheDocument();
+    expect(within(rail).getByRole("button", { name: "Sign out" })).toBeInTheDocument();
   });
 });

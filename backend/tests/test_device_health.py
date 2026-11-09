@@ -16,7 +16,10 @@ from psycopg import sql
 ROOT = Path(__file__).resolve().parents[2]
 MIGRATIONS = ROOT / "db/migrations"
 V42 = MIGRATIONS / "V42__device_health.sql"
-INVALID_KEY = {"ok": False, "detail": {"code": "device_key_invalid"}}
+# The phone sends no Accept-Language and the key names no account, so the message is English (localize-server-text D1).
+INVALID_KEY = {"ok": False, "detail": {
+    "code": "device_key_invalid", "params": {}, "message": "The device key was rejected. Pair the phone again.",
+}}
 HEALTH_FIELDS = {
     "reported_at", "ready", "app_version", "listener_connected", "notification_access", "post_notifications",
     "battery_unrestricted", "self_test", "last_capture_at", "queue_pending",
@@ -69,7 +72,7 @@ def make_owner(client):
         password = "synthetic-pass-1"
         with db_conn() as conn:
             user_id = conn.execute(
-                "INSERT INTO users (username, password_hash, invite_code) VALUES (%s, %s, 'TEST') RETURNING id",
+                "INSERT INTO users (username, password_hash, invite_code, language) VALUES (%s, %s, 'TEST', 'id') RETURNING id",
                 (username, bcrypt.hash(password)),
             ).fetchone()["id"]
             conn.commit()
@@ -305,7 +308,7 @@ def test_reports_are_rate_limited_per_key(owner, monkeypatch):
 
     assert statuses == [200] * 30
     assert limited.status_code == 429
-    assert limited.json()["detail"] == {"code": "device_health_rate_limited"}
+    assert limited.json()["detail"]["code"] == "device_health_rate_limited"
     assert limited.headers["retry-after"] == "60"
     assert other_status == 200
     stored = {device["key_prefix"]: device["health"] for device in listed(owner["web"])}

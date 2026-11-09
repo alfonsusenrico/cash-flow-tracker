@@ -49,7 +49,7 @@ def test_model_abstention_is_never_reported_as_a_record(outcome, reason):
     provider = AsyncMock()
     provider.interpret.return_value = proposal
     with patch("app.services.notification_dry_run.context_for", return_value=(facts, context)):
-        result = asyncio.run(run_dry_run(provider, str(uuid4()), case.event))
+        result = asyncio.run(run_dry_run(provider, str(uuid4()), case.event, account_language="id"))
     assert result["status"] == outcome
     assert "type" not in result and "account" not in result
     if outcome == "needs_review":
@@ -62,7 +62,7 @@ def test_dry_run_rejects_owned_but_wrong_institution_account():
     provider = AsyncMock()
     provider.interpret.return_value = proposal
     with patch("app.services.notification_dry_run.context_for", return_value=(facts, context)):
-        result = asyncio.run(run_dry_run(provider, str(uuid4()), case.event))
+        result = asyncio.run(run_dry_run(provider, str(uuid4()), case.event, account_language="id"))
     assert result == {"status": "needs_review", "error_code": "conflicting_observed_account"}
 
 
@@ -72,7 +72,7 @@ def test_dry_run_returns_only_the_observed_expense_endpoint():
     provider = AsyncMock()
     provider.interpret.return_value = proposal
     with patch("app.services.notification_dry_run.context_for", return_value=(facts, context)):
-        result = asyncio.run(run_dry_run(provider, str(uuid4()), case.event))
+        result = asyncio.run(run_dry_run(provider, str(uuid4()), case.event, account_language="id"))
     assert result["status"] == "would_record"
     assert result["source"] == "GoPay" and result["target"] is None
 
@@ -82,7 +82,7 @@ def test_dry_run_uses_canonical_movement_pillar_and_qualified_pockets():
     provider = AsyncMock()
     provider.interpret.return_value = proposal
     with patch("app.services.notification_dry_run.context_for", return_value=(facts, context)):
-        result = asyncio.run(run_dry_run(provider, str(uuid4()), case.event))
+        result = asyncio.run(run_dry_run(provider, str(uuid4()), case.event, account_language="id"))
     assert result["status"] == "would_record"
     assert result["source"] == "Bank Jago · Kantong Utama"
     assert result["target"] == "Bank Jago · Dana Darurat"
@@ -95,10 +95,10 @@ def test_redacted_income_quote_is_valid_but_rewritten_quote_is_rejected():
     provider = AsyncMock()
     provider.interpret.return_value = proposal.model_copy(update={"direction_evidence": "[SELF] has sent"})
     with patch("app.services.notification_dry_run.context_for", return_value=(facts, context)):
-        result = asyncio.run(run_dry_run(provider, str(uuid4()), case.event))
+        result = asyncio.run(run_dry_run(provider, str(uuid4()), case.event, account_language="id"))
         assert result["status"] == "would_record"
         provider.interpret.return_value = proposal
-        result = asyncio.run(run_dry_run(provider, str(uuid4()), case.event))
+        result = asyncio.run(run_dry_run(provider, str(uuid4()), case.event, account_language="id"))
     assert result == {"status": "needs_review", "error_code": "fabricated_direction_evidence"}
 
 
@@ -107,7 +107,7 @@ def test_invalid_provider_output_requires_review_instead_of_success():
     provider = AsyncMock()
     provider.interpret.side_effect = ProviderError("provider_invalid_output")
     with patch("app.services.notification_dry_run.context_for", return_value=(facts, context)):
-        result = asyncio.run(run_dry_run(provider, str(uuid4()), case.event))
+        result = asyncio.run(run_dry_run(provider, str(uuid4()), case.event, account_language="id"))
     assert result == {"status": "needs_review", "error_code": "provider_invalid_output"}
 
 
@@ -128,7 +128,7 @@ def test_dry_run_configuration_requires_development_flag_and_credential():
 
 def test_direct_dry_run_is_authenticated_and_never_calls_ingestion():
     user_id = str(uuid4())
-    app.dependency_overrides[get_current_user] = lambda: {"id": user_id}
+    app.dependency_overrides[get_current_user] = lambda: {"id": user_id, "language": "id", "region": "ID"}
     result = {"status": "would_record", "description": "Bayar Kedai Awan", "amount": 125000, "currency": "IDR"}
     with patch("app.routers.ingest.dry_run_guard", return_value=object()), \
          patch("app.services.notification_dry_run.run_dry_run", new=AsyncMock(return_value=result)) as dry_run, \
@@ -136,6 +136,7 @@ def test_direct_dry_run_is_authenticated_and_never_calls_ingestion():
         response = TestClient(app).post("/api/ingest/notifications/dry-run", json={"event": payload()})
     assert response.status_code == 200 and response.json()["result"] == result
     assert dry_run.await_args.args[1] == user_id
+    assert dry_run.await_args.kwargs == {"account_language": "id"}
     assert accept_event.call_count == 0
     app.dependency_overrides.clear()
 
@@ -159,5 +160,5 @@ def test_ignored_and_stockbit_dry_runs_never_call_provider():
             "body_text": cases[name].event["body_text"], "post_time": cases[name].event["post_time"],
             "payload_hash": name,
         }).model_dump()
-        assert asyncio.run(run_dry_run(provider, str(uuid4()), event))["status"] == expected
+        assert asyncio.run(run_dry_run(provider, str(uuid4()), event, account_language="id"))["status"] == expected
     assert provider.interpret.await_count == 0

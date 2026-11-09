@@ -14,8 +14,8 @@ from datetime import datetime, timedelta, timezone
 from itertools import combinations
 from typing import Any
 
-from fastapi import HTTPException
 
+from app.errors import ErrorCode, api_error
 from app.services.ledger_mutations import LIQUID_ACCOUNT_TYPES
 from app.services.notification_evidence import SUPPORTED_PACKAGES, collect_facts
 from app.services.notification_resolution import INSTITUTION_LABELS
@@ -47,11 +47,11 @@ def load_scope(cur, user_id: str, account_id: str) -> CheckScope:
     rows = cur.fetchall()
     account = next((row for row in rows if str(row["id"]) == account_id), None)
     if account is None:
-        raise HTTPException(status_code=404, detail="Account not found")
+        raise api_error(404, ErrorCode.ACCOUNT_NOT_FOUND)
     for row in rows:
         liquid = row["type"] in LIQUID_ACCOUNT_TYPES and not row.get("instrument_type")
         if not liquid or row.get("investment_tracking_mode") == "amount":
-            raise HTTPException(status_code=409, detail={"code": "balance_check_not_liquid"})
+            raise api_error(409, ErrorCode.BALANCE_CHECK_NOT_LIQUID)
     pockets = [str(row["id"]) for row in rows if str(row["id"]) != account_id]
     return CheckScope(account=account, account_ids=[account_id, *pockets], is_parent=bool(pockets))
 
@@ -304,9 +304,7 @@ def record_match(cur, user_id: str, account_id: str, actual_balance: int) -> dic
     )
     recorded = recorded_balance(cur, user_id, scope.account_ids)
     if recorded != actual_balance:
-        raise HTTPException(status_code=409, detail={
-            "code": "balance_mismatch", "difference": actual_balance - recorded,
-        })
+        raise api_error(409, ErrorCode.BALANCE_MISMATCH, extra={"difference": actual_balance - recorded})
     cur.execute(
         """INSERT INTO account_balance_matches (user_id, account_id, balance)
            VALUES (%s, %s, %s) RETURNING matched_at""",

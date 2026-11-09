@@ -11,8 +11,6 @@ import type { FlowLink, FlowLinkKind, FlowNode } from "../types";
 
 export const BALANCE_KINDS: ReadonlySet<FlowLinkKind> = new Set(["opening", "remaining", "negative_opening", "negative_closing"]);
 
-const FOLDED_INBOUND: ReadonlySet<FlowLinkKind> = new Set(["income"]);
-
 export type Highlight = "all" | "spend" | "transfer" | "save" | "waiting";
 
 export function highlightMatches(kind: FlowLinkKind, highlight: Highlight): boolean {
@@ -56,7 +54,7 @@ export interface DrawnLink {
 export interface FlowModel {
   nodes: Map<string, DrawnNode>;
   links: DrawnLink[];
-  /** Server links that are not drawn: folded balances, or a cycle between accounts. */
+  /** Server links that are not drawn: hidden kinds, or a cycle between accounts. */
   hiddenLinkKeys: string[];
   columns: number;
 }
@@ -70,15 +68,22 @@ function patternFor(kind: FlowLinkKind, waiting: boolean): DrawnLink["pattern"] 
   return null;
 }
 
+export interface ModelOptions {
+  /** Draw the opening, negative and "Masih ada" links; the web map never does (apply-markas-analisis D15). */
+  balances: boolean;
+  /** Draw the income links from their sources. */
+  income: boolean;
+  /** The deepest account column; transfers beyond it are listed in the table only. */
+  maxDepth?: number;
+}
+
 /** The drawable model for the visible links: columns, mirrored copies and netted opposite transfers.
- * Folded hides the balance and income links; the table always lists every link. */
-export function buildFlowModel(nodes: FlowNode[], links: FlowLink[], { folded }: { folded: boolean }): FlowModel {
+ * Hidden kinds stay out of the drawing; the table always lists every link. */
+export function buildFlowModel(nodes: FlowNode[], links: FlowLink[], { balances, income, maxDepth = 4 }: ModelOptions): FlowModel {
   const byId = new Map(nodes.map((node) => [node.id, node]));
   const hiddenLinkKeys: string[] = [];
-  // Folded, the map shows only money that left or moved, so spending sets the scale (the approved preview):
-  // balances and income are hidden from the drawing and stay in the table and the Masuk figure.
   const visible = links.filter((link) => {
-    const hide = folded && (BALANCE_KINDS.has(link.kind) || FOLDED_INBOUND.has(link.kind));
+    const hide = (!balances && BALANCE_KINDS.has(link.kind)) || (!income && link.kind === "income");
     if (hide) hiddenLinkKeys.push(link.key);
     return !hide && byId.has(link.from) && byId.has(link.to);
   });
@@ -110,7 +115,7 @@ export function buildFlowModel(nodes: FlowNode[], links: FlowLink[], { folded }:
   for (let round = 0; round < 8; round++) {
     for (const transfer of drawnTransfers) {
       const from = depth.get(transfer.from) ?? 1;
-      depth.set(transfer.to, Math.max(depth.get(transfer.to) ?? 1, Math.min(from + 1, 4)));
+      depth.set(transfer.to, Math.max(depth.get(transfer.to) ?? 1, Math.min(from + 1, maxDepth)));
     }
   }
   const accountDepth = Math.max(1, ...depth.values());
@@ -166,7 +171,7 @@ export function buildFlowModel(nodes: FlowNode[], links: FlowLink[], { folded }:
     node.value = Math.max(moved(node.inbound), moved(node.outbound));
   }
   for (const [key, node] of drawn) if (node.value <= 0) drawn.delete(key);
-  // Folded, nothing may come from the left: the first column is then dropped so the map uses the width.
+  // Without income nothing may come from the left: the first column is then dropped so the map uses the width.
   if (drawn.size && ![...drawn.values()].some((node) => node.column === 0)) {
     for (const node of drawn.values()) node.column -= 1;
   }
@@ -184,6 +189,8 @@ export interface LayoutOptions {
   pad: number;
   leftLabel: number;
   rightLabel: number;
+  /** The least vertical room a node takes in its column, so labels beside thin nodes never touch (the prototype's 24). */
+  slot?: number;
 }
 
 export interface PlacedNode {
@@ -276,6 +283,9 @@ export function layoutFlow(model: FlowModel, options: LayoutOptions): FlowLayout
   const minHeight = (item: ColumnItem) => (item.type === "dummy" ? 0 : item.isStation ? options.stationMin : options.barMin);
   const gap = (previous: ColumnItem, next: ColumnItem) =>
     previous.type === "dummy" && next.type === "dummy" && previous.source === next.source ? 0 : options.pad;
+  // A slot keeps thin nodes' labels apart but does not shrink the scale: as in the prototype, the tallest column's
+  // money fits `height` and the slots may make the drawing taller.
+  const room = (item: ColumnItem, height: number) => (item.type === "node" && options.slot ? Math.max(height, options.slot) : height);
   const columnHeight = (column: ColumnItem[], scale: number) =>
     column.reduce((sum, item, index) => sum + Math.max(item.value * scale, minHeight(item)) + (index ? gap(column[index - 1], item) : 0), 0);
   let scale = options.height / Math.max(1, ...columns.map((column) => column.reduce((sum, item) => sum + item.value, 0)));
@@ -293,7 +303,7 @@ export function layoutFlow(model: FlowModel, options: LayoutOptions): FlowLayout
       item.x1 = columnX[index] + columnWidth[index];
       item.y0 = y;
       item.y1 = y + item.h;
-      y = item.y1;
+      y += room(item, item.h);
     });
   });
 

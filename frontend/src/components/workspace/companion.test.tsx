@@ -14,7 +14,12 @@ const NOW = new Date("2026-11-02T03:00:00Z"); // 10:00 in Asia/Jakarta
 
 function text(language: "en" | "id" = "id"): CompanionText {
   const t = createTranslator({ locale: language, messages: CATALOGUES[language], namespace: "shell.companion" });
-  return { t: t as unknown as CompanionText["t"], format: createFormat({ language, region: "ID" }) };
+  const health = createTranslator({ locale: language, messages: CATALOGUES[language], namespace: "settings.health" });
+  return {
+    t: t as unknown as CompanionText["t"],
+    health: health as unknown as CompanionText["health"],
+    format: createFormat({ language, region: "ID" }),
+  };
 }
 
 function health(overrides: Partial<DeviceHealth> = {}): DeviceHealth {
@@ -147,8 +152,8 @@ describe("companionState in English (add-language-system)", () => {
     expect(companionState([device({ health: null })], NOW, text("en")).detail).toBe("Phone connected but not reporting yet");
   });
 
-  it("keeps a device problem from Pengaturan in Indonesian and marks it", () => {
+  it("words a device problem in English since Pengaturan is translated (apply-markas-pengaturan D19)", () => {
     const state = companionState([device({ health: health({ ready: false, notification_access: false }) })], NOW, text("en"));
-    expect(state).toEqual({ tone: "warn", title: "Phone needs a check", detail: "Izin notifikasi mati.", detailLang: "id" });
+    expect(state).toEqual({ tone: "warn", title: "Phone needs a check", detail: "Notification access is off." });
   });
 });

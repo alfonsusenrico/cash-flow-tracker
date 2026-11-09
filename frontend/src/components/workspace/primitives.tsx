@@ -87,47 +87,6 @@ export function Pill({ tone = "neutral", icon, children, className }: { tone?: T
   );
 }
 
-export function KpiStrip({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <section className="ws-card ws-kpis" aria-label={label}>
-      {children}
-    </section>
-  );
-}
-
-/** One KPI: label, the figure (usually an explainable button), at most one chip and a caption. */
-export function Kpi({
-  icon,
-  label,
-  value,
-  chip,
-  caption,
-  valueIsWords = false,
-}: {
-  icon: IconName;
-  label: string;
-  value: ReactNode;
-  chip?: ReactNode;
-  caption?: ReactNode;
-  valueIsWords?: boolean;
-}) {
-  return (
-    <div className="ws-kpi">
-      <div className="ws-tile" aria-hidden="true">
-        <Icon name={icon} />
-      </div>
-      <div className="ws-kpi-body">
-        <div className="ws-kpi-label">{label}</div>
-        <div className="ws-kpi-row">
-          <div className={cn("ws-kpi-value", valueIsWords && "is-words")}>{value}</div>
-          {chip}
-        </div>
-        {caption && <div className="ws-kpi-caption">{caption}</div>}
-      </div>
-    </div>
-  );
-}
-
 export function DeltaChip({ tone, children, title }: { tone: Tone; children: ReactNode; title?: string }) {
   return (
     <span className={cn("ws-chip-delta", `ws-tone-${tone}`)} title={title}>
@@ -158,29 +117,54 @@ export function Segmented<T extends string>({
   );
 }
 
-export function ChipGroup<T extends string>({
+/**
+ * A segmented radio group (SPEC `.seg`): one tab stop, arrow keys move and choose, `aria-checked` marks the choice.
+ * With `value` null no option is checked, and the first option takes the tab stop.
+ */
+export function RadioSegments<T extends string>({
   label,
+  labelledBy,
   options,
-  selected,
-  onToggle,
+  value,
+  onChange,
+  className,
 }: {
-  label: string;
-  options: { value: T; label: string; count?: number }[];
-  selected: readonly T[];
-  onToggle: (value: T) => void;
+  label?: string;
+  labelledBy?: string;
+  /** An option may name its own `lang`, such as a language written in its own words. */
+  options: { value: T; label: string; disabled?: boolean; lang?: string }[];
+  value: T | null;
+  onChange: (value: T) => void;
+  className?: string;
 }) {
+  const enabled = options.filter((option) => !option.disabled);
+  const focusable = value !== null && enabled.some((option) => option.value === value) ? value : enabled[0]?.value;
+  const move = (event: React.KeyboardEvent<HTMLButtonElement>, from: T) => {
+    const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
+    if (!step) return;
+    event.preventDefault();
+    const index = enabled.findIndex((option) => option.value === from);
+    const next = enabled[(index + step + enabled.length) % enabled.length];
+    if (!next) return;
+    onChange(next.value);
+    event.currentTarget.parentElement?.querySelector<HTMLElement>(`[data-value="${next.value}"]`)?.focus();
+  };
   return (
-    <div className="ws-chips" role="group" aria-label={label}>
+    <div className={cn("ws-seg", className)} role="radiogroup" aria-label={label} aria-labelledby={labelledBy}>
       {options.map((option) => (
         <button
           key={option.value}
           type="button"
-          className="ws-chip"
-          aria-pressed={selected.includes(option.value)}
-          onClick={() => onToggle(option.value)}
+          role="radio"
+          data-value={option.value}
+          lang={option.lang}
+          aria-checked={option.value === value}
+          disabled={option.disabled}
+          tabIndex={option.value === focusable ? 0 : -1}
+          onClick={() => onChange(option.value)}
+          onKeyDown={(event) => move(event, option.value)}
         >
           {option.label}
-          {option.count !== undefined && <span className="ws-cnt">{option.count}</span>}
         </button>
       ))}
     </div>
@@ -210,34 +194,6 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
       {onRetry && (
         <RetryButton onRetry={onRetry} />
       )}
-    </div>
-  );
-}
-
-/** A KPI card: small label with a colour dot, a large figure and one muted line (refine-workspace-layout D5). */
-export function KpiCard({
-  label,
-  tone,
-  hero,
-  value,
-  valueIsWords,
-  caption,
-}: {
-  label: string;
-  tone: "in" | "out" | "save" | "net" | "safe" | "inv" | "neutral";
-  hero?: boolean;
-  value: ReactNode;
-  valueIsWords?: boolean;
-  caption: ReactNode;
-}) {
-  return (
-    <div className="ws-kcard" data-hero={hero || undefined} data-tone={tone}>
-      <div className="ws-kcard-l">
-        {!hero && <span className="ws-kcard-dot" aria-hidden="true" />}
-        {label}
-      </div>
-      <div className={valueIsWords ? "ws-kcard-v is-words" : "ws-kcard-v"}>{value}</div>
-      <div className="ws-kcard-c">{caption}</div>
     </div>
   );
 }

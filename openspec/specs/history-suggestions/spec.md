@@ -86,7 +86,7 @@ When the model is not configured or a model call fails, the run SHALL complete w
 - **THEN** it SHALL complete with `error_code = ai_disabled`, no model and no prompt version, and keep its memory suggestions.
 
 ### Requirement: Suggestion Storage and Privacy
-Each suggestion SHALL store the transaction, the run, the source (`memory`, `rule` or `ai`), the proposed merchant, notes, category, pillar and offset, the confidence (model only), a short Indonesian reason, the row's values when proposed, and a status `pending`, `accepted`, `rejected` or `superseded`.
+Each suggestion SHALL store the transaction, the run, the source (`memory`, `rule` or `ai`), the proposed merchant, notes, category, pillar and offset, the confidence (model only), a short reason in the account's language at creation (the model's reason follows the AI output language), the row's values when proposed, and a status `pending`, `accepted`, `rejected` or `superseded`.
 
 #### Scenario: Redacted model input
 - **GIVEN** a row whose notes contain the owner's name
@@ -96,6 +96,10 @@ Each suggestion SHALL store the transaction, the run, the source (`memory`, `rul
 #### Scenario: Logs
 - **WHEN** a run completes
 - **THEN** its log line SHALL contain counts and codes and no merchant, notes or model output.
+
+#### Scenario: Template reason in English
+- **WHEN** a memory-sourced suggestion is stored for an English account
+- **THEN** its reason SHALL be English and SHALL carry its reason code and parameters, and an Indonesian account's reason SHALL be byte-identical to today's wording
 
 ### Requirement: Listing and Supersession
 `GET /api/review/suggestions` SHALL list the owner's pending suggestions (at most 1 000, newest row first) grouped by direction, proposed merchant (or notes), category and offset category, each group with count, total, date range, the distinct before values with their counts, the proposed values, the sources and its suggestions with before and after values, reason and confidence.
@@ -137,11 +141,11 @@ Each suggestion SHALL store the transaction, the run, the source (`memory`, `rul
 - **THEN** the response SHALL be 422.
 
 ### Requirement: Saran Perbaikan Riwayat Section
-The `/review` page SHALL offer, in Indonesian and regardless of the rest of the queue, history suggestions as a folded section "Saran dari riwayat" marked optional, shown while suggestions are pending. A "Cari saran dari riwayat" control SHALL always open the period, the estimate before any run, progress while it runs and the last run. Each pending group SHALL open as a Tinjau item with its accept and reject actions.
+The `/review` page SHALL offer, in the interface language and regardless of the rest of the queue, history suggestions in the optional folder "Saran" below the rail's rule, shown while suggestions are pending. "Cari saran dari riwayat" in the page's "…" menu SHALL always open a dialog with the period, the estimate before any run, progress while it runs and the last run. Each pending group SHALL open as a Tinjau item with its accept and reject actions.
 
 #### Scenario: Estimate then confirm by keyboard
-- **WHEN** the owner presses Enter on "Hitung perkiraan", tabs to "Mulai buat saran" and presses Enter
-- **THEN** the first request SHALL carry no `confirm`, the second SHALL carry `confirm: true`, and progress SHALL show the processed and selected counts.
+- **WHEN** the owner opens "Cari saran dari riwayat", presses Enter on "Hitung perkiraan", tabs to "Mulai buat saran" and presses Enter
+- **THEN** the first request SHALL carry no `confirm`, the second SHALL carry `confirm: true`, and the dialog SHALL show progress with the processed and selected counts.
 
 #### Scenario: Reject one row
 - **WHEN** the owner opens a group's rows and activates "Tolak" on one row
@@ -154,7 +158,11 @@ The `/review` page SHALL offer, in Indonesian and regardless of the rest of the 
 #### Scenario: Not counted as waiting
 - **GIVEN** three pending suggestions and nothing else in Tinjau
 - **WHEN** Tinjau loads
-- **THEN** "Saran dari riwayat" SHALL show 3 marked optional, the header and badge SHALL show 0 needing the owner, and Tinjau SHALL show "Semua sudah ditinjau"
+- **THEN** "Saran" SHALL show 3 below the rule, the hero and badge SHALL show 0 needing the owner, and the item pane SHALL show "Semua sudah ditinjau"
+
+#### Scenario: Start disabled before an estimate
+- **WHEN** the dialog opens and no estimate has been shown for the current period
+- **THEN** "Mulai buat saran" SHALL be disabled, and changing a date after an estimate SHALL disable it again
 
 ### Requirement: Confirmed Suggestion Run Start
 Only a suggestion run request with `confirm: true` SHALL create a run and start it in the background.
@@ -287,19 +295,28 @@ Accept ids that are not pending SHALL be reported as skipped. Any id that is not
 - **THEN** the response SHALL report one accepted, one skipped and one feedback row.
 
 ### Requirement: Suggestion Period and Estimate Controls
-The section SHALL offer a period (default the last three months) checked in the browser like the backend, and an estimate shown before any run with a "Mulai buat saran" confirmation and a "Batal" that returns focus.
+The dialog SHALL offer a period (default the last three months) checked in the browser like the backend, and an estimate shown before any run with a "Mulai buat saran" confirmation and a "Batal" that returns focus.
 
 #### Scenario: Cancel the estimate
 - **WHEN** the owner activates "Batal" on a shown estimate
 - **THEN** no run request SHALL be sent and focus SHALL return to "Hitung perkiraan".
 
+#### Scenario: Invalid period
+- **WHEN** the owner sets "Sampai tanggal" before "Dari tanggal" and presses "Hitung perkiraan"
+- **THEN** no request SHALL be sent, the period field SHALL be marked invalid and the reason SHALL be shown under it
+
 ### Requirement: Suggestion Progress and Last Run
-The section SHALL show progress from the run's real counts while it runs, and the last run's window, counts and the reason when suggestions were limited.
+The dialog SHALL show progress from the run's real counts while it runs, and the last run's window, counts and the reason when suggestions were limited. A run SHALL continue when the dialog is closed, and reopening the dialog SHALL show its progress or its result.
 
 #### Scenario: Model unavailable
 - **GIVEN** the last run completed without the model
-- **WHEN** the section is shown
+- **WHEN** the dialog is shown
 - **THEN** it SHALL show that run's window, its counts and why model suggestions were skipped.
+
+#### Scenario: Closed while running
+- **GIVEN** a run in progress
+- **WHEN** the owner closes the dialog and opens it again
+- **THEN** no new run SHALL be requested, and the dialog SHALL show the same run's progress, or its result once it has finished
 
 ### Requirement: Suggestion Group Actions
 The section SHALL show the pending groups with a before → after preview, their sources, "Terima semua" and "Tolak semua", and per row "Terima" and "Tolak". Groups above 200 suggestions SHALL be sent in batches.

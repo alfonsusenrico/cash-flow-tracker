@@ -217,10 +217,10 @@ def test_answers_are_read_with_the_open_phrase_first():
 
 def test_labels_name_the_day_and_clock():
     device_time = sent(2, 15)
-    assert moment_label(local(11, 2, 14), device_time, TZ) == "Hari ini 14.00"
-    assert moment_label(local(11, 1, 14), device_time, TZ) == "Kemarin 14.00"
-    assert moment_label(local(10, 26, 9, 5), device_time, TZ) == "Sen 26 Okt 09.05"
-    assert moment_label(datetime(2025, 10, 3, 14, tzinfo=JAKARTA), device_time, TZ) == "Jum 3 Okt 2025 14.00"
+    assert moment_label("id", local(11, 2, 14), device_time, TZ) == "Hari ini 14.00"
+    assert moment_label("id", local(11, 1, 14), device_time, TZ) == "Kemarin 14.00"
+    assert moment_label("id", local(10, 26, 9, 5), device_time, TZ) == "Sen 26 Okt 09.05"
+    assert moment_label("id", datetime(2025, 10, 3, 14, tzinfo=JAKARTA), device_time, TZ) == "Jum 3 Okt 2025 14.00"
 
 
 def test_time_word_spans_cover_every_phrase_kind():

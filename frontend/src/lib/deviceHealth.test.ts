@@ -1,13 +1,25 @@
 import { describe, expect, it } from "vitest";
 import type { DeviceHealth, PairedDevice } from "@/lib/api";
 import { healthReport as fixtureReport, pairedPhone } from "@/test/deviceHealthFixtures";
+import { createTranslator } from "next-intl";
+import { CATALOGUES } from "@/lib/i18n/testing";
 import {
-  READY_MESSAGE,
-  checklistAnnouncement,
+  checklistAnnouncement as announce,
   deviceProblems,
   pairingChecklist,
+  problemText,
   type ChecklistStepState,
+  type HealthWords,
+  type PairingChecklist,
 } from "@/lib/deviceHealth";
+
+const words = createTranslator({ locale: "id", messages: CATALOGUES.id, namespace: "settings.health" }) as unknown as HealthWords;
+const READY_MESSAGE = "HP siap. Transaksi dari notifikasi bank kini tercatat otomatis.";
+const FIX = "Aplikasi di HP menunjukkan cara memperbaikinya.";
+
+function checklistAnnouncement(checklist: PairingChecklist) {
+  return announce(checklist, words, READY_MESSAGE, FIX);
+}
 
 const NOW = Date.parse("2026-11-02T03:00:00Z");
 
@@ -62,16 +74,14 @@ describe("pairing checklist", () => {
   it.each([
     ["post", "HP tidak dapat menampilkan notifikasi tes."],
     ["capture", "Notifikasi tes tidak tertangkap oleh aplikasi."],
-    ["server", "HP belum bisa ngirim ke server."],
+    ["server", "HP belum dapat mengirim ke server."],
   ] as const)("names the failed self-test step %s", (step, text) => {
     const checklist = pairingChecklist(phone(healthReport({ self_test: { status: "failed", failed_step: step } })));
 
     expect(checklist.stage).toBe("failed");
-    expect(checklist.failed?.label).toBe("Tes tangkap notifikasi");
-    expect(checklist.selfTestProblem).toBe(text);
-    expect(checklistAnnouncement(checklist)).toBe(
-      `Tes tangkap notifikasi gagal. ${text} Tenang, aplikasi di HP-mu bakal nunjukin cara benerinnya.`,
-    );
+    expect(checklist.failed?.key).toBe("selfTest");
+    expect(checklist.selfTestStep).toBe(step);
+    expect(checklistAnnouncement(checklist)).toBe(`Tes tangkap notifikasi gagal. ${text} ${FIX}`);
   });
 
   it("fails a permission turned off after the self-test ran", () => {
@@ -79,9 +89,9 @@ describe("pairing checklist", () => {
     const background = pairingChecklist(phone(healthReport({ listener_connected: false })));
 
     expect(access.steps.map((step) => step.state)).toEqual(["ok", "fail", "ok", "ok"]);
-    expect(access.failed?.label).toBe("Izin notifikasi");
-    expect(checklistAnnouncement(access)).toBe("Izin notifikasi belum jalan. Tenang, aplikasi di HP-mu bakal nunjukin cara benerinnya.");
-    expect(background.failed?.label).toBe("Jalan di latar belakang");
+    expect(access.failed?.key).toBe("notification");
+    expect(checklistAnnouncement(access)).toBe(`Izin notifikasi belum berjalan. ${FIX}`);
+    expect(background.failed?.key).toBe("background");
   });
 
   it("is ready on the server's rule, with the battery hint kept as advice only", () => {
@@ -107,10 +117,11 @@ describe("device problems", () => {
       reported_at: new Date(NOW - 25 * 3600_000).toISOString(),
     });
 
-    expect(deviceProblems(health, NOW)).toEqual([
+    expect(deviceProblems(health, NOW)).toEqual(["notificationOff", "listenerOff", "selfTestFailed", "silent"]);
+    expect(deviceProblems(health, NOW).map((problem) => problemText(problem, health, words))).toEqual([
       "Izin notifikasi mati.",
       "Aplikasi tidak berjalan di latar belakang.",
-      "Tes tangkap notifikasi gagal. HP belum bisa ngirim ke server.",
+      "Tes tangkap notifikasi gagal. HP belum dapat mengirim ke server.",
       "Lebih dari 24 jam tidak ada kabar dari HP ini.",
     ]);
   });
@@ -121,6 +132,6 @@ describe("device problems", () => {
       reported_at: new Date(NOW - 23 * 3600_000).toISOString(),
     });
 
-    expect(deviceProblems(health, NOW)).toEqual(["Tes tangkap notifikasi belum dijalankan."]);
+    expect(deviceProblems(health, NOW).map((problem) => problemText(problem, health, words))).toEqual(["Tes tangkap notifikasi belum dijalankan."]);
   });
 });

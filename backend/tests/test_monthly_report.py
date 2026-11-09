@@ -53,7 +53,7 @@ def make_owner(user_id: str):
     ids.update(cash=str(uuid4()), pocket=str(uuid4()))
     with db_conn() as conn:
         conn.execute(
-            "INSERT INTO users (id, username, name, password_hash, invite_code) VALUES (%s, %s, 'Rani Contoh', 'synthetic-hash', 'TEST')",
+            "INSERT INTO users (id, username, name, password_hash, invite_code, language) VALUES (%s, %s, 'Rani Contoh', 'synthetic-hash', 'TEST', 'id')",
             (user_id, f"report_{uuid4().hex}"),
         )
         for key, name in (("cash", "Rekening Contoh"), ("pocket", "Kantong Contoh")):
@@ -321,11 +321,16 @@ def test_budget_is_hidden_without_one_and_compared_once_set(client, owners):
     patched = client.patch(f"/api/categories/{owner['dinner']}", json={"monthly_budget": 100_000})
     assert patched.status_code == 200, patched.text
     budget = report(client)["budget"]
-    assert budget["categories"] == [{"category_id": owner["dinner"], "name": "Makan Bareng", "budget": 100_000, "spent": 150_000, "remaining": -50_000}]
+    assert budget["categories"] == [{
+        "category_id": owner["dinner"], "name": "Makan Bareng", "budget": 100_000, "spent": 150_000, "remaining": -50_000,
+        "spending": 150_000, "spending_remaining": -50_000,
+    }]
     assert budget["overall"] is None and budget["period_basis"] == "month"
 
     as_user(owner, monthly_spending_budget=1_000_000)
-    assert report(client)["budget"]["overall"] == {"budget": 1_000_000, "spent": 832_500, "remaining": 167_500}
+    assert report(client)["budget"]["overall"] == {
+        "budget": 1_000_000, "spent": 832_500, "remaining": 167_500, "spending": 792_500, "spending_remaining": 207_500,
+    }
 
 
 def test_salary_cycle_reports_only_closed_cycles(client, owners):

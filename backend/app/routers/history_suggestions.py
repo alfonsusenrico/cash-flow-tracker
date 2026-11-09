@@ -9,6 +9,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.db.pool import db_conn
+from app.errors import api_error
 from app.services import history_suggestions as history
 from app.services.auth import get_current_user
 from app.services.notification_processing import database_operation
@@ -44,7 +45,7 @@ class SuggestionDecision(BaseModel):
 
 
 def http_error(error: history.SuggestionError) -> HTTPException:
-    return HTTPException(status_code=error.status, detail=error.detail)
+    return api_error(error.status, error.code, extra=error.extra)
 
 
 def provider_of(request: Request):
@@ -76,10 +77,7 @@ async def create_suggestion_run(
     """Without `confirm` only the estimate is returned; with it the run starts in the background."""
     configuration_error = history.settings.history_suggestion_configuration_error
     if configuration_error:
-        raise HTTPException(status_code=503, detail={
-            "code": configuration_error,
-            "message": "Pengaturan saran riwayat tidak valid.",
-        })
+        raise api_error(503, configuration_error)
     user_id = str(current_user["id"])
     provider = provider_of(request)
     if not payload.confirm:
