@@ -187,7 +187,7 @@ const FLOWS = {
   "bill from the bell": async () => {
     await home();
     await step(`__d.click("^(Notifikasi|Notifications)")`, 900);
-    await step(`(() => { const item = [...document.querySelectorAll('.notif')].find((e) => /SPayLater/.test(e.textContent)); if (!item) return 'NOT FOUND bill'; item.click(); return 'clicked bill'; })()`, 1800);
+    await step(`(() => { const item = [...document.querySelectorAll('.notif')].find((e) => /Kartu Kredit Contoh/.test(e.textContent)); if (!item) return 'NOT FOUND bill'; item.click(); return 'clicked bill'; })()`, 1800);
     await step(DRIVER, 100);
     await step(`__d.pick("^(Dari rekening|From account)$", "^Transport")`);
     await step(`__d.fill("^(Waktu pemindahan|Transfer time)$", "${TIME}")`);

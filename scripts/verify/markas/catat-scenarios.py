@@ -51,7 +51,7 @@ SCENARIOS = [
     ("catat-perpindahan-kredit", "/", [N, ISI, P, ev("__ct.radio('^(Perpindahan|Transfer)$')"), ev("__ct.pick('#capture-target', '^SPayLater')"),
         {"click": "^(Bayar sisa tagihan|Pay the amount left)"}, ev("__ct.value('#capture-fee', '2.500')")]),
     ("catat-perpindahan-tanpa-tagihan", "/", [N, ISI, P, ev("__ct.radio('^(Perpindahan|Transfer)$')"), ev("__ct.pick('#capture-target', '^Kredivo')")]),
-    ("catat-dari-bel", "/", [{"click": "^(Notifikasi|Notifications)"}, {"click": "SPayLater"}]),
+    ("catat-dari-bel", "/", [{"click": "^(Notifikasi|Notifications)"}, {"click": "Kartu Kredit Contoh"}]),
     ("catat-galat-sama", "/", [N, ISI, P, ev("__ct.radio('^(Perpindahan|Transfer)$')"), ev("__ct.pick('#capture-source', '^Jago')"), ev("__ct.pick('#capture-target', '^Kantong Utama')"),
         ev("__ct.amount('1000')"), {"click": "^(Pindahkan saldo|Move balance)$", "after": 1500}]),
     ("catat-galat-nominal", "/", [N, ISI, P, ev("(() => { document.querySelector('dialog[open] form.capture-manual').requestSubmit(); return 'submitted'; })()")]),

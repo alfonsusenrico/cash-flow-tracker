@@ -10,6 +10,7 @@ endpoints, so balances, credit bills and debts stay the server's; the only excep
 
 - SPayLater gets bill day 1 (its payment day and its bill due today stay as seeded);
 - "Kredivo Contoh", a credit account with a limit and no payment day, owing Rp 250.000;
+- "Kartu Kredit Contoh", owing Rp 300.000 due today with no plan for it, so the bell offers its bill;
 - a third active debt, so the split editor can take three rows;
 - the reimbursement category, so Pemasukan offers "Mengurangi pengeluaran";
 - with ``--stress``: a bank with 17 pockets, 60-character names and one balance of Rp 1.234.567.890.
@@ -22,6 +23,7 @@ import argparse
 import http.cookiejar
 import json
 import os
+from datetime import datetime, timedelta, timezone
 import sys
 import urllib.error
 import urllib.request
@@ -93,6 +95,15 @@ def main(argv: list[str]) -> int:
     else:
         add("credit Kredivo Contoh: limit, no payment day, owes Rp 250.000", "POST", "/accounts",
             {"name": "Kredivo Contoh", "type": "credit", "initial_balance": -250_000, "credit_limit": 2_000_000})
+
+    if "Kartu Kredit Contoh" in accounts:
+        report["skipped"].append({"addition": "Kartu Kredit Contoh", "reason": "already present"})
+    else:
+        # What a credit account owes when it is added is due on its first payment day (credit D2.8): today here.
+        today = datetime.now(timezone(timedelta(hours=7))).day
+        add("credit Kartu Kredit Contoh: owes Rp 300.000 due today, no plan", "POST", "/accounts",
+            {"name": "Kartu Kredit Contoh", "type": "credit", "initial_balance": -300_000, "credit_limit": 5_000_000,
+             "statement_day": 25, "payment_day": today})
 
     debts = {debt["name"] for debt in api.call("GET", "/obligations")["obligations"]}
     if "Tagihan Internet Contoh" in debts:

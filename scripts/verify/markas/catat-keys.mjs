@@ -244,7 +244,7 @@ try {
     const tile = byText("[data-account-row], [data-account-row] button", "SPayLater");
     await focusOn(`(${tile})?.matches("button") ? (${tile}) : (${tile})?.querySelector("button")`);
     await key(ENTER, 1500);
-    await focusOn(byText("dialog[open] button", "^(Bayar tagihan|Pay the bill)$"));
+    await focusOn(byText("dialog[open] button", "^(Bayar tagihan|Pay bill)$"));
     await key(ENTER, 1800);
     const prefilled = await titles();
     record("8", "Bayar tagihan opens Catat on Perpindahan with Ke and the amount", cell,
@@ -260,7 +260,7 @@ try {
     await open("/");
     await focusOn(byText("button", "^(Notifikasi|Notifications)"));
     await key(ENTER, 800);
-    await focusOn(byText(".notif", "SPayLater"));
+    await focusOn(byText(".notif", "Kartu Kredit Contoh"));
     await key(ENTER, 1800);
     record("9", "the bill opens Perpindahan prefilled", cell, /\d/.test((await value("#capture-amount")) ?? "") && (await value("#capture-target")) !== "", await value("#capture-amount"));
     await trapped("9", cell);
