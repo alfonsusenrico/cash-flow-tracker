@@ -1,7 +1,7 @@
 ## 1. Approval and baseline
 
-- [ ] 1.1 Record the owner's answers to the defaults D2–D19 and flag F1 in `proposal.md` › Approval with the date. Evidence: the Approval section names each accepted default or override; tasks that an override removes are marked "(dropped: …)".
-- [ ] 1.2 `git fetch`; record `origin/main` and `origin/feat/markas-catat` heads and whether PR #99 merged. Evidence: the two hashes in `verification.md`.
+- [x] 1.1 Record the owner's answers to the defaults D2–D19 and flag F1 in `proposal.md` › Approval with the date. Evidence: the Approval section names each accepted default or override; tasks that an override removes are marked "(dropped: …)". Done: proposal Approval (2026-11-09, coordinator): all defaults accepted, F1 pending with option B kept; F1 moved to group 8.
+- [x] 1.2 `git fetch`; record `origin/main` and `origin/feat/markas-catat` heads and whether PR #99 merged. Evidence: the two hashes in `verification.md`. Done: origin/main 5401a03, origin/feat/markas-catat 10cd7e5, PR #99 open (not merged) on 2026-11-09.
 - [ ] 1.3 Baseline environment: disposable `postgres:16` `cft-cleanup-pg` (127.0.0.1:9830) migrated V1 → V51, parity seed, V54, the Analisis/Laporan/Rekening/Target/Pengaturan/Catat seeds and an English copy; base build of `10cd7e5` on Next 3830 with backend 8771 (AI disabled, no key). Evidence: seed reports and migration output in the scratchpad, listed in `verification.md`.
 - [ ] 1.4 "Before" captures: every app scenario except `komponen*` at 1440 and 390, light and dark, id and en, plus figure parity JSON (`parity-languages.mjs` and the page parity scripts) on the base build. Evidence: capture count and folder per language in `verification.md`.
 
@@ -9,9 +9,9 @@ Expected Result: approved scope, a recorded baseline and a full before-set to co
 
 ## 2. Untranslated registry and the component sheet
 
-- [ ] 2.1 Remove `untranslatedPages.ts`, `untranslated.tsx`, `lib/i18n/translatedRoutes.ts`, the untranslated logic in `AppLayout.tsx` and `TitleBlock.tsx`, every `UntranslatedRegion active={false}` wrapper and every `useInterfaceLang` use, `.untranslated-note`, `notice.untranslated`, `lib/untranslatedRowLabels.ts`, and their tests (D1). Evidence: `rg -n "ntranslated|useInterfaceLang|TRANSLATED_ROUTES" frontend/src` finds nothing; vitest passes.
-- [ ] 2.2 Add a vitest that renders every product route in English and Indonesian through the shell and asserts no notice line and no `lang` attribute other than the language option (spec "Every Page in the Interface Language"). Evidence: the test passes, and fails when a `lang="id"` wrapper is added back (checked once, then reverted).
-- [ ] 2.3 Remove `/komponen` (D2): `app/komponen/`, the `proxy.ts` branch, `NEXT_PUBLIC_COMPONENT_SHEET` and `outputFileTracingExcludes` in `next.config.mjs`, `komponen.test.ts`, the `systemCategoryGuard` exclusion, `.ws-drawer*`, `.ws-grab`, `nav.components`, `scripts/verify/markas/primitives.mjs`, the sheet block of `checks.mjs` and the two app scenarios. Evidence: `rg -n "komponen|COMPONENT_SHEET|ws-drawer|ws-grab" frontend scripts` finds only the prototype scenario; `npm run build` passes; `/komponen` answers 404 in the built app.
+- [x] 2.1 Remove `untranslatedPages.ts`, `untranslated.tsx`, `lib/i18n/translatedRoutes.ts`, the untranslated logic in `AppLayout.tsx` and `TitleBlock.tsx`, every `UntranslatedRegion active={false}` wrapper and every `useInterfaceLang` use, `.untranslated-note`, `notice.untranslated`, `lib/untranslatedRowLabels.ts`, and their tests (D1). Evidence: `rg -n "ntranslated|useInterfaceLang|TRANSLATED_ROUTES" frontend/src` finds nothing; vitest passes. Done: the grep finds only SentenceView's guard test name; vitest 98 files, 1083 passed; type-check and lint pass.
+- [x] 2.2 Add a vitest that renders every product route in English and Indonesian through the shell and asserts no notice line and no `lang` attribute other than the language option (spec "Every Page in the Interface Language"). Evidence: the test passes, and fails when a `lang="id"` wrapper is added back (checked once, then reverted). Done: workspace.test.tsx renders nine routes in en and id (18 cases) through AppLayout; with lang="id" planted on the title all 18 failed, then the plant was removed.
+- [x] 2.3 Remove `/komponen` (D2): `app/komponen/`, the `proxy.ts` branch, `NEXT_PUBLIC_COMPONENT_SHEET` and `outputFileTracingExcludes` in `next.config.mjs`, `komponen.test.ts`, the `systemCategoryGuard` exclusion, `.ws-drawer*`, `.ws-grab`, `nav.components`, `scripts/verify/markas/primitives.mjs`, the sheet block of `checks.mjs` and the two app scenarios. Evidence: `rg -n "komponen|COMPONENT_SHEET|ws-drawer|ws-grab" frontend scripts` finds only the prototype scenario; `npm run build` passes; `/komponen` answers 404 in the built app. Done: the grep finds only the prototype's own komponen scenario; the 404 check of the built app is part of 6.2.
 
 Expected Result: no untranslated path and no development sheet remain, and both languages render every page.
 
@@ -35,7 +35,6 @@ Expected Result: no proven-dead file, export, class, token or key remains, and p
 - [ ] 4.6 Web formatter: English short months read "Sep" (D11). Evidence: `format` tests for every short-month format in en-ID and en-US, Indonesian unchanged; Analisis and Laporan English captures show "Sep".
 - [ ] 4.7 Catat default Ke rule (D13). Evidence: `ManualView` tests for the four spec scenarios; browser flow on the parity seed saving the default pair succeeds (no `same_account`); `catat-checklist.js` passes.
 - [ ] 4.8 Regression test: `POST /api/transactions` on a credit account with `credit_terms {installment_count: 1}` stores no terms row and yields the same bill as a purchase without terms (D14). Evidence: the pytest passes.
-- [ ] 4.9 Only if F1 option A is accepted: the dialog sends the stored date on a count-only edit and on "Sekali bayar" when a kept date exists; `write_terms` keeps the setter when the date equals the stored one. Evidence: `TransactionEditDialog` tests and a pytest for the spec scenario "Count changed on a purchase with a kept due date" (date and `system` kept, instalments 11 Nov/11 Dec/11 Jan). Otherwise remove the F1 parts of the spec deltas and mark this task dropped.
 
 Expected Result: every changed figure matches its source of truth, and the requests are the ones the specs name.
 
@@ -66,6 +65,12 @@ Expected Result: the redesign passes the full gate on the final revision.
 
 - [ ] 7.1 Write `verification.md` with revisions, commands and counts, environments (synthetic only), what was not verified, and a "For PROJECT_STATE.md" section. Evidence: the file.
 - [ ] 7.2 Clean up: stop every server and browser started, remove `cft-cleanup-*` containers and network, confirm ports 8771–8779, 3830–3849 and 9830–9849 are free. Evidence: command output in `verification.md`.
+
+## 8. Flag F1 (kept last; pending the owner)
+
+- [ ] 8.1 Only if F1 option A is accepted: the dialog sends the stored date on a count-only edit and on "Sekali bayar" when a kept date exists; `write_terms` keeps the setter when the date equals the stored one. Evidence: `TransactionEditDialog` tests and a pytest for the spec scenario "Count changed on a purchase with a kept due date" (date and `system` kept, instalments 11 Nov/11 Dec/11 Jan). Otherwise remove the F1 parts of the spec deltas and mark this task dropped.
+
+Expected Result: the owner's F1 answer is built or recorded as pending with today's behaviour kept.
 
 ## Workflow follow-up
 

@@ -5,7 +5,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { MaskedMoney } from "@/components/workspace/money";
 import { ShellDialog } from "@/components/workspace/ShellDialog";
-import { UntranslatedRegion } from "@/components/workspace/untranslated";
 import { api } from "@/lib/api";
 import { useFormat } from "@/lib/format";
 import { InvestmentAccount } from "@/lib/investmentTopups";
@@ -49,18 +48,16 @@ export function AmountTrackingSwitchModal({ product, onClose }: Props) {
   );
 
   return (
-    <UntranslatedRegion active={false}>
-      <ShellDialog open onClose={() => { if (!busy) onClose(); }} title={t("title")} meta={product.name} width={520} closeLabel={common("close")} footer={footer}>
-        <dl className="dl">
-          <dt>{t("value")}</dt>
-          <dd className="tabular-nums"><MaskedMoney text={format.money(product.balance ?? 0)} /></dd>
-          <dt>{t("cost")}</dt>
-          <dd className="tabular-nums">{product.cost_basis == null ? t("costUnknown") : <MaskedMoney text={format.money(product.cost_basis)} />}</dd>
-        </dl>
-        <p className="t-body">{t("body")}</p>
-        <p className="t-body t-strong">{t("note")}</p>
-        {error && <p role="alert" className="form-alert">{error}</p>}
-      </ShellDialog>
-    </UntranslatedRegion>
+    <ShellDialog open onClose={() => { if (!busy) onClose(); }} title={t("title")} meta={product.name} width={520} closeLabel={common("close")} footer={footer}>
+      <dl className="dl">
+        <dt>{t("value")}</dt>
+        <dd className="tabular-nums"><MaskedMoney text={format.money(product.balance ?? 0)} /></dd>
+        <dt>{t("cost")}</dt>
+        <dd className="tabular-nums">{product.cost_basis == null ? t("costUnknown") : <MaskedMoney text={format.money(product.cost_basis)} />}</dd>
+      </dl>
+      <p className="t-body">{t("body")}</p>
+      <p className="t-body t-strong">{t("note")}</p>
+      {error && <p role="alert" className="form-alert">{error}</p>}
+    </ShellDialog>
   );
 }

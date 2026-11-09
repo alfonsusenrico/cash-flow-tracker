@@ -102,7 +102,6 @@
     "accounts": "Rekening & Kantong",
     "goals": "Target & Tagihan",
     "settings": "Pengaturan",
-    "components": "Komponen",
     "more": "Lainnya",
     "closeMore": "Tutup Lainnya",
     "mainMenu": "Menu utama",
@@ -1829,9 +1828,6 @@
   },
   "conversation": {
     "helpFactHome": "Beranda menunjukkan berapa yang aman dipakai sampai gajian."
-  },
-  "notice": {
-    "untranslated": "Halaman ini masih dalam bahasa Indonesia."
   },
   "accounts": {
     "page": {

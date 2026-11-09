@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
  * The web never identifies a system category by its display name (add-category-system-keys D6, D8): it reads
  * `system_key` or `category_system_key` through `lib/systemCategories.ts`. A seed name used as copy (a tab label,
  * a role name) is fine; a seed name compared with, collected into a set or list that is searched, or held in a
- * constant is not. Tests and the development-only /komponen sheet are left out.
+ * constant is not. Tests are left out.
  */
 const NAMES = ["Investasi", "Internal Movement", "Penyesuaian Saldo"];
 const QUOTED = `["'\`](?:${NAMES.join("|")})["'\`]`;
@@ -29,8 +29,7 @@ function sources(full: string): string[] {
 
 function isScanned(file: string): boolean {
   const relative = path.relative(__dirname, file).split(path.sep).join("/");
-  return /\.(ts|tsx)$/.test(relative) && !/\.test\.tsx?$/.test(relative) && !relative.startsWith("app/komponen/")
-    && !relative.startsWith("test/");
+  return /\.(ts|tsx)$/.test(relative) && !/\.test\.tsx?$/.test(relative) && !relative.startsWith("test/");
 }
 
 /** `file:line: text` for every line of code under `root` that checks a category by a system name. */

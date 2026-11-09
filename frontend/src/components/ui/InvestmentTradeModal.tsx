@@ -4,7 +4,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { MaskedMoney } from "@/components/workspace/money";
 import { ShellDialog } from "@/components/workspace/ShellDialog";
-import { UntranslatedRegion } from "@/components/workspace/untranslated";
 import { api, ApiError } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
 import { listLiquidAccountChoices } from "@/lib/accountOptions";
@@ -209,175 +208,173 @@ export function InvestmentTradeModal({ open, onClose, pocket, allAccounts, defau
   );
 
   return (
-    <UntranslatedRegion active={false}>
-      <ShellDialog
-        open={open}
-        onClose={handleClose}
-        title={action === "buy" ? t("buy") : t("sell")}
-        meta={pocket.instrument_symbol ? `${pocket.name} · ${pocket.instrument_symbol}` : pocket.name}
-        width={520}
-        closeLabel={common("close")}
-        footer={footer}
+    <ShellDialog
+      open={open}
+      onClose={handleClose}
+      title={action === "buy" ? t("buy") : t("sell")}
+      meta={pocket.instrument_symbol ? `${pocket.name} · ${pocket.instrument_symbol}` : pocket.name}
+      width={520}
+      closeLabel={common("close")}
+      footer={footer}
+    >
+      <form
+        id={FORM_ID}
+        className="form-stack"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          tradeMutation.mutate();
+        }}
       >
-        <form
-          id={FORM_ID}
-          className="form-stack"
-          noValidate
-          onSubmit={(event) => {
-            event.preventDefault();
-            tradeMutation.mutate();
-          }}
-        >
-          {currentUnits > 0 && (
-            <dl className="dl" aria-label={t("position")}>
-              <dt>{t("owned")}</dt>
-              <dd className="tabular-nums">{unitsText(currentUnits)}</dd>
-              <dt>{t("avgPrice")}</dt>
-              <dd className="tabular-nums">{amount(currentAvg)}</dd>
-              {pocket.last_price ? (
-                <>
-                  <dt>{t("marketPrice")}</dt>
-                  <dd className="tabular-nums">{amount(pocket.last_price)}</dd>
-                </>
-              ) : null}
-            </dl>
-          )}
+        {currentUnits > 0 && (
+          <dl className="dl" aria-label={t("position")}>
+            <dt>{t("owned")}</dt>
+            <dd className="tabular-nums">{unitsText(currentUnits)}</dd>
+            <dt>{t("avgPrice")}</dt>
+            <dd className="tabular-nums">{amount(currentAvg)}</dd>
+            {pocket.last_price ? (
+              <>
+                <dt>{t("marketPrice")}</dt>
+                <dd className="tabular-nums">{amount(pocket.last_price)}</dd>
+              </>
+            ) : null}
+          </dl>
+        )}
 
-          <div className="form-grid">
-            <div className="field">
-              <label htmlFor="investment-trade-units">{t(`unitLabel.${cfg.kind}`)}</label>
-              <input
-                id="investment-trade-units"
-                name="units"
-                type="number"
-                min="0"
-                max={action === "sell" ? cfg.isLotBased ? currentUnits / 100 : currentUnits : undefined}
-                step={cfg.step}
-                value={inputUnits}
-                onChange={(e) => { setInputUnits(e.target.value); setErrorField(null); setError(""); }}
-                aria-invalid={unitsInvalid || undefined}
-                aria-describedby={unitsInvalid ? "investment-trade-units-error" : cfg.isLotBased && parsedInputUnits > 0 ? "investment-trade-units-hint" : undefined}
-                className="field-control tabular-nums"
-              />
-              {unitsInvalid && (
-                <p id="investment-trade-units-error" className="err" role="alert">
-                  {exceedsPosition ? t("tooMany") : error}
-                </p>
-              )}
-              {cfg.isLotBased && parsedInputUnits > 0 && !unitsInvalid && (
-                <p id="investment-trade-units-hint" className="hint">
-                  {t("sharesHint", { shares: format.decimal(parsedInputUnits * 100, 4) })}
-                </p>
-              )}
-            </div>
-            <div className="field">
-              <label htmlFor="investment-trade-price">{t(`priceLabel.${cfg.kind}`)}</label>
-              <input
-                id="investment-trade-price"
-                name="price_per_unit"
-                type="text"
-                inputMode="numeric"
-                value={inputPrice}
-                onChange={(e) => {
-                  const raw = e.target.value.replace(/[^0-9]/g, "");
-                  setInputPrice(raw ? parseInt(raw, 10).toLocaleString("id-ID") : "");
-                }}
-                className="field-control tabular-nums"
-              />
-              {(pocket.last_price || pocket.avg_buy_price) && (
-                <p className="hint">
-                  {t("quickFill")}{" "}
-                  {pocket.last_price ? (
-                    <button
-                      type="button"
-                      className="ws-linkbtn"
-                      onClick={() => setInputPrice(Math.round(pocket.last_price!).toLocaleString("id-ID"))}
-                    >
-                      {t("market", { price: format.money(pocket.last_price) })}
-                    </button>
-                  ) : null}
-                  {pocket.last_price && pocket.avg_buy_price ? " · " : null}
-                  {pocket.avg_buy_price ? (
-                    <button
-                      type="button"
-                      className="ws-linkbtn"
-                      onClick={() => setInputPrice(Math.round(pocket.avg_buy_price!).toLocaleString("id-ID"))}
-                    >
-                      {t("cost", { price: format.money(pocket.avg_buy_price) })}
-                    </button>
-                  ) : null}
-                </p>
-              )}
-            </div>
-          </div>
-
+        <div className="form-grid">
           <div className="field">
-            <label htmlFor="investment-trade-funding">{action === "buy" ? t("from") : t("into")}</label>
-            <select
-              id="investment-trade-funding"
-              name="funding_account_id"
-              value={fundingAccountId}
-              onChange={(e) => { setFundingAccountId(e.target.value); setErrorField(null); setError(""); }}
-              aria-invalid={errorField === "funding" || undefined}
-              aria-describedby={errorField === "funding" ? "investment-trade-funding-error" : undefined}
-              className="field-control"
-            >
-              <option value="">{t("chooseAccount")}</option>
-              {fundingCandidates.map((account) => (
-                <option key={account.id} value={account.id}>{account.name}</option>
-              ))}
-            </select>
-            {errorField === "funding" && <p id="investment-trade-funding-error" role="alert" className="err">{error}</p>}
-          </div>
-
-          {tradeUnits > 0 && parsedPrice > 0 && (
-            <section className="box" aria-labelledby="investment-trade-estimate">
-              <div className="grow">
-                <h3 id="investment-trade-estimate" className="t-label">{t("estimate")}</h3>
-                <p className="t-fig">{amount(tradeAmount)}</p>
-                <p className="t-body">
-                  {action === "buy"
-                    ? t.rich("buyEffect", { amount: () => amount(tradeAmount), account: selectedFundingAccount?.name ?? t("sourceAccount") })
-                    : t.rich("sellEffect", { units: format.decimal(tradeUnits, 6), amount: () => amount(tradeAmount), account: selectedFundingAccount?.name ?? t("targetAccount") })}
-                </p>
-                <dl className="dl">
-                  <dt>{t("unitsAfter")}</dt>
-                  <dd className="tabular-nums">{unitsText(projectedUnits)}</dd>
-                  {selectedFundingAccount && projectedFundingBalance !== null && (
-                    <>
-                      <dt>{t("balanceAfter")}</dt>
-                      <dd className={insufficientDisplayedBalance ? "tabular-nums c-expense" : "tabular-nums"}>{amount(projectedFundingBalance)}</dd>
-                    </>
-                  )}
-                  {action === "buy" && (
-                    <>
-                      <dt>{t("newAvg")}</dt>
-                      <dd className="tabular-nums">{amount(projectedAvg)}</dd>
-                    </>
-                  )}
-                </dl>
-                {action === "sell" && tradeUnits === currentUnits && <p className="t-meta">{t("sellAll")}</p>}
-                {insufficientDisplayedBalance && <p role="alert" className="err">{t("insufficient")}</p>}
-              </div>
-            </section>
-          )}
-
-          <div className="field">
-            <label htmlFor="investment-trade-notes">{t("note")}</label>
+            <label htmlFor="investment-trade-units">{t(`unitLabel.${cfg.kind}`)}</label>
             <input
-              id="investment-trade-notes"
-              name="notes"
-              type="text"
-              placeholder={t("notePlaceholder")}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="field-control"
+              id="investment-trade-units"
+              name="units"
+              type="number"
+              min="0"
+              max={action === "sell" ? cfg.isLotBased ? currentUnits / 100 : currentUnits : undefined}
+              step={cfg.step}
+              value={inputUnits}
+              onChange={(e) => { setInputUnits(e.target.value); setErrorField(null); setError(""); }}
+              aria-invalid={unitsInvalid || undefined}
+              aria-describedby={unitsInvalid ? "investment-trade-units-error" : cfg.isLotBased && parsedInputUnits > 0 ? "investment-trade-units-hint" : undefined}
+              className="field-control tabular-nums"
             />
+            {unitsInvalid && (
+              <p id="investment-trade-units-error" className="err" role="alert">
+                {exceedsPosition ? t("tooMany") : error}
+              </p>
+            )}
+            {cfg.isLotBased && parsedInputUnits > 0 && !unitsInvalid && (
+              <p id="investment-trade-units-hint" className="hint">
+                {t("sharesHint", { shares: format.decimal(parsedInputUnits * 100, 4) })}
+              </p>
+            )}
           </div>
+          <div className="field">
+            <label htmlFor="investment-trade-price">{t(`priceLabel.${cfg.kind}`)}</label>
+            <input
+              id="investment-trade-price"
+              name="price_per_unit"
+              type="text"
+              inputMode="numeric"
+              value={inputPrice}
+              onChange={(e) => {
+                const raw = e.target.value.replace(/[^0-9]/g, "");
+                setInputPrice(raw ? parseInt(raw, 10).toLocaleString("id-ID") : "");
+              }}
+              className="field-control tabular-nums"
+            />
+            {(pocket.last_price || pocket.avg_buy_price) && (
+              <p className="hint">
+                {t("quickFill")}{" "}
+                {pocket.last_price ? (
+                  <button
+                    type="button"
+                    className="ws-linkbtn"
+                    onClick={() => setInputPrice(Math.round(pocket.last_price!).toLocaleString("id-ID"))}
+                  >
+                    {t("market", { price: format.money(pocket.last_price) })}
+                  </button>
+                ) : null}
+                {pocket.last_price && pocket.avg_buy_price ? " · " : null}
+                {pocket.avg_buy_price ? (
+                  <button
+                    type="button"
+                    className="ws-linkbtn"
+                    onClick={() => setInputPrice(Math.round(pocket.avg_buy_price!).toLocaleString("id-ID"))}
+                  >
+                    {t("cost", { price: format.money(pocket.avg_buy_price) })}
+                  </button>
+                ) : null}
+              </p>
+            )}
+          </div>
+        </div>
 
-          {error && !errorField && <p role="alert" className="form-alert">{error}</p>}
-        </form>
-      </ShellDialog>
-    </UntranslatedRegion>
+        <div className="field">
+          <label htmlFor="investment-trade-funding">{action === "buy" ? t("from") : t("into")}</label>
+          <select
+            id="investment-trade-funding"
+            name="funding_account_id"
+            value={fundingAccountId}
+            onChange={(e) => { setFundingAccountId(e.target.value); setErrorField(null); setError(""); }}
+            aria-invalid={errorField === "funding" || undefined}
+            aria-describedby={errorField === "funding" ? "investment-trade-funding-error" : undefined}
+            className="field-control"
+          >
+            <option value="">{t("chooseAccount")}</option>
+            {fundingCandidates.map((account) => (
+              <option key={account.id} value={account.id}>{account.name}</option>
+            ))}
+          </select>
+          {errorField === "funding" && <p id="investment-trade-funding-error" role="alert" className="err">{error}</p>}
+        </div>
+
+        {tradeUnits > 0 && parsedPrice > 0 && (
+          <section className="box" aria-labelledby="investment-trade-estimate">
+            <div className="grow">
+              <h3 id="investment-trade-estimate" className="t-label">{t("estimate")}</h3>
+              <p className="t-fig">{amount(tradeAmount)}</p>
+              <p className="t-body">
+                {action === "buy"
+                  ? t.rich("buyEffect", { amount: () => amount(tradeAmount), account: selectedFundingAccount?.name ?? t("sourceAccount") })
+                  : t.rich("sellEffect", { units: format.decimal(tradeUnits, 6), amount: () => amount(tradeAmount), account: selectedFundingAccount?.name ?? t("targetAccount") })}
+              </p>
+              <dl className="dl">
+                <dt>{t("unitsAfter")}</dt>
+                <dd className="tabular-nums">{unitsText(projectedUnits)}</dd>
+                {selectedFundingAccount && projectedFundingBalance !== null && (
+                  <>
+                    <dt>{t("balanceAfter")}</dt>
+                    <dd className={insufficientDisplayedBalance ? "tabular-nums c-expense" : "tabular-nums"}>{amount(projectedFundingBalance)}</dd>
+                  </>
+                )}
+                {action === "buy" && (
+                  <>
+                    <dt>{t("newAvg")}</dt>
+                    <dd className="tabular-nums">{amount(projectedAvg)}</dd>
+                  </>
+                )}
+              </dl>
+              {action === "sell" && tradeUnits === currentUnits && <p className="t-meta">{t("sellAll")}</p>}
+              {insufficientDisplayedBalance && <p role="alert" className="err">{t("insufficient")}</p>}
+            </div>
+          </section>
+        )}
+
+        <div className="field">
+          <label htmlFor="investment-trade-notes">{t("note")}</label>
+          <input
+            id="investment-trade-notes"
+            name="notes"
+            type="text"
+            placeholder={t("notePlaceholder")}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="field-control"
+          />
+        </div>
+
+        {error && !errorField && <p role="alert" className="form-alert">{error}</p>}
+      </form>
+    </ShellDialog>
   );
 }

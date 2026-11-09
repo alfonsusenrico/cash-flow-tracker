@@ -12,7 +12,6 @@ import { PHONE_QUERY } from "./layers";
 import { renderWithIntl, testWords } from "@/lib/i18n/testing";
 import { HelpDialog } from "./shortcuts";
 import { MORE_LINKS, NAV_GROUPS, NAV_LINKS, frameWidth, isActivePath } from "./navigation";
-import { untranslatedPageTitle } from "./untranslatedPages";
 
 const { t } = testWords();
 import { PhoneHeader, PhoneTabBar } from "./PhoneNav";
@@ -158,15 +157,10 @@ describe("navigation model", () => {
     expect(isActivePath("/review", "/")).toBe(false);
   });
 
-  it("gives Transaksi and Pengaturan the 1040 frame and the prototype's subtitles", () => {
-    // Transaksi writes its title from the catalogue since apply-markas-transaksi, so it has no untranslated entry.
-    expect({ title: untranslatedPageTitle("/ledger"), width: frameWidth("/ledger") }).toEqual({ title: null, width: 1040 });
-    // Every product page writes its title from the catalogue since its phase; Pengaturan was the last
-    // (apply-markas-pengaturan D19), so the local component sheet is the untranslated example.
-    expect({ title: untranslatedPageTitle("/settings/profil"), width: frameWidth("/settings/profil") }).toEqual({ title: null, width: 1040 });
-    expect(untranslatedPageTitle("/komponen")).toEqual({ title: "Komponen", subtitle: "Lembar komponen Markas+, hanya di build lokal" });
-    expect(untranslatedPageTitle("/accounts")).toBeNull();
-    expect(untranslatedPageTitle("/goals")).toBeNull();
+  it("gives Transaksi and Pengaturan the 1040 frame and every other page 1200", () => {
+    expect(frameWidth("/ledger")).toBe(1040);
+    expect(frameWidth("/settings/profil")).toBe(1040);
+    expect(frameWidth("/accounts")).toBe(1200);
     expect(frameWidth("/")).toBe(1200);
   });
 
@@ -991,7 +985,7 @@ describe("the shell in English (add-language-system)", () => {
   });
 });
 
-describe("pages not translated yet (add-language-system D10)", () => {
+describe("every page in the interface language (apply-markas-cleanup D1)", () => {
   function mockProfile() {
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === "/auth/me") return { ok: true, user: { id: "qa-user", username: "enrico", currency: "IDR", language: "en", region: "ID" } };
@@ -1032,17 +1026,22 @@ describe("pages not translated yet (add-language-system D10)", () => {
     );
   }
 
-  // The example is the local component sheet, the last route no phase translates (apply-markas-pengaturan D19).
-  it("shows an English untranslated page's Indonesian title block and content marked lang=id, with the notice in English", async () => {
-    showPage("/komponen", "en");
-    const main = await screen.findByRole("main");
-    expect(main).toHaveAttribute("lang", "id");
-    expect(within(main).getByRole("heading", { level: 1, name: "Komponen" })).toHaveAttribute("lang", "id");
-    const notice = within(main).getByText("This page is in Indonesian for now.");
-    expect(notice).toHaveAttribute("lang", "en");
-    expect(screen.getByRole("navigation", { name: "Main menu" })).toHaveTextContent("Review");
-    expect(screen.getByRole("link", { name: "Skip to content" })).toBeInTheDocument();
-  });
+  const ROUTES: [string, string, string][] = [
+    ["/", "Home", "Beranda"], ["/review", "Review", "Tinjau"], ["/ledger", "Transactions", "Transaksi"],
+    ["/insights", "Analysis", "Analisis"], ["/laporan", "Reports", "Laporan"], ["/accounts", "Accounts & Pockets", "Rekening & Kantong"],
+    ["/goals", "Goals & Bills", "Target & Tagihan"], ["/settings/profil", "Settings", "Pengaturan"], ["/settings/perangkat", "Settings", "Pengaturan"],
+  ];
+  it.each(ROUTES.flatMap(([route, en, id]) => [[route, "en", en], [route, "id", id]] as [string, "en" | "id", string][]))(
+    "renders %s in %s with its title and no language override or notice",
+    async (route, language, title) => {
+      const { container } = showPage(route, language);
+      const main = await screen.findByRole("main");
+      expect(main).not.toHaveAttribute("lang");
+      expect(await within(main).findByRole("heading", { level: 1, name: title })).not.toHaveAttribute("lang");
+      expect(container.querySelector("[lang]")).toBeNull();
+      expect(screen.queryByText(/This page is in Indonesian for now|Halaman ini/)).not.toBeInTheDocument();
+    },
+  );
 
   it("shows no notice and no lang=id on an English Beranda", async () => {
     showPage("/", "en");

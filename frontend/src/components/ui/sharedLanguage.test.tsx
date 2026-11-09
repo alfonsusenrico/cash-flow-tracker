@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { MaskedMoney } from "@/components/workspace/money";
 import { ShellDialog } from "@/components/workspace/ShellDialog";
-import { UntranslatedRegion } from "@/components/workspace/untranslated";
 import { renderWithIntl } from "@/lib/i18n/testing";
 import { ConfirmActionButton } from "./ConfirmActionButton";
 
@@ -26,13 +25,11 @@ describe("shared primitives in English", () => {
     expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
   });
 
-  it("marks no dialog Indonesian, even one opened from an untranslated page (apply-markas-catat D21)", () => {
+  it("marks no dialog with a language of its own (apply-markas-catat D21)", () => {
     renderWithIntl(
-      <UntranslatedRegion active>
-        <ShellDialog open onClose={vi.fn()} title="Record a transaction" width={560} closeLabel="Close">
-          <p>Write a sentence</p>
-        </ShellDialog>
-      </UntranslatedRegion>,
+      <ShellDialog open onClose={vi.fn()} title="Record a transaction" width={560} closeLabel="Close">
+        <p>Write a sentence</p>
+      </ShellDialog>,
       { language: "en" },
     );
     expect(screen.getByRole("heading", { name: "Record a transaction" })).not.toHaveAttribute("lang");
@@ -40,17 +37,10 @@ describe("shared primitives in English", () => {
     expect(screen.queryByText("This page is in Indonesian for now.")).not.toBeInTheDocument();
   });
 
-  it("names a hidden amount Hidden, in English even inside an Indonesian page", () => {
-    renderWithIntl(
-      <div lang="id">
-        <UntranslatedRegion active>
-          <MaskedMoney text="Rp 1.234" />
-        </UntranslatedRegion>
-      </div>,
-      { language: "en" },
-    );
+  it("names a hidden amount Hidden in English, with no language override", () => {
+    renderWithIntl(<MaskedMoney text="Rp 1.234" />, { language: "en" });
     const mask = screen.getByRole("img", { name: "Hidden" });
     expect(mask).toHaveTextContent("Rp ••••••");
-    expect(mask).toHaveAttribute("lang", "en");
+    expect(mask).not.toHaveAttribute("lang");
   });
 });

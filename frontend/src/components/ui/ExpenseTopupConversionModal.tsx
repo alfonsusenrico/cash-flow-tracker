@@ -5,7 +5,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { MaskedMoney, useMoney } from "@/components/workspace/money";
 import { ShellDialog } from "@/components/workspace/ShellDialog";
-import { UntranslatedRegion } from "@/components/workspace/untranslated";
 import { api } from "@/lib/api";
 import { InvestmentAccount, listAmountInvestmentProducts } from "@/lib/investmentTopups";
 import { queryKeys } from "@/lib/queryKeys";
@@ -68,52 +67,50 @@ export function ExpenseTopupConversionModal({ expense, accounts, onClose, onConv
   );
 
   return (
-    <UntranslatedRegion active={false}>
-      <ShellDialog open onClose={() => { if (!busy) onClose(); }} title={t("title")} width={520} closeLabel={t("close")} footer={footer}>
-        <form
-          id={FORM_ID}
-          className="form-stack"
-          noValidate
-          onSubmit={(event) => {
-            event.preventDefault();
-            setError("");
-            if (!productId) {
-              setError(t("chooseProduct"));
-              document.getElementById("expense-topup-product")?.focus();
-              return;
-            }
-            mutation.mutate({ transactionId: expense.id, targetId: productId });
-          }}
-        >
-          {products.length === 0 ? (
-            <p className="t-body">{t("noProducts")}</p>
-          ) : (
-            <div className="field">
-              <label htmlFor="expense-topup-product">{t("product")}</label>
-              <select
-                id="expense-topup-product"
-                value={productId}
-                onChange={(event) => setProductId(event.target.value)}
-                disabled={busy}
-                aria-invalid={Boolean(error) && !productId}
-                aria-describedby="expense-topup-hint"
-                className="field-control"
-              >
-                <option value="">{t("productPlaceholder")}</option>
-                {products.map((product) => (
-                  <option key={product.id} value={product.id}>
-                    {parentName(product) ? `${parentName(product)} · ${product.name}` : product.name}
-                  </option>
-                ))}
-              </select>
-              <p id="expense-topup-hint" className="hint">
-                {expense.account_name ? t.rich("body", { amount, account: expense.account_name }) : t.rich("bodyNoAccount", { amount })}
-              </p>
-            </div>
-          )}
-          {error && <p role="alert" className="form-alert">{error}</p>}
-        </form>
-      </ShellDialog>
-    </UntranslatedRegion>
+    <ShellDialog open onClose={() => { if (!busy) onClose(); }} title={t("title")} width={520} closeLabel={t("close")} footer={footer}>
+      <form
+        id={FORM_ID}
+        className="form-stack"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          setError("");
+          if (!productId) {
+            setError(t("chooseProduct"));
+            document.getElementById("expense-topup-product")?.focus();
+            return;
+          }
+          mutation.mutate({ transactionId: expense.id, targetId: productId });
+        }}
+      >
+        {products.length === 0 ? (
+          <p className="t-body">{t("noProducts")}</p>
+        ) : (
+          <div className="field">
+            <label htmlFor="expense-topup-product">{t("product")}</label>
+            <select
+              id="expense-topup-product"
+              value={productId}
+              onChange={(event) => setProductId(event.target.value)}
+              disabled={busy}
+              aria-invalid={Boolean(error) && !productId}
+              aria-describedby="expense-topup-hint"
+              className="field-control"
+            >
+              <option value="">{t("productPlaceholder")}</option>
+              {products.map((product) => (
+                <option key={product.id} value={product.id}>
+                  {parentName(product) ? `${parentName(product)} · ${product.name}` : product.name}
+                </option>
+              ))}
+            </select>
+            <p id="expense-topup-hint" className="hint">
+              {expense.account_name ? t.rich("body", { amount, account: expense.account_name }) : t.rich("bodyNoAccount", { amount })}
+            </p>
+          </div>
+        )}
+        {error && <p role="alert" className="form-alert">{error}</p>}
+      </form>
+    </ShellDialog>
   );
 }

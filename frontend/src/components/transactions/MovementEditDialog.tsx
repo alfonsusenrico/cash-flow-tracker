@@ -6,7 +6,6 @@ import { useTranslations } from "next-intl";
 import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
 import { useMoney } from "@/components/workspace/money";
 import { ShellDialog } from "@/components/workspace/ShellDialog";
-import { UntranslatedRegion } from "@/components/workspace/untranslated";
 import { api, splitMovement, updateMovement } from "@/lib/api";
 import { isCreditAccountChoice, listCreditAccountChoices, listLiquidAccountChoices } from "@/lib/accountOptions";
 import { movementFormSchema, type MovementIssueCode } from "@/lib/movementFormSchema";
@@ -140,40 +139,38 @@ export function MovementEditDialog({
   );
 
   return (
-    <UntranslatedRegion active={false}>
-      <ShellDialog open onClose={onClose} title={t("title")} meta={routeText(route)} width={600} closeLabel={t("close")} footer={footer}>
-        <form id={FORM_ID} className="form-stack" noValidate onSubmit={(event) => { event.preventDefault(); setError(""); save.mutate(); }}>
-          {error && <p role="alert" className="form-alert">{error}</p>}
-          <div className="form-grid">
-            <div className="field">
-              <label htmlFor="movement-amount">{t("amount")}</label>
-              <input id="movement-amount" type="text" inputMode="numeric" autoComplete="off" value={amount}
-                onChange={(event) => setAmount(formatNumberWithDots(event.target.value))} className="field-control tabular-nums" />
-            </div>
-            <div className="field">
-              <label htmlFor="movement-date">{t("date")}</label>
-              <input id="movement-date" type="datetime-local" step={1} value={date} onChange={(event) => setDate(event.target.value)} className="field-control" />
-            </div>
-            <div className="field">
-              <label htmlFor="movement-source-account">{t("from")}</label>
-              <select id="movement-source-account" value={sourceId} onChange={(event) => setSourceId(event.target.value)} className="field-control">
-                <AccountSelectOptions labels={accountLabels} accounts={accounts} formatBalance={money} allowParentSelection={true} liquidOnly includeCredit />
-              </select>
-            </div>
-            <div className="field">
-              <label htmlFor="movement-target-account">{t("to")}</label>
-              <select id="movement-target-account" value={targetId} onChange={(event) => setTargetId(event.target.value)} className="field-control">
-                <AccountSelectOptions labels={accountLabels} accounts={accounts} formatBalance={money} allowParentSelection={true} excludeAccountId={sourceId} liquidOnly includeCredit={!isCreditId(sourceId)} />
-              </select>
-            </div>
-            <div className="field full-row">
-              <label htmlFor="movement-notes">{t("notes")}</label>
-              <input id="movement-notes" type="text" maxLength={500} autoComplete="off" value={notes} onChange={(event) => setNotes(event.target.value)}
-                placeholder={t("notesPlaceholder")} className="field-control" />
-            </div>
+    <ShellDialog open onClose={onClose} title={t("title")} meta={routeText(route)} width={600} closeLabel={t("close")} footer={footer}>
+      <form id={FORM_ID} className="form-stack" noValidate onSubmit={(event) => { event.preventDefault(); setError(""); save.mutate(); }}>
+        {error && <p role="alert" className="form-alert">{error}</p>}
+        <div className="form-grid">
+          <div className="field">
+            <label htmlFor="movement-amount">{t("amount")}</label>
+            <input id="movement-amount" type="text" inputMode="numeric" autoComplete="off" value={amount}
+              onChange={(event) => setAmount(formatNumberWithDots(event.target.value))} className="field-control tabular-nums" />
           </div>
-        </form>
-      </ShellDialog>
-    </UntranslatedRegion>
+          <div className="field">
+            <label htmlFor="movement-date">{t("date")}</label>
+            <input id="movement-date" type="datetime-local" step={1} value={date} onChange={(event) => setDate(event.target.value)} className="field-control" />
+          </div>
+          <div className="field">
+            <label htmlFor="movement-source-account">{t("from")}</label>
+            <select id="movement-source-account" value={sourceId} onChange={(event) => setSourceId(event.target.value)} className="field-control">
+              <AccountSelectOptions labels={accountLabels} accounts={accounts} formatBalance={money} allowParentSelection={true} liquidOnly includeCredit />
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="movement-target-account">{t("to")}</label>
+            <select id="movement-target-account" value={targetId} onChange={(event) => setTargetId(event.target.value)} className="field-control">
+              <AccountSelectOptions labels={accountLabels} accounts={accounts} formatBalance={money} allowParentSelection={true} excludeAccountId={sourceId} liquidOnly includeCredit={!isCreditId(sourceId)} />
+            </select>
+          </div>
+          <div className="field full-row">
+            <label htmlFor="movement-notes">{t("notes")}</label>
+            <input id="movement-notes" type="text" maxLength={500} autoComplete="off" value={notes} onChange={(event) => setNotes(event.target.value)}
+              placeholder={t("notesPlaceholder")} className="field-control" />
+          </div>
+        </div>
+      </form>
+    </ShellDialog>
   );
 }

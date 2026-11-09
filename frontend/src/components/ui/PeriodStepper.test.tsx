@@ -1,6 +1,5 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { UntranslatedRegion } from "@/components/workspace/untranslated";
 import { renderWithIntl } from "@/lib/i18n/testing";
 import { PeriodStepper } from "./PeriodStepper";
 
@@ -13,20 +12,16 @@ describe("PeriodStepper", () => {
     expect(screen.getByRole("button", { name: "Bulan ini" })).toBeInTheDocument();
   });
 
-  it("reads Oct 2026 in English on an untranslated Transaksi, marked as English inside the Indonesian page", () => {
+  it("reads Oct 2026 in English with no language override", () => {
     const { container } = renderWithIntl(
-      <div lang="id">
-        <UntranslatedRegion active>
-          <PeriodStepper unit="Bulan" label="Oktober 2026" period={{ start: "2026-10-01T00:00:00+07:00", end: "2026-10-31T23:59:59+07:00" }} offset={-1} onChange={vi.fn()} />
-        </UntranslatedRegion>
-      </div>,
+      <PeriodStepper unit="Bulan" label="Oktober 2026" period={{ start: "2026-10-01T00:00:00+07:00", end: "2026-10-31T23:59:59+07:00" }} offset={-1} onChange={vi.fn()} />,
       { language: "en" },
     );
     expect(screen.getByText("Oct 2026")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Previous month" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Next month" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "This month" })).toBeInTheDocument();
-    expect(container.querySelector("[lang='en']")).toContainElement(screen.getByText("Oct 2026"));
+    expect(container.querySelector("[lang]")).toBeNull();
   });
 
   it("names a cycle by its dates in English and says Loading while the label is not known", () => {

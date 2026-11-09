@@ -18,7 +18,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 mkdirSync(args.out, { recursive: true });
 // Every page route once, in its default view (dialog scenarios open from these same pages).
 const pages = JSON.parse(readFileSync(path.join(here, "scenarios-app.json"), "utf8"))
-  .filter((scenario) => !scenario.name.startsWith("dlg-") && !scenario.componentSheet)
+  .filter((scenario) => !scenario.name.startsWith("dlg-"))
   .filter((scenario, index, all) => all.findIndex((other) => other.path === scenario.path) === index);
 
 // Amounts, percentages, counts with a unit, dates and times as the page writes them.

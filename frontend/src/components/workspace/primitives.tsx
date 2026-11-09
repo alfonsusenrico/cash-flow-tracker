@@ -1,7 +1,6 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useInterfaceLang } from "./untranslated";
 import type { ReactNode } from "react";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { cn } from "@/lib/utils";
@@ -201,15 +200,13 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 /** "{count} item" for a section count, in the interface language (add-language-system D17). */
 function ItemCount({ count }: { count: number }) {
   const t = useTranslations("home");
-  const lang = useInterfaceLang();
-  return <span lang={lang}>{t("itemCount", { count })}</span>;
+  return <span>{t("itemCount", { count })}</span>;
 }
 
 function RetryButton({ onRetry }: { onRetry: () => void }) {
   const t = useTranslations("common");
-  const lang = useInterfaceLang();
   return (
-    <button type="button" className="ws-btn" onClick={onRetry} lang={lang}>
+    <button type="button" className="ws-btn" onClick={onRetry}>
       {t("tryAgain")}
     </button>
   );

@@ -2,7 +2,7 @@
 // image library is needed.
 //
 // Usage: node compare.mjs --left <dir> --right <dir> --out <dir> --pairs beranda-1440-light,transaksi-390-dark
-//        [--left-label "Prototype"] [--right-label "App"] [--right-name beranda=komponen] [--full 1]
+//        [--left-label "Prototype"] [--right-label "App"] [--right-name beranda=beranda-app] [--full 1]
 // A pair names the capture file without ".png"; --right-name maps a left name to a different right name.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";

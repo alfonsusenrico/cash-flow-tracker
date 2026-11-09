@@ -372,8 +372,6 @@ code, kbd, samp, pre { font-family: var(--font-sans); }
 .title-block { display: flex; align-items: flex-end; gap: var(--sp-16); padding: var(--sp-48) 0 var(--sp-32); }
 .title-block .tb-text { flex: 1; min-width: 0; }
 .title-block .sub { margin-top: var(--sp-4); color: var(--muted); text-wrap: pretty; }
-/* A page not translated yet says so in one muted line under its title (add-language-system D10). */
-.untranslated-note { margin-top: var(--sp-4); color: var(--muted); }
 .title-block .tb-actions { display: flex; align-items: center; gap: var(--sp-8); }
 .title-block .tb-actions:empty { display: none; }
 
@@ -788,11 +786,6 @@ dialog.shell-dialog::backdrop { background: var(--scrim); animation: ws-fade var
 .ws-chip:hover { background: var(--surface); }
 .ws-chip[aria-pressed="true"] { border-color: var(--line-strong); background: var(--surface-2); color: var(--text); }
 
-/* The former drawer's frame, drawn only as a static sample on /komponen until phase 12 retires the sheet. */
-.ws-drawer { display: flex; flex-direction: column; gap: 16px; padding: var(--sp-24); background: var(--dialog); color: var(--text); }
-.ws-drawer-h { display: flex; align-items: center; gap: 12px; }
-.ws-drawer-h h2 { flex: 1; min-width: 0; font-family: var(--font-display); font-feature-settings: var(--features-display); font-size: var(--fs-20); line-height: 28px; font-weight: 600; letter-spacing: -0.01em; }
-
 /* Toast */
 .ws-toast {
   position: fixed;
@@ -1055,8 +1048,6 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
   .ws-toast { bottom: calc(var(--tabbar-h) + var(--sp-16) + env(safe-area-inset-bottom, 0px)); }
   .ws-menu { position: fixed; top: 64px; right: 12px; left: 12px; max-width: none; }
 }
-
-.ws-grab { width: 32px; height: 4px; margin: 0 auto 12px; border-radius: var(--r-control); background: var(--line-strong); }
 
 /* ======================================================================
  * Fields that stay on older pages: Transaksi's selects and inputs, and Analisis' learned habits.

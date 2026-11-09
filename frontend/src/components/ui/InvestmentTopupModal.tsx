@@ -9,7 +9,6 @@ import { queryKeys } from "@/lib/queryKeys";
 import { formatNumberWithDots, localDatetimeToISO, parseNumberFromDots, toDatetimeLocal } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import { ShellDialog } from "@/components/workspace/ShellDialog";
-import { UntranslatedRegion } from "@/components/workspace/untranslated";
 import { ConfirmActionButton } from "./ConfirmActionButton";
 
 interface Props {
@@ -110,81 +109,79 @@ export function InvestmentTopupModal({ open, onClose, product, allAccounts, edit
   );
 
   return (
-    <UntranslatedRegion active={false}>
-      <ShellDialog
-        open={open}
-        onClose={close}
-        title={editingTopup ? t("editTitle") : t("title")}
-        meta={product.name}
-        width={520}
-        closeLabel={common("close")}
-        footer={footer}
+    <ShellDialog
+      open={open}
+      onClose={close}
+      title={editingTopup ? t("editTitle") : t("title")}
+      meta={product.name}
+      width={520}
+      closeLabel={common("close")}
+      footer={footer}
+    >
+      <form
+        id={FORM_ID}
+        className="form-stack"
+        noValidate
+        onSubmit={(event) => { event.preventDefault(); setError(""); mutation.mutate(false); }}
       >
-        <form
-          id={FORM_ID}
-          className="form-stack"
-          noValidate
-          onSubmit={(event) => { event.preventDefault(); setError(""); mutation.mutate(false); }}
-        >
-          <div className="field">
-            <label htmlFor="topup-amount">{t("amount")}</label>
-            <input
-              id="topup-amount"
-              name="amount"
-              type="text"
-              inputMode="numeric"
-              className="field-control ws-money-input h-14 text-xl leading-5 font-semibold tabular-nums tracking-[-0.01em]"
-              value={amount}
-              onChange={(event) => setAmount(formatNumberWithDots(event.target.value))}
-              placeholder="112.590"
-              aria-describedby="topup-amount-hint"
-              required
-              disabled={busy}
-            />
-            <p id="topup-amount-hint" className="hint">{t("amountHint")}</p>
-          </div>
-          <div className="field">
-            {editingTopup ? (
-              <>
-                <p className="flabel">{t("from")}</p>
-                <p className="t-body">{allAccounts.find((account) => account.id === sourceId)?.name ?? t("sourceFallback")}</p>
-              </>
-            ) : (
-              <>
-                <label htmlFor="topup-source">{t("from")}</label>
-                <select id="topup-source" className="field-control" value={sourceId} onChange={(event) => setSourceId(event.target.value)} required disabled={busy}>
-                  <option value="">{t("chooseSource")}</option>
-                  {funding.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-                </select>
-              </>
-            )}
-          </div>
-          <div className="form-grid">
-            <div className="field">
-              <label htmlFor="topup-date">{t("date")}</label>
-              <input id="topup-date" type="datetime-local" step="1" className="field-control tabular-nums" value={date} onChange={(event) => setDate(event.target.value)} required disabled={busy} />
-            </div>
-            <div className="field">
-              <label htmlFor="topup-notes">{t("note")}</label>
-              <input id="topup-notes" type="text" maxLength={500} className="field-control" value={notes} onChange={(event) => setNotes(event.target.value)} disabled={busy} />
-            </div>
-          </div>
-          {onSchedule && !editingTopup && (
-            <button
-              type="button"
-              className="ws-btn ws-btn-quiet"
-              disabled={busy || !sourceId || parseNumberFromDots(amount) <= 0}
-              onClick={() => {
-                onSchedule({ sourceAccountId: sourceId, targetAccountId: product.id, amount: parseNumberFromDots(amount), productName: product.name });
-              }}
-            >
-              {t("plan")}
-            </button>
+        <div className="field">
+          <label htmlFor="topup-amount">{t("amount")}</label>
+          <input
+            id="topup-amount"
+            name="amount"
+            type="text"
+            inputMode="numeric"
+            className="field-control ws-money-input h-14 text-xl leading-5 font-semibold tabular-nums tracking-[-0.01em]"
+            value={amount}
+            onChange={(event) => setAmount(formatNumberWithDots(event.target.value))}
+            placeholder="112.590"
+            aria-describedby="topup-amount-hint"
+            required
+            disabled={busy}
+          />
+          <p id="topup-amount-hint" className="hint">{t("amountHint")}</p>
+        </div>
+        <div className="field">
+          {editingTopup ? (
+            <>
+              <p className="flabel">{t("from")}</p>
+              <p className="t-body">{allAccounts.find((account) => account.id === sourceId)?.name ?? t("sourceFallback")}</p>
+            </>
+          ) : (
+            <>
+              <label htmlFor="topup-source">{t("from")}</label>
+              <select id="topup-source" className="field-control" value={sourceId} onChange={(event) => setSourceId(event.target.value)} required disabled={busy}>
+                <option value="">{t("chooseSource")}</option>
+                {funding.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+              </select>
+            </>
           )}
-          <p className="t-meta">{editingTopup ? t("editNote") : t("createNote")}</p>
-          {error && <p role="alert" className="form-alert">{error}</p>}
-        </form>
-      </ShellDialog>
-    </UntranslatedRegion>
+        </div>
+        <div className="form-grid">
+          <div className="field">
+            <label htmlFor="topup-date">{t("date")}</label>
+            <input id="topup-date" type="datetime-local" step="1" className="field-control tabular-nums" value={date} onChange={(event) => setDate(event.target.value)} required disabled={busy} />
+          </div>
+          <div className="field">
+            <label htmlFor="topup-notes">{t("note")}</label>
+            <input id="topup-notes" type="text" maxLength={500} className="field-control" value={notes} onChange={(event) => setNotes(event.target.value)} disabled={busy} />
+          </div>
+        </div>
+        {onSchedule && !editingTopup && (
+          <button
+            type="button"
+            className="ws-btn ws-btn-quiet"
+            disabled={busy || !sourceId || parseNumberFromDots(amount) <= 0}
+            onClick={() => {
+              onSchedule({ sourceAccountId: sourceId, targetAccountId: product.id, amount: parseNumberFromDots(amount), productName: product.name });
+            }}
+          >
+            {t("plan")}
+          </button>
+        )}
+        <p className="t-meta">{editingTopup ? t("editNote") : t("createNote")}</p>
+        {error && <p role="alert" className="form-alert">{error}</p>}
+      </form>
+    </ShellDialog>
   );
 }

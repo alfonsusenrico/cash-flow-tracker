@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { MaskedMoney } from "@/components/workspace/money";
-import { useInterfaceLang } from "@/components/workspace/untranslated";
 import { formatNumberWithDots, stripGrouping } from "@/lib/utils";
 
 export interface DebtChoice {
@@ -65,7 +64,6 @@ export function DebtAllocationEditor({
   originalAmounts = {},
 }: Props) {
   const t = useTranslations("transactions.debts");
-  const lang = useInterfaceLang();
   const [editingAmounts, setEditingAmounts] = useState(false);
   const allocated = totalDebtPayments(rows);
   const hasIncompleteAmount = rows.some((row) => {
@@ -97,7 +95,7 @@ export function DebtAllocationEditor({
   };
 
   return (
-    <fieldset className="min-w-0 space-y-2 rounded-xl border border-[var(--line)] p-3" lang={lang} aria-describedby={`${idPrefix}-debts-hint`}>
+    <fieldset className="min-w-0 space-y-2 rounded-xl border border-[var(--line)] p-3" aria-describedby={`${idPrefix}-debts-hint`}>
       <legend className="px-1 text-xs font-semibold text-[var(--text)]">{t("legend")}</legend>
       <p id={`${idPrefix}-debts-hint`} className="text-xs text-[var(--muted)]">{t("hint")}</p>
       {rows.map((row, index) => {

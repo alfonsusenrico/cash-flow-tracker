@@ -4,7 +4,6 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { testWords } from "@/lib/i18n/testing";
 import { PLACEHOLDER_NOTES, isPlaceholderNote } from "@/lib/placeholderNotes";
-import { INDONESIAN_ROW_LABELS } from "@/lib/untranslatedRowLabels";
 import {
   KindAmount, RowAmount, creditPurchaseLine, movementDirection, movementRoute, routeIncomplete, rowCategory, rowKind, rowLabelsFor,
   rowMeta, rowPhoneLine, rowStatus, rowTitle,
@@ -204,13 +203,5 @@ describe("the one row amount (D29)", () => {
     expect(container.querySelector(".c-invest")).toHaveTextContent(/^Rp 500\.000$/);
     expect(screen.getByText("Rp 65.000")).toHaveClass("t-amt");
     expect(rowKind(spend)).toBe("expense");
-  });
-
-  it("keeps the untranslated pages' Indonesian labels in step with the catalogue", () => {
-    expect(INDONESIAN_ROW_LABELS.flow).toEqual(labels.flow);
-    expect(INDONESIAN_ROW_LABELS.payLater).toBe(labels.payLater);
-    expect(INDONESIAN_ROW_LABELS.due("11 Des")).toBe(labels.due("11 Des"));
-    expect(INDONESIAN_ROW_LABELS.unpaired).toBe(labels.unpaired);
-    expect(INDONESIAN_ROW_LABELS.categoryTopup).toBe(labels.categoryTopup);
   });
 });

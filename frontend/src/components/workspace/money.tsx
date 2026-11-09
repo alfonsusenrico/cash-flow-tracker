@@ -4,7 +4,6 @@ import { useTranslations } from "next-intl";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { useFormat } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { useInterfaceLang } from "./untranslated";
 
 /**
  * An amount that "Sembunyikan saldo" can hide (apply-markas-beranda D11). The caller formats the amount with its
@@ -14,11 +13,10 @@ import { useInterfaceLang } from "./untranslated";
 export function MaskedMoney({ text, className }: { text: string; className?: string }) {
   const { hideBalances, bal } = useAppCtx();
   const t = useTranslations("common");
-  const lang = useInterfaceLang();
   if (hideBalances) {
     // Its accessible name is `common.hidden` (apply-markas-shell owner decision 12, add-language-system D6).
     return (
-      <span className={cn("mask", className)} role="img" aria-label={t("hidden")} lang={lang}>
+      <span className={cn("mask", className)} role="img" aria-label={t("hidden")}>
         {bal(0)}
       </span>
     );
@@ -29,7 +27,7 @@ export function MaskedMoney({ text, className }: { text: string; className?: str
 
 /**
  * Money for the translated pages (add-language-system D6): the region's digit grouping, the display currency, and
- * the currency's mask while balances are hidden. Untranslated pages keep `bal` until their phase moves them.
+ * the currency's mask while balances are hidden.
  */
 export function useMoney(): (amount: number) => string {
   const { hideBalances, bal } = useAppCtx();

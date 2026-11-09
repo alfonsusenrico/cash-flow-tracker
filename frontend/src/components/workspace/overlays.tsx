@@ -2,7 +2,6 @@
 
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useInterfaceLang } from "./untranslated";
 
 /* ---------------------------------------------------------------------------------------------
  * Toast: one polite status message with an optional "Urungkan". It stays 6.5 s and pauses while the
@@ -64,7 +63,6 @@ function Toast({ toast, onDone }: { toast: ToastMessage; onDone: () => void }) {
     };
   }, [paused, onDone]);
   const t = useTranslations("common");
-  const lang = useInterfaceLang();
 
   return (
     <div
@@ -83,7 +81,7 @@ function Toast({ toast, onDone }: { toast: ToastMessage; onDone: () => void }) {
             onDone();
           }}
         >
-          {toast.actionLabel ?? <span lang={lang}>{t("undo")}</span>}
+          {toast.actionLabel ?? t("undo")}
         </button>
       )}
     </div>

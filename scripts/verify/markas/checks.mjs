@@ -185,20 +185,6 @@ try {
     record(`figures tabular, prose proportional ${theme}`, figures.notTabular.length === 0 && figures.subtitle && !figures.subtitle.includes("tabular"), figures);
   }
 
-  // The component sheet's error field: neutral edge, aria-invalid and the linked 12 px message.
-  for (const theme of ["light", "dark"]) {
-    await open("/komponen", theme);
-    const sheetError = await browser.evaluate(`(() => {
-      const field = document.getElementById("ks-d-${theme}");
-      const error = document.getElementById(field.getAttribute("aria-describedby"));
-      const style = getComputedStyle(field);
-      return { invalid: field.getAttribute("aria-invalid"), border: style.borderTopWidth + " " + style.borderTopColor,
-        error: { size: getComputedStyle(error).fontSize, color: getComputedStyle(error).color } };
-    })()`);
-    const edge = theme === "dark" ? "1px rgb(201, 201, 204)" : "1px rgb(43, 45, 50)";
-    record(`sheet error field ${theme}`, sheetError.invalid === "true" && sheetError.border === edge && sheetError.error.size === "12px", sheetError);
-  }
-
   // Reflow: no horizontal page scroll at 320 px on the main pages (SPEC §11).
   for (const pathname of ["/", "/review", "/ledger", "/insights", "/laporan", "/accounts", "/goals", "/settings/profil"]) {
     await browser.setCell({ width: 320, height: 700, theme: "light", mobile: true });

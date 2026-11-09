@@ -101,4 +101,8 @@ PostgreSQL V1 → V54 for tests), multi-user (owner scoping of the new parameter
 
 ## Approval
 
-Pending. The owner answers the flagged defaults (design "Decisions to confirm") and flag F1.
+2026-11-09, through the coordinator: every default accepted as written (D1–D5, D8–D17, D19), item 11 dropped
+with only a regression test (D14), and D9 accepted because it applies the owner's one-basis rule (the header must
+match the list). Public sign-up, the Tabungan recurring-charge basis and the catalogue-key prune stay follow-ups.
+Flag F1 is pending the owner's answer: until then today's behaviour (option B) is kept and the count-only `PUT` is
+not changed; task 4.9 stays last.
