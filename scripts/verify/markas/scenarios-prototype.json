@@ -70,10 +70,6 @@
   ]
  },
  {
-  "name": "laporan",
-  "path": "/laporan"
- },
- {
   "name": "rekening",
   "path": "/rekening"
  },
@@ -410,6 +406,38 @@
    },
    {
     "click": "^Ubah$"
+   }
+  ]
+ },
+ {
+  "name": "laporan",
+  "path": "/laporan/2026-10",
+  "laporan": true
+ },
+ {
+  "name": "laporan-juli",
+  "path": "/laporan/2026-07",
+  "laporan": true
+ },
+ {
+  "name": "laporan-november",
+  "path": "/laporan/2026-11",
+  "laporan": true
+ },
+ {
+  "name": "laporan-siklus",
+  "path": "/laporan/2026-11?basis=siklus&siklus=-1",
+  "laporan": true
+ },
+ {
+  "name": "laporan-rincian",
+  "path": "/laporan/2026-10",
+  "laporan": true,
+  "full": true,
+  "steps": [
+   {
+    "click": "^Rincian pengeluaran",
+    "after": 700
    }
   ]
  }
