@@ -51,11 +51,16 @@ SCENARIOS = [
     ("catat-perpindahan-kredit", "/", [N, ISI, P, ev("__ct.radio('^(Perpindahan|Transfer)$')"), ev("__ct.pick('#capture-target', '^SPayLater')"),
         {"click": "^(Bayar sisa tagihan|Pay the amount left)"}, ev("__ct.value('#capture-fee', '2.500')")]),
     ("catat-perpindahan-tanpa-tagihan", "/", [N, ISI, P, ev("__ct.radio('^(Perpindahan|Transfer)$')"), ev("__ct.pick('#capture-target', '^Kredivo')")]),
-    ("catat-dari-bel", "/", [{"click": "^(Notifikasi|Notifications)"}, {"click": "Kartu Kredit Contoh"}]),
+    # A key press first gives the page focus, which a script click does not, so the focused field's style can be read.
+    ("catat-dari-bel", "/", [{"key": ["Shift", "ShiftLeft", 16]}, {"click": "^(Notifikasi|Notifications)"}, {"click": "Kartu Kredit Contoh"}]),
     ("catat-galat-sama", "/", [N, ISI, P, ev("__ct.radio('^(Perpindahan|Transfer)$')"), ev("__ct.pick('#capture-source', '^Jago')"), ev("__ct.pick('#capture-target', '^Kantong Utama')"),
         ev("__ct.amount('1000')"), {"click": "^(Pindahkan saldo|Move balance)$", "after": 1500}]),
     ("catat-galat-nominal", "/", [N, ISI, P, ev("(() => { document.querySelector('dialog[open] form.capture-manual').requestSubmit(); return 'submitted'; })()")]),
     ("catat-sembunyi", "/", [N, ISI, P, ev("__ct.amount('1000000')"), ev("__ct.pick('#capture-account', '^SPayLater')"), ev("__ct.radio('^3x$')")]),
+    # Stress seed: a 60-character pocket on both sides and as "Bayar dari", and Rp 1.234.567.890 in the amount.
+    ("catat-panjang", "/", [N, ISI, P, ev("__ct.amount('1234567890')"), ev("__ct.pick('#capture-account', '^Kantong Tabungan Pendidikan Anak dan Keperluan Sekolah')")]),
+    ("catat-panjang-perpindahan", "/", [N, ISI, P, ev("__ct.radio('^(Perpindahan|Transfer)$')"), ev("__ct.amount('1234567890')"),
+        ev("__ct.pick('#capture-source', '^Kantong Tabungan Pendidikan Anak dan Keperluan Sekolah')"), ev("__ct.pick('#capture-target', '^Kantong Tabungan Pendidikan Anak dan Keperluan Sekol 02')")]),
     ("glob-notifikasi", "/", [{"click": "^(Notifikasi|Notifications)"}]),
     ("glob-tema", "/", [{"click": "^(Tema|Theme)"}]),
     ("glob-tema-ponsel", "/", [{"click": "^(Lainnya|More)$"}, {"click": "^(Tema|Theme)"}]),

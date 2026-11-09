@@ -2638,6 +2638,13 @@
   "catat": true,
   "steps": [
    {
+    "key": [
+     "Shift",
+     "ShiftLeft",
+     16
+    ]
+   },
+   {
     "click": "^(Notifikasi|Notifications)"
    },
    {
@@ -2752,6 +2759,76 @@
   "storage": {
    "hideBalances": "1"
   }
+ },
+ {
+  "name": "catat-panjang",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "key": [
+     "n",
+     "KeyN",
+     78,
+     0,
+     "n"
+    ]
+   },
+   {
+    "click": "^(Isi manual|Fill in manually)$"
+   },
+   {
+    "eval": "(() => {\n  const dlg = () => document.querySelector('dialog[open]');\n  const en = () => document.documentElement.lang === 'en';\n  const setValue = (el, value) => {\n    const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;\n    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);\n    el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));\n  };\n  const optionByText = (select, re) => [...select.options].find((o) => re.test(o.textContent));\n  window.__ct = {\n    type: (id, en_) => { const f = dlg().querySelector('[data-capture-field]'); setValue(f, en() ? en_ : id); return 'typed'; },\n    amount: (value) => { setValue(dlg().querySelector('#capture-amount'), value); return 'amount ' + value; },\n    pick: (selector, pattern) => { const s = dlg().querySelector(selector); const o = s && optionByText(s, new RegExp(pattern)); if (!o) return 'NOT FOUND'; setValue(s, o.value); return 'picked ' + o.textContent.slice(0, 30); },\n    radio: (pattern) => { const r = [...dlg().querySelectorAll('[role=radio]')].find((b) => new RegExp(pattern).test(b.textContent)); if (!r) return 'NOT FOUND'; r.click(); return 'radio ' + r.textContent; },\n    open: () => { const d = dlg().querySelector('details'); if (!d) return 'NOT FOUND'; d.open = true; d.dispatchEvent(new Event('toggle')); return 'details'; },\n    value: (selector, value) => { setValue(dlg().querySelector(selector), value); return 'set ' + selector; },\n    scroll: (selector) => { const e = dlg().querySelector(selector); if (!e) return 'NOT FOUND'; e.scrollIntoView({ block: 'center' }); return 'scrolled'; },\n  };\n  return 'prelude';\n})()",
+    "after": 200
+   },
+   {
+    "eval": "__ct.amount('1234567890')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.pick('#capture-account', '^Kantong Tabungan Pendidikan Anak dan Keperluan Sekolah')",
+    "after": 700
+   }
+  ]
+ },
+ {
+  "name": "catat-panjang-perpindahan",
+  "path": "/",
+  "catat": true,
+  "steps": [
+   {
+    "key": [
+     "n",
+     "KeyN",
+     78,
+     0,
+     "n"
+    ]
+   },
+   {
+    "click": "^(Isi manual|Fill in manually)$"
+   },
+   {
+    "eval": "(() => {\n  const dlg = () => document.querySelector('dialog[open]');\n  const en = () => document.documentElement.lang === 'en';\n  const setValue = (el, value) => {\n    const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;\n    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);\n    el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));\n  };\n  const optionByText = (select, re) => [...select.options].find((o) => re.test(o.textContent));\n  window.__ct = {\n    type: (id, en_) => { const f = dlg().querySelector('[data-capture-field]'); setValue(f, en() ? en_ : id); return 'typed'; },\n    amount: (value) => { setValue(dlg().querySelector('#capture-amount'), value); return 'amount ' + value; },\n    pick: (selector, pattern) => { const s = dlg().querySelector(selector); const o = s && optionByText(s, new RegExp(pattern)); if (!o) return 'NOT FOUND'; setValue(s, o.value); return 'picked ' + o.textContent.slice(0, 30); },\n    radio: (pattern) => { const r = [...dlg().querySelectorAll('[role=radio]')].find((b) => new RegExp(pattern).test(b.textContent)); if (!r) return 'NOT FOUND'; r.click(); return 'radio ' + r.textContent; },\n    open: () => { const d = dlg().querySelector('details'); if (!d) return 'NOT FOUND'; d.open = true; d.dispatchEvent(new Event('toggle')); return 'details'; },\n    value: (selector, value) => { setValue(dlg().querySelector(selector), value); return 'set ' + selector; },\n    scroll: (selector) => { const e = dlg().querySelector(selector); if (!e) return 'NOT FOUND'; e.scrollIntoView({ block: 'center' }); return 'scrolled'; },\n  };\n  return 'prelude';\n})()",
+    "after": 200
+   },
+   {
+    "eval": "__ct.radio('^(Perpindahan|Transfer)$')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.amount('1234567890')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.pick('#capture-source', '^Kantong Tabungan Pendidikan Anak dan Keperluan Sekolah')",
+    "after": 700
+   },
+   {
+    "eval": "__ct.pick('#capture-target', '^Kantong Tabungan Pendidikan Anak dan Keperluan Sekol 02')",
+    "after": 700
+   }
+  ]
  },
  {
   "name": "glob-notifikasi",
