@@ -12,7 +12,7 @@ import { useMoney } from "@/components/workspace/money";
 import { useToast } from "@/components/workspace/overlays";
 import { RadioSegments } from "@/components/workspace/primitives";
 import { api, ApiError, createMovement, uploadTransactionReceipt, type CreateMovementPayload } from "@/lib/api";
-import { listCreditAccountChoices, listLiquidAccountChoices } from "@/lib/accountOptions";
+import { defaultMovementTargetId, listCreditAccountChoices, listLiquidAccountChoices } from "@/lib/accountOptions";
 import { useFormat } from "@/lib/format";
 import { KAKEIBO_PILLARS, type KakeiboPillar, pillarOrNeed } from "@/lib/kakeibo";
 import { movementFormSchema, type MovementIssueCode } from "@/lib/movementFormSchema";
@@ -196,9 +196,9 @@ export function ManualView({
     setTargetId((current) => {
       if (targets.includes(current) && current !== source) return current;
       if (initialTargetAccountId && targets.includes(initialTargetAccountId) && initialTargetAccountId !== source) return initialTargetAccountId;
-      return liquidAccountIds.find((id) => id !== source) ?? "";
+      return defaultMovementTargetId(source, liquidAccounts);
     });
-  }, [creditAccountIds, initialSourceAccountId, initialTargetAccountId, liquidAccountIds, movementAccountIds, sourceId]);
+  }, [creditAccountIds, initialSourceAccountId, initialTargetAccountId, liquidAccountIds, liquidAccounts, movementAccountIds, sourceId]);
 
   const parsedAmount = parseAmountExpression(amountStr);
   const parsedFee = parseAmountExpression(feeStr);

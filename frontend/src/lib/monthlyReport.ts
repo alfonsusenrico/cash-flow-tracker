@@ -206,7 +206,8 @@ export interface MonthlyReport {
   period: ReportPeriod;
   flow: FlowFigures;
   income: { total: number; sources: { category_id: string | null; name: string; amount: number; count: number }[] };
-  savings: { fresh_saving: number; saving_expenses: number; net_saving_transfers: number; surplus: number };
+  /** Question 2: `saving_expenses + net_saving_transfers - paid_from_savings = fresh_saving` (apply-markas-cleanup D8). */
+  savings: { fresh_saving: number; saving_expenses: number; net_saving_transfers: number; paid_from_savings: number; surplus: number };
   spending: {
     total: number;
     pillars: { pillar: KakeiboBucket; amount: number }[];

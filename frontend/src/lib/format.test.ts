@@ -12,6 +12,25 @@ describe("createFormat", () => {
   const enUS = createFormat({ language: "en", region: "US" });
   const idUS = createFormat({ language: "id", region: "US" });
 
+  it("writes September with three letters in every English short month, as the server does (apply-markas-cleanup D11)", () => {
+    const september = new Date("2026-09-29T05:00:00Z");
+    for (const format of [enID, enUS]) {
+      expect(format.shortDate("2026-09-29")).not.toContain("Sept");
+      expect(format.shortMonth("2026-09-29")).toBe("Sep");
+      expect(format.shortMonthYear("2026-09-29")).toBe("Sep 2026");
+      expect(format.yearDate("2026-09-29")).toContain("Sep");
+      expect(format.yearDate("2026-09-29")).not.toContain("Sept");
+      expect(format.shortDateAt(september)).not.toContain("Sept");
+      expect(format.yearDateAt(september)).not.toContain("Sept");
+    }
+    expect(enID.shortDate("2026-09-29")).toBe("29 Sep");
+    expect(enUS.shortDate("2026-09-29")).toBe("Sep 29");
+    expect(enID.shortDate("2026-10-27")).toBe("27 Oct");
+    expect(idID.shortDate("2026-09-29")).toBe("29 Sep");
+    expect(idID.shortDate("2026-08-29")).toBe("29 Agu");
+    expect(enID.longDate("2026-09-29")).toBe("29 September");
+  });
+
   it("writes IDR exactly as today's fmtIDR in region Indonesia, in both languages", () => {
     for (const amount of [0, 1234, -1234, 1_234_567_890]) {
       expect(idID.money(amount)).toBe(fmtIDR(amount));

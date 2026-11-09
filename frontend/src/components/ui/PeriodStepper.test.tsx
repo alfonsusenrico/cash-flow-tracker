@@ -26,7 +26,7 @@ describe("PeriodStepper", () => {
 
   it("names a cycle by its dates in English and says Loading while the label is not known", () => {
     const { rerender } = renderWithIntl(<PeriodStepper unit="Siklus" label="Siklus 25 Sep – 24 Okt" period={{ start: "2026-09-25", end: "2026-10-24" }} offset={0} onChange={vi.fn()} />, { language: "en" });
-    expect(screen.getByText("Cycle 25 Sept – 24 Oct")).toBeInTheDocument();
+    expect(screen.getByText("Cycle 25 Sep – 24 Oct")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Previous cycle" })).toBeInTheDocument();
     rerender(<PeriodStepper unit="Siklus" label={null} offset={0} onChange={vi.fn()} />);
     expect(screen.getByText("Loading…")).toBeInTheDocument();

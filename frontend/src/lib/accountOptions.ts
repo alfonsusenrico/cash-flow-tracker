@@ -7,6 +7,7 @@ export interface AccountChoice {
   type?: string;
   instrument_type?: string | null;
   balance?: number;
+  default_pocket_id?: string | null;
   children?: AccountChoice[];
 }
 
@@ -63,4 +64,24 @@ export function listCreditAccountChoices<T extends AccountChoice>(accounts: T[])
     seen.add(id);
     return true;
   });
+}
+
+/**
+ * The account Perpindahan preselects as "Ke" for a "Dari" (apply-markas-cleanup D13): the first liquid account that
+ * is not "Dari", has no pockets of its own (the server moves such an account's money through a pocket the form does
+ * not show) and is not the pocket "Dari" resolves to, which is its default pocket, or any of its pockets when it has
+ * none. Empty when nothing qualifies, so the owner chooses; a pair the server would refuse as `same_account` is never
+ * preselected.
+ */
+export function defaultMovementTargetId(sourceId: string, liquid: AccountChoice[]): string {
+  const pocketsOf = (id: string) => liquid.filter((account) => account.parent_id === id).map((account) => choiceId(account));
+  const sourcePockets = pocketsOf(sourceId);
+  const source = liquid.find((account) => choiceId(account) === sourceId);
+  const resolvedPocket = source?.default_pocket_id && sourcePockets.includes(source.default_pocket_id) ? source.default_pocket_id : null;
+  const sameMoney = new Set(resolvedPocket ? [resolvedPocket] : sourcePockets);
+  const target = liquid.find((account) => {
+    const id = choiceId(account);
+    return id !== undefined && id !== sourceId && pocketsOf(id).length === 0 && !sameMoney.has(id);
+  });
+  return (target && choiceId(target)) ?? "";
 }

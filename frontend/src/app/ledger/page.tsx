@@ -395,9 +395,13 @@ function LedgerPageContent() {
   const heroPeriod = filters.period !== "all"
     ? null
     : hasDateRange(filters) ? { kind: "range" as const, range: rangeText(filters.from, filters.to) } : { kind: "all" as const };
-  const creditWindow = filters.period !== "all"
-    ? { from: period?.start ? jakartaDay(period.start) : null, to: period?.end ? jakartaDay(period.end) : null }
-    : { from: filters.from ? jakartaDay(filters.from) : null, to: filters.to ? jakartaDay(filters.to) : null };
+  // The provider header asks for the list's own window, so its figures count exactly the listed rows
+  // (apply-markas-cleanup D9). A one-sided range keeps the local-day form; nothing set is the server's cycle.
+  const creditWindow: Record<string, string> = filters.period !== "all"
+    ? { period: filters.period, period_offset: String(filters.offset) }
+    : filters.from && filters.to
+      ? { from_date: filters.from, to_date: filters.to }
+      : Object.fromEntries([["from", filters.from], ["to", filters.to]].flatMap(([key, value]) => (value ? [[key, jakartaDay(value)]] : [])));
   const nothingSet = chips.length === 0 && filters.period === "all" && filters.type === "all";
   const loadingFirst = list.isLoading;
   const failed = list.isError && !first;
@@ -442,7 +446,7 @@ function LedgerPageContent() {
         <div ref={listRegionRef} className="tx-main">
           <LedgerTypeControl type={filters.type} counts={loadingFirst ? null : counts} format={format} onType={setType} />
           {filters.type === "credit" && <ProviderControl providers={providers} account={filters.account} onAccount={(account) => updateFilters({ account })} />}
-          {provider && <CreditHeader accountId={provider.id} from={creditWindow.from} to={creditWindow.to} money={money} format={format} />}
+          {provider && <CreditHeader accountId={provider.id} window={creditWindow} money={money} format={format} />}
           <LedgerToolbar
             ref={filterButtonRef}
             search={search}
