@@ -146,6 +146,7 @@ export function BillsSection({
                     onClick={open(row)}
                     rowKey={row.key}
                     time={format.shortDate(row.date)}
+                    timeIsDate
                     title={row.kind === "credit" ? t("creditTitle", { account: row.label }) : row.label}
                     meta={meta}
                     phoneMeta={

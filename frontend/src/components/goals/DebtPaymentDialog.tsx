@@ -135,6 +135,7 @@ export function DebtPaymentDialog({ debt, accounts, onClose }: { debt: Obligatio
                 <li key={candidate.id}>
                   <ListRow
                     time={format.shortDateAt(candidate.date)}
+                    timeIsDate
                     title={candidate.merchant || candidate.notes || candidate.account_name}
                     meta={candidate.exact_amount ? `${candidate.account_name} · ${t("exact")}` : candidate.account_name}
                     amount={<MaskedMoney text={format.money(candidate.amount)} className="t-amt" />}

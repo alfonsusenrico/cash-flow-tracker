@@ -23,6 +23,13 @@
     return getComputedStyle(probe).color;
   };
 
+  // Every short date in a time column ("10 Nov", "30 Sept") sits on one 16 px line and fits its column.
+  const dates = all(".row .r-time.is-date");
+  if (dates.length) {
+    add("date cells on one line", dates.filter((cell) => Math.round(box(cell).height) > 16 || cell.scrollWidth > cell.clientWidth + 1).map((cell) => cell.textContent).join(", "), "");
+    add("date cells tabular", dates.every((cell) => /tabular-nums/.test(style(cell).fontVariantNumeric)), true);
+  }
+
   const dialogs = all("dialog.shell-dialog[open]");
   const dialog = dialogs[dialogs.length - 1] ?? null;
   const page = first(".tg-page");
@@ -79,7 +86,7 @@
     add("bill row min-height 56 (64 phone)", px(style(billRow).minHeight), phone ? 64 : 56);
     add("bill row padding 0 12 (left)", px(style(billRow).paddingLeft), 12);
     const time = first(".r-time", billRow);
-    if (time && !phone) add("bill time column 40", Math.round(box(time).width), 40);
+    if (time && !phone) add("bill date column 48", Math.round(box(time).width), 48);
     if (phone) add("bill date in the phone meta", Boolean(first(".r-meta.ph-only", billRow)), true);
   }
   const goalRow = page ? first(".row.goal-row") : null;

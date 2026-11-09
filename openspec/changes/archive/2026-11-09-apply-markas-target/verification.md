@@ -128,6 +128,19 @@ gate fork's first pass) is in `after/`, `after-wide/`, `stress/`, `states/`.
   the other sections keep working; empty lines and "Tambah target"; the unknown-cost owner sees "Belum dapat dihitung"
   with no months, bar or days. Console errors only for the injected 500 responses. axe 0 serious.
 
+### Bill dates on one line (follow-up, 2026-11-09)
+
+The 40 px time column wrapped two-digit dates in "Tagihan" ("10" / "Nov"). Measured in the app font at 12 px with
+tabular numerals, the widest short dates are "30 Sept" 44,8 px (English, region ID) and "30 Agu" / "10 Nov" 41,6 px
+(Indonesian). `ListRow` gains `timeIsDate`, which adds `.r-time.is-date` (48 px, no wrap); Tagihan and the payment
+dialog's candidates use it. Clock times on Transaksi and Beranda keep the 40 px column (their checklists expect it), and
+phase 6's Analisis bills panel has no time column. The checklist gains "date cells on one line" (height 16 px and no
+clipped text) and "date cells tabular", and expects the bill date column at 48 px. Re-run on the rebuilt app (fresh
+seed): `target`, `target-tagihan-semua`, `dlg-utang-bayar`, `target-hidden` and `beranda` at 1440, 1024, 390, 320 in
+light and dark, 34 captures per language, 896 checks pass and 0 fail in each; page at 1280, 1200, 1199, 768, 767, 420
+pass and 0 fail in each; axe serious 0, console errors 0, no horizontal overflow (session scratchpad
+`markas-target/datefix/`). Type-check 0 errors, lint 0 problems, vitest 99 files and 1040 passed, build passes.
+
 ## Keyboard flows (task 6.4)
 
 `target-keys.mjs`, the 13 flows of D26 at 1440 and 390 on the final build (`final/keys/{id,en}`): **Indonesian 36/36,

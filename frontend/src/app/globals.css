@@ -1043,6 +1043,8 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
 .panel .row:hover { background: var(--surface-2); }
 .row:focus-visible { outline-offset: -2px; }
 .row .r-time { flex: none; width: 40px; color: var(--muted); font-size: var(--fs-12); line-height: 16px; }
+/* A short date in the time column (Tagihan, payment candidates): wide enough for "30 Sept" (45 px) or "30 Agu" (42 px) on one line. */
+.row .r-time.is-date { width: 48px; white-space: nowrap; }
 .row .r-main { display: flex; flex: 1; align-items: baseline; gap: var(--sp-8); min-width: 0; }
 .row .r-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row .r-meta { flex: 1 1 0; min-width: 0; overflow: hidden; color: var(--muted); font-size: var(--fs-12); line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
