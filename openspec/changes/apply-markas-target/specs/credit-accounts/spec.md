@@ -47,7 +47,7 @@ Beranda's Rincian of Pengeluaran SHALL show "Pengeluaran pakai kredit" as a part
 #### Scenario: Credit lines
 - **GIVEN** the cycle summary's `spending.credit` with `spent_on_credit` 579000, `paid_to_credit` 470000 and one line per credit account
 - **WHEN** the owner opens "Rincian" on Beranda and opens the Pengeluaran line
-- **THEN** after the five buckets it SHALL list "Pengeluaran pakai kredit" Rp 579.000 noted "sudah termasuk di atas" and "Tagihan kredit dibayar" Rp 470.000 noted "uang keluar, tidak dihitung lagi", each opening its accounts, and the Pengeluaran total SHALL be unchanged
+- **THEN** after the five buckets it SHALL list "Pengeluaran pakai kredit" Rp 579.000 noted "sudah termasuk di atas" and "Tagihan kredit dibayar" Rp 470.000 noted "uang keluar, tidak dihitung lagi", each note naming its accounts with their amounts, and the Pengeluaran total SHALL be unchanged
 
 #### Scenario: No credit use
 - **WHEN** `spending.credit` is absent or both amounts are 0

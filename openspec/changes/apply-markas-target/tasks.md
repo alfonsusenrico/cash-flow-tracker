@@ -1,7 +1,7 @@
 ## 1. Approval, dependencies and baseline
 
 - [ ] 1.1 Record the approval and the flagged review:
-  - in `proposal.md` (already written: "Approved under the owner's standing instruction 'complete all until finished' (2026-11-06, renewed 2026-11-08); decisions take their recommended defaults") and in `PROJECT_STATE.md`, with the date;
+  - in `proposal.md` (already written: "Approved under the owner's standing instruction 'complete all until finished' (2026-11-06, renewed 2026-11-08); decisions take their recommended defaults") and in `verification.md` under "For PROJECT_STATE.md", with the date (this change does not edit `PROJECT_STATE.md`);
   - the review outcome of the flagged decisions D3, D7, D8, D9, D14, D16 and D20 (default, or the recorded fallback) in `design.md` and the spec delta before any code.
 
   Evidence: both files name the date and each flag's outcome; `openspec validate apply-markas-target --strict` passes after the edits.
@@ -16,7 +16,7 @@
   - every D26 scenario that exists before the change (the drawers, the goal and debt forms, the progress and pay dialogs, the Rencana modal from each caller, loading, failure and empty), Beranda's "Perlu tindakan", the safe-amount Rincian with Pengeluaran open, and the bell;
   - `parity-before.json`: the runway figures and the browser's bar width and target, each bill row's date and amount with the section's count and total, each goal's amounts and %, each debt's amounts and %, Beranda's Terjadwal and Pengeluaran, and the page's request count.
 
-  Evidence: captures and the JSON in `research/evidence/apply-markas-target/before/`; the Indonesian rendered-text snapshot `copy-before-id.json` for task 4.4.
+  Evidence: captures and the JSON in the session scratchpad `markas-target/before/` and `markas-target/parity/` (design "Deviations recorded at implementation"); the Indonesian rendered-text snapshot `copy-before-id.json` for task 4.4.
 - [ ] 1.4 Extend the seeds (D26), local and disposable only: the parity seed additions of D26 (flagged goal linked to a parent and its pocket, reached, dateless and standalone goals, a paid-off debt, overdue and due-today plans, a detected charge, two credit accounts with unpaid bills due today and overdue, a credit-bill plan, credit purchases and a payment in the cycle), and the stress and USD seed of D26. Evidence:
   - `test_seed_parity.py` passes;
   - the seed report lists every addition and every skip with its reason;
@@ -28,7 +28,7 @@ Expected Result: the dependencies are on the branch, every section, state, dialo
 
 ## 2. Shared pieces
 
-- [ ] 2.1 Make `ExplanationDialog`'s `link` optional (D4, D23). Evidence: a component test renders a Rincian without a footer link and with one; Beranda's Rincian tests pass unchanged.
+- [ ] 2.1 Make `ExplanationDialog`'s `link` optional (D4, D23); phase 8 already did, so only the evidence remains. Evidence: a component test renders a Rincian without a footer link and with one; Beranda's Rincian tests pass unchanged.
 - [ ] 2.2 Extract `DuePlanActions` from `PendingScheduledBanner` (D20, D23) without changing a request or a confirmation. Evidence: `PendingScheduledBanner.test.tsx` passes unchanged (labels, undo, never posts by itself, ambiguous matches, missed payment after naming captures, skip with refusal); a new test renders `DuePlanActions` alone for one rule and sends the same link, skip and record requests.
 - [ ] 2.3 Add `.stacked`, `.goal-row`, `.rc-grid` (and `.cols`, `.stack`, `.supports` where phase 3 has not) from `styles.css` with the phase 1 token names (D23). Evidence: the `/komponen` sheet shows a stacked row, a goal row and the 880 list/detail grid in both themes, and their checklist values pass there; `selectionMarks.test.ts` passes.
 
@@ -49,11 +49,11 @@ Expected Result: H9's Beranda and bell parts work on today's Beranda without cha
 
 ## 4. Language
 
-- [ ] 4.1 Add the `goals` and `plans` namespaces and the Beranda, bell and breakdown keys of Appendix A to `messages/en.json` and `id.json` (D22). Write the full key list to `research/evidence/apply-markas-target/copy-keys.md`. Evidence: the catalogue parity test passes (same keys, same arguments, `one`/`other` in English); `npm run type-check` fails on a planted missing key and passes without it.
+- [ ] 4.1 Add the `goals` and `plans` namespaces and the Beranda, bell and breakdown keys of Appendix A to `messages/en.json` and `id.json` (D22). Write the full key list to `verification.md`. Evidence: the catalogue parity test passes (same keys, same arguments, `one`/`other` in English); `npm run type-check` fails on a planted missing key and passes without it.
 - [ ] 4.2 Move every Target & Tagihan, goal, debt and plan string to keys, and every date, amount and month figure to `useFormat()`. This covers `components/goals`, `components/recurring` and the H9 parts of Beranda and the shell. Evidence: `rg 'id-ID|Intl\.DateTimeFormat|toLocaleString' frontend/src/components/goals frontend/src/components/recurring` finds nothing; formatter cases for `id-ID`, `en-ID` and `en-US` render "5,4 bulan" / "5.4 months", "2 Nov" / "2 Nov" and "Rp 434.000" / "Rp 434,000" (or the region's form).
-- [ ] 4.3 Add `/goals` to `lib/i18n/translatedRoutes.ts`, remove its `untranslatedPages.ts` entry and `RecurringRulesModal`'s `untranslated` flag, and add the D22 roots to the copy register's translated roots. Move the untranslated-page test example, which phase 8 put on `/goals`, to the first of `/insights` and `/laporan` still untranslated on the updated branch (D22 rule). Evidence:
+- [ ] 4.3 Add `/goals` to `lib/i18n/translatedRoutes.ts`, remove its `untranslatedPages.ts` entry and `RecurringRulesModal`'s `untranslated` flag, and add the D22 roots to the copy register's translated roots. The untranslated-page test example stays on `/settings`, where phase 8 put it. Evidence:
   - an English Target & Tagihan, each of its dialogs and "Rencana & Pengingat" opened from Analisis have no "This page is in Indonesian for now." line and no `lang="id"` region;
-  - the page chosen for the example still has both, and the choice is recorded in `verification.md`;
+  - `/settings` still shows both;
   - the copy register passes in both languages, and one planted fixture per language fails: an Indonesian "Belanja" figure label in `goals`, and an English "Expenses" label in `plans`.
 - [ ] 4.4 Check the copy. Evidence: the Indonesian rendered-text snapshot after the change equals `copy-before-id.json` for every unchanged key; the differences are exactly the intended ones of D22, listed in `verification.md`; every English string is checked against Appendix B, and no English label uses "Expense", "Outflow", "you/your" or slang.
 
@@ -80,7 +80,7 @@ Expected Result: Target & Tagihan and its dialogs are rebuilt to the prototype w
 
 ## 6. Verification gate
 
-- [ ] 6.1 Side by side, on the parity seed: prototype and app captures of every D26 scenario at 1440 × 900, 1024 × 768 and 390 × 844, light and dark, the app in `en` and `id`, plus composed left/right images; add the overflow widths 1280, 1200, 1199, 768, 767 and 320, and the after-captures of the Rencana callers and Beranda of task 1.3. Evidence: the images in `research/evidence/apply-markas-target/after/`, tied to the branch revision, with every visible difference listed in `verification.md` and each one fixed, named as a deviation of the proposal, or added to the owner's end-review list.
+- [ ] 6.1 Side by side, on the parity seed: prototype and app captures of every D26 scenario at 1440 × 900, 1024 × 768 and 390 × 844, light and dark, the app in `en` and `id`, plus composed left/right images; add the overflow widths 1280, 1200, 1199, 768, 767 and 320, and the after-captures of the Rencana callers and Beranda of task 1.3. Evidence: the images in the session scratchpad `markas-target/after/`, tied to the branch revision, with every visible difference listed in `verification.md` and each one fixed, named as a deviation of the proposal, or added to the owner's end-review list.
 - [ ] 6.2 The SPEC measurement checklist (`target-checklist.js`) and the SPEC §13 global rules (D26), in both languages. Evidence: the checklist JSON with pass and fail counts in `verification.md`, zero fails or each fail with its reason, including `.cols` at 1440, one column at 1199 and 1024, first content `y = 192`, one 44 px figure and no other ≥ 33 px, rows, panel and dialog measurements, sizes, weights and ≤ 8 text styles, no border ≥ 2 px and no coloured border except the bars and focus, status word colours per theme, and no horizontal overflow at every width of 6.1, with the English hero line and panel lines at 390 and 320.
 - [ ] 6.3 Accessibility. Evidence: axe-core (wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22aa) with zero serious or critical findings in both themes and both languages at 1440, 1024 and 390: the page with known, unknown and zero coverage, the bills expanded and "Sudah lunas" open; each dialog and the "…" menu open; Beranda with a credit bill and its Rincian open; the bell open; hidden balances; loading, failure and empty states. Zero console errors; no `lang="id"` region on an English page. Results in `verification.md`.
 - [ ] 6.4 Keyboard flows: `target-keys.mjs` runs the thirteen flows of D26 in both languages at 1440 and 390. Evidence: every flow passes, recorded in `verification.md` with the revision.
@@ -90,7 +90,7 @@ Expected Result: Target & Tagihan and its dialogs are rebuilt to the prototype w
   - with the credit seed, Terjadwal and the Tagihan total are unchanged by the unpaid bills (flag D14).
 - [ ] 6.6 Stress and USD seed at 1440, 1024, 390 and 320 in both themes and both languages. Evidence: captures with no clipping, overlap or horizontal scroll for 40 goals, 25 debts with 10 paid off, 60 plans in the dialog, five credit accounts with long names, 60-character names, Rp 1.234.567.890, the unknown-cost account and the USD display; recorded in `verification.md`.
 - [ ] 6.7 Frontend and repository checks on the exact revision. Evidence: every result recorded in `verification.md` with the commit hash: `npm test`, `npm run type-check`, `npm run lint`, `npm run build`, `git diff --check` and `openspec validate --all --strict` pass; `git diff --stat origin/main -- backend db mobile nginx` is empty; the page's request count before and after is recorded.
-- [ ] 6.8 Complete `verification.md` and present the result. Record the owner's standing instruction (2026-11-06, renewed 2026-11-08) as the acceptance basis, and add the deviations, the flag outcomes and the Rencana relayout seen from other pages to the end-review list in `PROJECT_STATE.md`. Evidence: `verification.md` names what changed, the gate counts, the deviations, the H9 coverage, and what was not verified and why; the report to the owner quotes them.
+- [ ] 6.8 Complete `verification.md` and present the result. Record the owner's standing instruction (2026-11-06, renewed 2026-11-08) as the acceptance basis, and add the deviations, the flag outcomes and the Rencana relayout seen from other pages to the end-review list under "For PROJECT_STATE.md" in `verification.md`. Evidence: `verification.md` names what changed, the gate counts, the deviations, the H9 coverage, and what was not verified and why; the report to the owner quotes them.
 
 Expected Result: the phase passes the plan's common gate and the both-language gate on its exact revision, with every deviation and flag recorded.
 
@@ -98,4 +98,4 @@ Expected Result: the phase passes the plan's common gate and the both-language g
 
 - Archive: `openspec archive apply-markas-target`, then `openspec validate --all --strict` must pass. The archive path is under `openspec/changes/archive/`.
 - Commit with a subject-only Conventional Commits message, and push `feat/markas-target`.
-- Create the pull request into `main` (the owner's standing instruction of 2026-11-06, renewed 2026-11-08), and report its URL with the pushed revision. Merging stays with the owner.
+- Do not create the pull request (coordinator, 2026-11-09): report the pushed revision; the owner opens and merges it.

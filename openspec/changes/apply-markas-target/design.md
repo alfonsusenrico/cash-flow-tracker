@@ -280,7 +280,7 @@ Rejected: the prototype's "Terjadwal · Terlewat · Dibayar" filters (plans have
 - **English:** plain and firm, US spelling, sentence case: "Goals & Bills", "Safety net", "Bills in the next 30 days", "Savings goals", "Debts & credit", "Paid off". "Spending" only; never "Expense", "Outflow". No "you/your" in labels.
 - **Whole ICU sentences** with named arguments; counts by `plural`; amounts, dates and months from `lib/format.ts`.
 - **User data:** goal, debt, plan, category and account names are shown as stored, with no `lang`.
-- **Registry and guards:** `/goals` joins `TRANSLATED_ROUTES`; its `untranslatedPages.ts` entry goes; the untranslated-page test example in `workspace.test.tsx`, which phase 8 moves from `/accounts` to `/goals`, moves again to the first of `/insights` and `/laporan` that is still untranslated when this phase lands (rule: always the next page in the phased order that is not yet translated; if both are translated, the test asserts the registry is empty except `/settings` and `/komponen`); the copy register's translated roots gain `app/goals`, `components/goals`, `components/recurring`, and the touched parts of `components/beranda` and `AppLayout`; catalogue parity covers `goals` and `plans`. `RecurringRulesModal`'s `untranslated` flag goes with it.
+- **Registry and guards:** `/goals` joins `TRANSLATED_ROUTES`; its `untranslatedPages.ts` entry goes; the untranslated-page test example in `workspace.test.tsx` stays on `/settings`, where phase 8 put it (see "Deviations recorded at implementation"); the copy register's translated roots gain `app/goals`, `components/goals`, `components/recurring`, and the touched parts of `components/beranda` and `AppLayout`; catalogue parity covers `goals` and `plans`. `RecurringRulesModal`'s `untranslated` flag goes with it.
 - **Lengths** measured in both languages at 1440, 1024, 390 and 320: the hero line "No dedicated emergency fund yet — counted from all cash balances · target 6 months" wraps to two lines; supporting labels "If income stops" and "Essential costs a month"; the panel's line 2 "Due today · Rp 434.000 left" and "Limit left Rp 2.107.000" ellipsize the left part first.
 
 Rejected: putting the Rencana copy under `goals` (five callers on other pages would read a page namespace).
@@ -418,6 +418,19 @@ Approved under the owner's standing instruction "complete all until finished" (2
 | D27 | Specs | As listed | — | — |
 
 No default changes money logic, an existing request, a count's rule or a figure's value. D3 and D14 are flagged because they decide how money figures are presented; D7, D8, D9, D16 and D20 because they go beyond the plan's wording.
+
+## Deviations recorded at implementation
+
+Task 1.2 compared the plan with the merged code on `origin/main` `98cdb49` (phases 5 and 8 merged as #93 and #94). Each difference below is adapted to, not re-implemented (D25):
+- **`ExplanationDialog` `link`** is already optional (phase 8). Task 2.1 needs no code change; its evidence is the existing Rincian tests.
+- **Untranslated-page test example:** phase 8 moved it from `/accounts` to `/settings`, not to `/goals`. It stays on `/settings` (coordinator, 2026-11-09); D22's rule to move it to `/insights` or `/laporan` does not apply.
+- **`ShellDialog`** gained an `initialFocus` selector prop with phase 5's fix `1b7f1cb`; the dialogs of this phase use it where the first field is not the right first stop.
+- **Frontend types:** `PlanLine` in `components/beranda/types.ts` lacks the credit change's `plan_amount`, `counted_elsewhere` and `credit_account_id`, and `CycleSummary.spending` lacks `credit`. Both are added as optional fields; the API already sends them.
+- **Bell items:** `WorkspaceNotification` can only link (`href`) or open "Rencana jatuh tempo". A due credit bill needs an action (D16), so the item gains an optional `onSelect`, used only by credit bill items.
+- **Credit lines in the Pengeluaran Rincian (D17):** a Rincian line's parts are one level deep (`ExplanationDialog` `Parts`), so "Pengeluaran pakai kredit" and "Tagihan kredit dibayar" are two parts of the Pengeluaran line whose note names the accounts with their amounts, instead of a nested disclosure per line.
+- **Evidence location:** captures, parity JSON and the copy snapshot go to the session scratchpad (`markas-target/`), as phases 5 and 8 did, instead of `research/evidence/apply-markas-target/`; `verification.md` lists the paths.
+- **`PROJECT_STATE.md`:** this change does not edit it; the lines meant for it are in `verification.md` under "For PROJECT_STATE.md" (coordinator).
+- **Pull request:** the branch is pushed without a pull request (coordinator, 2026-11-09); the owner opens it.
 
 ## Risks / Trade-offs
 
