@@ -4,13 +4,14 @@ import secrets
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, Request
 from passlib.hash import bcrypt
 
 from app.core.config import settings
-from app.core.errors import coded_error
 from app.db.init_db import seed_user_defaults
 from app.db.pool import db_conn
+from app.errors import ErrorCode, api_error
+from app.i18n import bind_account
 from app.services.language import DEFAULT_LANGUAGE, DEFAULT_REGION
 
 
@@ -42,16 +43,11 @@ def register_user(
 ) -> dict[str, Any]:
     username = username.strip().lower()
     if not username:
-        raise coded_error(400, "username_required", "Username is required")
+        raise api_error(400, ErrorCode.USERNAME_REQUIRED)
     if len(password) < settings.password_min_len:
-        raise coded_error(
-            400,
-            "password_too_short",
-            f"Password must be at least {settings.password_min_len} characters",
-            {"min": settings.password_min_len},
-        )
+        raise api_error(400, ErrorCode.PASSWORD_TOO_SHORT, {"min": settings.password_min_len})
     if invite_code != settings.invite_code:
-        raise coded_error(400, "invalid_invite_code", "Invalid invite code")
+        raise api_error(400, ErrorCode.INVALID_INVITE_CODE)
 
     password_hash = bcrypt.hash(password)
     plain_key, key_hash, key_prefix = generate_api_key()
@@ -61,7 +57,7 @@ def register_user(
             # Check unique username
             cur.execute("SELECT id FROM users WHERE username = %s", (username,))
             if cur.fetchone():
-                raise coded_error(409, "username_taken", "Username already exists")
+                raise api_error(409, ErrorCode.USERNAME_TAKEN)
 
             cur.execute(
                 """
@@ -110,7 +106,7 @@ def authenticate_user(username: str, password: str) -> dict[str, Any]:
             user = cur.fetchone()
 
     if not user or not bcrypt.verify(password, user["password_hash"]):
-        raise coded_error(401, "invalid_credentials", "Invalid username or password")
+        raise api_error(401, ErrorCode.INVALID_CREDENTIALS)
 
     return {
         "id": str(user["id"]),
@@ -155,6 +151,7 @@ def get_current_user(request: Request) -> dict[str, Any]:
     """Unified auth dependency supporting Session Cookie and Bearer API Token."""
     user = _session_user(request)
     if user:
+        bind_account(user)
         return user
 
     auth_header = request.headers.get("Authorization", "").strip()
@@ -180,9 +177,11 @@ def get_current_user(request: Request) -> dict[str, Any]:
                             (user["key_id"],),
                         )
                         conn.commit()
-                        return _user_view(user)
+                        user = _user_view(user)
+                        bind_account(user)
+                        return user
 
-    raise HTTPException(status_code=401, detail="Not authenticated")
+    raise api_error(401, ErrorCode.NOT_AUTHENTICATED)
 
 
 def get_session_user(request: Request) -> dict[str, Any]:
@@ -192,8 +191,9 @@ def get_session_user(request: Request) -> dict[str, Any]:
     skips such requests, so accepting one alongside a session cookie would bypass it.
     """
     if request.headers.get("Authorization", "").strip():
-        raise HTTPException(status_code=403, detail={"code": "session_required"})
+        raise api_error(403, ErrorCode.SESSION_REQUIRED)
     user = _session_user(request)
     if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+        raise api_error(401, ErrorCode.NOT_AUTHENTICATED)
+    bind_account(user)
     return user

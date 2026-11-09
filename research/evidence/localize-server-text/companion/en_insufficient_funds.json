@@ -1,0 +1,18 @@
+{
+  "status": 409,
+  "content_language": "en",
+  "body": {
+    "ok": false,
+    "detail": {
+      "required_amount": 1001,
+      "available_amount": 1000,
+      "account_id": "8ba3eb33-5486-414d-a8fc-9d7b89b5c5e7",
+      "code": "insufficient_funds",
+      "params": {
+        "required_amount": 1001,
+        "available_amount": 1000
+      },
+      "message": "Not enough balance. Rp 1.000 available of the Rp 1.001 needed."
+    }
+  }
+}

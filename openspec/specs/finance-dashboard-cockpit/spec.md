@@ -6,14 +6,15 @@ Present financial summaries, cash-flow trends, budget comparisons and account al
 ## Requirements
 
 ### Requirement: Inline Category Budget Editing
-The `/insights` Spending Analytics page SHALL allow users to set or update any category's monthly spending limit directly from the Category Variance table:
-1. Clicking on a category's budget cell or edit button SHALL open an inline popover or modal.
-2. The user can enter a new monthly budget limit (or clear it to "No limit").
-3. Saving SHALL call `PATCH /api/categories/{id}` and immediately recalculate variance metrics, budget progress bars, and over-budget counts.
+Analisis SHALL let the owner set or clear any expense category's monthly budget from "Atur anggaran", a centered dialog with one amount per expense category that reports count, and from the category form in "Kelola kategori". Saving SHALL call `PATCH /api/categories/{id}` for each changed category and SHALL refresh the budget bars, shares and over-budget marks at once.
 
 #### Scenario: Setting a category budget limit
-- **WHEN** the user clicks "No limit" on the "Food & Dining" category and enters `3000000`
-- **THEN** the system sets the category's `monthly_budget` to 3,000,000 IDR and updates the progress bar and remaining variance immediately
+- **WHEN** the owner opens "Atur anggaran", enters 3.000.000 for "Makanan & Minuman" and saves
+- **THEN** the category's `monthly_budget` SHALL become 3,000,000 IDR, and its row SHALL show the bar and "{n}% dari Rp 3.000.000" at once
+
+#### Scenario: Clearing a budget
+- **WHEN** the owner empties the amount of a category in "Atur anggaran" and saves
+- **THEN** the category SHALL have no budget and its row SHALL read "tanpa anggaran"
 
 ### Requirement: Asset Allocation Breakdown Display Card
 The system SHALL provide a dedicated summary display card showing the separation between liquid and investment balances:

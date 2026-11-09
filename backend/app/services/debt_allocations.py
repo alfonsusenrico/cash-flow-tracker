@@ -1,8 +1,9 @@
 from collections.abc import Iterable
 from uuid import UUID
 
-from fastapi import HTTPException
 from pydantic import BaseModel, Field
+
+from app.errors import ErrorCode, api_error
 
 
 class DebtAllocation(BaseModel):
@@ -21,32 +22,15 @@ def validate_allocation_request(
     if allocations is None:
         return None
     if obligation_id is not None:
-        raise HTTPException(
-            status_code=422,
-            detail={"code": "mixed_debt_links", "message": "Pilih satu cara mengaitkan pembayaran ke tagihan."},
-        )
+        raise api_error(422, ErrorCode.MIXED_DEBT_LINKS)
     if transaction_type != "expense" or investment_action:
-        raise HTTPException(
-            status_code=422,
-            detail={"code": "invalid_debt_allocation_type", "message": "Pembagian tagihan hanya untuk pengeluaran biasa."},
-        )
+        raise api_error(422, ErrorCode.INVALID_DEBT_ALLOCATION_TYPE)
 
     normalized = [(str(item.obligation_id), item.amount) for item in allocations]
     if len({obligation_id for obligation_id, _ in normalized}) != len(normalized):
-        raise HTTPException(
-            status_code=422,
-            detail={"code": "duplicate_debt_allocation", "message": "Satu tagihan hanya boleh dipilih sekali."},
-        )
+        raise api_error(422, ErrorCode.DUPLICATE_DEBT_ALLOCATION)
     if normalized and sum(value for _, value in normalized) != amount:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": "debt_allocation_total_mismatch",
-                "message": "Jumlah pembagian tagihan harus sama dengan nominal transaksi.",
-                "required_amount": amount,
-                "allocated_amount": sum(value for _, value in normalized),
-            },
-        )
+        raise api_error(422, ErrorCode.DEBT_ALLOCATION_TOTAL_MISMATCH, extra={"required_amount": amount, "allocated_amount": sum((value for _, value in normalized))})
     return normalized
 
 
@@ -116,10 +100,7 @@ def lock_debts(cur, user_id: str, obligation_ids: Iterable[str]) -> dict[str, di
     )
     debts = {str(row["id"]): row for row in cur.fetchall()}
     if len(debts) != len(ids):
-        raise HTTPException(
-            status_code=404,
-            detail={"code": "debt_unavailable", "message": "Satu atau lebih tagihan tidak tersedia."},
-        )
+        raise api_error(404, ErrorCode.DEBT_UNAVAILABLE)
     return debts
 
 
@@ -134,21 +115,9 @@ def validate_debt_capacity(
         debt = debts[obligation_id]
         available = int(debt["remaining_amount"])
         if debt["is_archived"] and obligation_id not in previously_linked_ids:
-            raise HTTPException(
-                status_code=409,
-                detail={"code": "debt_unavailable", "message": "Tagihan yang diarsipkan tidak dapat menerima pembayaran baru.", "obligation_id": obligation_id},
-            )
+            raise api_error(409, ErrorCode.DEBT_UNAVAILABLE, extra={"obligation_id": obligation_id}, message_key="debt_archived")
         if available < amount:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "code": "debt_allocation_exceeds_remaining",
-                    "message": "Pembagian melebihi sisa tagihan.",
-                    "obligation_id": obligation_id,
-                    "required_amount": amount,
-                    "available_amount": available,
-                },
-            )
+            raise api_error(409, ErrorCode.DEBT_ALLOCATION_EXCEEDS_REMAINING, extra={"obligation_id": obligation_id, "required_amount": amount, "available_amount": available})
 
 
 def apply_allocations(cur, user_id: str, allocations: list[tuple[str, int]]) -> None:

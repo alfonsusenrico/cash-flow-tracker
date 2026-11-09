@@ -16,6 +16,7 @@ import { isTranslatedRoute } from "@/lib/i18n/translatedRoutes";
 import type { Words } from "@/lib/i18n/types";
 import { useAccountLanguage } from "@/lib/i18n/useAccountLanguage";
 import { queryKeys } from "@/lib/queryKeys";
+import { creditBillsPath, dueCreditBills, type CreditBill, type CreditBillsResponse } from "@/lib/creditBills";
 import { freshReport, type ReportReadiness } from "@/lib/reportReady";
 import {
   applyTheme,
@@ -28,8 +29,8 @@ import {
 } from "@/lib/theme";
 import type { AutoLinkedOccurrence, DueExpectation, RecurringRule } from "@/types/recurring";
 import { PendingScheduledBanner } from "@/components/recurring/PendingScheduledBanner";
-import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
-import { WorkspaceContext, type PageHeader, type WorkspaceNotification, type WorkspaceValue } from "@/components/workspace/context";
+import { PlansDialog } from "@/components/recurring/PlansDialog";
+import { WorkspaceContext, type MovementCaptureDefaults, type PageHeader, type WorkspaceNotification, type WorkspaceValue } from "@/components/workspace/context";
 import { frameWidth } from "@/components/workspace/navigation";
 import { useNotificationSeen } from "@/components/workspace/Notifications";
 import { SideNav } from "@/components/workspace/SideNav";
@@ -118,16 +119,20 @@ function localIsoDate(date: Date): string {
 }
 
 interface PlanOccurrence {
-  ruleId: string;
+  key: string;
   name: string;
   amount: number;
   due: string;
+  /** A credit bill (apply-markas-target D16) rather than a plan. */
+  bill?: CreditBill;
 }
 
 /**
  * The bell's plan items (D7): the due and overdue occurrences of `/recurring/pending` (the former Transaksi
  * banner's source) merged with the two-day window of active expense plans, once per plan and date, by date.
- * Due and overdue items open "Rencana jatuh tempo"; later ones keep their Target & Tagihan link.
+ * Due and overdue items open "Rencana jatuh tempo"; later ones keep their Target & Tagihan link. Unpaid credit
+ * bills join them (apply-markas-target D16), once per account and due date and not when a listed plan pays the
+ * same bill; choosing one opens Perpindahan prefilled through `onPayBill`.
  */
 export function planNotifications(
   rules: RecurringRule[],
@@ -135,19 +140,28 @@ export function planNotifications(
   autoLinks: AutoLinkedOccurrence[],
   { t, format }: Words,
   now = new Date(),
+  creditBills: CreditBill[] = [],
+  onPayBill?: (bill: CreditBill) => void,
 ): WorkspaceNotification[] {
   const today = localIsoDate(now);
   const horizon = localIsoDate(new Date(now.getTime() + PLAN_NOTICE_DAYS * 86_400_000));
   const tomorrow = localIsoDate(new Date(now.getTime() + 86_400_000));
   const byKey = new Map<string, PlanOccurrence>();
+  const listed: RecurringRule[] = [];
   const add = (rule: RecurringRule) => {
-    const key = `${rule.id}-${rule.next_due_date}`;
-    if (!byKey.has(key)) byKey.set(key, { ruleId: rule.id, name: rule.name, amount: rule.amount, due: rule.next_due_date });
+    const key = `plan-${rule.id}-${rule.next_due_date}`;
+    if (byKey.has(key)) return;
+    byKey.set(key, { key, name: rule.name, amount: rule.amount, due: rule.next_due_date });
+    listed.push(rule);
   };
   pending.forEach(add);
   rules.filter((rule) => rule.is_active && rule.type !== "income" && rule.next_due_date <= horizon).forEach(add);
+  for (const bill of dueCreditBills(creditBills.filter((item) => item.due_date <= horizon), listed)) {
+    const key = `credit-${bill.account_id}-${bill.due_date}`;
+    if (!byKey.has(key)) byKey.set(key, { key, name: t("home.creditBill", { account: bill.account_name }), amount: bill.left_to_pay, due: bill.due_date, bill });
+  }
   const items: WorkspaceNotification[] = [...byKey.values()]
-    .sort((a, b) => a.due.localeCompare(b.due))
+    .sort((a, b) => a.due.localeCompare(b.due) || (a.bill && b.bill ? a.name.localeCompare(b.name) : 0))
     .map((plan) => {
       const values = { name: plan.name, amount: format.money(plan.amount) };
       const title =
@@ -158,9 +172,18 @@ export function planNotifications(
             : plan.due === tomorrow
               ? t("shell.planDueTomorrow", values)
               : t("shell.planDueInTwoDays", values);
+      const bill = plan.bill;
+      if (bill) {
+        return {
+          id: plan.key,
+          title,
+          detail: t("shell.creditDetail", { day: format.shortDate(plan.due) }),
+          ...(onPayBill ? { onSelect: () => onPayBill(bill) } : {}),
+        };
+      }
       const opensDuePlans = plan.due <= today;
       return {
-        id: `plan-${plan.ruleId}-${plan.due}`,
+        id: plan.key,
         title,
         detail: t("shell.planDetail", { day: format.shortDate(plan.due) }),
         ...(opensDuePlans ? { opensDuePlans } : { href: "/goals" }),
@@ -227,13 +250,18 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   };
 
   const handleOpenMovement = (sourceAccountId?: string, targetAccountId?: string) => {
+    openMovementCapture({ sourceAccountId, targetAccountId });
+  };
+
+  function openMovementCapture({ sourceAccountId, targetAccountId, amount }: MovementCaptureDefaults) {
     setMovementDefaults({
       sourceAccountId: sourceAccountId ?? "",
       targetAccountId: targetAccountId ?? "",
     });
     setQuickAddDefaultType("movement");
+    setManualAmount(amount && amount > 0 ? amount : null);
     setQuickAddOpen(true);
-  };
+  }
 
   // "+ Catat", N and the phone tab open the text-first dialog; "Isi manual" there opens the form.
   const openExpenseCapture = useCallback(() => setCatatOpen(true), []);
@@ -339,6 +367,15 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     enabled: signedIn,
   });
 
+  // Unpaid credit bills for the bell (apply-markas-target D16), the same request as Beranda's "Perlu tindakan".
+  const [billsHorizon] = useState(() => localIsoDate(new Date(Date.now() + PLAN_NOTICE_DAYS * 86_400_000)));
+  const billsPath = creditBillsPath(billsHorizon);
+  const { data: creditBillsData } = useQuery<CreditBillsResponse>({
+    queryKey: queryKeys.transactions.creditBills(billsPath),
+    queryFn: () => api.get(billsPath),
+    enabled: signedIn,
+  });
+
   const user = userData?.user;
   const currency: "IDR" | "USD" = user?.currency === "USD" ? "USD" : "IDR";
   const usdidrRate = ratesData?.usdidr && ratesData.usdidr > 0 ? ratesData.usdidr : 16500;
@@ -392,8 +429,12 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const notifications = useMemo<WorkspaceNotification[]>(() => {
     const words = { t, format };
     const items: WorkspaceNotification[] = report ? [reportNotification(report, words)] : [];
-    return [...items, ...planNotifications(recurringData?.rules ?? [], pendingData?.rules ?? [], pendingData?.recent_auto_links ?? [], words)];
-  }, [report?.endDate, report?.startDate, report?.basis, report?.url, recurringData, pendingData, t, format]); // eslint-disable-line react-hooks/exhaustive-deps
+    const payBill = (bill: CreditBill) => openMovementCapture({ targetAccountId: bill.account_id, amount: bill.left_to_pay });
+    return [
+      ...items,
+      ...planNotifications(recurringData?.rules ?? [], pendingData?.rules ?? [], pendingData?.recent_auto_links ?? [], words, new Date(), creditBillsData?.bills ?? [], payBill),
+    ];
+  }, [report?.endDate, report?.startDate, report?.basis, report?.url, recurringData, pendingData, creditBillsData, t, format]); // eslint-disable-line react-hooks/exhaustive-deps
   const { unreadIds, markSeen } = useNotificationSeen(notifications);
   const openDuePlans = useCallback(() => setDuePlansOpen(true), []);
 
@@ -414,6 +455,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     collapsed: sidebarCollapsed,
     toggleCollapsed,
     openCapture: openExpenseCapture,
+    openMovementCapture,
     openHelp,
     logout,
     header,
@@ -491,7 +533,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                 }}
               />
             </Drawer>
-            <RecurringRulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
+            <PlansDialog open={rulesOpen} onClose={() => setRulesOpen(false)} />
             <QuickCaptureModal
               open={quickAddOpen}
               onClose={() => setQuickAddOpen(false)}

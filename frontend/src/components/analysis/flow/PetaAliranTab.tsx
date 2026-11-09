@@ -1,89 +1,54 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
-import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
-import { TransactionDrawer } from "@/components/transactions/TransactionDrawer";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
+import { KindAmount, type AmountKind } from "@/components/transactions/rows";
+import { TransactionDialog } from "@/components/transactions/TransactionDialog";
 import { useTransactionUndo } from "@/components/transactions/useTransactionUndo";
-import { Icon } from "@/components/ui/Icon";
-import { Drawer } from "@/components/workspace/overlays";
-import { Card, CardHeader, EmptyState, ErrorState, Segmented, Skeleton } from "@/components/workspace/primitives";
+import { FigureBlock, HeroFigure } from "@/components/workspace/figures";
 import { PHONE_QUERY, useMediaQuery } from "@/components/workspace/layers";
+import { ListRow } from "@/components/workspace/lists";
+import { MaskedMoney, useMoney } from "@/components/workspace/money";
+import { EmptyState, ErrorState, Segmented } from "@/components/workspace/primitives";
+import { ShellDialog } from "@/components/workspace/ShellDialog";
 import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
-import { addDays, dayDiff, longDay, shortDay, todayIso } from "../format";
-import styles from "../analysis.module.css";
-import type { FlowLink, FlowLinkKind, FlowNode, FlowResponse, FlowRowsResponse, PeriodBasis } from "../types";
-import { BALANCE_KINDS, buildFlowModel, type Direction, type Highlight, highlightMatches, layoutFlow, nextNode } from "./sankey";
+import { useFormat } from "@/lib/format";
+import type { FlowLink, FlowLinkKind, FlowNode, FlowResponse, FlowRowsResponse, FlowView, PeriodBasis } from "../types";
+import { BALANCE_KINDS, buildFlowModel, type DrawnLink, type Direction, type Highlight, highlightMatches, layoutFlow, nextNode } from "./sankey";
 
 type Money = (amount: number) => string;
-export type FlowView = "peta" | "tabel";
 
-const FOLD_KEY = "analysis.flow.folded";
-const REPLAY_MS = 800;
+/** Map geometry (option-6 `M.analisisPeta`): 8 px ink nodes, 24 px slots 8 apart, at most 320 px tall, a 220 px label gutter. */
+export const MAP = { top: 32, height: 320, node: 8, slot: 24, gap: 8, gutter: 220, minWidth: 720, labelGap: 8 } as const;
+/** An estimate of a 12 px Inter character, a little wide, so a cut label always fits its room. */
+const CHAR_WIDTH = 7;
 
-const KIND_LABEL: Record<FlowLinkKind, string> = {
-  income: "Uang masuk",
-  opening: "Saldo sebelum periode",
-  negative_opening: "Saldo minus sebelum periode",
-  negative_closing: "Saldo minus di akhir",
-  transfer: "Pindah saldo",
-  spend: "Belanja",
-  saving: "Tabungan",
-  investment: "Investasi",
-  other: "Tidak dihitung belanja",
-  waiting: "Menunggu pasangan",
-  remaining: "Masih ada",
+const BAND_COLOUR: Record<FlowLinkKind, string> = {
+  income: "var(--in-solid)",
+  transfer: "var(--tr-solid)",
+  spend: "var(--out-solid)",
+  saving: "var(--inv-solid)",
+  investment: "var(--inv-solid)",
+  waiting: "var(--warn-solid)",
+  other: "var(--k-none)",
+  opening: "var(--k-none)",
+  negative_opening: "var(--k-none)",
+  negative_closing: "var(--k-none)",
+  remaining: "var(--k-none)",
 };
 
-const HIGHLIGHTS: { value: Highlight; label: string }[] = [
-  { value: "all", label: "Semua" },
-  { value: "spend", label: "Belanja" },
-  { value: "transfer", label: "Pindah saldo" },
-  { value: "save", label: "Tabungan & investasi" },
-  { value: "waiting", label: "Menunggu pasangan" },
+const HIGHLIGHTS: { value: Highlight; key: "all" | "spending" | "transfers" | "savings" | "waiting" }[] = [
+  { value: "all", key: "all" },
+  { value: "spend", key: "spending" },
+  { value: "transfer", key: "transfers" },
+  { value: "save", key: "savings" },
+  { value: "waiting", key: "waiting" },
 ];
 
-const PILLAR_COLOR: Record<string, string> = {
-  need: "var(--k-need)", want: "var(--k-want)", culture: "var(--k-culture)", unexpected: "var(--k-unexpected)",
-  saving: "var(--k-saving)", unclassified: "var(--k-none)",
-};
-
-function nodeColor(node: FlowNode): string {
-  if (node.kind === "pillar" && node.pillar) return PILLAR_COLOR[node.pillar];
-  if (node.kind === "saving") return "var(--k-saving)";
-  if (node.kind === "investment") return "var(--flow-inv)";
-  if (node.kind === "waiting") return "var(--flow-warn)";
-  if (node.kind === "other_out") return "var(--flow-other)";
-  if (node.kind === "remaining" || node.id === "opening" || node.id === "neg_closing" || node.kind === "negative_opening") return "var(--flow-left)";
-  return "var(--flow-in)";
-}
-
-function linkColor(kind: FlowLinkKind, target: FlowNode | undefined): string {
-  if (kind === "spend" && target) return nodeColor(target);
-  if (kind === "transfer") return "var(--flow-tr)";
-  if (kind === "saving") return "var(--k-saving)";
-  if (kind === "investment") return "var(--flow-inv)";
-  if (kind === "waiting") return "var(--flow-warn)";
-  if (kind === "other") return "var(--flow-other)";
-  if (kind === "income") return "var(--flow-in)";
-  return "var(--flow-left)";
-}
-
-function readFold(): boolean {
-  try {
-    return window.localStorage.getItem(FOLD_KEY) !== "open";
-  } catch {
-    return true;
-  }
-}
-
-function writeFold(folded: boolean) {
-  try {
-    window.localStorage.setItem(FOLD_KEY, folded ? "folded" : "open");
-  } catch {
-    // A blocked storage only forgets the preference; the map still works.
-  }
+export function flowQueryKey(basis: PeriodBasis, offset: number) {
+  return ["dashboard", "flow", basis, offset, "default"] as const;
 }
 
 /** Money in and out of a node over the server's links, without the balance links (for its name). */
@@ -98,320 +63,236 @@ export function nodeTotals(nodeId: string, links: FlowLink[]): { inbound: number
   return { inbound, outbound };
 }
 
-function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    if (typeof window.matchMedia !== "function") return;
-    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReduced(query.matches);
-    const listener = () => setReduced(query.matches);
-    query.addEventListener?.("change", listener);
-    return () => query.removeEventListener?.("change", listener);
-  }, []);
-  return reduced;
+/** A name cut with "…" to fit `room` pixels at 12 px; the full name stays in the node's accessible name. */
+export function fitLabel(name: string, room: number): string {
+  const fits = Math.floor(room / CHAR_WIDTH);
+  if (name.length <= fits) return name;
+  return fits <= 1 ? "…" : `${name.slice(0, fits - 1).trimEnd()}…`;
 }
 
-type DrawerTarget = { type: "node"; id: string } | { type: "link"; key: string };
-
-export function flowQueryKey(basis: PeriodBasis, offset: number, through: string | null) {
-  return ["dashboard", "flow", basis, offset, through ?? "default"] as const;
+export function labelWidth(text: string): number {
+  return text.length * CHAR_WIDTH;
 }
 
-function flowPath(basis: PeriodBasis, offset: number, through: string | null): string {
-  return `/dashboard/flow?timeframe=${basis}&cycle_offset=${offset}${through ? `&through=${through}` : ""}`;
+/** A band's pattern, so colour is never the only cue: transfers striped, savings and investments dotted, waiting hatched. */
+function bandPattern(link: DrawnLink): "stripe" | "dots" | "hatch" | null {
+  if (link.kind === "saving") return "dots";
+  return link.pattern;
 }
 
+type Target = { type: "node"; id: string } | { type: "link"; key: string };
+
+/**
+ * Peta Aliran (apply-markas-analisis D14 to D17): Masuk with four supporting figures, "Sorot aliran", the four-column
+ * map with every label inside its frame and a legend, the table of every link, and the node and link details in a
+ * centered dialog. Balances are never drawn; the table lists them.
+ */
 export function PetaAliranTab({
   basis,
   offset,
-  money,
   view,
   onView,
-  onLabel,
+  onWindowLabel,
 }: {
   basis: PeriodBasis;
   offset: number;
-  money: Money;
-  view: FlowView;
+  view: FlowView | null;
   onView: (view: FlowView) => void;
-  onLabel: (label: string) => void;
+  onWindowLabel: (label: string) => void;
 }) {
-  const queryClient = useQueryClient();
-  // The viewport, not the column, decides the phone layout, so a resized column never swaps the map for
-  // the table under the focused node.
+  const t = useTranslations("analysis");
+  const terms = useTranslations("terms");
+  const money = useMoney();
   const phone = useMediaQuery(PHONE_QUERY);
-  const reduced = usePrefersReducedMotion();
   const { record } = useTransactionUndo();
-  const [through, setThrough] = useState<string | null>(null);
-  const [shown, setShown] = useState<FlowResponse | null>(null);
-  const [playing, setPlaying] = useState(false);
   const [highlight, setHighlight] = useState<Highlight>("all");
-  const [folded, setFolded] = useState(true);
-  const [drawer, setDrawer] = useState<DrawerTarget | null>(null);
+  const [target, setTarget] = useState<Target | null>(null);
   const [txId, setTxId] = useState<string | null>(null);
-  const [replayError, setReplayError] = useState(false);
-
-  useEffect(() => setFolded(readFold()), []);
-  useEffect(() => {
-    setThrough(null);
-    setPlaying(false);
-    setShown(null);
-  }, [basis, offset]);
-
+  const opener = useRef<HTMLElement | null>(null);
   const query = useQuery<FlowResponse>({
-    queryKey: flowQueryKey(basis, offset, through),
-    queryFn: () => api.get(flowPath(basis, offset, through)),
+    queryKey: flowQueryKey(basis, offset),
+    queryFn: () => api.get(`/dashboard/flow?timeframe=${basis}&cycle_offset=${offset}`),
   });
+  const label = query.data?.window.label;
   useEffect(() => {
-    if (query.data) {
-      setShown(query.data);
-      setReplayError(false);
-      if (query.data.window.label) onLabel(query.data.window.label);
-    }
-  }, [query.data, onLabel]);
-  useEffect(() => {
-    if (query.isError && shown) {
-      setReplayError(true);
-      setPlaying(false);
-    }
-  }, [query.isError, shown]);
+    if (label) onWindowLabel(label);
+  }, [label, onWindowLabel]);
 
-  const data = shown;
-  const lastDay = useMemo(() => {
-    if (!data) return null;
-    const today = todayIso();
-    return data.window.is_current && today < data.window.end ? today : data.window.end;
-  }, [data]);
-  const current = data ? data.window.through : null;
+  if (query.isPending) {
+    return (
+      <div className="stack" role="status" aria-busy="true">
+        <div>
+          <span className="skel is-label" style={{ width: 200 }} />
+          <span className="skel is-hero" style={{ width: 240 }} />
+        </div>
+        <span className="skel an-skel-map" />
+      </div>
+    );
+  }
+  if (query.isError) return <ErrorState message={t("states.flowError")} onRetry={() => query.refetch()} />;
 
-  // Replay waits for each day to load before moving on (OD45); the next day is fetched ahead.
-  useEffect(() => {
-    if (!playing || !data || !lastDay || query.isFetching) return;
-    if (data.window.through >= lastDay) {
-      setPlaying(false);
-      return;
-    }
-    const next = addDays(data.window.through, 1);
-    void queryClient.prefetchQuery({ queryKey: flowQueryKey(basis, offset, next), queryFn: () => api.get(flowPath(basis, offset, next)) });
-    const timer = window.setTimeout(() => setThrough(next), REPLAY_MS);
-    return () => window.clearTimeout(timer);
-  }, [playing, data, lastDay, query.isFetching, basis, offset, queryClient]);
-
-  const toggleFold = () => {
-    setFolded((value) => {
-      writeFold(!value);
-      return !value;
-    });
+  const data = query.data;
+  const nodes = new Map(data.nodes.map((node) => [node.id, node]));
+  const empty = data.links.every((link) => BALANCE_KINDS.has(link.kind));
+  const shown: FlowView = view ?? (phone ? "tabel" : "peta");
+  const { summary } = data;
+  const remaining = summary.remaining < 0 ? `−${money(-summary.remaining)}` : money(summary.remaining);
+  const open = (next: Target) => {
+    if (!target) opener.current = document.activeElement as HTMLElement | null;
+    setTarget(next);
+  };
+  const close = () => {
+    setTarget(null);
+    opener.current?.focus();
+    opener.current = null;
   };
 
-  if (!data) {
-    if (query.isError) return <ErrorState message="Peta aliran belum bisa dimuat." onRetry={() => query.refetch()} />;
-    return <div className={styles.stack} aria-busy="true"><Skeleton style={{ height: 460 }} /></div>;
-  }
-
-  const days = lastDay ? dayDiff(data.window.start, lastDay) + 1 : 1;
-  const index = current ? dayDiff(data.window.start, current) + 1 : days;
-  const nodes = new Map(data.nodes.map((node) => [node.id, node]));
-  const remaining = data.summary.remaining;
-  const empty = data.links.every((link) => BALANCE_KINDS.has(link.kind));
-  const showMap = view === "peta" && !phone;
-
   return (
-    <div className={styles.stack}>
-      <Card labelledBy="flow-heading">
-        <CardHeader
-          id="flow-heading"
-          icon="layers"
-          title="Aliran uang periode ini"
-          caption="Tebal aliran menunjukkan jumlah uang. Pilih titik untuk melihat transaksinya; Tab ke peta lalu pakai tombol panah."
-          action={<Segmented label="Tampilan" options={[{ value: "peta", label: "Peta" }, { value: "tabel", label: "Tabel" }]} value={view} onChange={onView} />}
-        />
-        <div className={styles.flowTools}>
-          <div className="ws-chips" role="group" aria-label="Sorot aliran">
-            {HIGHLIGHTS.map((option) => (
-              <button key={option.value} type="button" className="ws-chip" aria-pressed={highlight === option.value} onClick={() => setHighlight(option.value)}>
-                {option.label}
-              </button>
-            ))}
-          </div>
-          <button type="button" className={cn("ws-btn ws-btn-sm", styles.foldButton)} aria-pressed={!folded} onClick={toggleFold}>
-            <Icon name={folded ? "chevron-right" : "chevron-down"} className="h-4 w-4" />
-            {folded ? "Tampilkan uang masuk, saldo dan Masih ada" : "Ciutkan uang masuk, saldo dan Masih ada"} · {money(remaining)}
-          </button>
+    <div className="flow-tab">
+      <HeroFigure
+        id="an-flow-hero"
+        label={t("flow.heroLabel")}
+        figure={<MaskedMoney text={money(summary.masuk)} />}
+      >
+        <div className="supports flow-supports">
+          <FigureBlock
+            bar={false}
+            label={terms("spending")}
+            figure={<MaskedMoney text={money(summary.spending)} />}
+            caption={summary.reimbursement_offset > 0 ? t.rich("flow.grossNote", { gross: () => <MaskedMoney text={money(summary.spend_gross)} />, offset: () => <MaskedMoney text={money(summary.reimbursement_offset)} /> }) : undefined}
+          />
+          <FigureBlock bar={false} label={t("flow.savedToppedUp")} figure={<MaskedMoney text={money(summary.saving_net + summary.investment_net)} />} />
+          <FigureBlock
+            bar={false}
+            label={terms("waitingForPair")}
+            figure={<MaskedMoney text={money(summary.waiting_out + summary.waiting_in)} />}
+            caption={summary.waiting_in_buckets > 0 ? t.rich("flow.waitingNote", { amount: () => <MaskedMoney text={money(summary.waiting_in_buckets)} /> }) : undefined}
+          />
+          <FigureBlock bar={false} label={terms("stillLeft")} figure={<MaskedMoney text={remaining} />} />
         </div>
-        <p className={styles.flowNote}>
-          <Icon name="info" className="h-4 w-4" />
-          <span>
-            {folded
-              ? "Peta hanya menampilkan uang yang keluar dan dipindah, agar aliran belanja terbaca. Uang masuk, saldo awal dan Masih ada tetap tercantum di tabel."
-              : "Uang masuk dan saldo sebelum periode datang dari kiri, dan Masih ada adalah saldo tiap rekening di akhir hari yang dipilih."}
-          </span>
-        </p>
+      </HeroFigure>
+      <section className="flow-map-section" aria-labelledby="an-flow-map">
+        <div className="toolbar flow-toolbar">
+          <h2 className="t-label" id="an-flow-map">{t("flow.map")}</h2>
+          <Segmented
+            label={t("flow.highlight")}
+            options={HIGHLIGHTS.map((option) => ({ value: option.value, label: t(`flow.${option.key}`) }))}
+            value={highlight}
+            onChange={setHighlight}
+          />
+          <Segmented
+            label={t("flow.view")}
+            options={[{ value: "peta" as FlowView, label: t("flow.map") }, { value: "tabel" as FlowView, label: t("flow.table") }]}
+            value={shown}
+            onChange={onView}
+          />
+        </div>
         {empty ? (
-          <EmptyState icon="layers" title="Belum ada uang yang bergerak">Aliran muncul setelah ada transaksi di periode ini.</EmptyState>
-        ) : (
+          <EmptyState title={t("flow.empty")} />
+        ) : shown === "peta" ? (
           <>
-            {showMap && (
-              <FlowMap
-                data={data}
-                folded={folded}
-                highlight={highlight}
-                money={money}
-                onNode={(id) => setDrawer({ type: "node", id })}
-              />
-            )}
-            {phone && view === "peta" && <MiniMap data={data} folded={folded} />}
-            {(view === "tabel" || phone) && (
-              <FlowTable data={data} nodes={nodes} money={money} highlight={highlight} onLink={(key) => setDrawer({ type: "link", key })} />
-            )}
+            <FlowMap data={data} highlight={highlight} money={money} onNode={(id) => open({ type: "node", id })} />
             <FlowLegend />
+            <p className="caption">{t("flow.caption")}</p>
           </>
+        ) : (
+          <FlowTable data={data} nodes={nodes} money={money} highlight={highlight} onLink={(key) => open({ type: "link", key })} />
         )}
-        <div className={styles.scrub}>
-          <button
-            type="button"
-            className="ws-btn ws-btn-sm"
-            disabled={reduced || days <= 1}
-            aria-pressed={playing}
-            onClick={() => {
-              if (!playing && current && lastDay && current >= lastDay) setThrough(data.window.start);
-              setPlaying((value) => !value);
-            }}
-          >
-            {playing ? "Jeda" : "Putar ulang"}
-          </button>
-          <div>
-            <label className="sr-only" htmlFor="flow-replay">Putar ulang per hari</label>
-            <input
-              id="flow-replay"
-              type="range"
-              min={1}
-              max={days}
-              step={1}
-              value={index}
-              aria-valuetext={current ? `${longDay(current)}, hari ke-${index}` : undefined}
-              onChange={(event) => {
-                setPlaying(false);
-                setThrough(addDays(data.window.start, Number(event.target.value) - 1));
-              }}
-            />
-          </div>
-          <div className={styles.scrubRead} aria-live="polite">
-            <b>{current ? longDay(current) : ""}</b>
-            hari ke-{index} dari {days}
-            {replayError && <span role="alert"> · Hari ini belum bisa dimuat.</span>}
-          </div>
-        </div>
-        {reduced && <p className={styles.caption} style={{ marginTop: 6 }}>Gerakan dikurangi: geser tanggal untuk melihat hari per hari.</p>}
-      </Card>
-      <div className={styles.sums}>
-        <Card className={styles.sum} label="Belanja">
-          <span className={styles.caption}>Belanja</span>
-          <b>{money(data.summary.belanja)}</b>
-          {data.summary.reimbursement_offset > 0 && (
-            <span className={styles.caption}>Peta menampilkan {money(data.summary.spend_gross)} sebelum penggantian {money(data.summary.reimbursement_offset)}.</span>
-          )}
-        </Card>
-        <Card className={styles.sum} label="Ditabung dan top up">
-          <span className={styles.caption}>Ditabung & top up</span>
-          <b>{money(data.summary.saving_net + data.summary.investment_net)}</b>
-        </Card>
-        <Card className={styles.sum} label="Menunggu pasangan">
-          <span className={styles.caption}>Menunggu pasangan</span>
-          <b>{money(data.summary.waiting_out + data.summary.waiting_in)}</b>
-          {data.summary.waiting_in_buckets > 0 && (
-            <span className={styles.caption}>Ditambah {money(data.summary.waiting_in_buckets)} menunggu jawaban di dalam pilarnya.</span>
-          )}
-        </Card>
-        <Card className={styles.sum} label="Masih ada">
-          <span className={styles.caption}>Masih ada</span>
-          <b>{money(remaining)}</b>
-        </Card>
-      </div>
-      {drawer && !txId && (
-        <FlowDrawer
-          target={drawer}
-          data={data}
-          nodes={nodes}
-          basis={basis}
-          offset={offset}
-          money={money}
-          onClose={() => setDrawer(null)}
-          onLink={(key) => setDrawer({ type: "link", key })}
-          onRow={setTxId}
-        />
-      )}
-      <TransactionDrawer transactionId={txId} onClose={() => setTxId(null)} record={record} />
+      </section>
+      <FlowDetails
+        target={txId ? null : target}
+        data={data}
+        nodes={nodes}
+        basis={basis}
+        offset={offset}
+        money={money}
+        onClose={close}
+        onLink={(key) => setTarget({ type: "link", key })}
+        onRow={setTxId}
+      />
+      <TransactionDialog transactionId={txId} onClose={() => setTxId(null)} record={record} />
     </div>
   );
 }
 
 function FlowLegend() {
+  const t = useTranslations("analysis.flow");
+  const terms = useTranslations("terms");
+  const items: { key: string; label: string; colour: string; pattern?: string }[] = [
+    { key: "income", label: terms("income"), colour: "var(--in-solid)" },
+    { key: "transfer", label: t("legendTransfer"), colour: "var(--tr-solid)", pattern: "is-stripe" },
+    { key: "spend", label: terms("spending"), colour: "var(--out-solid)" },
+    { key: "save", label: t("legendSavings"), colour: "var(--inv-solid)", pattern: "is-dots" },
+    { key: "waiting", label: t("legendWaiting"), colour: "var(--warn-solid)", pattern: "is-hatch" },
+  ];
   return (
-    <div className={styles.flowLegend}>
-      <span><i className={styles.swatch} style={{ background: "var(--flow-in)" }} />Uang masuk</span>
-      <span><i className={cn(styles.swatch, styles.stripe)} style={{ background: "var(--flow-tr)" }} />Pindah saldo (garis miring)</span>
-      <span><i className={styles.swatch} style={{ background: "var(--k-need)" }} />Belanja, warna per pilar</span>
-      <span><i className={styles.swatch} style={{ background: "var(--k-saving)" }} />Tabungan</span>
-      <span><i className={cn(styles.swatch, styles.dots)} style={{ background: "var(--flow-inv)" }} />Investasi (titik)</span>
-      <span><i className={cn(styles.swatch, styles.hatch)} style={{ background: "var(--flow-warn)" }} />Menunggu jawaban atau pasangan (arsir)</span>
+    <div className="chart-foot flow-legend">
+      {items.map((item) => (
+        <span key={item.key} className="t-meta leg">
+          <span className={`leg-band ${item.pattern ?? ""}`} style={{ "--band": item.colour } as React.CSSProperties} aria-hidden="true" />
+          {item.label}
+        </span>
+      ))}
     </div>
   );
 }
 
 const DIRECTIONS: Record<string, Direction> = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" };
 
-function FlowMap({
-  data,
-  folded,
-  highlight,
-  money,
-  onNode,
-}: {
-  data: FlowResponse;
-  folded: boolean;
-  highlight: Highlight;
-  money: Money;
-  onNode: (id: string) => void;
-}) {
-  const hostRef = useRef<HTMLDivElement>(null);
+function useHostWidth() {
+  const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(960);
-  const [focusKey, setFocusKey] = useState<string | null>(null);
-  const [hover, setHover] = useState<string | null>(null);
   useEffect(() => {
-    const host = hostRef.current;
+    const host = ref.current;
     if (!host || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver((entries) => {
       const entry = entries[entries.length - 1];
-      if (entry) setWidth(Math.max(720, Math.round(entry.contentRect.width)));
+      if (entry) setWidth(Math.max(MAP.minWidth, Math.round(entry.contentRect.width)));
     });
     observer.observe(host);
     return () => observer.disconnect();
   }, []);
+  return { ref, width };
+}
 
-  const model = useMemo(() => buildFlowModel(data.nodes, data.links, { folded }), [data, folded]);
-  const height = folded ? 420 : 520;
+function FlowMap({ data, highlight, money, onNode }: { data: FlowResponse; highlight: Highlight; money: Money; onNode: (id: string) => void }) {
+  const t = useTranslations("analysis.flow");
+  const { ref, width } = useHostWidth();
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+  const [hover, setHover] = useState<string | null>(null);
+  const model = useMemo(() => buildFlowModel(data.nodes, data.links, { balances: false, income: true, maxDepth: 2 }), [data]);
   const layout = useMemo(
     () => layoutFlow(model, {
-      width, height, stationWidth: 118, stationMin: 46, barWidth: 12, barMin: 3, pad: 12, rightLabel: 220,
-      // Room for labels on the left only when something is drawn there.
-      leftLabel: [...model.nodes.values()].some((node) => node.column === 0 && node.node.kind !== "account") ? 150 : 8,
+      width, height: MAP.height, stationWidth: MAP.node, stationMin: 2, barWidth: MAP.node, barMin: 2, pad: MAP.gap,
+      leftLabel: 0, rightLabel: MAP.gutter, slot: MAP.slot,
     }),
-    [model, width, height],
+    [model, width],
   );
-  const serverNodes = useMemo(() => new Map(data.nodes.map((node) => [node.id, node])), [data.nodes]);
   const drawnNodes = [...model.nodes.values()];
   const firstKey = drawnNodes.find((node) => node.node.kind === "account")?.key ?? drawnNodes[0]?.key ?? null;
   const active = focusKey && model.nodes.has(focusKey) ? focusKey : firstKey;
-  const lit = hover ?? null;
   const litLinks = new Set<string>();
-  if (lit) {
-    const node = model.nodes.get(lit);
+  if (hover) {
+    const node = model.nodes.get(hover);
     node?.inbound.forEach((link) => litLinks.add(link.key));
     node?.outbound.forEach((link) => litLinks.add(link.key));
   }
-  const dim = Boolean(lit) || highlight !== "all";
-  const top = 28;
+  const bottom = Math.max(0, ...[...layout.nodes.values()].map((node) => node.y1), ...drawnNodes.map((node) => layout.nodes.get(node.key)!.y0 + MAP.slot));
+  const height = MAP.top + bottom + 8;
+  const accountColumns = drawnNodes.filter((node) => node.node.kind === "account").map((node) => node.column);
+  const firstAccount = accountColumns.length ? Math.min(...accountColumns) : -1;
+
+  const head = (column: number): string => {
+    const sample = drawnNodes.filter((node) => node.column === column);
+    if (sample.some((node) => node.node.kind === "account")) return column === firstAccount ? t("accounts") : t("then");
+    if (column === 0) return t("from");
+    return t("usedOrKept");
+  };
+  // Each column's labels may run to the next column's bar, the last column's to the gutter's edge.
+  const room = (column: number, x1: number): number => {
+    const next = layout.columnX[column + 1];
+    return (next === undefined ? width - 4 : next - MAP.labelGap) - (x1 + MAP.labelGap);
+  };
 
   const onKey = (event: KeyboardEvent<SVGGElement>, key: string, nodeId: string) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -425,53 +306,42 @@ function FlowMap({
     const next = nextNode(layout, key, direction);
     if (!next) return;
     setFocusKey(next);
-    hostRef.current?.querySelector<SVGGElement>(`[data-node="${CSS.escape(next)}"]`)?.focus();
+    ref.current?.querySelector<SVGGElement>(`[data-node="${CSS.escape(next)}"]`)?.focus();
   };
-
-  // Labels: sources on the left of their bar, everything else on the right; pushed apart to stay legible.
-  const labels = drawnNodes
-    .filter((node) => node.node.kind !== "account")
-    .map((node) => {
-      const placed = layout.nodes.get(node.key)!;
-      const left = node.column === 0;
-      return { node, placed, left, y: (placed.y0 + placed.y1) / 2 };
-    })
-    .sort((a, b) => a.y - b.y);
-  for (const side of [true, false]) {
-    const set = labels.filter((label) => label.left === side);
-    for (let index = 1; index < set.length; index++) {
-      if (set[index].placed.column === set[index - 1].placed.column && set[index].y < set[index - 1].y + 30) set[index].y = set[index - 1].y + 30;
-    }
-  }
+  const dimmed = (link: DrawnLink) => (highlight === "all" ? hover !== null && !litLinks.has(link.key) : !highlightMatches(link.kind, highlight));
+  const serverNodes = new Map(data.nodes.map((node) => [node.id, node]));
+  const name = (key: string) => model.nodes.get(key)?.node.label ?? key;
 
   return (
-    <div ref={hostRef} className={styles.mapWide}>
-      <svg className={cn(styles.map, dim && styles.dim)} viewBox={`0 0 ${width} ${height + top + 12}`} role="group" aria-label="Peta aliran uang. Tab ke titik pertama, lalu pakai tombol panah.">
+    <div ref={ref} className="flow">
+      <svg width={width} height={height} viewBox={`-4 0 ${width + 8} ${height}`} role="group" aria-label={t("mapLabel")}>
         <defs>
-          <pattern id="flow-stripe" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" className={styles.patternInk} strokeWidth="2" /></pattern>
-          <pattern id="flow-dots" width="5" height="5" patternUnits="userSpaceOnUse"><circle cx="2.5" cy="2.5" r="1.05" className={styles.patternDot} /></pattern>
-          <pattern id="flow-hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><line x1="0" y1="0" x2="0" y2="5" className={styles.patternInk} strokeWidth="1.4" /></pattern>
+          <pattern id="flow-stripe" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="2" height="6" fill="var(--tr-solid)" />
+          </pattern>
+          <pattern id="flow-dots" width="5" height="5" patternUnits="userSpaceOnUse">
+            <circle cx="2.5" cy="2.5" r="1.1" fill="var(--inv-solid)" />
+          </pattern>
+          <pattern id="flow-hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
+            <rect width="1.5" height="5" fill="var(--warn-solid)" />
+          </pattern>
         </defs>
-        <g transform={`translate(0,${top})`}>
-          {layout.columnX.map((x, column) => {
-            const sample = drawnNodes.find((node) => node.column === column);
-            if (!sample) return null;
-            const kind = sample.node.kind;
-            const firstAccount = drawnNodes.filter((node) => node.node.kind === "account").reduce((min, node) => Math.min(min, node.column), Infinity);
-            const text = kind === "source" || sample.key.endsWith("@in") ? "Dari" : kind === "account" ? (column === firstAccount ? "Rekening" : "Lalu ke") : kind === "remaining" ? "Masih ada" : "Dipakai atau disimpan";
-            const left = text === "Dari";
-            return <text key={column} x={left ? x + layout.columnWidth[column] : x} y={-12} className={styles.columnHead} textAnchor={left ? "end" : "start"} aria-hidden="true">{text}</text>;
-          })}
+        {layout.columnX.map((x, column) => (
+          <text key={column} x={x} y={12} className="lbl-amt col-head" aria-hidden="true">{head(column).toLocaleUpperCase()}</text>
+        ))}
+        <g transform={`translate(0,${MAP.top})`}>
           <g aria-hidden="true">
             {model.links.map((link) => {
               const placed = layout.links.find((item) => item.key === link.key);
               if (!placed) return null;
-              const target = serverNodes.get(model.nodes.get(link.target)?.nodeId ?? "");
-              const match = highlight === "all" ? litLinks.has(link.key) : highlightMatches(link.kind, highlight);
+              const off = dimmed(link);
+              const pattern = bandPattern(link);
               return (
-                <g key={link.key}>
-                  <path d={placed.path} className={cn(styles.ribbon, match && styles.on)} style={{ fill: linkColor(link.kind, target) }} />
-                  {link.pattern && <path d={placed.path} className={cn(styles.ribbonPattern, match && styles.on)} fill={`url(#flow-${link.pattern})`} />}
+                <g key={link.key} data-band={link.kind}>
+                  <path d={placed.path} fill={BAND_COLOUR[link.kind]} fillOpacity={off ? 0.06 : 0.3}>
+                    <title>{`${name(link.source)} → ${name(link.target)}: ${money(link.value)}`}</title>
+                  </path>
+                  {pattern && <path d={placed.path} fill={`url(#flow-${pattern})`} opacity={off ? 0.15 : 0.7} pointerEvents="none" />}
                 </g>
               );
             })}
@@ -479,122 +349,85 @@ function FlowMap({
           {drawnNodes.map((node) => {
             const placed = layout.nodes.get(node.key)!;
             const totals = nodeTotals(node.nodeId, data.links);
-            const name = node.node.kind === "source"
-              ? `${node.node.label}: masuk ${money(totals.outbound)}`
-              : `${node.node.label}: masuk ${money(totals.inbound)}, keluar ${money(totals.outbound)}`;
-            const match = highlight === "all"
-              ? lit === node.key || [...node.inbound, ...node.outbound].some((link) => litLinks.has(link.key))
-              : [...node.inbound, ...node.outbound].some((link) => highlightMatches(link.kind, highlight));
-            const station = node.node.kind === "account";
-            const label = labels.find((item) => item.node.key === node.key);
+            const full = node.node.kind === "source"
+              ? t("sourceName", { label: node.node.label, amount: money(totals.outbound) })
+              : t("nodeName", { label: node.node.label, in: money(totals.inbound), out: money(totals.outbound) });
+            const amount = money(node.value);
+            const space = room(placed.column, placed.x1) - labelWidth(amount) - MAP.labelGap;
+            const shownName = fitLabel(node.node.label, space);
+            const server = serverNodes.get(node.nodeId);
             return (
               <g
                 key={node.key}
                 data-node={node.key}
                 role="button"
                 tabIndex={node.key === active ? 0 : -1}
-                aria-label={`${name}. Enter untuk rincian.`}
-                className={cn(styles.node, match && styles.on)}
+                aria-label={full}
+                className="flow-node"
                 onClick={() => onNode(node.nodeId)}
                 onKeyDown={(event) => onKey(event, node.key, node.nodeId)}
-                onFocus={() => { setFocusKey(node.key); setHover(node.key); }}
+                onFocus={() => {
+                  setFocusKey(node.key);
+                  setHover(node.key);
+                }}
                 onBlur={() => setHover(null)}
                 onMouseEnter={() => setHover(node.key)}
                 onMouseLeave={() => setHover(null)}
               >
-                {station ? (
-                  <>
-                    <rect x={placed.x0} y={placed.y0} width={placed.x1 - placed.x0} height={placed.y1 - placed.y0} rx={8} className={styles.station} />
-                    {placed.y1 - placed.y0 >= 30 && (
-                      <>
-                        <text x={placed.x0 + 10} y={placed.y0 + 17} className={styles.labelName} aria-hidden="true">{node.node.label.length > 15 ? `${node.node.label.slice(0, 14)}…` : node.node.label}</text>
-                        <text x={placed.x0 + 10} y={placed.y0 + 31} className={styles.labelAmount} aria-hidden="true">{money(node.node.closing ?? 0)}</text>
-                      </>
-                    )}
-                  </>
-                ) : (
-                  <rect x={placed.x0} y={placed.y0} width={placed.x1 - placed.x0} height={Math.max(placed.y1 - placed.y0, 1.5)} rx={2} style={{ fill: nodeColor(node.node) }} />
-                )}
-                {node.node.kind === "waiting" && (
-                  <rect x={placed.x0 - 1.5} y={placed.y0 - 1.5} width={placed.x1 - placed.x0 + 3} height={Math.max(placed.y1 - placed.y0, 1.5) + 3} rx={2} className={styles.pendingOutline} />
-                )}
-                {label && (
-                  <g aria-hidden="true">
-                    <text x={label.left ? placed.x0 - 10 : placed.x1 + 10} y={label.y - 2} textAnchor={label.left ? "end" : "start"} className={cn(styles.labelName, styles.halo)}>{node.node.label}</text>
-                    <text x={label.left ? placed.x0 - 10 : placed.x1 + 10} y={label.y + 12} textAnchor={label.left ? "end" : "start"} className={cn(styles.labelAmount, styles.halo)}>{money(node.value)}</text>
-                  </g>
-                )}
-                <rect x={placed.x0 - 4} y={placed.y0 - 4} width={placed.x1 - placed.x0 + 8} height={Math.max(placed.y1 - placed.y0, 2) + 8} rx={6} className={styles.ring} />
+                <title>{server?.label ?? node.node.label}</title>
+                <rect x={placed.x0} y={placed.y0} width={placed.x1 - placed.x0} height={Math.max(placed.y1 - placed.y0, 2)} className="flow-bar" />
+                <text x={placed.x1 + MAP.labelGap} y={placed.y0 + 14} className="flow-label" aria-hidden="true" data-room={Math.round(room(placed.column, placed.x1))}>
+                  <tspan className="lbl-node">{shownName}</tspan>
+                  <tspan className="lbl-amt" dx={MAP.labelGap}>{amount}</tspan>
+                </text>
+                <rect x={placed.x0 - 4} y={placed.y0 - 4} width={placed.x1 - placed.x0 + 8} height={Math.max(placed.y1 - placed.y0, 2) + 8} className="flow-ring" />
               </g>
             );
           })}
         </g>
       </svg>
       {model.hiddenLinkKeys.some((key) => data.links.find((link) => link.key === key)?.kind === "transfer") && (
-        <p className={styles.caption}>Sebagian pindah saldo yang berputar antar rekening hanya tercantum di tabel.</p>
+        <p className="caption">{t("hiddenTransfers")}</p>
       )}
     </div>
   );
 }
 
-/** A small decorative map above the phone table; the table carries every figure (D10). */
-function MiniMap({ data, folded }: { data: FlowResponse; folded: boolean }) {
-  const model = useMemo(() => buildFlowModel(data.nodes, data.links, { folded }), [data, folded]);
-  const layout = useMemo(() => layoutFlow(model, { width: 640, height: 260, stationWidth: 40, stationMin: 16, barWidth: 8, barMin: 2, pad: 8, leftLabel: 4, rightLabel: 4 }), [model]);
-  const serverNodes = new Map(data.nodes.map((node) => [node.id, node]));
-  return (
-    <div className={styles.mini} aria-hidden="true">
-      <svg className={styles.map} viewBox="0 0 640 270">
-        {model.links.map((link) => {
-          const placed = layout.links.find((item) => item.key === link.key);
-          const target = serverNodes.get(model.nodes.get(link.target)?.nodeId ?? "");
-          return placed ? <path key={link.key} d={placed.path} className={styles.ribbon} style={{ fill: linkColor(link.kind, target) }} /> : null;
-        })}
-        {[...model.nodes.values()].map((node) => {
-          const placed = layout.nodes.get(node.key)!;
-          return <rect key={node.key} x={placed.x0} y={placed.y0} width={placed.x1 - placed.x0} height={Math.max(placed.y1 - placed.y0, 1.5)} rx={3} className={node.node.kind === "account" ? styles.station : undefined} style={node.node.kind === "account" ? undefined : { fill: nodeColor(node.node) }} />;
-        })}
-      </svg>
-    </div>
-  );
+function kindLabel(t: ReturnType<typeof useTranslations<"analysis.flow">>, kind: FlowLinkKind): string {
+  return t(`kinds.${kind}`);
 }
 
-function FlowTable({
-  data,
-  nodes,
-  money,
-  highlight,
-  onLink,
-}: {
-  data: FlowResponse;
-  nodes: Map<string, FlowNode>;
-  money: Money;
-  highlight: Highlight;
-  onLink: (key: string) => void;
-}) {
-  const rows = [...data.links].sort((a, b) => b.amount - a.amount || a.key.localeCompare(b.key))
-    .filter((link) => highlight === "all" || highlightMatches(link.kind, highlight));
+function FlowTable({ data, nodes, money, highlight, onLink }: { data: FlowResponse; nodes: Map<string, FlowNode>; money: Money; highlight: Highlight; onLink: (key: string) => void }) {
+  const t = useTranslations("analysis.flow");
+  const table = useTranslations("analysis.flowTable");
+  const format = useFormat();
+  const rows = [...data.links].sort((a, b) => b.amount - a.amount || a.key.localeCompare(b.key)).filter((link) => highlight === "all" || highlightMatches(link.kind, highlight));
   return (
-    <div className={styles.tableScroll}>
-      <table className={styles.table}>
-        <caption>Semua aliran sampai {longDay(data.window.through)}, termasuk saldo awal dan Masih ada</caption>
+    <div className="tbl-scroll">
+      <table className="tbl flow-tbl">
+        <caption>{table("caption", { date: format.longDate(data.window.through) })}</caption>
         <thead>
-          <tr><th scope="col">Dari → Ke</th><th scope="col">Jenis</th><th scope="col" className={styles.r}>Jumlah</th><th scope="col" className={cn(styles.r, styles.countColumn)}>Transaksi</th></tr>
+          <tr>
+            <th scope="col">{table("fromTo")}</th>
+            <th scope="col">{table("kind")}</th>
+            <th scope="col" className="num">{table("amount")}</th>
+            <th scope="col" className="num ph-hide">{table("count")}</th>
+          </tr>
         </thead>
         <tbody>
           {rows.map((link) => (
             <tr key={link.key}>
               <td>
-                <button type="button" className={styles.linkButton} onClick={() => onLink(link.key)}>
+                <button type="button" className="tbl-link" aria-haspopup="dialog" onClick={() => onLink(link.key)}>
                   {nodes.get(link.from)?.label ?? link.from} → {nodes.get(link.to)?.label ?? link.to}
                 </button>
               </td>
-              <td>
-                {KIND_LABEL[link.kind]}
-                {link.waiting_count > 0 && link.kind !== "waiting" && <span className={styles.caption}> · termasuk {link.waiting_count} menunggu jawaban</span>}
+              <td className="t-meta">
+                {kindLabel(t, link.kind)}
+                {link.waiting_count > 0 && link.kind !== "waiting" && ` · ${table("waitingPart", { count: link.waiting_count })}`}
               </td>
-              <td className={styles.r}>{money(link.amount)}</td>
-              <td className={cn(styles.r, styles.countColumn)}>{BALANCE_KINDS.has(link.kind) ? "–" : link.count}</td>
+              <td className="num"><MaskedMoney text={money(link.amount)} className="t-amt" /></td>
+              <td className="num ph-hide t-amt">{BALANCE_KINDS.has(link.kind) ? "–" : format.integer(link.count)}</td>
             </tr>
           ))}
         </tbody>
@@ -603,7 +436,7 @@ function FlowTable({
   );
 }
 
-function FlowDrawer({
+function FlowDetails({
   target,
   data,
   nodes,
@@ -614,7 +447,7 @@ function FlowDrawer({
   onLink,
   onRow,
 }: {
-  target: DrawerTarget;
+  target: Target | null;
   data: FlowResponse;
   nodes: Map<string, FlowNode>;
   basis: PeriodBasis;
@@ -624,105 +457,141 @@ function FlowDrawer({
   onLink: (key: string) => void;
   onRow: (id: string) => void;
 }) {
-  if (target.type === "node") {
+  const t = useTranslations("analysis");
+  const common = useTranslations("common");
+  const format = useFormat();
+  const through = format.longDate(data.window.through);
+  let title = "";
+  let meta: string | undefined;
+  let body: React.ReactNode = null;
+  if (target?.type === "node") {
     const node = nodes.get(target.id);
-    if (!node) return null;
-    const inbound = data.links.filter((link) => link.to === node.id);
-    const outbound = data.links.filter((link) => link.from === node.id);
-    const totals = nodeTotals(node.id, data.links);
-    const holder = node.kind === "account" || node.kind === "saving" || node.kind === "investment";
-    const periodQuery = `period=${basis}${offset ? `&offset=${offset}` : ""}`;
-    return (
-      <Drawer open onClose={onClose} title={node.label} subtitle={`Sampai ${longDay(data.window.through)}`}>
-        <dl className={styles.drawerFacts}>
-          <dt>Masuk</dt><dd>{money(totals.inbound)}</dd>
-          <dt>Keluar</dt><dd>{money(totals.outbound)}</dd>
-          {holder && <><dt>Saldo sebelum periode</dt><dd>{money(node.opening ?? 0)}</dd></>}
-          {holder && <><dt>Saldo di akhir hari</dt><dd>{money(node.closing ?? 0)}</dd></>}
-        </dl>
-        {holder && <p className={styles.caption}>Saldo awal ditambah yang masuk sama dengan yang keluar ditambah saldo di akhir hari.</p>}
-        {node.members && node.members.length > 0 && <p className={styles.caption}>Termasuk {node.members.join(", ")}.</p>}
-        <LinkList title="Masuk dari" links={inbound} nodes={nodes} money={money} side="from" onLink={onLink} />
-        <LinkList title="Keluar ke" links={outbound} nodes={nodes} money={money} side="to" onLink={onLink} />
-        {node.kind === "waiting" && <p style={{ marginTop: 12 }}><Link className="ws-btn ws-btn-sm" href="/review?folder=pindah">Jawab di Tinjau</Link></p>}
-        {holder && node.account_id && (
-          <p style={{ marginTop: 12 }}><Link className="ws-linkbtn" href={`/ledger?account=${node.account_id}&${periodQuery}`}>Lihat semua transaksi rekening ini</Link></p>
-        )}
-      </Drawer>
-    );
+    if (node) {
+      const inbound = data.links.filter((link) => link.to === node.id);
+      const outbound = data.links.filter((link) => link.from === node.id);
+      const totals = nodeTotals(node.id, data.links);
+      const holder = node.kind === "account" || node.kind === "saving" || node.kind === "investment";
+      const periodQuery = `period=${basis}${offset ? `&offset=${offset}` : ""}`;
+      title = node.label;
+      meta = t("flowDetail.until", { date: through });
+      body = (
+        <div className="form-stack">
+          <dl className="dl">
+            <dt>{t("flowDetail.in")}</dt><dd><MaskedMoney text={money(totals.inbound)} className="t-amt" /></dd>
+            <dt>{t("flowDetail.out")}</dt><dd><MaskedMoney text={money(totals.outbound)} className="t-amt" /></dd>
+            {holder && <><dt>{t("flowDetail.opening")}</dt><dd><MaskedMoney text={money(node.opening ?? 0)} className="t-amt" /></dd></>}
+            {holder && <><dt>{t("flowDetail.closing")}</dt><dd><MaskedMoney text={money(node.closing ?? 0)} className="t-amt" /></dd></>}
+          </dl>
+          {holder && <p className="t-meta">{t("flowDetail.balanceRule")}</p>}
+          {node.members && node.members.length > 0 && <p className="t-meta">{t("flowDetail.members", { names: node.members.join(", ") })}</p>}
+          <LinkList title={t("flowDetail.inFrom")} links={inbound} nodes={nodes} money={money} side="from" onLink={onLink} />
+          <LinkList title={t("flowDetail.outTo")} links={outbound} nodes={nodes} money={money} side="to" onLink={onLink} />
+          {(node.kind === "waiting" || holder) && (
+            <div className="panel-actions">
+              {node.kind === "waiting" && <Link className="ws-btn" href="/review?folder=pindah">{t("flowDetail.answer")}</Link>}
+              {holder && node.account_id && <Link className="ws-btn" href={`/ledger?account=${node.account_id}&${periodQuery}`}>{t("flowDetail.allRows")}</Link>}
+            </div>
+          )}
+        </div>
+      );
+    }
+  } else if (target?.type === "link") {
+    const link = data.links.find((item) => item.key === target.key);
+    if (link) {
+      title = `${nodes.get(link.from)?.label ?? link.from} → ${nodes.get(link.to)?.label ?? link.to}`;
+      meta = `${t(`flow.kinds.${link.kind}`)} · ${t("flowDetail.until", { date: through })}`;
+      body = (
+        <div className="form-stack">
+          <dl className="dl">
+            <dt>{t("flowDetail.amount")}</dt><dd><MaskedMoney text={money(link.amount)} className="t-amt" /></dd>
+            {!BALANCE_KINDS.has(link.kind) && <><dt>{t("flowDetail.count")}</dt><dd className="t-amt">{format.integer(link.count)}</dd></>}
+            {link.waiting_count > 0 && (
+              <><dt>{t("flowDetail.waiting")}</dt><dd>{t.rich("flowDetail.waitingValue", { count: link.waiting_count, amount: () => <MaskedMoney text={money(link.waiting_amount)} className="t-amt" /> })}</dd></>
+            )}
+          </dl>
+          {BALANCE_KINDS.has(link.kind) ? (
+            <p className="t-meta">{link.kind === "opening" || link.kind === "negative_opening" ? t("flowDetail.openingNote") : t("flowDetail.closingNote")}</p>
+          ) : (
+            <LinkRows linkKey={link.key} basis={basis} offset={offset} through={data.window.through} money={money} onRow={onRow} />
+          )}
+          {link.kind === "waiting" && <div className="panel-actions"><Link className="ws-btn" href="/review?folder=pindah">{t("flowDetail.answer")}</Link></div>}
+        </div>
+      );
+    }
   }
-  const link = data.links.find((item) => item.key === target.key);
-  if (!link) return null;
-  const from = nodes.get(link.from)?.label ?? link.from;
-  const to = nodes.get(link.to)?.label ?? link.to;
   return (
-    <Drawer open onClose={onClose} title={`${from} → ${to}`} subtitle={`${KIND_LABEL[link.kind]} · sampai ${longDay(data.window.through)}`}>
-      <dl className={styles.drawerFacts}>
-        <dt>Jumlah</dt><dd>{money(link.amount)}</dd>
-        {!BALANCE_KINDS.has(link.kind) && <><dt>Transaksi</dt><dd>{link.count}</dd></>}
-        {link.waiting_count > 0 && <><dt>Menunggu jawaban</dt><dd>{link.waiting_count} · {money(link.waiting_amount)}</dd></>}
-      </dl>
-      {BALANCE_KINDS.has(link.kind) ? (
-        <p className={styles.caption}>
-          {link.kind === "opening" || link.kind === "negative_opening"
-            ? "Saldo buku kas rekening ini sebelum periode dimulai."
-            : "Saldo buku kas rekening ini di akhir hari yang dipilih."}
-        </p>
-      ) : (
-        <LinkRows linkKey={link.key} basis={basis} offset={offset} through={data.window.through} money={money} onRow={onRow} />
-      )}
-      {link.kind === "waiting" && <p style={{ marginTop: 12 }}><Link className="ws-btn ws-btn-sm" href="/review?folder=pindah">Jawab di Tinjau</Link></p>}
-    </Drawer>
+    <ShellDialog open={Boolean(target && body)} onClose={onClose} title={title} meta={meta} width={560} closeLabel={common("close")}>
+      {body}
+    </ShellDialog>
   );
 }
 
 function LinkList({ title, links, nodes, money, side, onLink }: { title: string; links: FlowLink[]; nodes: Map<string, FlowNode>; money: Money; side: "from" | "to"; onLink: (key: string) => void }) {
+  const t = useTranslations("analysis.flow");
   if (!links.length) return null;
   return (
-    <>
-      <h3 className={styles.sheetHeading}>{title}</h3>
-      <div className={styles.sheetRows}>
+    <div>
+      <h3 className="t-label dlg-sub">{title}</h3>
+      <ul className="list">
         {[...links].sort((a, b) => b.amount - a.amount).map((link) => (
-          <button key={link.key} type="button" className={styles.sheetRow} onClick={() => onLink(link.key)}>
-            <span><b>{nodes.get(side === "from" ? link.from : link.to)?.label}</b><span>{KIND_LABEL[link.kind]}</span></span>
-            <span className={styles.amount}>{money(link.amount)}</span>
-          </button>
+          <li key={link.key}>
+            <ListRow
+              onClick={() => onLink(link.key)}
+              layout="stacked"
+              title={nodes.get(side === "from" ? link.from : link.to)?.label ?? ""}
+              meta={kindLabel(t, link.kind)}
+              amount={<MaskedMoney text={money(link.amount)} className="t-amt" />}
+            />
+          </li>
         ))}
-      </div>
-    </>
+      </ul>
+    </div>
   );
 }
 
+function rowKindOf(type: string): AmountKind {
+  if (type === "expense") return "expense";
+  if (type === "income") return "income";
+  if (type === "topup") return "topup";
+  return "movement";
+}
+
 function LinkRows({ linkKey, basis, offset, through, money, onRow }: { linkKey: string; basis: PeriodBasis; offset: number; through: string; money: Money; onRow: (id: string) => void }) {
+  const t = useTranslations("analysis.flowDetail");
+  const format = useFormat();
   const query = useInfiniteQuery<FlowRowsResponse>({
     queryKey: ["dashboard", "flow-rows", basis, offset, through, linkKey],
     initialPageParam: 0,
     queryFn: ({ pageParam }) => api.get(`/dashboard/flow/rows?timeframe=${basis}&cycle_offset=${offset}&through=${through}&link=${encodeURIComponent(linkKey)}&offset=${pageParam}`),
     getNextPageParam: (last) => (last.offset + last.limit < last.total_count ? last.offset + last.limit : undefined),
   });
-  const open = useCallback((id: string) => onRow(id), [onRow]);
-  if (query.isPending) return <Skeleton style={{ height: 120 }} />;
-  if (query.isError) return <ErrorState message="Transaksi aliran ini belum bisa dimuat." onRetry={() => query.refetch()} />;
+  if (query.isPending) return <div role="status" aria-busy="true"><span className="skel is-line" /><span className="skel is-line" /></div>;
+  if (query.isError) return <ErrorState message={t("rowsFailed")} onRetry={() => query.refetch()} />;
   const rows = query.data.pages.flatMap((page) => page.rows);
   return (
-    <>
-      <h3 className={styles.sheetHeading}>Transaksi · {query.data.pages[0].total_count}</h3>
-      <div className={styles.sheetRows}>
+    <div>
+      <h3 className="t-label dlg-sub">{t("rows", { count: query.data.pages[0].total_count })}</h3>
+      <ul className="list">
         {rows.map((row) => (
-          <button key={`${row.id}-${row.link}`} type="button" className={styles.sheetRow} onClick={() => open(row.id)}>
-            <span>
-              <b>{row.merchant || row.notes || row.category_name || "Tanpa keterangan"}</b>
-              <span>{shortDay(row.local_date)} · {row.account_name}{row.waiting ? " · menunggu jawaban" : ""}</span>
-            </span>
-            <span className={styles.amount}>{money(row.amount)}</span>
-          </button>
+          <li key={`${row.id}-${row.link}`}>
+            <ListRow
+              onClick={() => onRow(row.id)}
+              layout="stacked"
+              rowKey={row.id}
+              title={row.merchant || row.notes || row.category_name || t("noDescription")}
+              meta={`${format.shortDate(row.local_date)} · ${row.account_name}${row.waiting ? ` · ${t("waitingRow")}` : ""}`}
+              amount={<KindAmount kind={rowKindOf(row.type)} amount={row.amount} money={money} />}
+            />
+          </li>
         ))}
-      </div>
+      </ul>
       {query.hasNextPage && (
-        <button type="button" className="ws-btn ws-btn-sm" style={{ marginTop: 10 }} disabled={query.isFetchingNextPage} onClick={() => query.fetchNextPage()}>
-          {query.isFetchingNextPage ? "Memuat…" : "Muat lagi"}
-        </button>
+        <div className="panel-actions">
+          <button type="button" className="ws-btn" disabled={query.isFetchingNextPage} onClick={() => query.fetchNextPage()}>
+            {query.isFetchingNextPage ? t("loadingMore") : t("more")}
+          </button>
+        </div>
       )}
-    </>
+    </div>
   );
 }

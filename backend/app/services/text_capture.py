@@ -10,6 +10,7 @@ import json
 import logging
 import unicodedata
 from datetime import datetime, timedelta, timezone
+from functools import partial
 from uuid import uuid4
 
 from fastapi import HTTPException
@@ -17,8 +18,9 @@ from psycopg.types.json import Jsonb
 
 from app.core.config import settings
 from app.db.pool import db_conn
+from app.errors import ErrorCode, api_error
 from app.services.capture_normalization import (
-    CAPTURE_PROMPT_VERSION, InvalidCaptureNormalization, validate_capture_normalization, validate_capture_time,
+    InvalidCaptureNormalization, validate_capture_normalization, validate_capture_time,
 )
 from app.services.capture_parsing import WORD_PATTERN, fold, parse_amount_answer
 from app.services.capture_resolution import (
@@ -26,8 +28,10 @@ from app.services.capture_resolution import (
     liquid_leaves, memory_state, model_context, model_unavailable, needs_classification, needs_model, owner_accounts,
     processing_settings, reportable_categories, resolved_amount, resolved_kind, resolved_time,
 )
+from app.i18n import account_language, t
 from app.services.capture_time import moment_label, parse_time_answer
 from app.services.kakeibo import PILLARS
+from app.services.prompt_language import CAPTURE_NORMALIZATION, select_prompt
 from app.services.plan_occurrences import request_plan_linking
 from app.services.ledger_mutations import (
     create_bilateral_movement, delete_movement_rows, delete_transaction_rows, ensure_generic_movement_accounts,
@@ -48,7 +52,7 @@ UNDO_WINDOW = timedelta(seconds=10)
 UNDO_GRACE = timedelta(seconds=5)
 CAPTURE_RATE_LIMIT = 30
 CAPTURE_RATE_WINDOW = 60
-MOVEMENT_DESCRIPTIONS = {"withdraw": "Tarik tunai", "deposit": "Setor tunai"}
+MOVEMENT_DESCRIPTIONS = {"withdraw": "notes.cash_withdrawal", "deposit": "notes.cash_deposit"}
 # Answers to these questions are the owner's teaching; an amount answer is not a classification.
 TEACHING_ANSWERS = frozenset({"kind", "account", "category"})
 SNAPSHOT_COLUMNS = (
@@ -71,17 +75,17 @@ def jsonable(value):
 def clean_text(value: str, limit: int, code: str) -> str:
     text = unicodedata.normalize("NFKC", value).strip()
     if not 1 <= len(text) <= limit or any(unicodedata.category(char).startswith("C") for char in text):
-        raise HTTPException(status_code=422, detail={"code": code})
+        raise api_error(422, code)
     return text
 
 
 def validate_text_request(raw: dict) -> dict:
     device_time = raw["device_time"]
     if device_time.tzinfo is None or device_time > now() + DEVICE_CLOCK_SKEW:
-        raise HTTPException(status_code=422, detail={"code": "invalid_device_time"})
+        raise api_error(422, ErrorCode.INVALID_DEVICE_TIME)
     declared = raw.get("question_types")
     if declared is not None and not set(declared) <= set(QUESTION_TYPES):
-        raise HTTPException(status_code=422, detail={"code": "invalid_question_types"})
+        raise api_error(422, ErrorCode.INVALID_QUESTION_TYPES)
     return {
         "client_capture_id": str(raw["client_capture_id"]),
         "text": clean_text(raw["text"], TEXT_MAX_LENGTH, "invalid_capture_text"),
@@ -124,7 +128,8 @@ def record_plan(cur, user_id: str, capture_id: str, draft: dict, plan: dict) -> 
         locked = lock_owned_accounts(cur, user_id, [source_id, target_id])
         ensure_generic_movement_accounts(locked[source_id], locked[target_id])
         expense_category_id, income_category_id = ensure_internal_movement_categories(cur, user_id)
-        notes = MOVEMENT_DESCRIPTIONS.get(facts["movement_form"]) or movement_note(cur, user_id, target_id)
+        form_note = MOVEMENT_DESCRIPTIONS.get(facts["movement_form"])
+        notes = t(account_language(cur, user_id)[0], form_note) if form_note else movement_note(cur, user_id, target_id)
         # A typed movement describes money already moved, so it is recorded even past the ledger balance.
         result = create_bilateral_movement(
             cur, user_id=user_id, source_id=source_id, target_id=target_id, amount=plan["amount"], notes=notes,
@@ -229,13 +234,13 @@ def locked_capture(cur, user_id: str, capture_id: str) -> dict:
     cur.execute("SELECT * FROM text_captures WHERE user_id = %s AND id = %s FOR UPDATE", (user_id, capture_id))
     capture = cur.fetchone()
     if not capture:
-        raise HTTPException(status_code=404, detail={"code": "capture_not_found"})
+        raise api_error(404, ErrorCode.CAPTURE_NOT_FOUND)
     return capture
 
 
 def replayed(existing: dict, request: dict) -> dict:
     if existing["text"] != request["text"]:
-        raise HTTPException(status_code=409, detail={"code": "capture_id_conflict"})
+        raise api_error(409, ErrorCode.CAPTURE_ID_CONFLICT)
     return existing
 
 
@@ -284,12 +289,12 @@ def transaction_view(cur, user_id: str, capture: dict) -> tuple[dict | None, dic
     return view(first), movement
 
 
-def time_summary(draft: dict, device_time: datetime) -> dict:
+def time_summary(draft: dict, device_time: datetime, language: str) -> dict:
     """The capture's moment as the summary shows it, so the owner notices a wrong reading at once."""
     moment = (draft.get("recorded") or {}).get("time") or resolved_time(draft)
     if moment is None:
         return {"date": None, "time_basis": None, "time_evidence": None, "time_label": None}
-    label = moment_label(datetime.fromisoformat(moment["date"]), device_time, settings.tz)
+    label = moment_label(language, datetime.fromisoformat(moment["date"]), device_time, settings.tz)
     return {"date": moment["date"], "time_basis": moment["basis"], "time_evidence": moment["evidence"],
             "time_label": label}
 
@@ -306,7 +311,7 @@ def capture_view(cur, user_id: str, capture: dict) -> dict:
         "id": str(capture["id"]), "client_capture_id": str(capture["client_capture_id"]),
         "status": capture["status"], "text": capture["text"], "question": capture["question"],
         "summary": {"type": draft.get("recorded", {}).get("kind") or resolved_kind(draft),
-                    "amount": resolved_amount(draft), **time_summary(draft, capture["device_time"]),
+                    "amount": resolved_amount(draft), **time_summary(draft, capture["device_time"], account_language(cur, user_id)[0]),
                     "description": facts["description"] or None},
         "transaction": transaction, "movement": movement,
         "created_at": stamp(capture["created_at"]), "recorded_at": stamp(capture["recorded_at"]),
@@ -337,12 +342,13 @@ def prepare_capture(user_id: str, request: dict) -> dict:
             memory = memory_state(cur, user_id, facts)
             needed = needs_model(facts, memory)
             context = model_context(cur, user_id, request, facts, memory, accounts, aliases) if needed else None
+            prompt = select_prompt(CAPTURE_NORMALIZATION, account_language(cur, user_id)[0]) if needed else None
         conn.commit()
-    return {"context": context, "needs_model": needed, "time_facts": facts["time"]}
+    return {"context": context, "needs_model": needed, "time_facts": facts["time"], "prompt": prompt}
 
 
 def store_capture(user_id: str, request: dict, model: dict | None, classifier: str | None,
-                  model_name: str | None, model_time: dict | None = None) -> dict:
+                  model_name: str | None, model_time: dict | None = None, *, prompt_version: str | None) -> dict:
     with db_conn() as conn:
         with conn.cursor() as cur:
             existing = lock_client_capture(cur, user_id, request["client_capture_id"])
@@ -375,7 +381,7 @@ def store_capture(user_id: str, request: dict, model: dict | None, classifier: s
                  Jsonb(columns["question"]) if columns["question"] else None, columns.get("transaction_id"),
                  columns.get("movement_id"), Jsonb(columns["recorded_rows"]) if columns.get("recorded_rows") else None,
                  columns.get("recorded_at"), columns.get("undo_until"), classifier, model_name,
-                 CAPTURE_PROMPT_VERSION if model_name else None, 1 if model_name else 0),
+                 prompt_version if model_name else None, 1 if model_name else 0),
             )
             stored = cur.fetchone()
             view = capture_view(cur, user_id, stored)
@@ -401,8 +407,8 @@ async def submit_capture(user_id: str, raw: dict, provider) -> dict:
         if classifier is None:
             model_name = getattr(provider, "model", None) or "unknown"
             try:
-                result = await provider.normalize_capture(prepared["context"])
-                model = validate_capture_normalization(result, prepared["context"])
+                result = await provider.normalize_capture(prepared["context"], prompt=prepared["prompt"])
+                model = validate_capture_normalization(result, prepared["context"], output_language=prepared["prompt"].language)
                 classifier = "ok"
                 model_time, time_outcome = validate_capture_time(
                     result.time, text=request["text"], time_facts=prepared["time_facts"],
@@ -415,7 +421,10 @@ async def submit_capture(user_id: str, raw: dict, provider) -> dict:
                 classifier = exc.code
             except InvalidCaptureNormalization:
                 classifier = "invalid_normalization"
-    return await database_operation(store_capture, user_id, request, model, classifier, model_name, model_time)
+    prompt_version = prepared["prompt"].version if prepared["prompt"] else None
+    return await database_operation(
+        partial(store_capture, prompt_version=prompt_version), user_id, request, model, classifier, model_name, model_time,
+    )
 
 
 def get_capture(user_id: str, capture_id: str) -> dict:
@@ -424,12 +433,12 @@ def get_capture(user_id: str, capture_id: str) -> dict:
             cur.execute("SELECT * FROM text_captures WHERE user_id = %s AND id = %s", (user_id, capture_id))
             capture = cur.fetchone()
             if not capture:
-                raise HTTPException(status_code=404, detail={"code": "capture_not_found"})
+                raise api_error(404, ErrorCode.CAPTURE_NOT_FOUND)
             return capture_view(cur, user_id, capture)
 
 
 def invalid_answer() -> HTTPException:
-    return HTTPException(status_code=422, detail={"code": "invalid_capture_answer"})
+    return api_error(422, ErrorCode.INVALID_CAPTURE_ANSWER)
 
 
 def answer_value(cur, user_id: str, capture: dict, current: dict, answer: dict) -> dict:
@@ -521,13 +530,13 @@ def answer_capture(user_id: str, capture_id: str, raw: dict) -> dict:
             previous = next((item for item in capture["answers"] if item["reply_id"] == answer["reply_id"]), None)
             if previous is not None:
                 if {key: previous["request"].get(key) for key in answer} != answer:
-                    raise HTTPException(status_code=409, detail={"code": "capture_answer_conflict"})
+                    raise api_error(409, ErrorCode.CAPTURE_ANSWER_CONFLICT)
                 view = capture_view(cur, user_id, capture)
                 conn.commit()
                 return view
             current = capture["question"]
             if capture["status"] != "needs_detail" or not current or current["question_id"] != answer["question_id"]:
-                raise HTTPException(status_code=409, detail={"code": "stale_capture_question"})
+                raise api_error(409, ErrorCode.STALE_CAPTURE_QUESTION)
             value = answer_value(cur, user_id, capture, current, answer)
             draft = capture["draft"]
             apply_answer_value(draft, current, value)
@@ -579,12 +588,12 @@ def undo_capture(user_id: str, capture_id: str) -> dict:
                 conn.commit()
                 return view
             if capture["status"] != "recorded":
-                raise HTTPException(status_code=409, detail={"code": "capture_not_recorded"})
+                raise api_error(409, ErrorCode.CAPTURE_NOT_RECORDED)
             if now() > capture["undo_until"] + UNDO_GRACE:
-                raise HTTPException(status_code=409, detail={"code": "undo_expired"})
+                raise api_error(409, ErrorCode.UNDO_EXPIRED)
             recorded = capture["recorded_rows"] or []
             if row_states(cur, user_id, [row["id"] for row in recorded], lock=True) != recorded:
-                raise HTTPException(status_code=409, detail={"code": "capture_transaction_changed"})
+                raise api_error(409, ErrorCode.CAPTURE_TRANSACTION_CHANGED)
             # The capture's own label stops counting as habit evidence (design D10). The undo row is
             # appended in this transaction, so a failure later leaves the label live with the rows.
             revert_capture_labels(cur, user_id, [row["id"] for row in recorded])

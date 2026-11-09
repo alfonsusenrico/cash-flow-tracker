@@ -1,18 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { PendingScheduledBanner } from "@/components/recurring/PendingScheduledBanner";
-import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
-import { TransactionDrawer } from "@/components/transactions/TransactionDrawer";
+import { PlansDialog } from "@/components/recurring/PlansDialog";
+import { TransactionDialog } from "@/components/transactions/TransactionDialog";
 import { useTransactionUndo } from "@/components/transactions/useTransactionUndo";
 import { Icon } from "@/components/ui/Icon";
-import { usePageHeader } from "@/components/workspace/context";
+import { usePageHeader, WorkspaceContext } from "@/components/workspace/context";
 import { useMoney } from "@/components/workspace/money";
 import { Drawer } from "@/components/workspace/overlays";
 import { api } from "@/lib/api";
+import { creditBillsPath, dueCreditBills, type CreditBillsResponse } from "@/lib/creditBills";
 import { consolidateLedgerMovements } from "@/lib/ledgerMovements";
 import type { Words } from "@/lib/i18n/types";
 import { queryKeys } from "@/lib/queryKeys";
@@ -22,7 +23,8 @@ import { ActivitySection } from "./ActivitySection";
 import { BerandaHero } from "./BerandaHero";
 import { ContextPanel, type Overview } from "./ContextPanel";
 import { TodoSection, todoItems } from "./TodoSection";
-import { jakartaDay, recentActivity } from "./activity";
+import { jakartaDay } from "@/components/transactions/rows";
+import { recentActivity } from "./activity";
 import type { ActivityRow, CycleSummary } from "./types";
 import { useWords } from "./words";
 
@@ -179,20 +181,28 @@ export default function BerandaView() {
   const plans = (rulesQuery.data?.rules ?? [])
     .filter((rule) => rule.is_active && rule.type !== "income" && rule.next_due_date <= horizon)
     .sort((a, b) => a.next_due_date.localeCompare(b.next_due_date));
+  // Unpaid credit bills due by the same horizon (apply-markas-target D16); the shell's bell reads the same query.
+  const billsPath = creditBillsPath(horizon);
+  const billsQuery = useQuery<CreditBillsResponse>({ queryKey: queryKeys.transactions.creditBills(billsPath), queryFn: () => api.get(billsPath) });
+  // Outside the shell (a page test without it) there is no capture form, so a bill row only lists.
+  const openMovementCapture = useContext(WorkspaceContext)?.openMovementCapture;
   const items = todoItems({
     queue: queueQuery.data,
     plans,
+    creditBills: dueCreditBills(billsQuery.data?.bills ?? [], plans),
     autoLinks: pendingQuery.data?.recent_auto_links ?? [],
     today,
-    bal,
     words,
     onOpenPlans: () => setPlansOpen(true),
+    onPayBill: openMovementCapture
+      ? (bill) => openMovementCapture({ targetAccountId: bill.account_id, amount: bill.left_to_pay })
+      : undefined,
   });
 
   usePageHeader(headerFor(summary, now, words));
 
   const loading = summaryQuery.isLoading;
-  const todoLoading = queueQuery.isLoading || rulesQuery.isLoading || pendingQuery.isLoading;
+  const todoLoading = queueQuery.isLoading || rulesQuery.isLoading || pendingQuery.isLoading || billsQuery.isLoading;
 
   return (
     <>
@@ -220,14 +230,14 @@ export default function BerandaView() {
         {loading ? <PanelSkeleton /> : <ContextPanel summary={summary} overview={overviewQuery.data} overviewError={overviewQuery.isError} bal={bal} />}
       </div>
 
-      <TransactionDrawer transactionId={selectedTx?.id ?? null} onClose={() => setSelectedTx(null)} record={record} onDeleted={(row) => setDeletedId(row.id)} />
+      <TransactionDialog transactionId={selectedTx?.id ?? null} onClose={() => setSelectedTx(null)} record={record} onDeleted={(row) => setDeletedId(row.id)} />
       <Drawer open={plansOpen} onClose={() => setPlansOpen(false)} title={t("shell.duePlans.title")} subtitle={t("shell.duePlans.subtitle")}>
         <PendingScheduledBanner onOpenRulesManager={() => setRulesOpen(true)} />
         {!(pendingQuery.data?.rules ?? []).length && !(pendingQuery.data?.recent_auto_links ?? []).length && (
           <p className="ws-caption">{t("shell.duePlans.noneToday")}</p>
         )}
       </Drawer>
-      <RecurringRulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
+      <PlansDialog open={rulesOpen} onClose={() => setRulesOpen(false)} />
     </>
   );
 }

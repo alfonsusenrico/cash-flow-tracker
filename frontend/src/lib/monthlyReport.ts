@@ -32,6 +32,8 @@ export interface FlowFigures {
   reimbursement_offset: number;
   outflow: number;
   net: number;
+  /** The reimbursements subtracted from Pengeluaran (apply-markas-laporan D29); `reimbursement_offset` is Belanja's. */
+  spending_reimbursement_offset: number;
 }
 
 export type SpendingBucket = Exclude<KakeiboBucket, "saving">;
@@ -94,7 +96,10 @@ export interface ComparisonPillar {
 
 export interface ComparisonFact {
   kind: "category_above_average" | "category_new" | "want_share" | "top_merchant" | "recurring" | "unexpected";
+  /** Rendered by the server in the account's language from `label_code` (localize-server-text). */
   label: string;
+  label_code?: string;
+  label_params?: Record<string, string | number>;
   amount: number;
   difference?: number;
   baseline?: number;
@@ -128,11 +133,15 @@ export interface ReportComparison {
     previous_spending: number | null;
     spending: number;
     share: number | null;
+    /** Pengeluaran so far as a whole percent of the baseline's; null without a baseline or an older API. */
+    baseline_share?: number | null;
     pillars: { pillar: SpendingBucket; amount: number; previous: number | null; share: number | null }[];
   } | null;
   pillars: ComparisonPillar[];
   facts: ComparisonFact[];
   history: ComparisonHistoryItem[];
+  /** The top-merchant fact on the Pengeluaran basis, shown on Laporan instead of the one in `facts` (D29). */
+  spending_top_merchant: ComparisonFact | null;
 }
 
 export type ReportComparisonResponse =
@@ -154,7 +163,9 @@ export interface RecurringCharge {
 
 export interface EssentialSummary {
   amount: number | null;
-  method: string;
+  living_amount: number | null;
+  debt_minimum: number;
+  method: "median_need_periods" | "need_budget" | "unknown";
   limited_history: boolean;
   period_count: number;
   coverage_months: number | null;
@@ -163,13 +174,22 @@ export interface EssentialSummary {
   balance_basis: string;
 }
 
+/**
+ * Budget against actual. `spent` and `remaining` are on the Belanja basis; Laporan shows `spending` and
+ * `spending_remaining`, on the Pengeluaran basis (apply-markas-laporan D29).
+ */
 export interface ReportBudget {
   period_basis: ReportBasis;
-  categories: { category_id: string; name: string; budget: number; spent: number; remaining: number }[];
+  categories: {
+    category_id: string; name: string; budget: number; spent: number; remaining: number; spending: number; spending_remaining: number;
+  }[];
   total_budget: number;
   total_spent: number;
-  overall: { budget: number; spent: number; remaining: number } | null;
+  total_spending: number;
+  overall: { budget: number; spent: number; remaining: number; spending: number; spending_remaining: number } | null;
 }
+
+export type MerchantSpending = { name: string; search_text: string; amount: number };
 
 export interface Reflection {
   note: string;
@@ -191,7 +211,9 @@ export interface MonthlyReport {
     total: number;
     pillars: { pillar: KakeiboBucket; amount: number }[];
     top_categories: { category_id: string | null; name: string; amount: number; is_uncategorized: boolean; kakeibo_type: KakeiboPillar | null }[];
-    top_merchants: { name: string; search_text: string; amount: number }[];
+    /** Belanja basis; Laporan shows `top_spending_merchants`, which leave out the Tabungan pillar (D29). */
+    top_merchants: MerchantSpending[];
+    top_spending_merchants: MerchantSpending[];
     unexpected: {
       amount: number;
       count: number;
@@ -248,18 +270,4 @@ export function categoryLedgerHref(
 ): string {
   const id = category.is_uncategorized || !category.category_id ? UNCATEGORIZED : category.category_id;
   return reportLedgerHref(period, { type, category: id });
-}
-
-/** "7 Okt" for a local ISO date. */
-export function shortDate(isoDate: string): string {
-  const [year, month, day] = isoDate.slice(0, 10).split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("id-ID", { day: "numeric", month: "short", timeZone: "UTC" });
-}
-
-export function percentOf(part: number, whole: number): number {
-  return whole > 0 ? Math.round((part / whole) * 1000) / 10 : 0;
-}
-
-export function formatPercent(value: number): string {
-  return `${value.toLocaleString("id-ID", { maximumFractionDigits: 1 })}%`;
 }

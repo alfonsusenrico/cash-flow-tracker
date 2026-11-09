@@ -11,7 +11,7 @@ import ast
 from pathlib import Path
 
 APP_ROOT = Path(__file__).resolve().parents[1] / "app"
-SYSTEM_NAMES = ("Investasi", "Internal Movement", "Penyesuaian Saldo")
+SYSTEM_NAMES = ("Investasi", "Internal Movement", "Penyesuaian Saldo", "Biaya kredit")
 OWNING_MODULE = "services/system_categories.py"
 PARSER_MODULE = "services/notification_parser.py"
 # Visible copy that happens to equal a seed name; none of it identifies a category.

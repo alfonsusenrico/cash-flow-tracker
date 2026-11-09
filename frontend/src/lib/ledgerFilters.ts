@@ -1,8 +1,13 @@
 import { isKakeiboBucket, type KakeiboBucket } from "@/lib/kakeibo";
 
 export type LedgerPeriod = "all" | "cycle" | "month";
-/** The Transaksi tabs; "movement" and "investment" are the Pindah saldo and Investasi tabs. */
-export type LedgerTypeFilter = "all" | "expense" | "income" | "movement" | "investment";
+/**
+ * The Transaksi types, in the order the rail and the type control list them (apply-markas-transaksi D5, D28, D30):
+ * "movement" is Pindah saldo, "saving" Tabungan & investasi, "credit" Kredit. Each is also the API's `type` value
+ * and the `type_counts` key.
+ */
+export const LEDGER_TYPES = ["all", "expense", "income", "movement", "investment", "saving", "credit"] as const;
+export type LedgerTypeFilter = (typeof LEDGER_TYPES)[number];
 export type LedgerSourceFilter = "all" | "notification" | "capture";
 export type LedgerReviewFilter = "all" | "needs_review" | "auto" | "reviewed";
 
@@ -47,8 +52,6 @@ export const DEFAULT_LEDGER_FILTERS: LedgerFilters = {
   waiting: false,
 };
 
-export const LEDGER_TYPES: readonly LedgerTypeFilter[] = ["all", "expense", "income", "movement", "investment"];
-
 // Matches the backend's period_offset bounds.
 const MIN_OFFSET = -36;
 const MAX_OFFSET = 12;
@@ -79,7 +82,7 @@ export function parseLedgerFilters(params: URLSearchParams | null): LedgerFilter
     offset,
     category: category === UNCATEGORIZED || (category && UUID_PATTERN.test(category)) ? category : "all",
     kakeibo: isKakeiboBucket(kakeibo) ? kakeibo : "all",
-    type: oneOf(params.get("type"), ["expense", "income", "movement", "investment"] as const, "all"),
+    type: oneOf(params.get("type"), LEDGER_TYPES, "all"),
     account: account && UUID_PATTERN.test(account) ? account : "all",
     review: oneOf(params.get("review"), ["needs_review", "auto", "reviewed"] as const, "all"),
     from: ranged ? instantOrNull(params.get("from")) : null,
@@ -150,45 +153,22 @@ export function hasRowFilters(filters: LedgerFilters): boolean {
 }
 
 /**
- * Whether the list may show one row per movement. A period, a date range and the Pindah saldo and
- * Investasi tabs keep it; any other filter lists both legs, because either side may match on its own.
+ * Whether the list may show one row per movement. A period, a date range and the Pindah saldo, Investasi,
+ * Tabungan & investasi and Kredit types keep it; any other filter lists both legs, because either side may match
+ * on its own.
  */
 export function listsLogicalMovements(filters: LedgerFilters, search: string): boolean {
-  const tabKeepsMovements = filters.type === "all" || filters.type === "movement" || filters.type === "investment";
+  const tabKeepsMovements = filters.type !== "expense" && filters.type !== "income";
   return tabKeepsMovements && !search.trim() && filters.category === "all" && filters.kakeibo === "all"
     && filters.account === "all" && filters.review === "all" && !filters.dup && filters.source === "all" && !filters.waiting;
 }
 
-/** The single-select chip row of Transaksi, mapped onto the existing URL keys (design D2). */
-export type LedgerChip = "none" | "waiting" | "unreviewed" | "phone" | "typed";
-
-export const LEDGER_CHIPS: { value: Exclude<LedgerChip, "none">; label: string }[] = [
-  { value: "waiting", label: "Menunggu jawaban" },
-  { value: "unreviewed", label: "Belum dicek" },
-  { value: "phone", label: "Dari HP" },
-  { value: "typed", label: "Lewat Catat" },
-];
-
-export function chipOf(filters: LedgerFilters): LedgerChip {
-  if (filters.waiting) return "waiting";
-  if (filters.review === "auto") return "unreviewed";
-  if (filters.source === "notification") return "phone";
-  if (filters.source === "capture") return "typed";
-  return "none";
-}
-
-/** Filters with `chip` selected, or cleared when it is already the selected one. */
-export function withChip(filters: LedgerFilters, chip: Exclude<LedgerChip, "none">): LedgerFilters {
-  const cleared: LedgerFilters = {
-    ...filters,
-    waiting: false,
-    source: "all",
-    review: filters.review === "auto" ? "all" : filters.review,
-  };
-  if (chipOf(filters) === chip) return cleared;
-  if (chip === "waiting") return { ...cleared, waiting: true };
-  if (chip === "unreviewed") return { ...cleared, review: "auto" };
-  return { ...cleared, source: chip === "phone" ? "notification" : "capture" };
+/** How many filters "Filter" counts (D7): every active filter except the search text and the type and period. */
+export function activeFilterCount(filters: LedgerFilters): number {
+  return [
+    filters.account !== "all", filters.category !== "all", filters.kakeibo !== "all", filters.review !== "all",
+    filters.source !== "all", filters.waiting, filters.dup, hasDateRange(filters),
+  ].filter(Boolean).length;
 }
 
 /** A report period of the dashboard (`timeframe` + `cycle_offset`) as ledger filters; null for rolling windows. */

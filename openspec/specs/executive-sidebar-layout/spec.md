@@ -183,7 +183,7 @@ Below 768 px every signed-in page SHALL start with a sticky 56 px header: the br
 - **THEN** the notifications SHALL open as a bottom sheet with focus inside it, and Esc or the close control SHALL return focus to the bell
 
 ### Requirement: Notifications Include Due Plans
-The bell SHALL list the ready monthly report and every active expense plan that is overdue, due today or due within two days, plus one item for recent automatic plan links. Each item SHALL show its title, detail and date. Activating an overdue or due-today plan, or the automatic-link item, SHALL open the "Rencana jatuh tempo" view with its link, skip and record actions; other items SHALL open their page.
+The bell SHALL list the ready monthly report, every active expense plan and every unpaid credit bill that is overdue, due today or due within two days, plus one item for recent automatic plan links. Each item SHALL show its title, detail and date. An overdue or due-today plan, or the automatic-link item, SHALL open "Rencana jatuh tempo"; a credit bill SHALL open Catat's Perpindahan into its account; other items SHALL open their page.
 
 #### Scenario: Due plan from the bell on Transaksi
 - **GIVEN** a plan "Tagihan SPayLater" due today
@@ -197,6 +197,11 @@ The bell SHALL list the ready monthly report and every active expense plan that 
 #### Scenario: Seen state unavailable
 - **WHEN** browser storage throws
 - **THEN** the bell SHALL list every item as unread and keep working without an error
+
+#### Scenario: Due credit bill
+- **GIVEN** a BCA credit card bill due tomorrow with Rp 1.250.000 left and no plan for it
+- **WHEN** the owner opens the bell
+- **THEN** it SHALL list "Tagihan BCA Kartu Kredit Rp 1.250.000 besok" with "Kredit · jatuh tempo {day}", and activating it SHALL open Perpindahan with the card as "Ke" and Rp 1.250.000, recording nothing until the owner saves
 
 ### Requirement: Bantuan Dialog
 "Bantuan & pintasan" SHALL be a dialog with three short facts about how the app works, a table of keys and their functions, and one line saying that single-key shortcuts are turned off in Pengaturan › Tampilan. It SHALL contain no switch.

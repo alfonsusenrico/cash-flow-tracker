@@ -1,76 +1,284 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { useTranslations } from "next-intl";
+import { api, type ApiErrorDetail } from "@/lib/api";
+import { useFormat } from "@/lib/format";
 import { queryKeys } from "@/lib/queryKeys";
-import { cn, fmtMoney, formatNumberWithDots, parseNumberFromDots, formatDecimalInput, parseDecimal, parseUnits } from "@/lib/utils";
-import { useAppCtx } from "@/components/layout/AppLayout";
-import { Modal } from "@/components/ui/Modal";
-import { FormField, MonetaryInput } from "@/components/ui/FormField";
+import { cn, formatNumberWithDots, parseNumberFromDots, formatDecimalInput, parseDecimal, parseUnits } from "@/lib/utils";
 import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
 import { Icon } from "@/components/ui/Icon";
-import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
+import { PlansDialog } from "@/components/recurring/PlansDialog";
 import { InvestmentTradeModal } from "@/components/ui/InvestmentTradeModal";
 import { InvestmentTopupModal } from "@/components/ui/InvestmentTopupModal";
 import { AmountTrackingSwitchModal } from "@/components/ui/AmountTrackingSwitchModal";
+import { GainText } from "@/components/workspace/figures";
+import { MaskedMoney, useMoney } from "@/components/workspace/money";
+import { useToast } from "@/components/workspace/overlays";
+import { RadioSegments } from "@/components/workspace/primitives";
+import { Field } from "@/components/workspace/Field";
+import { ShellDialog } from "@/components/workspace/ShellDialog";
 import { InvestmentScheduleDraft } from "@/lib/investmentTopups";
 import { DEFAULT_ACCOUNT_TAG_COLOR, INVESTMENT_ACCOUNT_TAG_COLOR, defaultAccountTagColor } from "@/lib/accountColours";
 import { RoleField, cashRoleOf, fixedRole, type CashRole } from "./RoleField";
 import type { AccountItem, AccountsResponse } from "./types";
 
-function getContrastTextColor(hexColor?: string): string {
-  if (!hexColor || !hexColor.startsWith("#")) return "#FFFFFF";
-  const hex = hexColor.replace("#", "");
-  if (hex.length !== 6 && hex.length !== 3) return "#FFFFFF";
-  const r = parseInt(hex.length === 3 ? hex[0] + hex[0] : hex.slice(0, 2), 16);
-  const g = parseInt(hex.length === 3 ? hex[1] + hex[1] : hex.slice(2, 4), 16);
-  const b = parseInt(hex.length === 3 ? hex[2] + hex[2] : hex.slice(4, 6), 16);
-  const linear = (channel: number) => {
-    const value = channel / 255;
-    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
-  };
-  const luminance = 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
-  return luminance > 0.179 ? "#000000" : "#FFFFFF";
+/** The owner's nine tag colours; stored colours stay selectable (apply-markas-rekening D9). */
+const ACCOUNT_TAG_COLORS = [
+  { key: "blue", hex: DEFAULT_ACCOUNT_TAG_COLOR },
+  { key: "emerald", hex: "#059669" },
+  { key: "lavender", hex: INVESTMENT_ACCOUNT_TAG_COLOR },
+  { key: "purple", hex: "#7C3AED" },
+  { key: "amber", hex: "#D97706" },
+  { key: "rose", hex: "#E11D48" },
+  { key: "indigo", hex: "#4F46E5" },
+  { key: "teal", hex: "#0D9488" },
+  { key: "slate", hex: "#475569" },
+] as const;
+
+const ACCOUNT_TYPES: AccountItem["type"][] = ["bank", "wallet", "cash", "investment", "credit"];
+const INSTRUMENT_TYPES = ["stock", "mutual_fund", "gold", "crypto", "deposit", "other"] as const;
+type InstrumentType = (typeof INSTRUMENT_TYPES)[number];
+
+/** The instrument whose field labels apply; anything unknown reads as shares, as before. */
+function instrumentCopyKey(type?: string | null): "stock" | "mutual_fund" | "gold" | "crypto" | "deposit" {
+  if (type === "mutual_fund" || type === "gold" || type === "crypto" || type === "deposit") return type;
+  return "stock";
 }
 
-const ACCOUNT_TAG_COLORS = [
-  { name: "Biru", hex: DEFAULT_ACCOUNT_TAG_COLOR },
-  { name: "Emerald", hex: "#059669" },
-  { name: "Lavender", hex: INVESTMENT_ACCOUNT_TAG_COLOR },
-  { name: "Ungu", hex: "#7C3AED" },
-  { name: "Amber", hex: "#D97706" },
-  { name: "Rose", hex: "#E11D48" },
-  { name: "Indigo", hex: "#4F46E5" },
-  { name: "Teal", hex: "#0D9488" },
-  { name: "Slate", hex: "#475569" },
-];
+/** A field that a save can refuse, so its message sits under that field (SPEC §7). */
+type FieldKey = "name" | "role" | "balance" | "defaultPocket" | "limit" | "statementDay" | "paymentDay";
+type FieldErrors = Partial<Record<FieldKey, string>>;
 
-/** The credit-only fields of a save; empty inputs clear them. */
-function creditFieldValues(limit: string, paymentDay: string): { credit_limit: number | null; payment_day: number | null } {
-  const limitValue = parseNumberFromDots(limit);
-  const dayText = paymentDay.trim();
-  const day = Number(dayText);
-  if (dayText && (!Number.isInteger(day) || day < 1 || day > 31)) {
-    throw new Error("Tanggal bayar harus antara 1 dan 31.");
-  }
-  return { credit_limit: limitValue > 0 ? limitValue : null, payment_day: dayText ? day : null };
+const FIELD_OF_CODE: Record<string, FieldKey> = {
+  account_name_taken: "name",
+  account_role_type_mismatch: "role",
+  credit_balance_sign: "balance",
+  default_pocket_before_pockets: "defaultPocket",
+  default_pocket_blocks_nesting: "defaultPocket",
+  default_pocket_invalid: "defaultPocket",
+  default_pocket_not_found: "defaultPocket",
+  default_pocket_parent_only: "defaultPocket",
+};
+
+/** The field a refusal belongs to: by the server's code, else by the words of an older plain message. */
+function fieldOfError(error: unknown): FieldKey | null {
+  const detail = (error as { detail?: unknown } | null)?.detail;
+  const code = typeof detail === "object" && detail ? (detail as ApiErrorDetail).code : undefined;
+  if (code && FIELD_OF_CODE[code]) return FIELD_OF_CODE[code];
+  const message = error instanceof Error ? error.message : "";
+  if (/nama (rekening|kantong)|account name|pocket name/i.test(message)) return "name";
+  if (/kantong default|kantong utama|default pocket/i.test(message)) return "defaultPocket";
+  if (/^kegunaan/i.test(message)) return "role";
+  if (/saldo|initial_balance/i.test(message)) return "balance";
+  if (/^limit/i.test(message)) return "limit";
+  return null;
+}
+
+const FIELD_ID: Record<FieldKey, string> = {
+  name: "account-name",
+  role: "account-role",
+  balance: "account-initial-balance",
+  defaultPocket: "account-default-pocket",
+  limit: "account-credit-limit",
+  statementDay: "account-statement-day",
+  paymentDay: "account-payment-day",
+};
+
+/** A day of the month typed in a credit field: null when empty, false when outside 1 to 31. */
+function dayValue(text: string): number | null | false {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  const day = Number(trimmed);
+  return Number.isInteger(day) && day >= 1 && day <= 31 ? day : false;
+}
+
+function errorText(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+
+/** The nine colours as one radio group: arrows move and choose, the chosen swatch has a 1 px ink outline. */
+function ColourField({ value, onChange }: { value: string; onChange: (hex: string) => void }) {
+  const t = useTranslations("accounts.form");
+  const chosen = ACCOUNT_TAG_COLORS.findIndex((colour) => colour.hex.toLowerCase() === value.toLowerCase());
+  const focusable = chosen < 0 ? 0 : chosen;
+  const move = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
+    if (!step) return;
+    event.preventDefault();
+    const next = (index + step + ACCOUNT_TAG_COLORS.length) % ACCOUNT_TAG_COLORS.length;
+    onChange(ACCOUNT_TAG_COLORS[next].hex);
+    event.currentTarget.parentElement?.querySelectorAll<HTMLElement>("button")[next]?.focus();
+  };
+  return (
+    <div className="field">
+      <span className="flabel" id="account-colour-label">{t("colour")}</span>
+      <div className="rk-swatches" role="radiogroup" aria-labelledby="account-colour-label">
+        {ACCOUNT_TAG_COLORS.map((colour, index) => (
+          <button
+            key={colour.hex}
+            type="button"
+            role="radio"
+            aria-checked={index === chosen}
+            aria-label={t("colourName", { name: t(`colours.${colour.key}`) })}
+            tabIndex={index === focusable ? 0 : -1}
+            style={{ backgroundColor: colour.hex }}
+            onClick={() => onChange(colour.hex)}
+            onKeyDown={(event) => move(event, index)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+interface TickerResult {
+  symbol: string;
+  name: string;
+  type: string;
+  exchange: string;
+}
+
+/** The instrument code with its suggestions from the price source. */
+function TickerField({
+  id,
+  value,
+  searching,
+  suggestions,
+  onSearch,
+  onPick,
+}: {
+  id: string;
+  value: string;
+  searching: boolean;
+  suggestions: TickerResult[];
+  onSearch: (query: string) => void;
+  onPick: (item: TickerResult) => void;
+}) {
+  const t = useTranslations("accounts.form");
+  return (
+    <Field id={id} label={t("ticker")} hint={t("tickerHint")}>
+      {(aria) => (
+        <div className="relative">
+          <input
+            {...aria}
+            name="instrument_symbol"
+            type="text"
+            autoComplete="off"
+            value={value}
+            onChange={(event) => onSearch(event.target.value)}
+            placeholder={t("tickerPlaceholder")}
+            className="field-control uppercase"
+          />
+          {searching && <Icon name="refresh-cw" className="absolute right-3 top-3 h-4 w-4 animate-spin text-[var(--muted)]" />}
+          {suggestions.length > 0 && (
+            <ul className="absolute left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto rounded-md border border-[var(--line)] bg-[var(--dialog)] shadow-float">
+              {suggestions.map((item) => (
+                <li key={item.symbol}>
+                  <button
+                    type="button"
+                    onClick={() => onPick(item)}
+                    className="flex min-h-11 w-full items-center justify-between gap-3 border-b border-[var(--line)] px-3 text-left text-sm last:border-0 hover:bg-[var(--surface-2)]"
+                  >
+                    <span className="min-w-0 truncate">
+                      <b className="font-semibold">{item.symbol}</b> {item.name}
+                    </span>
+                    <span className="t-meta uppercase">{item.exchange || item.type}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </Field>
+  );
+}
+
+/** Units and price of one instrument; their product fills the opening value, as before. */
+function PositionFields({
+  idPrefix,
+  instrument,
+  units,
+  price,
+  onUnits,
+  onPrice,
+}: {
+  idPrefix: string;
+  instrument: string;
+  units: string;
+  price: string;
+  onUnits: (value: string) => void;
+  onPrice: (value: string) => void;
+}) {
+  const t = useTranslations("accounts.form.instrument");
+  const format = useFormat();
+  const key = instrumentCopyKey(instrument);
+  return (
+    <div className="form-grid">
+      <Field id={`${idPrefix}-units`} label={t(`${key}.units`)} hint={t(`${key}.unitsHint`)}>
+        {(aria) => (
+          <input
+            {...aria}
+            name="units"
+            type="text"
+            inputMode="decimal"
+            value={units}
+            onChange={(event) => onUnits(event.target.value)}
+            placeholder={t(`${key}.unitsExample`, { value: format.decimal(key === "mutual_fund" ? 2871.45 : key === "gold" ? 0.5 : key === "crypto" ? 0.05 : 1000, 2) })}
+            className="field-control tabular-nums"
+          />
+        )}
+      </Field>
+      <Field id={`${idPrefix}-average-price`} label={t(`${key}.price`)}>
+        {(aria) => (
+          <input
+            {...aria}
+            name="avg_buy_price"
+            type="text"
+            inputMode="decimal"
+            value={price}
+            onChange={(event) => onPrice(formatDecimalInput(event.target.value))}
+            placeholder={t("example", { value: format.integer(key === "mutual_fund" ? 1922 : key === "gold" ? 1_450_000 : key === "crypto" ? 1_000_000_000 : 6000) })}
+            className="field-control tabular-nums"
+          />
+        )}
+      </Field>
+    </div>
+  );
 }
 
 /**
- * Every Rekening & Kantong form and its write, moved unchanged from the page (design D5): the page and the
- * row drawer only decide which one opens. Request bodies and query invalidations are those of the old page.
+ * Every Rekening & Kantong form and its write (design D5, apply-markas-rekening D9, D10, D15): the page and the
+ * detail only decide which one opens. Request bodies and query invalidations are those of the old page; a credit
+ * account also sends its bill day (`statement_day`, add-credit-spending-flow H8).
  */
 export function useAccountDialogs() {
   const qc = useQueryClient();
-  const { bal } = useAppCtx();
+  const t = useTranslations("accounts");
+  const tc = useTranslations("common");
+  const format = useFormat();
+  const money = useMoney();
+  const { showToast } = useToast();
+  // The control that opened a form gets the focus back when it closes (ShellDialog leaves that to its caller).
+  const opener = useRef<HTMLElement | null>(null);
+  const rememberOpener = () => {
+    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  };
+  const restoreOpener = () => {
+    const element = opener.current;
+    opener.current = null;
+    requestAnimationFrame(() => {
+      if (element?.isConnected) element.focus();
+    });
+  };
 
-  // Modals state
   const [accountModalOpen, setAccountModalOpen] = useState(false);
   const [recurringModalOpen, setRecurringModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<AccountItem | null>(null);
   const [reconcileAccount, setReconcileAccount] = useState<AccountItem | null>(null);
-  // Investment Trade Modal state
   const [tradeModalOpen, setTradeModalOpen] = useState(false);
   const [topupProduct, setTopupProduct] = useState<AccountItem | null>(null);
   const [amountSwitchProduct, setAmountSwitchProduct] = useState<AccountItem | null>(null);
@@ -78,91 +286,27 @@ export function useAccountDialogs() {
   const [tradePocket, setTradePocket] = useState<AccountItem | null>(null);
   const [tradeAction, setTradeAction] = useState<"buy" | "sell">("buy");
 
-  // Instrument Options
-  const INSTRUMENT_OPTIONS = [
-    { value: "stock", label: "Saham" },
-    { value: "mutual_fund", label: "Reksadana" },
-    { value: "gold", label: "Emas" },
-    { value: "crypto", label: "Kripto" },
-    { value: "deposit", label: "Deposito" },
-    { value: "other", label: "Lainnya" },
-  ];
+  const instrumentOptions = INSTRUMENT_TYPES.map((value) => ({ value, label: t(`form.instruments.${value}`) }));
 
-  const getInstrumentConfig = (instType?: string | null) => {
-    switch (instType) {
-      case "gold":
-        return {
-          unitsLabel: "Berat Emas (Gram)",
-          unitsPlaceholder: "Contoh: 10 atau 0.5",
-          unitsHint: "Dalam satuan gram (bisa pecahan, contoh: 0.5, 1, 10.25 gram)",
-          priceLabel: "Harga Beli / Gram (IDR)",
-          pricePlaceholder: "Contoh: 1.450.000",
-          totalLabel: "Total Modal Pembelian Emas (IDR)",
-          unitUnit: "gram",
-        };
-      case "mutual_fund":
-        return {
-          unitsLabel: "Jumlah Unit Penyertaan (UP)",
-          unitsPlaceholder: "Contoh: 2871.45",
-          unitsHint: "Jumlah unit tercatat di aplikasi (Bibit / Bareksa / BCA)",
-          priceLabel: "NAB / Harga Beli per Unit (IDR)",
-          pricePlaceholder: "Contoh: 1.922",
-          totalLabel: "Total Modal Pembelian Reksadana (IDR)",
-          unitUnit: "UP",
-        };
-      case "crypto":
-        return {
-          unitsLabel: "Jumlah Koin / Token",
-          unitsPlaceholder: "Contoh: 0.05",
-          unitsHint: "Bisa pecahan desimal (contoh: 0.05 BTC, 1.25 ETH)",
-          priceLabel: "Harga Beli / Koin (IDR)",
-          pricePlaceholder: "Contoh: 1.000.000.000",
-          totalLabel: "Total Modal Pembelian Kripto (IDR)",
-          unitUnit: "koin",
-        };
-      case "deposit":
-        return {
-          unitsLabel: "Nominal Pokok Deposito (IDR)",
-          unitsPlaceholder: "Contoh: 10.000.000",
-          unitsHint: "Masukkan pokok pada nilai pembukaan di bawah",
-          priceLabel: "",
-          pricePlaceholder: "",
-          totalLabel: "Total Pokok Deposito (IDR)",
-          unitUnit: "IDR",
-        };
-      case "stock":
-      default:
-        return {
-          unitsLabel: "Jumlah Lembar Saham",
-          unitsPlaceholder: "Contoh: 1000",
-          unitsHint: "1 lot = 100 lembar (contoh: 10 lot = 1000 lembar)",
-          priceLabel: "Harga Beli / Lembar (IDR)",
-          pricePlaceholder: "Contoh: 6.000",
-          totalLabel: "Total Modal Pembelian Saham (IDR)",
-          unitUnit: "lembar",
-        };
-    }
-  };
-
-  // Investment Account Form States
+  // Investment account form
   const [accIsMultiInstrument, setAccIsMultiInstrument] = useState<boolean>(true);
   const [accInstrumentType, setAccInstrumentType] = useState<string>("stock");
   const [accTicker, setAccTicker] = useState("");
   const [accUnits, setAccUnits] = useState("");
   const [accAvgBuyPrice, setAccAvgBuyPrice] = useState("");
-  const [tickerSuggestions, setTickerSuggestions] = useState<Array<{ symbol: string; name: string; type: string; exchange: string }>>([]);
+  const [tickerSuggestions, setTickerSuggestions] = useState<TickerResult[]>([]);
   const [isSearchingTicker, setIsSearchingTicker] = useState(false);
 
-  // Investment Pocket Form States
+  // Investment pocket form
   const [pocketIsInvestment, setPocketIsInvestment] = useState<boolean>(false);
   const [pocketInstrumentType, setPocketInstrumentType] = useState<string>("mutual_fund");
   const [pocketTicker, setPocketTicker] = useState("");
   const [pocketUnits, setPocketUnits] = useState("");
   const [pocketAvgBuyPrice, setPocketAvgBuyPrice] = useState("");
-  const [pocketTickerSuggestions, setPocketTickerSuggestions] = useState<Array<{ symbol: string; name: string; type: string; exchange: string }>>([]);
+  const [pocketTickerSuggestions, setPocketTickerSuggestions] = useState<TickerResult[]>([]);
   const [pocketIsSearchingTicker, setPocketIsSearchingTicker] = useState(false);
 
-  // Valuation modal state ("Perbarui nilai")
+  // "Perbarui nilai"
   const [valuationAccount, setValuationAccount] = useState<AccountItem | null>(null);
   const [valCurrentBalStr, setValCurrentBalStr] = useState("");
   const [valCostBasisStr, setValCostBasisStr] = useState("");
@@ -170,6 +314,7 @@ export function useAccountDialogs() {
   const [valError, setValError] = useState("");
 
   const handleOpenValuation = (acc: AccountItem) => {
+    rememberOpener();
     setValuationAccount(acc);
     setValCurrentBalStr(formatNumberWithDots(acc.balance));
     const totalCost = acc.cost_basis !== null && acc.cost_basis !== undefined
@@ -181,9 +326,12 @@ export function useAccountDialogs() {
     setValNotes("");
     setValError("");
   };
+  const closeValuation = () => {
+    setValuationAccount(null);
+    restoreOpener();
+  };
 
-  // Sync Prices Mutation
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  // "Perbarui harga" reports through a toast (D15).
   const syncPricesMutation = useMutation({
     mutationFn: async () => {
       return api.post<{ ok: boolean; symbols_checked: number; accounts_updated: number }>("/accounts/sync-prices");
@@ -191,16 +339,11 @@ export function useAccountDialogs() {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: queryKeys.accounts });
       qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
-      setSyncMessage(`Harga diperbarui: ${data.accounts_updated} produk`);
-      setTimeout(() => setSyncMessage(null), 4000);
+      showToast(t("toast.pricesUpdated", { count: data.accounts_updated, time: format.time(new Date()) }));
     },
-    onError: () => {
-      setSyncMessage("Harga belum dapat diperbarui");
-      setTimeout(() => setSyncMessage(null), 4000);
-    },
+    onError: () => showToast(t("toast.pricesFailed")),
   });
 
-  // Valuation Mutation
   const valuationMutation = useMutation({
     mutationFn: async () => {
       if (!valuationAccount) return;
@@ -217,14 +360,11 @@ export function useAccountDialogs() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.accounts });
       qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
-      setValuationAccount(null);
+      closeValuation();
     },
-    onError: (err: any) => {
-      setValError(err?.message || "Gagal memperbarui nilai investasi");
-    },
+    onError: (err: unknown) => setValError(errorText(err, t("valuation.failed"))),
   });
 
-  // Ticker lazy search
   const handleSearchTicker = async (query: string, isPocket: boolean = false) => {
     const q = query.trim();
     if (isPocket) setPocketTicker(query);
@@ -240,13 +380,13 @@ export function useAccountDialogs() {
     else setIsSearchingTicker(true);
 
     try {
-      const res = await api.get<{ ok: boolean; results: Array<{ symbol: string; name: string; type: string; exchange: string }> }>(
+      const res = await api.get<{ ok: boolean; results: TickerResult[] }>(
         `/accounts/instruments/search?q=${encodeURIComponent(q)}&limit=6`
       );
       if (isPocket) setPocketTickerSuggestions(res.results || []);
       else setTickerSuggestions(res.results || []);
     } catch {
-      // ignore
+      // Suggestions are a convenience: without them the owner types the code.
     } finally {
       if (isPocket) setPocketIsSearchingTicker(false);
       else setIsSearchingTicker(false);
@@ -257,8 +397,9 @@ export function useAccountDialogs() {
   const [accName, setAccName] = useState("");
   const [accType, setAccType] = useState<AccountItem["type"]>("bank");
   const [accInitBal, setAccInitBal] = useState("");
-  // Credit-only fields (add-credit-accounts D2); what a credit account owes today is typed, positive, in accInitBal.
+  // Credit-only fields (add-credit-accounts D2, H8); what a credit account owes today is typed, positive, in accInitBal.
   const [accCreditLimit, setAccCreditLimit] = useState("");
+  const [accStatementDay, setAccStatementDay] = useState("");
   const [accPaymentDay, setAccPaymentDay] = useState("");
   const [accColor, setAccColor] = useState<string>(DEFAULT_ACCOUNT_TAG_COLOR);
   // Until the owner picks a colour, a new account's colour follows the default of its type.
@@ -268,9 +409,8 @@ export function useAccountDialogs() {
   const [accParentId, setAccParentId] = useState<string>("");
   // "Kegunaan" of a cash, bank or e-wallet account; credit and products take theirs from the type (D1).
   const [accRole, setAccRole] = useState<CashRole>("harian");
-  const [accError, setAccError] = useState("");
-
-  const [accountActionError, setAccountActionError] = useState("");
+  const [accErrors, setAccErrors] = useState<FieldErrors>({});
+  const [accFormError, setAccFormError] = useState("");
 
   // Pocket form
   const [pocketModalOpen, setPocketModalOpen] = useState(false);
@@ -278,20 +418,26 @@ export function useAccountDialogs() {
   const [pocketName, setPocketName] = useState("");
   const [pocketInitBal, setPocketInitBal] = useState("");
   const [pocketRole, setPocketRole] = useState<CashRole>("harian");
-  const [pocketError, setPocketError] = useState("");
+  const [pocketErrors, setPocketErrors] = useState<FieldErrors>({});
+  const [pocketFormError, setPocketFormError] = useState("");
 
-  // Reconciliation form
+  // "Sesuaikan saldo"
   const [actualBalStr, setActualBalStr] = useState("");
   const [reconcileNotes, setReconcileNotes] = useState("");
   const [reconcileError, setReconcileError] = useState("");
   // Set when "Cocokkan saldo" opened the adjustment, so it can record a matched point afterwards (OD145).
   const [afterReconcile, setAfterReconcile] = useState<((actual: number) => void) | null>(null);
+  const closeReconcile = () => {
+    setReconcileAccount(null);
+    setAfterReconcile(null);
+    restoreOpener();
+  };
 
   const reconcileMutation = useMutation({
     mutationFn: async () => {
       if (!reconcileAccount) return;
       const clean = actualBalStr.trim().replace(/[^0-9]/g, "");
-      if (!clean) throw new Error("Masukkan saldo aktual sebelum menyesuaikan rekening.");
+      if (!clean) throw new Error(t("adjust.required"));
       const actual = parseInt(clean, 10);
       return api.post(`/accounts/${reconcileAccount.id}/reconcile`, {
         actual_balance: actual,
@@ -303,11 +449,10 @@ export function useAccountDialogs() {
       qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
       qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
       afterReconcile?.(parseNumberFromDots(actualBalStr));
-      setAfterReconcile(null);
-      setReconcileAccount(null);
+      closeReconcile();
     },
-    onError: (err: any) => {
-      setReconcileError(err?.message || "Gagal menyesuaikan saldo");
+    onError: (err: unknown) => {
+      setReconcileError(errorText(err, t("adjust.failed")));
       document.getElementById("reconcile-actual-balance")?.focus();
     },
   });
@@ -323,18 +468,21 @@ export function useAccountDialogs() {
     () => activeAccounts.filter((a) => !a.parent_id && a.type !== "investment" && a.type !== "credit" && a.id !== editingAccount?.id),
     [activeAccounts, editingAccount?.id],
   );
-  // Open Add Account modal
+
   const handleOpenNewAccount = () => {
+    rememberOpener();
     setEditingAccount(null);
     setAccName("");
     setAccType("bank");
     setAccInitBal("");
     setAccCreditLimit("");
+    setAccStatementDay("");
     setAccPaymentDay("");
     setAccColor(DEFAULT_ACCOUNT_TAG_COLOR);
     setAccColorChosen(false);
     setAccDefaultFundingId("");
     setAccDefaultPocketId("");
+    setAccParentId("");
     setAccRole("harian");
     setAccIsMultiInstrument(true);
     setAccInstrumentType("stock");
@@ -342,13 +490,14 @@ export function useAccountDialogs() {
     setAccUnits("");
     setAccAvgBuyPrice("");
     setTickerSuggestions([]);
-    setAccError("");
+    setAccErrors({});
+    setAccFormError("");
     setAccountModalOpen(true);
   };
 
-  // Open Add Pocket modal
   const handleOpenNewPocket = (parent: AccountItem) => {
     if (parent.type === "credit") return;
+    rememberOpener();
     setPocketParentAccount(parent);
     setPocketName("");
     setPocketInitBal("");
@@ -360,12 +509,13 @@ export function useAccountDialogs() {
     setPocketUnits("");
     setPocketAvgBuyPrice("");
     setPocketTickerSuggestions([]);
-    setPocketError("");
+    setPocketErrors({});
+    setPocketFormError("");
     setPocketModalOpen(true);
   };
 
-  // Open Edit Account modal
   const handleOpenEditAccount = (acc: AccountItem) => {
+    rememberOpener();
     setEditingAccount(acc);
     setAccName(acc.name);
     setAccType(acc.type);
@@ -376,6 +526,7 @@ export function useAccountDialogs() {
     setAccRole(cashRoleOf(acc.role));
     setAccInitBal(formatNumberWithDots(acc.initial_balance));
     setAccCreditLimit(acc.credit_limit ? formatNumberWithDots(acc.credit_limit) : "");
+    setAccStatementDay(acc.statement_day ? String(acc.statement_day) : "");
     setAccPaymentDay(acc.payment_day ? String(acc.payment_day) : "");
     const hasInst = Boolean(acc.instrument_type || acc.instrument_symbol || (acc.units !== null && acc.units !== undefined));
     setAccIsMultiInstrument(!hasInst);
@@ -384,16 +535,23 @@ export function useAccountDialogs() {
     setAccUnits(acc.units !== null && acc.units !== undefined ? String(acc.units).replace(".", ",") : "");
     setAccAvgBuyPrice(acc.avg_buy_price ? formatDecimalInput(acc.avg_buy_price) : "");
     setTickerSuggestions([]);
-    setAccError("");
+    setAccErrors({});
+    setAccFormError("");
     setAccountModalOpen(true);
   };
+  const closeAccountForm = () => {
+    setAccountModalOpen(false);
+    restoreOpener();
+  };
+  const closePocketForm = () => {
+    setPocketModalOpen(false);
+    restoreOpener();
+  };
 
-  // Pocket Mutation (Create Pocket under Parent)
   const savePocketMutation = useMutation({
     mutationFn: async () => {
       if (!pocketParentAccount) return;
       const name = pocketName.trim();
-      if (!name) throw new Error("Nama kantong wajib diisi");
       const initBal = parseNumberFromDots(pocketInitBal);
       const isInvest = pocketIsInvestment;
       const tracksUnits = isInvest && pocketInstrumentType !== "deposit";
@@ -422,30 +580,50 @@ export function useAccountDialogs() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.accounts });
       qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
-      setPocketModalOpen(false);
+      closePocketForm();
     },
-    onError: (err: any) => {
-      const message = err?.message || "Gagal membuat kantong";
-      setPocketError(message);
-      if (/nama kantong|pocket name/i.test(message)) {
-        document.getElementById("pocket-name")?.focus();
-      } else if (/^kegunaan/i.test(message)) {
-        document.getElementById("pocket-role")?.focus();
-      } else if (/saldo|initial_balance/i.test(message)) {
-        document.getElementById("pocket-initial-balance")?.focus();
+    onError: (err: unknown) => {
+      const message = errorText(err, t("pocketForm.failed"));
+      const field = fieldOfError(err);
+      if (field === "name" || field === "role" || field === "balance") {
+        setPocketErrors({ [field]: message });
+        document.getElementById({ name: "pocket-name", role: "pocket-role", balance: "pocket-initial-balance" }[field])?.focus();
+      } else {
+        setPocketFormError(message);
       }
     },
   });
 
-  // Account Mutation (Create / Update)
+  const submitPocket = (event: FormEvent) => {
+    event.preventDefault();
+    if (savePocketMutation.isPending) return;
+    setPocketErrors({});
+    setPocketFormError("");
+    if (!pocketName.trim()) {
+      setPocketErrors({ name: t("pocketForm.nameRequired") });
+      document.getElementById("pocket-name")?.focus();
+      return;
+    }
+    savePocketMutation.mutate();
+  };
+
+  const isCreditForm = !editingAccount?.parent_id && accType === "credit";
+
   const saveAccountMutation = useMutation({
     mutationFn: async () => {
       const name = accName.trim();
-      if (!name) throw new Error("Nama rekening wajib diisi");
       const initBal = parseInt(accInitBal.replace(/[^0-9]/g, "") || "0", 10);
       const isEditingPocket = Boolean(editingAccount?.parent_id);
       const isCredit = !isEditingPocket && accType === "credit";
-      const creditFields = isCredit ? creditFieldValues(accCreditLimit, accPaymentDay) : null;
+      const limitValue = parseNumberFromDots(accCreditLimit);
+      // The days were checked before the save; an empty day clears it.
+      const creditFields = isCredit
+        ? {
+          credit_limit: limitValue > 0 ? limitValue : null,
+          payment_day: dayValue(accPaymentDay) || null,
+          statement_day: dayValue(accStatementDay) || null,
+        }
+        : null;
 
       const isInvestPocket = isEditingPocket && !accIsMultiInstrument;
       const isInvestTop = !isEditingPocket && accType === "investment";
@@ -475,10 +653,10 @@ export function useAccountDialogs() {
 
       if (editingAccount) {
         const moveUnder = !isEditingPocket && !isCredit && accParentId ? { parent_id: accParentId } : {};
-        // Limit and payment day belong to credit only; leaving credit clears them so the type can change.
+        // Limit and both days belong to credit only; leaving credit clears them so the type can change.
         let creditPatch = {};
         if (creditFields) creditPatch = creditFields;
-        else if (editingAccount.type === "credit") creditPatch = { credit_limit: null, payment_day: null };
+        else if (editingAccount.type === "credit") creditPatch = { credit_limit: null, payment_day: null, statement_day: null };
         return api.patch(`/accounts/${editingAccount.id}`, {
           ...moveUnder,
           ...creditPatch,
@@ -497,47 +675,56 @@ export function useAccountDialogs() {
             default_pocket_id: accDefaultPocketId ? accDefaultPocketId : null,
           } : {}),
         });
-      } else {
-        return api.post("/accounts", {
-          name,
-          type: accType,
-          role,
-          initial_balance: openingBalance,
-          instrument_type: hasInstrument ? accInstrumentType : null,
-          instrument_symbol: tickerSymbol,
-          units: unitsNum,
-          avg_buy_price: avgPriceNum,
-          color: accColor,
-          default_funding_account_id: defaultFunding,
-          ...(creditFields ?? {}),
-        });
       }
+      return api.post("/accounts", {
+        name,
+        type: accType,
+        role,
+        initial_balance: openingBalance,
+        instrument_type: hasInstrument ? accInstrumentType : null,
+        instrument_symbol: tickerSymbol,
+        units: unitsNum,
+        avg_buy_price: avgPriceNum,
+        color: accColor,
+        default_funding_account_id: defaultFunding,
+        ...(creditFields ?? {}),
+      });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.accounts });
       qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
-      setAccountModalOpen(false);
+      closeAccountForm();
     },
-    onError: (err: any) => {
-      const message = err?.message || "Gagal menyimpan rekening";
-      setAccError(message);
-      if (/nama rekening|account name/i.test(message)) {
-        document.getElementById("account-name")?.focus();
-      } else if (/kantong default|default pocket/i.test(message)) {
-        document.getElementById("account-default-pocket")?.focus();
-      } else if (/^kegunaan/i.test(message)) {
-        document.getElementById("account-role")?.focus();
-      } else if (/saldo|initial_balance/i.test(message)) {
-        document.getElementById("account-initial-balance")?.focus();
-      } else if (/^limit/i.test(message)) {
-        document.getElementById("account-credit-limit")?.focus();
-      } else if (/tanggal bayar/i.test(message)) {
-        document.getElementById("account-payment-day")?.focus();
+    onError: (err: unknown) => {
+      const message = errorText(err, t("form.failed"));
+      const field = fieldOfError(err);
+      if (field) {
+        setAccErrors({ [field]: message });
+        document.getElementById(FIELD_ID[field])?.focus();
+      } else {
+        setAccFormError(message);
       }
     },
   });
 
-  // Archive Account Mutation
+  const submitAccount = (event: FormEvent) => {
+    event.preventDefault();
+    if (saveAccountMutation.isPending) return;
+    setAccErrors({});
+    setAccFormError("");
+    const errors: FieldErrors = {};
+    if (!accName.trim()) errors.name = t("form.nameRequired");
+    if (isCreditForm && dayValue(accStatementDay) === false) errors.statementDay = t("form.dayRange");
+    if (isCreditForm && dayValue(accPaymentDay) === false) errors.paymentDay = t("form.dayRange");
+    const first = (Object.keys(FIELD_ID) as FieldKey[]).find((key) => errors[key]);
+    if (first) {
+      setAccErrors(errors);
+      document.getElementById(FIELD_ID[first])?.focus();
+      return;
+    }
+    saveAccountMutation.mutate();
+  };
+
   const archiveMutation = useMutation({
     mutationFn: async (accId: string) => {
       return api.del(`/accounts/${accId}`);
@@ -545,20 +732,9 @@ export function useAccountDialogs() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.accounts });
       qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
-      setAccountActionError("");
     },
-    onError: (error: Error) => setAccountActionError(error.message || "Rekening gagal diarsipkan. Coba lagi."),
+    onError: (error: unknown) => showToast(errorText(error, t("toast.archiveFailed"))),
   });
-
-  const accountNameError = /nama rekening|account name/i.test(accError) ? accError : undefined;
-  const accountBalanceError = /saldo|initial_balance/i.test(accError) ? accError : undefined;
-  const defaultPocketError = /kantong default|default pocket/i.test(accError) ? accError : undefined;
-  const creditLimitError = /^limit/i.test(accError) ? accError : undefined;
-  const paymentDayError = !creditLimitError && /tanggal bayar/i.test(accError) ? accError : undefined;
-  const roleError = /^kegunaan/i.test(accError) ? accError : undefined;
-  const pocketNameError = /nama kantong|pocket name/i.test(pocketError) ? pocketError : undefined;
-  const pocketRoleError = /^kegunaan/i.test(pocketError) ? pocketError : undefined;
-  const pocketBalanceError = /saldo|initial_balance/i.test(pocketError) ? pocketError : undefined;
 
   const openTrade = (account: AccountItem, action: "buy" | "sell") => {
     setTradePocket(account);
@@ -567,6 +743,7 @@ export function useAccountDialogs() {
   };
 
   const openReconciliation = (account: AccountItem, options?: { actual?: number; onReconciled?: (actual: number) => void }) => {
+    rememberOpener();
     setReconcileAccount(account);
     setActualBalStr(formatNumberWithDots(options?.actual ?? account.balance));
     setReconcileNotes("");
@@ -575,1020 +752,502 @@ export function useAccountDialogs() {
     setAfterReconcile(() => options?.onReconciled ?? null);
   };
 
-  const dialogs = (
-    <>
-      {/* Add / Edit Account Modal */}
-      <Modal
-        open={accountModalOpen}
-        onClose={() => setAccountModalOpen(false)}
-        title={
-          editingAccount
-            ? editingAccount.parent_id
-              ? `Ubah Kantong: ${editingAccount.name}`
-              : `Ubah Rekening: ${editingAccount.name}`
-            : "Tambah rekening"
-        }
-      >
-        <form
-          className="space-y-4 pt-2 text-xs [&_input]:min-h-11 [&_select]:min-h-11"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!saveAccountMutation.isPending) saveAccountMutation.mutate();
-          }}
-        >
-          {accError && (
-            <div role="alert" className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-3 text-xs text-out-fg">
-              {accError}
-            </div>
-          )}
+  const editingPocket = Boolean(editingAccount?.parent_id);
+  const showInstrumentFields = (!editingPocket && accType === "investment" && !accIsMultiInstrument) || (editingPocket && !accIsMultiInstrument);
+  const accountTitle = editingAccount ? (editingPocket ? t("form.titleEditPocket") : t("form.titleEditAccount")) : t("form.titleNew");
+  const typeOptions = ACCOUNT_TYPES.map((value) => ({ value, label: t(`form.types.${value}`) }));
+  const pocketKindOptions = [
+    { value: "cash" as const, label: t("form.pocketCash") },
+    { value: "investment" as const, label: t("form.pocketInvestment") },
+  ];
+  const fillOpening = (units: string, price: string, setOpening: (value: string) => void) => {
+    const u = parseUnits(units);
+    const p = parseDecimal(price);
+    if (u > 0 && p > 0) setOpening(formatNumberWithDots(Math.round(u * p)));
+  };
 
-          <div>
-            <label htmlFor="account-name" className="font-medium text-[var(--muted)] block mb-1">
-              {editingAccount?.parent_id ? "Nama Kantong" : "Nama Rekening"}
-            </label>
-            <input
-              id="account-name"
-              name="name"
-              type="text"
-              required
-              value={accName}
-              onChange={(e) => setAccName(e.target.value)}
-              aria-invalid={Boolean(accountNameError) || undefined}
-              aria-describedby={accountNameError ? "account-name-error" : undefined}
-              placeholder="Contoh: BCA Utama, Bibit, Binance, GoPay"
-              className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
+  const accountFooter = (
+    <>
+      <button type="button" className="ws-btn" onClick={closeAccountForm}>{t("form.cancel")}</button>
+      <button type="submit" form="account-form" className="ws-btn ws-btn-ink" disabled={saveAccountMutation.isPending}>
+        {saveAccountMutation.isPending ? t("form.saving") : editingAccount ? t("form.save") : t("form.create")}
+      </button>
+    </>
+  );
+
+  const accountForm = (
+    <form id="account-form" className="form-stack" onSubmit={submitAccount} noValidate>
+      {accFormError && <p role="alert" className="form-alert">{accFormError}</p>}
+
+      <Field id="account-name" label={t("form.name")} error={accErrors.name}>
+        {(aria) => (
+          <input
+            {...aria}
+            name="name"
+            type="text"
+            required
+            value={accName}
+            onChange={(event) => setAccName(event.target.value)}
+            placeholder={t("form.namePlaceholder")}
+            className="field-control"
+          />
+        )}
+      </Field>
+
+      {!editingPocket ? (
+        <>
+          <div className="field">
+            <span className="flabel" id="account-type-label">{t("form.type")}</span>
+            <RadioSegments
+              labelledBy="account-type-label"
+              options={typeOptions}
+              value={accType}
+              onChange={(nextType) => {
+                setAccType(nextType);
+                if (!editingAccount && !accColorChosen) setAccColor(defaultAccountTagColor(nextType));
+              }}
             />
-            {accountNameError && <p id="account-name-error" className="mt-1 text-xs text-out-fg">{accountNameError}</p>}
           </div>
 
-          {!editingAccount?.parent_id && (
-            <div className="space-y-2">
-              <p className="font-medium text-[var(--muted)] block">Warna tag rekening</p>
-              <div className="flex items-center gap-2 flex-wrap">
-                {ACCOUNT_TAG_COLORS.map((col) => {
-                  const isSelected = accColor.toLowerCase() === col.hex.toLowerCase();
-                  return (
-                    <button
-                      key={col.hex}
-                      type="button"
-                      onClick={() => {
-                        setAccColor(col.hex);
-                        setAccColorChosen(true);
-                      }}
-                      aria-label={`Warna ${col.name}`}
-                      aria-pressed={isSelected}
-                      className={cn(
-                        "min-h-11 min-w-11 rounded-full transition-transform flex items-center justify-center text-white",
-                        isSelected
-                          ? "scale-110"
-                          : "hover:scale-105 opacity-80 hover:opacity-100"
-                      )}
-                      style={{ backgroundColor: col.hex }}
-                      title={col.name}
-                    >
-                      {isSelected && <Icon name="check" className="h-3.5 w-3.5" />}
-                                    </button>
-                  );
-                })}
-              </div>
-
-              {accName.trim() && (
-                <div className="mt-2 p-2.5 rounded-xl bg-[var(--surface-2)] border border-[var(--line)] flex items-center justify-between">
-                  <span className="text-xs text-[var(--muted)] font-medium">Pratinjau Tag Rekening:</span>
-                  <span
-                    style={{
-                      backgroundColor: accColor,
-                      color: getContrastTextColor(accColor),
-                    }}
-                    className="font-semibold text-xs sm:text-sm px-3 py-1 rounded-md"
-                  >
-                    {accName.trim()}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {!editingAccount?.parent_id ? (
-            <>
-              <div>
-                <label htmlFor="account-type" className="font-medium text-[var(--muted)] block mb-1">Jenis rekening</label>
-                <select
-                  id="account-type"
-                  name="type"
-                  value={accType}
-                  onChange={(e) => {
-                    const nextType = e.target.value as typeof accType;
-                    setAccType(nextType);
-                    if (!editingAccount && !accColorChosen) setAccColor(defaultAccountTagColor(nextType));
-                  }}
-                  className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
-                >
-                  <option value="bank">Rekening Bank (BCA, Mandiri, BRI, dll)</option>
-                  <option value="wallet">Dompet Digital / E-Wallet (GoPay, OVO, ShopeePay, dll)</option>
-                  <option value="cash">Uang Tunai / Cash (Dompet, Brankas)</option>
-                  <option value="investment">Rekening Investasi (Bibit, Stockbit, Binance, dll)</option>
-                  <option value="credit">Kredit / PayLater (SPayLater, Kredivo, kartu kredit)</option>
-                </select>
-              </div>
-
-              <RoleField id="account-role" value={accRole} onChange={setAccRole} fixed={fixedRole(accType, false)} error={roleError} />
-
-              {editingAccount && accType !== "investment" && accType !== "credit" && editingAccount.type !== "credit" && !(editingAccount.children && editingAccount.children.length > 0) && parentCandidates.length > 0 && (
-                <div>
-                  <label htmlFor="account-move-parent" className="font-medium text-[var(--muted)] block mb-1">Pindahkan ke rekening</label>
-                  <select
-                    id="account-move-parent"
-                    name="parent_id"
-                    value={accParentId}
-                    onChange={(e) => setAccParentId(e.target.value)}
-                    aria-describedby="account-move-parent-hint"
-                    className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
-                  >
-                    <option value="">Tetap sebagai rekening utama</option>
+          <div className="form-grid">
+            <RoleField id="account-role" value={accRole} onChange={setAccRole} fixed={fixedRole(accType, false)} error={accErrors.role} />
+            {editingAccount && accType !== "investment" && accType !== "credit" && editingAccount.type !== "credit" && !(editingAccount.children && editingAccount.children.length > 0) && parentCandidates.length > 0 && (
+              <Field id="account-move-parent" label={t("form.moveUnder")} hint={t("form.moveUnderHint")}>
+                {(aria) => (
+                  <select {...aria} name="parent_id" value={accParentId} onChange={(event) => setAccParentId(event.target.value)} className="field-control">
+                    <option value="">{t("form.stayTopLevel")}</option>
                     {parentCandidates.map((candidate) => (
                       <option key={candidate.id} value={candidate.id}>{candidate.name}</option>
                     ))}
                   </select>
-                  <p id="account-move-parent-hint" className="mt-1 text-xs text-[var(--muted)]">
-                    Untuk saldo yang sebenarnya disimpan di bank lain, misalnya GoPay Tabungan di Jago. Riwayat transaksi tetap
-                    utuh; beri nama kantong sama seperti di notifikasi bank.
-                  </p>
-                </div>
-              )}
-
-              {editingAccount && !editingAccount.parent_id && editingAccount.children && editingAccount.children.length > 0 && (
-                <div>
-                  <label htmlFor="account-default-pocket" className="font-medium text-[var(--muted)] block mb-1">
-                    Kantong Default (Penerima Notifikasi Otomatis)
-                  </label>
-                  <select
-                    id="account-default-pocket"
-                    name="default_pocket_id"
-                    value={accDefaultPocketId}
-                    onChange={(e) => setAccDefaultPocketId(e.target.value)}
-                    aria-invalid={Boolean(defaultPocketError) || undefined}
-                    aria-describedby={defaultPocketError ? "account-default-pocket-error" : undefined}
-                    className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
-                  >
-                    <option value="">Tanpa Kantong Default (Gunakan Rekening Induk)</option>
-                    {editingAccount.children.filter((child) => !child.is_archived).map((child) => (
-                      <option key={child.id} value={child.id}>
-                        {child.name} ({bal(child.balance)})
-                      </option>
-                    ))}
-                  </select>
-                  {defaultPocketError && <p id="account-default-pocket-error" className="mt-1 text-xs text-out-fg">{defaultPocketError}</p>}
-                  <p className="text-xs text-[var(--muted)] mt-1">
-                    Transaksi mobile tanpa rincian kantong akan otomatis dialokasikan ke kantong default ini.
-                  </p>
-                </div>
-              )}
-
-              {accType === "investment" && (
-                <div className="space-y-3">
-                  <div>
-                    <p className="font-medium text-[var(--muted)] block mb-1.5">Model akun investasi</p>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <button
-                        type="button"
-                        onClick={() => setAccIsMultiInstrument(true)}
-                        aria-pressed={accIsMultiInstrument}
-                        className={cn(
-                          "min-h-11 p-2.5 rounded-md border text-left transition-[border-color,background-color,color]",
-                          accIsMultiInstrument
-                            ? "bg-[var(--window)] border-[var(--line-strong)] text-[var(--text)]"
-                            : "bg-[var(--surface-2)] border-[var(--line)] text-[var(--muted)] hover:text-[var(--text)]"
-                        )}
-                      >
-                        <div className="flex items-center gap-1.5 font-semibold text-xs text-[var(--text)]">
-                          <Icon name="layers" className="h-3.5 w-3.5 text-inv-fg" />
-                          <span>Platform Multi-Kantong</span>
-                        </div>
-                        <p className="text-xs text-[var(--muted)] mt-1 leading-relaxed">
-                          Bibit, Bareksa, Stockbit. Memiliki banyak produk instrumen yang dikelola per kantong di dalam.
-                        </p>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setAccIsMultiInstrument(false)}
-                        aria-pressed={!accIsMultiInstrument}
-                        className={cn(
-                          "min-h-11 p-2.5 rounded-md border text-left transition-[border-color,background-color,color]",
-                          !accIsMultiInstrument
-                            ? "bg-[var(--window)] border-[var(--line-strong)] text-[var(--text)]"
-                            : "bg-[var(--surface-2)] border-[var(--line)] text-[var(--muted)] hover:text-[var(--text)]"
-                        )}
-                      >
-                        <div className="flex items-center gap-1.5 font-semibold text-xs text-[var(--text)]">
-                          <Icon name="chart" className="h-3.5 w-3.5 text-inv-fg" />
-                          <span>Instrumen Tunggal</span>
-                        </div>
-                        <p className="text-xs text-[var(--muted)] mt-1 leading-relaxed">
-                          Binance (langsung Kripto), Emas Fisik, atau akun khusus 1 instrumen tanpa kantong.
-                        </p>
-                      </button>
-                    </div>
-                  </div>
-
-                  {accIsMultiInstrument && (
-                    <div className="p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--line)] text-inv-fg text-xs leading-relaxed">
-                      💡 Rekening <strong>{accName || "Investasi"}</strong> akan dibuat sebagai akun induk platform. Setelah dibuat, berbagai kantong instrumen dapat ditambahkan (seperti RDPU, Saham BBCA, Bareksa Sukuk, dll) di dalamnya.
-                    </div>
-                  )}
-
-                  <div className="pt-2 border-t border-[var(--line)]">
-                    <label htmlFor="account-default-funding" className="font-medium text-[var(--muted)] flex items-center justify-between mb-1.5">
-                      <span className="flex items-center gap-1.5 font-semibold text-xs text-[var(--text)]">
-                        <Icon name="credit-card" className="h-3.5 w-3.5 text-tr-fg" />
-                        <span>Sumber Dana / RDN Default</span>
-                      </span>
-                      <span className="text-xs text-[var(--muted)]">Opsional</span>
-                    </label>
-                    <select
-                      id="account-default-funding"
-                      name="default_funding_account_id"
-                      value={accDefaultFundingId}
-                      onChange={(e) => setAccDefaultFundingId(e.target.value)}
-                      className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
-                    >
-                      <option value="">-- Tanpa RDN / Sumber Default --</option>
-                      <AccountSelectOptions
-                        accounts={activeAccounts}
-                        liquidOnly
-                        allowParentSelection
-                        excludeAccountId={editingAccount?.id}
-                        formatBalance={fmtMoney}
-                      />
-                    </select>
-                    <p className="text-xs text-[var(--muted)] mt-1 leading-relaxed">
-                      Notifikasi beli/jual dari broker (misal Stockbit) akan otomatis mendebit rekening ini tanpa memotong budget belanja harian.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            /* Editing a child pocket */
-            <div>
-              <p className="font-medium text-[var(--muted)] block mb-1.5">Tipe kantong</p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => setAccIsMultiInstrument(true)}
-                  aria-pressed={accIsMultiInstrument}
-                  className={cn(
-                    "min-h-11 px-3 rounded-md border text-xs font-semibold transition-colors flex items-center justify-center gap-1.5",
-                    accIsMultiInstrument
-                      ? "bg-[var(--window)] text-[var(--text)] border-[var(--line-strong)]"
-                      : "bg-[var(--surface-2)] text-[var(--muted)] border-[var(--line)] hover:text-[var(--text)]"
-                  )}
-                >
-                  <Icon name="credit-card" className="h-3.5 w-3.5" />
-                  <span>Kas / Tabungan Biasa</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAccIsMultiInstrument(false)}
-                  aria-pressed={!accIsMultiInstrument}
-                  className={cn(
-                    "min-h-11 px-3 rounded-md border text-xs font-semibold transition-colors flex items-center justify-center gap-1.5",
-                    !accIsMultiInstrument
-                      ? "bg-[var(--window)] text-[var(--text)] border-[var(--line-strong)]"
-                      : "bg-[var(--surface-2)] text-[var(--muted)] border-[var(--line)] hover:text-[var(--text)]"
-                  )}
-                >
-                  <Icon name="chart" className="h-3.5 w-3.5" />
-                  <span>Instrumen Investasi</span>
-                </button>
-              </div>
-              <div className="mt-4">
-                <RoleField id="account-role" value={accRole} onChange={setAccRole} fixed={accIsMultiInstrument ? null : "investasi"} error={roleError} />
-              </div>
-            </div>
-          )}
-
-          {/* Show Instrument Fields if single instrument OR editing investment pocket */}
-          {((!editingAccount?.parent_id && accType === "investment" && !accIsMultiInstrument) ||
-            (editingAccount?.parent_id && !accIsMultiInstrument)) && (
-            <div className="space-y-3 p-3.5 rounded-xl bg-[var(--surface-2)] border border-[var(--line)]">
-              <div>
-                <p className="font-medium text-[var(--muted)] block mb-1.5">Tipe instrumen</p>
-                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-                  {INSTRUMENT_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setAccInstrumentType(opt.value)}
-                      aria-pressed={accInstrumentType === opt.value}
-                      className={cn(
-                        "min-h-11 px-2 rounded-md border text-xs font-semibold transition-colors",
-                        accInstrumentType === opt.value
-                          ? "bg-[var(--window)] text-[var(--text)] border-[var(--line-strong)]"
-                          : "bg-[var(--surface-2)] text-[var(--muted)] border-[var(--line)] hover:text-[var(--text)]"
-                      )}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {accInstrumentType !== "deposit" && <div className="relative">
-                <label htmlFor="account-ticker" className="font-medium text-[var(--muted)] flex items-center justify-between mb-1">
-                  <span>Simbol Ticker / Kode (Yahoo Finance)</span>
-                  <span className="text-xs text-[var(--muted)]">Opsional</span>
-                </label>
-                <div className="relative">
-                  <input
-                    id="account-ticker"
-                    name="instrument_symbol"
-                    type="text"
-                    value={accTicker}
-                    onChange={(e) => handleSearchTicker(e.target.value, false)}
-                    placeholder="Contoh: BBCA, GC=F, AAPL, BTC-USD"
-                    className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] uppercase pr-8 font-semibold"
-                  />
-                  {isSearchingTicker && (
-                    <div className="absolute right-2.5 top-2.5">
-                      <Icon name="refresh-cw" className="h-4 w-4 animate-spin text-inv-fg" />
-                    </div>
-                  )}
-                </div>
-                <p className="text-xs text-[var(--muted)] mt-1">
-                  Kosongkan jika produk manual tanpa ticker publik (misal RDPU Bibit / Bareksa).
-                </p>
-
-                {tickerSuggestions.length > 0 && (
-                  <div className="absolute z-50 left-0 right-0 mt-1 rounded-xl border border-[var(--line)] bg-[var(--dialog)] shadow-float overflow-hidden max-h-48 overflow-y-auto">
-                    {tickerSuggestions.map((item) => (
-                      <button
-                        key={item.symbol}
-                        type="button"
-                        onClick={() => {
-                          setAccTicker(item.symbol);
-                          if (!accName || accName === "BCA Utama") {
-                            setAccName(item.name);
-                          }
-                          if (item.type) {
-                            setAccInstrumentType(item.type);
-                          }
-                          setTickerSuggestions([]);
-                        }}
-                        className="flex min-h-11 w-full items-center justify-between border-b border-[var(--line)]/50 p-2.5 text-left text-xs hover:bg-[var(--surface-2)] last:border-0"
-                      >
-                        <div>
-                          <span className="font-semibold text-inv-fg">{item.symbol}</span>
-                          <span className="text-[var(--text)] ml-2">{item.name}</span>
-                        </div>
-                        <span className="text-xs uppercase text-[var(--muted)] px-1.5 py-0.5 rounded-md bg-[var(--surface-2)] font-medium">
-                          {item.exchange || item.type}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
                 )}
-              </div>}
+              </Field>
+            )}
+          </div>
 
-              {accInstrumentType !== "deposit" && editingAccount?.investment_tracking_mode !== "amount" && (() => {
-                const aCfg = getInstrumentConfig(accInstrumentType);
-                return (
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div>
-                      <label htmlFor="account-units" className="font-medium text-[var(--muted)] block mb-1">
-                        {aCfg.unitsLabel}
-                      </label>
-                      <input
-                        id="account-units"
-                        name="units"
-                        type="text"
-                        inputMode="decimal"
-                        value={accUnits}
-                        onChange={(e) => {
-                          setAccUnits(e.target.value);
-                          const u = parseUnits(e.target.value);
-                          const p = parseDecimal(accAvgBuyPrice);
-                          if (u > 0 && p > 0) {
-                            setAccInitBal(formatNumberWithDots(Math.round(u * p)));
-                          }
-                        }}
-                        placeholder={aCfg.unitsPlaceholder}
-                        className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] tabular font-medium"
-                      />
-                      <p className="text-xs text-[var(--muted)] mt-0.5">{aCfg.unitsHint}</p>
-                    </div>
-                    <div>
-                      <label htmlFor="account-average-price" className="font-medium text-[var(--muted)] block mb-1">
-                        {aCfg.priceLabel}
-                      </label>
-                      <input
-                        id="account-average-price"
-                        name="avg_buy_price"
-                        type="text"
-                        inputMode="decimal"
-                        value={accAvgBuyPrice}
-                        onChange={(e) => {
-                          const formatted = formatDecimalInput(e.target.value);
-                          setAccAvgBuyPrice(formatted);
-                          const p = parseDecimal(formatted);
-                          const u = parseUnits(accUnits);
-                          if (u > 0 && p > 0) {
-                            setAccInitBal(formatNumberWithDots(Math.round(u * p)));
-                          }
-                        }}
-                        placeholder={aCfg.pricePlaceholder}
-                        className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] tabular font-medium"
-                      />
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
+          {editingAccount && editingAccount.children && editingAccount.children.length > 0 && (
+            <Field id="account-default-pocket" label={t("form.defaultPocket")} hint={t("form.defaultPocketHint")} error={accErrors.defaultPocket}>
+              {(aria) => (
+                <select {...aria} name="default_pocket_id" value={accDefaultPocketId} onChange={(event) => setAccDefaultPocketId(event.target.value)} className="field-control">
+                  <option value="">{t("form.noDefaultPocket")}</option>
+                  {editingAccount.children!.filter((child) => !child.is_archived).map((child) => (
+                    <option key={child.id} value={child.id}>
+                      {t("form.pocketOption", { name: child.name, amount: money(child.balance) })}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
           )}
 
-          {!editingAccount?.parent_id && accType === "credit" && (
+          {accType === "investment" && (
             <>
-              {!editingAccount && (
-                <MonetaryInput
-                  id="account-initial-balance"
-                  name="initial_balance"
-                  label="Utang saat ini (IDR)"
-                  value={accInitBal}
-                  onChange={setAccInitBal}
-                  error={accountBalanceError}
-                  description="Jumlah yang belum dibayar hari ini. Isi 0 jika belum ada utang."
+              <div className="field">
+                <span className="flabel" id="account-model-label">{t("form.model")}</span>
+                <RadioSegments
+                  labelledBy="account-model-label"
+                  options={[
+                    { value: "multi" as const, label: t("form.modelMulti") },
+                    { value: "single" as const, label: t("form.modelSingle") },
+                  ]}
+                  value={accIsMultiInstrument ? "multi" : "single"}
+                  onChange={(model) => setAccIsMultiInstrument(model === "multi")}
                 />
-              )}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <MonetaryInput
-                  id="account-credit-limit"
-                  name="credit_limit"
-                  label="Limit (opsional)"
-                  value={accCreditLimit}
-                  onChange={setAccCreditLimit}
-                  error={creditLimitError}
-                  placeholder="Contoh: 2.000.000"
-                  description="Batas dari penyedia kredit. Melewati limit hanya diberi tanda."
-                />
-                <FormField id="account-payment-day" label="Tanggal bayar tiap bulan (opsional)" error={paymentDayError}>
-                  {(field) => (
-                    <input
-                      {...field}
-                      name="payment_day"
-                      type="number"
-                      inputMode="numeric"
-                      min={1}
-                      max={31}
-                      step={1}
-                      value={accPaymentDay}
-                      onChange={(event) => setAccPaymentDay(event.target.value)}
-                      placeholder="Contoh: 11"
-                      className="min-h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm font-semibold tabular-nums text-[var(--text)]"
-                    />
-                  )}
-                </FormField>
+                <p className="hint">{accIsMultiInstrument ? t("form.modelMultiHint") : t("form.modelSingleHint")}</p>
               </div>
+              <Field id="account-default-funding" label={t("form.funding")} hint={t("form.fundingHint")}>
+                {(aria) => (
+                  <select {...aria} name="default_funding_account_id" value={accDefaultFundingId} onChange={(event) => setAccDefaultFundingId(event.target.value)} className="field-control">
+                    <option value="">{t("form.noFunding")}</option>
+                    <AccountSelectOptions
+                      accounts={activeAccounts}
+                      liquidOnly
+                      allowParentSelection
+                      excludeAccountId={editingAccount?.id}
+                      formatBalance={money}
+                    />
+                  </select>
+                )}
+              </Field>
             </>
           )}
-
-          {!editingAccount && accType !== "credit" && !(accType === "investment" && accIsMultiInstrument) && (
-            <MonetaryInput
-              id="account-initial-balance"
-              name="initial_balance"
-              label={accType === "investment" ? getInstrumentConfig(accInstrumentType).totalLabel : "Saldo Awal (IDR)"}
-              value={accInitBal}
-              onChange={setAccInitBal}
-              error={accountBalanceError}
-              description={accType === "investment" && accInstrumentType === "deposit"
-                ? "Pokok deposito saat pembukaan. Imbal hasil tahunan belum dihitung otomatis."
-                : accType === "investment"
-                ? "Nilai pembukaan posisi; unit dan harga beli dipakai sebagai dasar modal jika keduanya diisi. Beli/Jual berikutnya dicatat lewat transaksi investasi."
-                : "Saldo pembukaan rekening, bukan transaksi baru di buku kas."}
+        </>
+      ) : (
+        <>
+          <div className="field">
+            <span className="flabel" id="account-pocket-kind-label">{t("form.pocketKind")}</span>
+            <RadioSegments
+              labelledBy="account-pocket-kind-label"
+              options={pocketKindOptions}
+              value={accIsMultiInstrument ? "cash" : "investment"}
+              onChange={(kind) => setAccIsMultiInstrument(kind === "cash")}
             />
-          )}
-
-          {!editingAccount && accType === "investment" && accIsMultiInstrument && (
-            <p className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-3 text-xs leading-relaxed text-[var(--muted)]">
-              Platform ini hanya mengelompokkan kantong. Setelah dibuat, tambahkan kantong kas/RDN untuk saldo dana dan kantong instrumen untuk posisi investasi.
-            </p>
-          )}
-
-          <div className="flex gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => setAccountModalOpen(false)}
-              className="flex-1 rounded-md border border-[var(--line)] py-2 text-xs font-medium text-[var(--muted)] hover:bg-[var(--surface-2)]"
-            >
-              Batal
-            </button>
-            <button
-              type="submit"
-              disabled={saveAccountMutation.isPending}
-              className="min-h-11 flex-1 rounded-md bg-[var(--text)] px-4 text-sm font-semibold text-[var(--surface)] hover:opacity-90 disabled:opacity-50"
-            >
-              {saveAccountMutation.isPending
-                ? "Menyimpan…"
-                : editingAccount
-                ? "Simpan Perubahan"
-                : "Tambah Rekening"}
-            </button>
           </div>
-        </form>
-      </Modal>
-
-      {/* Pocket Modal */}
-      {pocketParentAccount && (
-        <Modal
-          open={pocketModalOpen}
-          onClose={() => setPocketModalOpen(false)}
-          title={`Tambah Kantong di ${pocketParentAccount.name}`}
-        >
-          <form
-            className="space-y-4 pt-2 text-xs [&_input]:min-h-11 [&_select]:min-h-11"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!savePocketMutation.isPending) savePocketMutation.mutate();
-            }}
-          >
-            {pocketError && (
-              <div role="alert" className="p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--line)] text-out-fg font-medium">
-                {pocketError}
-              </div>
-            )}
-
-            <div>
-              <label htmlFor="pocket-name" className="font-medium text-[var(--muted)] block mb-1">Nama kantong</label>
-              <input
-                id="pocket-name"
-                name="name"
-                type="text"
-                required
-                value={pocketName}
-                onChange={(e) => setPocketName(e.target.value)}
-                aria-invalid={Boolean(pocketNameError) || undefined}
-                aria-describedby={pocketNameError ? "pocket-name-error" : undefined}
-                placeholder={
-                  pocketParentAccount.type === "investment"
-                    ? "Contoh: Bibit RDPU, Saham BBCA, Bareksa Sukuk"
-                    : "Contoh: Tabungan Utama, RDPU BCA, Tabungan Emas"
-                }
-                className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
-              />
-              {pocketNameError && <p id="pocket-name-error" className="mt-1 text-xs text-out-fg">{pocketNameError}</p>}
-            </div>
-
-            <div>
-              <p className="font-medium text-[var(--muted)] block mb-1.5">Tipe kantong</p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => setPocketIsInvestment(false)}
-                  aria-pressed={!pocketIsInvestment}
-                  className={cn(
-                    "min-h-11 px-3 rounded-md border text-xs font-semibold transition-colors flex items-center justify-center gap-1.5",
-                    !pocketIsInvestment
-                      ? "bg-[var(--window)] text-[var(--text)] border-[var(--line-strong)]"
-                      : "bg-[var(--surface-2)] text-[var(--muted)] border-[var(--line)] hover:text-[var(--text)]"
-                  )}
-                >
-                  <Icon name="credit-card" className="h-3.5 w-3.5" />
-                  <span>Kas / Tabungan Biasa</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPocketIsInvestment(true)}
-                  aria-pressed={pocketIsInvestment}
-                  className={cn(
-                    "min-h-11 px-3 rounded-md border text-xs font-semibold transition-colors flex items-center justify-center gap-1.5",
-                    pocketIsInvestment
-                      ? "bg-[var(--window)] text-[var(--text)] border-[var(--line-strong)]"
-                      : "bg-[var(--surface-2)] text-[var(--muted)] border-[var(--line)] hover:text-[var(--text)]"
-                  )}
-                >
-                  <Icon name="chart" className="h-3.5 w-3.5" />
-                  <span>Instrumen Investasi</span>
-                </button>
-              </div>
-              <p className="text-xs text-[var(--muted)] mt-1">
-                {pocketIsInvestment
-                  ? "Kantong ini untuk instrumen investasi (Saham, Reksadana, Emas, Kripto, Deposito) dengan pemantauan harga pasar / capital gain."
-                  : "Kantong ini untuk uang cair atau pos belanja operasional biasa."}
-              </p>
-            </div>
-
-            <RoleField id="pocket-role" value={pocketRole} onChange={setPocketRole} fixed={pocketIsInvestment ? "investasi" : null} error={pocketRoleError} />
-
-            {pocketIsInvestment && (
-              <div className="space-y-3 p-3.5 rounded-xl bg-[var(--surface-2)] border border-[var(--line)]">
-                <div>
-                  <p className="font-medium text-[var(--muted)] block mb-1.5">Tipe instrumen</p>
-                  <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-                    {INSTRUMENT_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => setPocketInstrumentType(opt.value)}
-                        aria-pressed={pocketInstrumentType === opt.value}
-                        className={cn(
-                          "min-h-11 px-2 rounded-md border text-xs font-semibold transition-colors",
-                          pocketInstrumentType === opt.value
-                            ? "bg-[var(--window)] text-[var(--text)] border-[var(--line-strong)]"
-                            : "bg-[var(--surface-2)] text-[var(--muted)] border-[var(--line)] hover:text-[var(--text)]"
-                        )}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {pocketInstrumentType !== "deposit" && <div className="relative">
-                  <label htmlFor="pocket-ticker" className="font-medium text-[var(--muted)] flex items-center justify-between mb-1">
-                    <span>Simbol Ticker / Kode (Yahoo Finance)</span>
-                    <span className="text-xs text-[var(--muted)]">Opsional</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="pocket-ticker"
-                      name="instrument_symbol"
-                      type="text"
-                      value={pocketTicker}
-                      onChange={(e) => handleSearchTicker(e.target.value, true)}
-                      placeholder="Contoh: BBCA, GC=F, AAPL, BTC-USD"
-                      className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] uppercase pr-8 font-semibold"
-                    />
-                    {pocketIsSearchingTicker && (
-                      <div className="absolute right-2.5 top-2.5">
-                        <Icon name="refresh-cw" className="h-4 w-4 animate-spin text-inv-fg" />
-                      </div>
-                    )}
-                  </div>
-                  <p className="text-xs text-[var(--muted)] mt-1">
-                    Kosongkan jika produk manual tanpa ticker publik (misal RDPU Bibit / BCA Reksadana). Nilai pasar dapat diupdate berkala via tombol "Perbarui nilai".
-                  </p>
-
-                  {pocketTickerSuggestions.length > 0 && (
-                    <div className="absolute z-50 left-0 right-0 mt-1 rounded-xl border border-[var(--line)] bg-[var(--dialog)] shadow-float overflow-hidden max-h-48 overflow-y-auto">
-                      {pocketTickerSuggestions.map((item) => (
-                        <button
-                          key={item.symbol}
-                          type="button"
-                          onClick={() => {
-                            setPocketTicker(item.symbol);
-                            if (!pocketName) {
-                              setPocketName(item.name);
-                            }
-                            if (item.type) {
-                              setPocketInstrumentType(item.type);
-                            }
-                            setPocketTickerSuggestions([]);
-                          }}
-                          className="flex min-h-11 w-full items-center justify-between border-b border-[var(--line)]/50 p-2.5 text-left text-xs hover:bg-[var(--surface-2)] last:border-0"
-                        >
-                          <div>
-                            <span className="font-semibold text-inv-fg">{item.symbol}</span>
-                            <span className="text-[var(--text)] ml-2">{item.name}</span>
-                          </div>
-                          <span className="text-xs uppercase text-[var(--muted)] px-1.5 py-0.5 rounded-md bg-[var(--surface-2)] font-medium">
-                            {item.exchange || item.type}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>}
-
-                {pocketInstrumentType !== "deposit" && (() => {
-                  const pCfg = getInstrumentConfig(pocketInstrumentType);
-                  return (
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <div>
-                        <label htmlFor="pocket-units" className="font-medium text-[var(--muted)] block mb-1">
-                          {pCfg.unitsLabel}
-                        </label>
-                        <input
-                          id="pocket-units"
-                          name="units"
-                          type="text"
-                          inputMode="decimal"
-                          value={pocketUnits}
-                          onChange={(e) => {
-                            setPocketUnits(e.target.value);
-                            const u = parseUnits(e.target.value);
-                            const p = parseDecimal(pocketAvgBuyPrice);
-                            if (u > 0 && p > 0) {
-                              setPocketInitBal(formatNumberWithDots(Math.round(u * p)));
-                            }
-                          }}
-                          placeholder={pCfg.unitsPlaceholder}
-                          className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] tabular font-medium"
-                        />
-                        <p className="text-xs text-[var(--muted)] mt-0.5">{pCfg.unitsHint}</p>
-                      </div>
-                      <div>
-                        <label htmlFor="pocket-average-price" className="font-medium text-[var(--muted)] block mb-1">
-                          {pCfg.priceLabel}
-                        </label>
-                        <input
-                          id="pocket-average-price"
-                          name="avg_buy_price"
-                          type="text"
-                          inputMode="decimal"
-                          value={pocketAvgBuyPrice}
-                          onChange={(e) => {
-                            const formatted = formatDecimalInput(e.target.value);
-                            setPocketAvgBuyPrice(formatted);
-                            const p = parseDecimal(formatted);
-                            const u = parseUnits(pocketUnits);
-                            if (u > 0 && p > 0) {
-                              setPocketInitBal(formatNumberWithDots(Math.round(u * p)));
-                            }
-                          }}
-                          placeholder={pCfg.pricePlaceholder}
-                          className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] tabular font-medium"
-                        />
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
-
-            <MonetaryInput
-              id="pocket-initial-balance"
-              name="initial_balance"
-              label={pocketIsInvestment ? getInstrumentConfig(pocketInstrumentType).totalLabel : "Saldo Awal Kantong (IDR)"}
-              value={pocketInitBal}
-              onChange={setPocketInitBal}
-              error={pocketBalanceError}
-              description={pocketIsInvestment && pocketInstrumentType === "deposit"
-                ? "Pokok deposito saat pembukaan. Imbal hasil tahunan belum dihitung otomatis."
-                : pocketIsInvestment
-                ? "Nilai pembukaan instrumen; perubahan unit berikutnya dicatat melalui Beli/Jual."
-                : "Saldo pembukaan kantong, bukan pemindahan saldo atau transaksi baru."}
-            />
-
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setPocketModalOpen(false)}
-                className="flex-1 rounded-md border border-[var(--line)] py-2 text-xs font-medium text-[var(--muted)] hover:bg-[var(--surface-2)]"
-              >
-                Batal
-              </button>
-              <button
-                type="submit"
-                disabled={savePocketMutation.isPending}
-                className="min-h-11 flex-1 rounded-md bg-[var(--text)] px-4 text-sm font-semibold text-[var(--surface)] hover:opacity-90 disabled:opacity-50"
-              >
-                {savePocketMutation.isPending ? "Menyimpan…" : "Buat Kantong"}
-              </button>
-            </div>
-          </form>
-        </Modal>
+          <RoleField id="account-role" value={accRole} onChange={setAccRole} fixed={accIsMultiInstrument ? null : "investasi"} error={accErrors.role} />
+        </>
       )}
 
-      {/* Valuation modal ("Perbarui nilai") */}
-      {valuationAccount && (
-        <Modal
-          open={Boolean(valuationAccount)}
-          onClose={() => setValuationAccount(null)}
-          title={`Perbarui nilai: ${valuationAccount.name}`}
+      {showInstrumentFields && (
+        <>
+          <div className="field">
+            <span className="flabel" id="account-instrument-label">{t("form.instrumentType")}</span>
+            <RadioSegments labelledBy="account-instrument-label" options={instrumentOptions} value={accInstrumentType as InstrumentType} onChange={setAccInstrumentType} />
+          </div>
+          {accInstrumentType !== "deposit" && (
+            <TickerField
+              id="account-ticker"
+              value={accTicker}
+              searching={isSearchingTicker}
+              suggestions={tickerSuggestions}
+              onSearch={(query) => handleSearchTicker(query, false)}
+              onPick={(item) => {
+                setAccTicker(item.symbol);
+                if (!accName) setAccName(item.name);
+                if (item.type) setAccInstrumentType(item.type);
+                setTickerSuggestions([]);
+              }}
+            />
+          )}
+          {accInstrumentType !== "deposit" && editingAccount?.investment_tracking_mode !== "amount" && (
+            <PositionFields
+              idPrefix="account"
+              instrument={accInstrumentType}
+              units={accUnits}
+              price={accAvgBuyPrice}
+              onUnits={(value) => {
+                setAccUnits(value);
+                fillOpening(value, accAvgBuyPrice, setAccInitBal);
+              }}
+              onPrice={(value) => {
+                setAccAvgBuyPrice(value);
+                fillOpening(accUnits, value, setAccInitBal);
+              }}
+            />
+          )}
+        </>
+      )}
+
+      {isCreditForm && (
+        <>
+          <div className="form-grid">
+            {!editingAccount && (
+              <Field id="account-initial-balance" label={t("form.owedNow")} hint={t("form.owedNowHint")} error={accErrors.balance}>
+                {(aria) => (
+                  <input {...aria} name="initial_balance" type="text" inputMode="numeric" value={accInitBal}
+                    onChange={(event) => setAccInitBal(formatNumberWithDots(event.target.value))} placeholder="0" className="field-control tabular-nums" />
+                )}
+              </Field>
+            )}
+            <Field id="account-credit-limit" label={t("form.limit")} hint={t("form.limitHint")} error={accErrors.limit}>
+              {(aria) => (
+                <input {...aria} name="credit_limit" type="text" inputMode="numeric" value={accCreditLimit}
+                  onChange={(event) => setAccCreditLimit(formatNumberWithDots(event.target.value))}
+                  placeholder={t("form.instrument.example", { value: format.integer(2_000_000) })} className="field-control tabular-nums" />
+              )}
+            </Field>
+          </div>
+          <div className="form-grid">
+            <Field id="account-statement-day" label={t("form.statementDay")} error={accErrors.statementDay} describedBy="account-days-hint">
+              {(aria) => (
+                <input {...aria} name="statement_day" type="number" inputMode="numeric" min={1} max={31} step={1} value={accStatementDay}
+                  onChange={(event) => setAccStatementDay(event.target.value)} placeholder={t("form.instrument.example", { value: format.integer(25) })} className="field-control tabular-nums" />
+              )}
+            </Field>
+            <Field id="account-payment-day" label={t("form.paymentDay")} error={accErrors.paymentDay} describedBy="account-days-hint">
+              {(aria) => (
+                <input {...aria} name="payment_day" type="number" inputMode="numeric" min={1} max={31} step={1} value={accPaymentDay}
+                  onChange={(event) => setAccPaymentDay(event.target.value)} placeholder={t("form.instrument.example", { value: format.integer(5) })} className="field-control tabular-nums" />
+              )}
+            </Field>
+            <p className="hint full-row" id="account-days-hint">{t("form.daysHint")}</p>
+          </div>
+        </>
+      )}
+
+      {!editingAccount && accType !== "credit" && !(accType === "investment" && accIsMultiInstrument) && (
+        <Field
+          id="account-initial-balance"
+          label={accType === "investment" ? t(`form.instrument.${instrumentCopyKey(accInstrumentType)}.total`) : t("form.opening")}
+          hint={accType === "investment" && accInstrumentType === "deposit"
+            ? t("form.openingDepositHint")
+            : accType === "investment"
+              ? t("form.openingPositionHint")
+              : t("form.openingHint")}
+          error={accErrors.balance}
         >
+          {(aria) => (
+            <input {...aria} name="initial_balance" type="text" inputMode="numeric" value={accInitBal}
+              onChange={(event) => setAccInitBal(formatNumberWithDots(event.target.value))} placeholder="0" className="field-control tabular-nums" />
+          )}
+        </Field>
+      )}
+
+      {!editingAccount && accType === "investment" && accIsMultiInstrument && <p className="hint">{t("form.platformHint")}</p>}
+
+      {!editingPocket && <ColourField value={accColor} onChange={(hex) => { setAccColor(hex); setAccColorChosen(true); }} />}
+    </form>
+  );
+
+  const pocketForm = pocketParentAccount && (
+    <form id="pocket-form" className="form-stack" onSubmit={submitPocket} noValidate>
+      {pocketFormError && <p role="alert" className="form-alert">{pocketFormError}</p>}
+      <Field id="pocket-name" label={t("pocketForm.name")} error={pocketErrors.name}>
+        {(aria) => (
+          <input
+            {...aria}
+            name="name"
+            type="text"
+            required
+            value={pocketName}
+            onChange={(event) => setPocketName(event.target.value)}
+            placeholder={pocketParentAccount.type === "investment" ? t("pocketForm.placeholderInvestment") : t("pocketForm.placeholder")}
+            className="field-control"
+          />
+        )}
+      </Field>
+      <div className="field">
+        <span className="flabel" id="pocket-kind-label">{t("form.pocketKind")}</span>
+        <RadioSegments
+          labelledBy="pocket-kind-label"
+          options={pocketKindOptions}
+          value={pocketIsInvestment ? "investment" : "cash"}
+          onChange={(kind) => setPocketIsInvestment(kind === "investment")}
+        />
+        <p className="hint">{pocketIsInvestment ? t("pocketForm.investmentHint") : t("pocketForm.cashHint")}</p>
+      </div>
+      <RoleField id="pocket-role" value={pocketRole} onChange={setPocketRole} fixed={pocketIsInvestment ? "investasi" : null} error={pocketErrors.role} />
+      {pocketIsInvestment && (
+        <>
+          <div className="field">
+            <span className="flabel" id="pocket-instrument-label">{t("form.instrumentType")}</span>
+            <RadioSegments labelledBy="pocket-instrument-label" options={instrumentOptions} value={pocketInstrumentType as InstrumentType} onChange={setPocketInstrumentType} />
+          </div>
+          {pocketInstrumentType !== "deposit" && (
+            <>
+              <TickerField
+                id="pocket-ticker"
+                value={pocketTicker}
+                searching={pocketIsSearchingTicker}
+                suggestions={pocketTickerSuggestions}
+                onSearch={(query) => handleSearchTicker(query, true)}
+                onPick={(item) => {
+                  setPocketTicker(item.symbol);
+                  if (!pocketName) setPocketName(item.name);
+                  if (item.type) setPocketInstrumentType(item.type);
+                  setPocketTickerSuggestions([]);
+                }}
+              />
+              <PositionFields
+                idPrefix="pocket"
+                instrument={pocketInstrumentType}
+                units={pocketUnits}
+                price={pocketAvgBuyPrice}
+                onUnits={(value) => {
+                  setPocketUnits(value);
+                  fillOpening(value, pocketAvgBuyPrice, setPocketInitBal);
+                }}
+                onPrice={(value) => {
+                  setPocketAvgBuyPrice(value);
+                  fillOpening(pocketUnits, value, setPocketInitBal);
+                }}
+              />
+            </>
+          )}
+        </>
+      )}
+      <Field
+        id="pocket-initial-balance"
+        label={pocketIsInvestment ? t(`form.instrument.${instrumentCopyKey(pocketInstrumentType)}.total`) : t("pocketForm.opening")}
+        hint={pocketIsInvestment && pocketInstrumentType === "deposit"
+          ? t("form.openingDepositHint")
+          : pocketIsInvestment
+            ? t("pocketForm.openingPositionHint")
+            : t("pocketForm.openingHint")}
+        error={pocketErrors.balance}
+      >
+        {(aria) => (
+          <input {...aria} name="initial_balance" type="text" inputMode="numeric" value={pocketInitBal}
+            onChange={(event) => setPocketInitBal(formatNumberWithDots(event.target.value))} placeholder="0" className="field-control tabular-nums" />
+        )}
+      </Field>
+    </form>
+  );
+
+  const valuationGain = (() => {
+    if (!valCostBasisStr.trim()) return null;
+    const cost = parseNumberFromDots(valCostBasisStr);
+    return { amount: parseNumberFromDots(valCurrentBalStr) - cost, cost };
+  })();
+
+  const reconcileDifference = reconcileAccount && actualBalStr.trim() ? parseNumberFromDots(actualBalStr) - reconcileAccount.balance : null;
+
+  const dialogs = (
+    <>
+      <ShellDialog
+        open={accountModalOpen}
+        onClose={closeAccountForm}
+        title={accountTitle}
+        meta={editingAccount ? editingAccount.name : t("form.subtitleNew")}
+        width={560}
+        closeLabel={tc("close")}
+        footer={accountFooter}
+      >
+        {accountForm}
+      </ShellDialog>
+
+      <ShellDialog
+        open={pocketModalOpen && Boolean(pocketParentAccount)}
+        onClose={closePocketForm}
+        title={t("pocketForm.title", { parent: pocketParentAccount?.name ?? "" })}
+        width={560}
+        closeLabel={tc("close")}
+        footer={(
+          <>
+            <button type="button" className="ws-btn" onClick={closePocketForm}>{t("form.cancel")}</button>
+            <button type="submit" form="pocket-form" className="ws-btn ws-btn-ink" disabled={savePocketMutation.isPending}>
+              {savePocketMutation.isPending ? t("form.saving") : t("pocketForm.create")}
+            </button>
+          </>
+        )}
+      >
+        {pocketForm}
+      </ShellDialog>
+
+      <ShellDialog
+        open={Boolean(valuationAccount)}
+        onClose={closeValuation}
+        title={t("valuation.title")}
+        meta={valuationAccount?.name}
+        width={520}
+        closeLabel={tc("close")}
+        footer={(
+          <>
+            <button type="button" className="ws-btn" onClick={closeValuation}>{t("form.cancel")}</button>
+            <button type="submit" form="valuation-form" className="ws-btn ws-btn-ink" disabled={valuationMutation.isPending}>
+              {valuationMutation.isPending ? t("form.saving") : t("valuation.save")}
+            </button>
+          </>
+        )}
+      >
+        {valuationAccount && (
           <form
-            className="space-y-4 pt-2 text-xs [&_input]:min-h-11 [&_select]:min-h-11"
+            id="valuation-form"
+            className="form-stack"
+            noValidate
             onSubmit={(event) => {
               event.preventDefault();
               if (!valuationMutation.isPending) valuationMutation.mutate();
             }}
           >
-            {valError && (
-              <div role="alert" className="p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--line)] text-out-fg font-medium">
-                {valError}
-              </div>
-            )}
-
-            <p className="text-xs text-[var(--muted)]">
-              Perbarui nilai pasar investasi terkini (misal dari aplikasi Bibit, Bareksa, atau harga penutupan). Untung/rugi dihitung otomatis terhadap modal beli.
-            </p>
-
-            <div className="p-3.5 rounded-xl bg-[var(--surface-2)] border border-[var(--line)] space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[var(--muted)]">Nilai Tercatat Saat Ini:</span>
-                <span className="font-semibold tabular text-sm text-[var(--text)]">
-                  {bal(valuationAccount.balance)}
-                </span>
-              </div>
+            {valError && <p role="alert" className="form-alert">{valError}</p>}
+            <p className="t-body muted">{t("valuation.intro")}</p>
+            <dl className="dl">
+              <dt>{t("valuation.recorded")}</dt>
+              <dd className="tabular-nums"><MaskedMoney text={money(valuationAccount.balance)} /></dd>
               {valuationAccount.units && valuationAccount.avg_buy_price ? (
-                <div className="flex items-center justify-between text-xs text-[var(--muted)] pt-1.5 border-t border-[var(--line)]/50">
-                  <span>Kepemilikan:</span>
-                  <span className="tabular text-[var(--text)]">
-                    {valuationAccount.units} {getInstrumentConfig(valuationAccount.instrument_type).unitUnit} @ {fmtMoney(valuationAccount.avg_buy_price)}
-                  </span>
-                </div>
+                <>
+                  <dt>{t("valuation.holding")}</dt>
+                  <dd className="tabular-nums">
+                    {t("valuation.holdingValue", {
+                      units: format.decimal(valuationAccount.units, 4),
+                      unit: t(`form.instrument.${instrumentCopyKey(valuationAccount.instrument_type)}.unit`),
+                      price: format.money(valuationAccount.avg_buy_price),
+                    })}
+                  </dd>
+                </>
               ) : null}
+            </dl>
+            <Field id="valuation-current-value" label={t("valuation.value")} hint={t("valuation.valueHint")}>
+              {(aria) => (
+                <input {...aria} name="current_balance" type="text" inputMode="numeric" value={valCurrentBalStr}
+                  onChange={(event) => setValCurrentBalStr(formatNumberWithDots(event.target.value))}
+                  placeholder={t("form.instrument.example", { value: format.integer(10_450_000) })} className="field-control tabular-nums" />
+              )}
+            </Field>
+            <Field id="valuation-cost-basis" label={t("valuation.cost")} hint={t("valuation.costHint")}>
+              {(aria) => (
+                <input {...aria} name="cost_basis" type="text" inputMode="numeric" value={valCostBasisStr}
+                  onChange={(event) => setValCostBasisStr(formatNumberWithDots(event.target.value))}
+                  placeholder={t("form.instrument.example", { value: format.integer(10_000_000) })} className="field-control tabular-nums" />
+              )}
+            </Field>
+            <div className="box" aria-live="polite">
+              <span className="grow t-body">{t("valuation.gainPreview")}</span>
+              {valuationGain ? <GainText gain={valuationGain} /> : <span className="t-meta">{t("valuation.gainUnavailable")}</span>}
             </div>
-
-            <div>
-              <label htmlFor="valuation-current-value" className="font-medium text-[var(--muted)] block mb-1">
-                Nilai Pasar Terkini (IDR)
-              </label>
-              <input
-                id="valuation-current-value"
-                name="current_balance"
-                type="text"
-                inputMode="numeric"
-                value={valCurrentBalStr}
-                onChange={(e) => setValCurrentBalStr(formatNumberWithDots(e.target.value))}
-                placeholder="Contoh: 10.450.000"
-                className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-base font-semibold tabular text-[var(--text)]"
-              />
-              <p className="text-xs text-[var(--muted)] mt-1">
-                Nilai portofolio total saat ini dari aplikasi atau pantauan harga terbaru.
-              </p>
-            </div>
-
-            <div>
-              <label htmlFor="valuation-cost-basis" className="font-medium text-[var(--muted)] block mb-1">
-                Total Modal Terinvestasi / Harga Beli (IDR)
-              </label>
-              <input
-                id="valuation-cost-basis"
-                name="cost_basis"
-                type="text"
-                inputMode="numeric"
-                value={valCostBasisStr}
-                onChange={(e) => setValCostBasisStr(formatNumberWithDots(e.target.value))}
-                placeholder="Contoh: 10.000.000"
-                className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] tabular font-medium"
-              />
-              <p className="text-xs text-[var(--muted)] mt-1">
-                Total modal bersih yang dibayarkan saat membeli ({valuationAccount.units ? `${valuationAccount.units} ${getInstrumentConfig(valuationAccount.instrument_type).unitUnit}` : "aset ini"}).
-              </p>
-            </div>
-
-            {/* Capital Gain preview */}
-            {(() => {
-              if (!valCostBasisStr.trim()) return <p className="text-xs">Gain belum tersedia sampai total modal diisi.</p>;
-              const curVal = parseNumberFromDots(valCurrentBalStr);
-              const costVal = parseNumberFromDots(valCostBasisStr);
-              const gain = curVal - costVal;
-              const gainPct = costVal > 0 ? ((gain / costVal) * 100).toFixed(2) : "0.00";
-              return (
-                <div className="p-3 rounded-xl border border-[var(--line)] bg-[var(--surface-2)]/50 space-y-1">
-                  <div className="flex justify-between items-center tabular">
-                    <span className="text-[var(--muted)]">Estimasi untung/rugi:</span>
-                    <span
-                      className={cn(
-                        "font-semibold text-xs",
-                        gain >= 0 ? "text-in-fg" : "text-out-fg"
-                      )}
-                    >
-                      {gain >= 0 ? "+" : ""}{fmtMoney(gain)} ({gain >= 0 ? "+" : ""}{gainPct}%)
-                    </span>
-                  </div>
-                </div>
-              );
-            })()}
-
-            <div>
-              <label htmlFor="valuation-notes" className="font-medium text-[var(--muted)] block mb-1">
-                Catatan (Opsional)
-              </label>
-              <input
-                id="valuation-notes"
-                name="notes"
-                type="text"
-                value={valNotes}
-                onChange={(e) => setValNotes(e.target.value)}
-                placeholder="Contoh: Update return bulanan RDPU Bibit"
-                className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
-              />
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setValuationAccount(null)}
-                className="ws-btn flex-1"
-              >
-                Batal
-              </button>
-              <button
-                type="submit"
-                disabled={valuationMutation.isPending}
-                className="ws-btn ws-btn-ink flex-1"
-              >
-                {valuationMutation.isPending ? "Menyimpan…" : "Simpan Nilai Baru"}
-              </button>
-            </div>
+            <Field id="valuation-notes" label={t("valuation.notes")}>
+              {(aria) => (
+                <input {...aria} name="notes" type="text" value={valNotes} onChange={(event) => setValNotes(event.target.value)}
+                  placeholder={t("valuation.notesPlaceholder")} className="field-control" />
+              )}
+            </Field>
           </form>
-        </Modal>
-      )}
-      {reconcileAccount && (
-        <Modal
-          open={Boolean(reconcileAccount)}
-          onClose={() => { setReconcileAccount(null); setAfterReconcile(null); }}
-          title={`Sesuaikan Saldo: ${reconcileAccount.name}`}
-        >
+        )}
+      </ShellDialog>
+
+      <ShellDialog
+        open={Boolean(reconcileAccount)}
+        onClose={closeReconcile}
+        title={t("adjust.title")}
+        meta={reconcileAccount?.name}
+        width={520}
+        closeLabel={tc("close")}
+        footer={(
+          <>
+            <button type="button" className="ws-btn" onClick={closeReconcile}>{t("form.cancel")}</button>
+            <button type="submit" form="reconcile-form" className="ws-btn ws-btn-ink" disabled={reconcileMutation.isPending}>
+              {reconcileMutation.isPending ? t("adjust.saving") : t("adjust.save")}
+            </button>
+          </>
+        )}
+      >
+        {reconcileAccount && (
           <form
-            className="space-y-4 pt-2 text-xs"
+            id="reconcile-form"
+            className="form-stack"
+            noValidate
             onSubmit={(event) => {
               event.preventDefault();
               if (!reconcileMutation.isPending) reconcileMutation.mutate();
             }}
           >
-            {reconcileError && (
-              <div role="alert" className="p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--line)] text-out-fg font-medium">
-                {reconcileError}
+            <p className="t-body muted">{t("adjust.intro")}</p>
+            <dl className="dl">
+              <dt>{t("adjust.recorded")}</dt>
+              <dd className="tabular-nums"><MaskedMoney text={money(reconcileAccount.balance)} /></dd>
+            </dl>
+            <Field id="reconcile-actual-balance" label={t("adjust.actual")} error={reconcileError || undefined}>
+              {(aria) => (
+                <input {...aria} name="actual_balance" type="text" inputMode="numeric" value={actualBalStr}
+                  onChange={(event) => { setActualBalStr(formatNumberWithDots(event.target.value)); setReconcileError(""); }}
+                  placeholder={t("form.instrument.example", { value: format.integer(10_000_000) })} className="field-control tabular-nums" />
+              )}
+            </Field>
+            {reconcileDifference !== null && (
+              <div className="box" aria-live="polite">
+                <span className="grow t-body">{t("adjust.difference")}</span>
+                {reconcileDifference === 0 ? (
+                  <span className="t-body">{t("adjust.matches")}</span>
+                ) : (
+                  <span className={cn("t-body tabular-nums", reconcileDifference > 0 ? "c-income" : "c-expense")}>
+                    <MaskedMoney text={`${reconcileDifference > 0 ? "+" : "−"}${money(Math.abs(reconcileDifference))}`} />
+                    {" · "}
+                    {reconcileDifference > 0 ? t("adjust.in") : t("adjust.out")}
+                  </span>
+                )}
               </div>
             )}
-
-            <p className="text-xs text-[var(--muted)]">
-              Masukkan nominal saldo yang saat ini tercatat pada aplikasi bank atau dompet fisik. Transaksi penyesuaian akan dicatat secara otomatis jika ada selisih.
-            </p>
-
-            <div className="p-3.5 rounded-xl bg-[var(--surface-2)] border border-[var(--line)] flex items-center justify-between">
-              <span className="text-[var(--muted)]">Saldo Tercatat Saat Ini:</span>
-              <span className="font-semibold tabular text-sm text-[var(--text)]">
-                {bal(reconcileAccount.balance)}
-              </span>
-            </div>
-
-            <MonetaryInput
-              id="reconcile-actual-balance"
-              name="actual_balance"
-              label="Saldo Sebenarnya di Bank / Dompet (IDR)"
-              value={actualBalStr}
-              onChange={(value) => { setActualBalStr(value); setReconcileError(""); }}
-              placeholder="Contoh: 10.000.000"
-              error={reconcileError}
-              className="text-base"
-            />
-
-            {/* Calculated variance preview */}
-            {actualBalStr.trim() && (() => {
-              const actual = parseNumberFromDots(actualBalStr);
-              const diff = actual - reconcileAccount.balance;
-              return (
-                <div className="p-3 rounded-xl border border-[var(--line)] bg-[var(--surface-2)]/50 space-y-1">
-                  <div className="flex justify-between items-center tabular">
-                    <span className="text-[var(--muted)]">Penyesuaian Selisih:</span>
-                    <span
-                      className={cn(
-                        "font-semibold text-xs",
-                        diff > 0
-                          ? "text-in-fg"
-                          : diff < 0
-                          ? "text-out-fg"
-                          : "text-[var(--muted)]"
-                      )}
-                    >
-                      {diff > 0 ? `+${bal(diff)} (Uang Masuk)` : diff < 0 ? `-${bal(Math.abs(diff))} (Uang Keluar)` : "0 (Sesuai / Cocok)"}
-                    </span>
-                  </div>
-                </div>
-              );
-            })()}
-
-            <div>
-              <label htmlFor="reconcile-notes" className="font-medium text-[var(--muted)] block mb-1">
-                Catatan Penyesuaian (Opsional)
-              </label>
-              <input
-                id="reconcile-notes"
-                name="notes"
-                type="text"
-                value={reconcileNotes}
-                onChange={(e) => setReconcileNotes(e.target.value)}
-                placeholder="Contoh: Biaya admin bulanan bank atau pembulatan"
-                className="w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)]"
-              />
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setReconcileAccount(null)}
-                className="ws-btn flex-1"
-              >
-                Batal
-              </button>
-              <button
-                type="submit"
-                disabled={reconcileMutation.isPending}
-                className="ws-btn ws-btn-ink flex-1"
-              >
-                {reconcileMutation.isPending ? "Menyesuaikan…" : "Konfirmasi & Sesuaikan Saldo"}
-              </button>
-            </div>
+            <Field id="reconcile-notes" label={t("adjust.notes")}>
+              {(aria) => (
+                <input {...aria} name="notes" type="text" value={reconcileNotes} onChange={(event) => setReconcileNotes(event.target.value)}
+                  placeholder={t("adjust.notesPlaceholder")} className="field-control" />
+              )}
+            </Field>
           </form>
-        </Modal>
-      )}
+        )}
+      </ShellDialog>
 
-      {/* Recurring Rules Management Modal */}
-      <RecurringRulesModal
+      <PlansDialog
         open={recurringModalOpen}
         onClose={() => { setRecurringModalOpen(false); setInvestmentSchedule(null); }}
         investmentDraft={investmentSchedule}
@@ -1604,7 +1263,6 @@ export function useAccountDialogs() {
 
       <AmountTrackingSwitchModal product={amountSwitchProduct} onClose={() => setAmountSwitchProduct(null)} />
 
-      {/* Investment Trade Modal (Beli / Jual) */}
       <InvestmentTradeModal
         open={tradeModalOpen}
         onClose={() => setTradeModalOpen(false)}
@@ -1617,8 +1275,6 @@ export function useAccountDialogs() {
 
   return {
     dialogs,
-    INSTRUMENT_OPTIONS,
-    getInstrumentConfig,
     openNewAccount: handleOpenNewAccount,
     openEditAccount: handleOpenEditAccount,
     openNewPocket: handleOpenNewPocket,
@@ -1630,7 +1286,5 @@ export function useAccountDialogs() {
     openPlans: () => setRecurringModalOpen(true),
     archiveMutation,
     syncPricesMutation,
-    syncMessage,
-    accountActionError,
   };
 }

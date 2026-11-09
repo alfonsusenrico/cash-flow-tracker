@@ -1,161 +1,81 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useAppCtx } from "@/components/layout/AppLayout";
-import { Button } from "@/components/ui/Button";
-import { Modal } from "@/components/ui/Modal";
-import { api } from "@/lib/api";
-import { type MonthlyReport, categoryLedgerHref } from "@/lib/monthlyReport";
-import { queryKeys } from "@/lib/queryKeys";
-import { isNonReportableCategory } from "@/lib/systemCategories";
+import type { Ref } from "react";
+import { useTranslations } from "next-intl";
+import { PILLAR_COLOR } from "@/components/analysis/KakeiboRows";
+import { Meter } from "@/components/workspace/figures";
+import { SectionHeader } from "@/components/workspace/lists";
+import { type MonthlyReport, type SpendingBucket, categoryLedgerHref } from "@/lib/monthlyReport";
 import { cn } from "@/lib/utils";
-import { LINK_CLASS, ReportPanel } from "./ReportParts";
 
-interface CategoryRow {
-  id: string;
-  name: string;
-  kind: string;
-  monthly_budget: number | null;
-  is_archived: boolean;
-  is_excluded_from_budget: boolean;
-  system_key: string | null;
-}
+type Money = (amount: number) => string;
 
-const digits = (value: string) => value.replace(/[^0-9]/g, "");
-const grouped = (value: number | null) => (value && value > 0 ? value.toLocaleString("id-ID") : "");
-
-export function BudgetEditorDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const queryClient = useQueryClient();
-  const { data, isLoading, isError } = useQuery<{ categories: CategoryRow[] }>({
-    queryKey: [...queryKeys.categories, "expense"],
-    queryFn: () => api.get("/categories?kind=expense"),
-    enabled: open,
-  });
-  // Reports leave these categories out of spending, so a budget on them would never be compared.
-  const categories = useMemo(
-    () => (data?.categories ?? []).filter(
-      (row) => row.kind === "expense" && !row.is_archived && !row.is_excluded_from_budget && !isNonReportableCategory(row.system_key),
-    ),
-    [data],
-  );
-  const [values, setValues] = useState<Record<string, string>>({});
-  const [error, setError] = useState("");
-  useEffect(() => {
-    if (open) setValues(Object.fromEntries(categories.map((row) => [row.id, grouped(row.monthly_budget)])));
-  }, [open, categories]);
-
-  const save = useMutation({
-    mutationFn: async () => {
-      const changed = categories.filter((row) => (Number(digits(values[row.id] ?? "")) || null) !== (row.monthly_budget || null));
-      for (const row of changed) {
-        const amount = Number(digits(values[row.id] ?? "")) || null;
-        await api.patch(`/categories/${row.id}`, { monthly_budget: amount });
-      }
-      return changed.length;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.categories });
-      queryClient.invalidateQueries({ queryKey: queryKeys.reports.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
-      onClose();
-    },
-    onError: (failure: Error) => setError(failure.message || "Anggaran belum tersimpan. Coba lagi."),
-  });
-
-  return (
-    <Modal open={open} onClose={onClose} title="Atur anggaran">
-      <form
-        className="space-y-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setError("");
-          save.mutate();
-        }}
-      >
-        <p className="text-sm text-[var(--text-2)]">
-          Batas pengeluaran per kategori setiap bulan. Kosongkan kategori yang tidak perlu dibatasi.
-        </p>
-        {isLoading && <p className="text-sm text-[var(--muted)]">Memuat kategori…</p>}
-        {isError && <p role="alert" className="text-sm text-[var(--out-fg)]">Kategori belum bisa dimuat.</p>}
-        <ul className="space-y-2">
-          {categories.map((row) => (
-            <li key={row.id} className="flex items-center justify-between gap-3">
-              <label htmlFor={`budget-${row.id}`} className="min-w-0 truncate text-sm text-[var(--text)]">{row.name}</label>
-              <div className="relative w-40 shrink-0">
-                <span aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--muted)]">Rp</span>
-                <input
-                  id={`budget-${row.id}`}
-                  inputMode="numeric"
-                  autoComplete="off"
-                  value={values[row.id] ?? ""}
-                  onChange={(event) => setValues((current) => ({ ...current, [row.id]: grouped(Number(digits(event.target.value)) || null) }))}
-                  placeholder="Tanpa batas"
-                  className="min-h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface)] pl-9 pr-3 text-right text-sm tabular-nums text-[var(--text)]"
-                />
-              </div>
-            </li>
-          ))}
-        </ul>
-        {error && <p role="alert" className="text-sm text-[var(--out-fg)]">{error}</p>}
-        <div className="flex justify-end gap-2">
-          <Button type="button" className="min-h-11" onClick={onClose}>Batal</Button>
-          <Button type="submit" variant="primary" className="min-h-11" disabled={save.isPending || isLoading}>
-            {save.isPending ? "Menyimpan…" : "Simpan anggaran"}
-          </Button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-export function BudgetPanel({ report, onEdit }: { report: MonthlyReport; onEdit: () => void }) {
-  const { bal } = useAppCtx();
-  const { budget, period } = report;
-  if (!budget) {
-    return (
-      <ReportPanel id="report-budget" title="Anggaran">
-        <p className="text-sm text-[var(--text-2)]">Belum ada anggaran. Anggaran tidak wajib; laporan tetap lengkap tanpanya.</p>
-        <Button type="button" className="min-h-11" onClick={onEdit}>Atur anggaran</Button>
-      </ReportPanel>
-    );
+/**
+ * "Anggaran" (apply-markas-laporan D10, D29): one whole-row link per budgeted category with its 160 px meter and
+ * "{spent} dari {budget}" with what is left or over, all on the Pengeluaran basis, then the overall budget. "Atur
+ * anggaran" opens the shared budget dialog. Without any budget the report shows no budget figure.
+ */
+export function BudgetPanel({ report, money, onEdit, editRef }: { report: MonthlyReport; money: Money; onEdit: () => void; editRef: Ref<HTMLButtonElement> }) {
+  const t = useTranslations("report.budget");
+  const { budget, period, comparison } = report;
+  // A budget row takes its category's pillar colour from the comparison; a category without spending has none.
+  const pillarOf = new Map<string, SpendingBucket>();
+  for (const pillar of comparison.pillars) {
+    for (const category of pillar.categories) if (category.category_id) pillarOf.set(category.category_id, pillar.pillar);
   }
+  const rows = [...(budget?.categories ?? [])].sort((left, right) => left.spending_remaining - right.spending_remaining || left.name.localeCompare(right.name));
+  const rest = (remaining: number) => (remaining >= 0 ? t("left", { amount: money(remaining) }) : t("over", { amount: money(-remaining) }));
+
   return (
-    <ReportPanel id="report-budget" title="Anggaran dan realisasi">
-      {budget.overall && (
-        <p className="text-sm text-[var(--text)]">
-          Total: keluar <span className="font-semibold tabular-nums">{bal(budget.overall.spent)}</span> dari anggaran{" "}
-          <span className="tabular-nums">{bal(budget.overall.budget)}</span>,{" "}
-          {budget.overall.remaining >= 0 ? `sisa ${bal(budget.overall.remaining)}` : `lebih ${bal(-budget.overall.remaining)}`}.
-        </p>
+    <section aria-labelledby="lp-budget">
+      <SectionHeader
+        level={3}
+        id="lp-budget"
+        label={t("title")}
+        aside={(
+          <button ref={editRef} type="button" className="btn-link" aria-haspopup="dialog" onClick={onEdit}>
+            {t("set")}
+          </button>
+        )}
+      />
+      {!budget ? (
+        <p className="t-body muted">{t("empty")}</p>
+      ) : (
+        <>
+          {rows.length > 0 && (
+            <ul className="list" aria-labelledby="lp-budget">
+              {rows.map((row) => {
+                const used = row.budget > 0 ? (row.spending / row.budget) * 100 : 0;
+                const over = row.spending_remaining < 0;
+                const pillar = pillarOf.get(row.category_id);
+                return (
+                  <li key={row.category_id}>
+                    <Link href={categoryLedgerHref(period, { category_id: row.category_id })} className="row lp-budget-row">
+                      <span className="r-main">
+                        <span className="r-title">{row.name}</span>
+                      </span>
+                      <span className="ph-hide lp-meter">
+                        <Meter value={used} width={160} tone={over ? "var(--out-solid)" : pillar ? PILLAR_COLOR[pillar] : "var(--k-none)"} />
+                      </span>
+                      <span className="r-amt lp-budget-amt">
+                        <span className="t-amt">{t("spentOf", { used: money(row.spending), budget: money(row.budget) })}</span>
+                        <span className={cn("t-meta", over && "c-expense")}>{rest(row.spending_remaining)}</span>
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {budget.overall && (
+            <p className="t-body lp-budget-total">
+              {t("total", { used: money(budget.overall.spending), budget: money(budget.overall.budget), rest: rest(budget.overall.spending_remaining) })}
+            </p>
+          )}
+          {budget.period_basis === "cycle" && <p className="caption">{t("cycleNote")}</p>}
+        </>
       )}
-      {budget.categories.length > 0 && (
-        <ul className="divide-y divide-[var(--line)]">
-          {budget.categories.map((row) => (
-            <li key={row.category_id} className="space-y-1 py-2">
-              <div className="flex min-w-0 items-center justify-between gap-3 text-sm">
-                <span className="min-w-0 truncate text-[var(--text)]">{row.name}</span>
-                <Link
-                  href={categoryLedgerHref(period, { category_id: row.category_id })}
-                  aria-label={`${bal(row.spent)} dari ${bal(row.budget)}, lihat transaksi ${row.name}`}
-                  className={cn("inline-flex min-h-11 shrink-0 items-center tabular-nums", LINK_CLASS)}
-                >
-                  <span className="font-semibold">{bal(row.spent)}</span>
-                  <span className="text-[var(--muted)]">&nbsp;/ {bal(row.budget)}</span>
-                </Link>
-              </div>
-              <p className="text-xs text-[var(--text-2)]">
-                {row.remaining >= 0 ? `Sisa ${bal(row.remaining)}` : `Lebih ${bal(-row.remaining)}`}
-              </p>
-            </li>
-          ))}
-        </ul>
-      )}
-      {budget.period_basis === "cycle" && (
-        <p className="text-xs text-[var(--text-2)]">Anggaran bulanan dibandingkan apa adanya dengan satu siklus gaji.</p>
-      )}
-      <Button type="button" className="min-h-11" onClick={onEdit}>Ubah anggaran</Button>
-    </ReportPanel>
+    </section>
   );
 }

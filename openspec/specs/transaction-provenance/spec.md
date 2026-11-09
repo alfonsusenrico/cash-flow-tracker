@@ -183,17 +183,21 @@ Ledger list and detail responses SHALL include source, merchant, review status, 
 - **THEN** the row SHALL be returned.
 
 ### Requirement: Provenance in the Ledger Edit Dialog
-The ledger edit dialog SHALL show the row's source, review status and classifier in Indonesian, SHALL let the owner edit the merchant, and SHALL offer a keyboard-reachable "Tandai sudah ditinjau" action when the row is not reviewed.
+The transaction dialog SHALL show the row's source ("Dicatat"), classifier ("Diklasifikasikan") and check state ("Dicek") in the interface language. "Ubah transaksi" SHALL let the owner edit the merchant. For an automatic row without an open question, "Dicek" SHALL offer a keyboard-reachable "Tandai sudah dicek" that accepts the row through the existing bulk review action.
 
 #### Scenario: Reviewing an automatic row
 - **GIVEN** an auto row from a bank notification
 - **WHEN** the owner opens it in the ledger
-- **THEN** the dialog SHALL show "Notifikasi bank" and "Otomatis, belum ditinjau"
-- **AND** activating "Tandai sudah ditinjau" SHALL send only `review_status = reviewed`.
+- **THEN** the dialog SHALL show "Notifikasi bank" under "Dicatat" and "Belum dicek · Tandai sudah dicek" under "Dicek"
+- **AND** activating "Tandai sudah dicek" SHALL send `POST /api/review/bulk` with `action: "accept"` for that row only, and offer "Urungkan".
 
 #### Scenario: Editing the merchant
-- **WHEN** the owner types a merchant and saves the dialog
+- **WHEN** the owner types a merchant in "Ubah transaksi" and saves
 - **THEN** the update SHALL include the merchant.
+
+#### Scenario: Provenance in English
+- **WHEN** an English account opens the same row
+- **THEN** the dialog SHALL label the rows "Recorded", "Classified by" and "Checked", with the source and classifier names in English
 
 ### Requirement: Provenance of Rows Created by Movement Pairing
 A transfer-fee row split off at automatic pairing SHALL have provenance movement, auto, system. A leg created by completing a one-sided transfer SHALL have provenance movement, reviewed, system. A notification row recorded as a one-sided self-transfer awaiting its counterpart SHALL have `review_status = needs_review`.

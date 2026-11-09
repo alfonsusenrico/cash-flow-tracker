@@ -90,14 +90,21 @@ def _pillar_spending(cur, user_id: str, start: datetime, end: datetime, offsets)
     return {pillar: max(0, gross.get(pillar, 0) - offsets.for_pillar(pillar)) for pillar in REPORT_BUCKETS}
 
 
-def merchant_spending(cur, user_id: str, start: datetime, end: datetime) -> dict[str, dict[str, Any]]:
-    """Gross reportable spending per merchant; reimbursements apply to categories, not merchants."""
+def merchant_spending(
+    cur, user_id: str, start: datetime, end: datetime, *, expense_sql: str | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Gross reportable spending per merchant; reimbursements apply to categories, not merchants.
+
+    `expense_sql` narrows the rows, such as to Pengeluaran (`spending_basis.spending_merchants`); by default every
+    reportable expense counts.
+    """
+    condition = expense_sql or reportable_expense_sql()
     cur.execute(
         f"""
         SELECT t.merchant, t.amount, t.date
         FROM transactions t
         LEFT JOIN categories c ON c.id = t.category_id
-        WHERE t.user_id = %s AND {reportable_expense_sql()} AND t.merchant IS NOT NULL
+        WHERE t.user_id = %s AND {condition} AND t.merchant IS NOT NULL
           AND t.date >= %s AND t.date <= %s
         ORDER BY t.date DESC
         """,

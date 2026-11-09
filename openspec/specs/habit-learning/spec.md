@@ -177,15 +177,19 @@ A habit-recorded row SHALL be explained everywhere it is shown: the companion re
 - **THEN** the question SHALL count as asked but not answered, and no correction SHALL be counted
 
 ### Requirement: Seberapa Sering Ditanya Panel
-Analisis SHALL show a "Seberapa sering ditanya" panel listing the weeks newest first with "Ditanya <n> dari <m> (<p>%)", the shares by memory, habit, AI, other rules and answered, and the corrections; a week without recorded payments SHALL say so, no data SHALL give an honest empty state, and a failed load SHALL show no figures.
+Pengaturan › Kebiasaan SHALL show a "Seberapa sering ditanya" panel listing the weeks newest first with "Ditanya <n> dari <m> (<p>%)", the shares by memory, habit, AI, other rules and answered, and the corrections; a week without recorded payments SHALL say so, no data SHALL give an honest empty state, and a failed load SHALL show no figures. Analisis SHALL NOT show the panel.
 
 #### Scenario: Weekly figures
 - **WHEN** the current week has 20 recorded payments, 3 asked and 5 by habit
-- **THEN** it SHALL be marked "berjalan" and show "Ditanya 3 dari 20 (15%)" and "Kebiasaan 5 (25%)"
+- **THEN** Pengaturan › Kebiasaan SHALL mark it "berjalan" and show "Ditanya 3 dari 20 (15%)" and "Kebiasaan 5 (25%)"
 
 #### Scenario: No data
 - **WHEN** no notification or capture payment was recorded in the eight weeks
 - **THEN** the panel SHALL say so and show no figures
+
+#### Scenario: Not on Analisis
+- **WHEN** the owner opens any tab of Analisis
+- **THEN** no "Seberapa sering ditanya" or "Kebiasaan dihafal" panel SHALL be shown, and Pengaturan › Kebiasaan SHALL show the weekly panel after the habit and top-up tables
 
 ### Requirement: Habit List API
 `GET /api/habits` SHALL return, for the authenticated owner only and without changing any state, the learned habits, the learned top-up patterns, the auto-record switch states (`auto_record.habits`, `auto_record.topups`) and the thresholds in use, at most 100 entries per list, newest first, with `truncated` when more exist. It SHALL never return a notification text signature, SHALL use a constant number of statements, and SHALL log no merchant name, amount or label.

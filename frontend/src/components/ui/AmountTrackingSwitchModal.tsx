@@ -2,19 +2,29 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
+import { MaskedMoney } from "@/components/workspace/money";
+import { ShellDialog } from "@/components/workspace/ShellDialog";
+import { UntranslatedRegion } from "@/components/workspace/untranslated";
 import { api } from "@/lib/api";
+import { useFormat } from "@/lib/format";
 import { InvestmentAccount } from "@/lib/investmentTopups";
 import { queryKeys } from "@/lib/queryKeys";
-import { fmtIDR } from "@/lib/utils";
-import { Modal } from "./Modal";
 
 interface Props {
   product: InvestmentAccount | null;
   onClose: () => void;
 }
 
+/**
+ * "Ubah ke pelacakan nominal" (apply-markas-rekening D10): a 520 px shell dialog naming the value and cost that carry
+ * over and that the change cannot be undone. The request is unchanged.
+ */
 export function AmountTrackingSwitchModal({ product, onClose }: Props) {
   const qc = useQueryClient();
+  const t = useTranslations("accounts.amountTracking");
+  const common = useTranslations("common");
+  const format = useFormat();
   const [error, setError] = useState("");
   useEffect(() => setError(""), [product?.id]);
   const mutation = useMutation({
@@ -24,40 +34,33 @@ export function AmountTrackingSwitchModal({ product, onClose }: Props) {
         .forEach((key) => qc.invalidateQueries({ queryKey: key }));
       onClose();
     },
-    onError: (failure: Error) => setError(failure.message || "Pelacakan produk gagal diubah. Coba lagi."),
+    onError: (failure: Error) => setError(failure.message || t("failed")),
   });
   if (!product) return null;
   const busy = mutation.isPending;
 
+  const footer = (
+    <>
+      <button type="button" className="ws-btn" onClick={onClose} disabled={busy}>{common("cancel")}</button>
+      <button type="button" className="ws-btn ws-btn-ink" onClick={() => { setError(""); mutation.mutate(product.id); }} disabled={busy}>
+        {busy ? t("saving") : t("confirm")}
+      </button>
+    </>
+  );
+
   return (
-    <Modal open onClose={() => { if (!busy) onClose(); }} title="Ubah ke pelacakan nominal">
-      <div className="space-y-4">
-        <div className="rounded-xl border border-[var(--line)] bg-inv-bg p-3 text-inv-fg">
-          <p className="text-xs">Produk reksadana</p>
-          <p className="break-words font-semibold">{product.name}</p>
-        </div>
-        <dl className="grid grid-cols-2 gap-3 text-sm">
-          <div>
-            <dt className="text-xs text-[var(--text-2)]">Nilai sekarang</dt>
-            <dd className="font-semibold tabular-nums">{fmtIDR(product.balance ?? 0)}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-[var(--text-2)]">Modal</dt>
-            <dd className="font-semibold tabular-nums">{product.cost_basis == null ? "Belum diketahui" : fmtIDR(product.cost_basis)}</dd>
-          </div>
+    <UntranslatedRegion active={false}>
+      <ShellDialog open onClose={() => { if (!busy) onClose(); }} title={t("title")} meta={product.name} width={520} closeLabel={common("close")} footer={footer}>
+        <dl className="dl">
+          <dt>{t("value")}</dt>
+          <dd className="tabular-nums"><MaskedMoney text={format.money(product.balance ?? 0)} /></dd>
+          <dt>{t("cost")}</dt>
+          <dd className="tabular-nums">{product.cost_basis == null ? t("costUnknown") : <MaskedMoney text={format.money(product.cost_basis)} />}</dd>
         </dl>
-        <p className="text-sm">
-          Nilai dan modal di atas tetap. Jumlah unit dan harga rata-rata per unit tidak lagi dicatat, lalu produk memakai Top up dan Perbarui nilai dalam rupiah, seperti tampilan Bibit.
-        </p>
-        <p className="text-sm font-semibold">Perubahan ini tidak dapat dibatalkan.</p>
-        {error && <p role="alert" className="text-sm text-out-fg">{error}</p>}
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--line)] pt-3">
-          <button type="button" onClick={onClose} disabled={busy} className="min-h-11 rounded-md border border-[var(--line)] px-3 text-sm">Batal</button>
-          <button type="button" data-autofocus onClick={() => { setError(""); mutation.mutate(product.id); }} disabled={busy} className="ws-btn ws-btn-accent disabled:opacity-50">
-            {busy ? "Menyimpan…" : "Ubah ke nominal"}
-          </button>
-        </div>
-      </div>
-    </Modal>
+        <p className="t-body">{t("body")}</p>
+        <p className="t-body t-strong">{t("note")}</p>
+        {error && <p role="alert" className="form-alert">{error}</p>}
+      </ShellDialog>
+    </UntranslatedRegion>
   );
 }

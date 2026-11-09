@@ -281,7 +281,7 @@ def seeded_user():
 
     with db_conn() as conn:
         user = conn.execute(
-            "INSERT INTO users (username, password_hash, invite_code) VALUES (%s, 'x', 'x') RETURNING id",
+            "INSERT INTO users (username, password_hash, invite_code, language) VALUES (%s, 'x', 'x', 'id') RETURNING id",
             (f"fictional_seed_{uuid4().hex[:10]}",),
         ).fetchone()["id"]
         conn.commit()

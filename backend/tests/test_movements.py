@@ -172,7 +172,7 @@ def test_post_movement_same_account_rejected():
         },
     )
     assert res.status_code == 400
-    assert "must be different" in res.json()["detail"].lower()
+    assert res.json()["detail"]["code"] == "same_account"
     app.dependency_overrides.clear()
 
 
@@ -258,6 +258,8 @@ def test_post_movement_excluded_from_pulse():
         "currency": "IDR",
         "payday_day": 25,
         "monthly_spending_budget": 5000000,
+        "language": "id",
+        "region": "ID",
     }
     app.dependency_overrides[get_current_user] = lambda: mock_user
 

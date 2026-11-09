@@ -19,10 +19,13 @@ from openai import (
 )
 from pydantic import ValidationError
 
-from app.services.capture_normalization import CaptureNormalization, capture_prompt
+from app.services.capture_normalization import CaptureNormalization
 from app.services.notification_context import CONTEXT_BYTE_LIMIT
-from app.services.notification_interpretation import Interpretation, system_prompt
-from app.services.purpose_normalization import PurposeNormalization, purpose_prompt
+from app.services.notification_interpretation import Interpretation
+from app.services.prompt_language import (
+    CAPTURE_NORMALIZATION, HISTORY_SUGGESTIONS, NOTIFICATION_INTERPRETATION, PURPOSE_NORMALIZATION, Prompt,
+)
+from app.services.purpose_normalization import PurposeNormalization
 
 
 # Models approved for live transaction parsing. Expand here to add candidates during evaluation.
@@ -125,6 +128,13 @@ def model_input(context: dict) -> str:
     return context_json
 
 
+def instructions(prompt: Prompt, name: str) -> str:
+    """The prompt text for one call; the caller chose its output language (localize-server-text D7)."""
+    if prompt.name != name:
+        raise ValueError("prompt does not belong to this call")
+    return prompt.text
+
+
 class OpenAINotificationProvider:
     def __init__(
         self,
@@ -147,8 +157,8 @@ class OpenAINotificationProvider:
             http_client=http_client,
         )
 
-    async def interpret(self, context: dict) -> Interpretation:
-        output = await self.respond(system_prompt(), context, response_schema())
+    async def interpret(self, context: dict, *, prompt: Prompt) -> Interpretation:
+        output = await self.respond(instructions(prompt, NOTIFICATION_INTERPRETATION), context, response_schema())
         try:
             proposal = Interpretation.model_validate_json(output)
         except (ValueError, TypeError, ValidationError):
@@ -160,30 +170,30 @@ class OpenAINotificationProvider:
             proposal = proposal.model_copy(update={"category_id": None, "kakeibo": None})
         return proposal
 
-    async def normalize_purpose(self, context: dict) -> PurposeNormalization:
+    async def normalize_purpose(self, context: dict, *, prompt: Prompt) -> PurposeNormalization:
         output = await self.respond(
-            purpose_prompt(), context, response_schema(PurposeNormalization, "purpose_normalization"),
+            instructions(prompt, PURPOSE_NORMALIZATION), context, response_schema(PurposeNormalization, "purpose_normalization"),
         )
         try:
             return PurposeNormalization.model_validate_json(output)
         except (ValueError, TypeError, ValidationError):
             raise ProviderError("provider_invalid_output") from None
 
-    async def normalize_capture(self, context: dict) -> CaptureNormalization:
+    async def normalize_capture(self, context: dict, *, prompt: Prompt) -> CaptureNormalization:
         output = await self.respond(
-            capture_prompt(), context, response_schema(CaptureNormalization, "capture_normalization"),
+            instructions(prompt, CAPTURE_NORMALIZATION), context, response_schema(CaptureNormalization, "capture_normalization"),
         )
         try:
             return CaptureNormalization.model_validate_json(output)
         except (ValueError, TypeError, ValidationError):
             raise ProviderError("provider_invalid_output") from None
 
-    async def suggest_history(self, context: dict):
+    async def suggest_history(self, context: dict, *, prompt: Prompt):
         # Imported here: the suggestion service needs the database, and this module must load without it.
-        from app.services.history_suggestions import HistorySuggestionBatch, history_prompt, parse_batch
+        from app.services.history_suggestions import HistorySuggestionBatch, parse_batch
 
         output = await self.respond(
-            history_prompt(), context, response_schema(HistorySuggestionBatch, "history_suggestions"),
+            instructions(prompt, HISTORY_SUGGESTIONS), context, response_schema(HistorySuggestionBatch, "history_suggestions"),
         )
         return parse_batch(output)
 

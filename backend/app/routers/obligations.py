@@ -2,11 +2,12 @@ import datetime
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from psycopg.errors import ForeignKeyViolation
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.db.pool import db_conn
+from app.errors import ErrorCode, api_error
 from app.services.auth import get_current_user
 from app.services.payment_links import link_payment_to_obligation, lock_payment, obligation_payment_candidates
 
@@ -123,9 +124,9 @@ def create_obligation(payload: ObligationCreate, current_user: dict = Depends(ge
         try:
             d_date = datetime.date.fromisoformat(payload.due_date)
         except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid due_date format, expected YYYY-MM-DD")
+            raise api_error(400, ErrorCode.INVALID_DUE_DATE)
     if payload.remaining_amount > payload.total_amount:
-        raise HTTPException(status_code=422, detail="Remaining amount cannot exceed total amount")
+        raise api_error(422, ErrorCode.REMAINING_EXCEEDS_TOTAL)
 
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -134,7 +135,7 @@ def create_obligation(payload: ObligationCreate, current_user: dict = Depends(ge
                 (user_id, name),
             )
             if cur.fetchone():
-                raise HTTPException(status_code=409, detail="Obligation with this name already exists")
+                raise api_error(409, ErrorCode.OBLIGATION_NAME_TAKEN)
 
             is_archived = payload.remaining_amount <= 0
             cur.execute(
@@ -159,7 +160,7 @@ def update_obligation(
 ):
     user_id = current_user["id"]
     if not payload.model_fields_set:
-        raise HTTPException(status_code=400, detail="No fields to update")
+        raise api_error(400, ErrorCode.NO_FIELDS_TO_UPDATE)
 
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -175,7 +176,7 @@ def update_obligation(
             )
             old = cur.fetchone()
             if not old:
-                raise HTTPException(status_code=404, detail="Obligation not found")
+                raise api_error(404, ErrorCode.OBLIGATION_NOT_FOUND)
 
             total = payload.total_amount if payload.total_amount is not None else int(old["total_amount"])
             remaining = (
@@ -184,7 +185,7 @@ def update_obligation(
                 else int(old["remaining_amount"])
             )
             if remaining > total:
-                raise HTTPException(status_code=422, detail="Remaining amount cannot exceed total amount")
+                raise api_error(422, ErrorCode.REMAINING_EXCEEDS_TOTAL)
 
             due_date = old["due_date"]
             if "due_date" in payload.model_fields_set:
@@ -194,7 +195,7 @@ def update_obligation(
                     try:
                         due_date = datetime.date.fromisoformat(payload.due_date)
                     except ValueError:
-                        raise HTTPException(status_code=400, detail="Invalid due_date format")
+                        raise api_error(400, ErrorCode.INVALID_DUE_DATE)
 
             archived = bool(old["is_archived"])
             if payload.remaining_amount is not None:
@@ -245,10 +246,7 @@ def delete_obligation(
                         (str(obligation_id), user_id),
                     )
                 except ForeignKeyViolation as error:
-                    raise HTTPException(
-                        status_code=409,
-                        detail="Hapus atau pindahkan pembayaran yang terkait sebelum menghapus tagihan ini secara permanen.",
-                    ) from error
+                    raise api_error(409, ErrorCode.OBLIGATION_HAS_PAYMENTS) from error
             else:
                 cur.execute(
                     """
@@ -261,7 +259,7 @@ def delete_obligation(
                 )
             row = cur.fetchone()
             if not row:
-                raise HTTPException(status_code=404, detail="Obligation not found")
+                raise api_error(404, ErrorCode.OBLIGATION_NOT_FOUND)
             conn.commit()
             return {"ok": True, "deleted": True}
 
@@ -278,7 +276,7 @@ def list_payment_candidates(obligation_id: UUID, current_user: dict = Depends(ge
             )
             obligation = cur.fetchone()
             if not obligation:
-                raise HTTPException(status_code=404, detail="Obligation not found")
+                raise api_error(404, ErrorCode.OBLIGATION_NOT_FOUND)
             return {"ok": True, **obligation_payment_candidates(cur, user_id, obligation)}
 
 
@@ -303,6 +301,6 @@ def link_obligation_payment(
             )
             row = cur.fetchone()
             if not row:
-                raise HTTPException(status_code=404, detail="Obligation not found")
+                raise api_error(404, ErrorCode.OBLIGATION_NOT_FOUND)
             conn.commit()
     return {"ok": True, "changed": changed, "obligation": format_obligation_row(row)}

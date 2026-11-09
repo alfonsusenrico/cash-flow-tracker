@@ -12,6 +12,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.core.config import settings
+from app.i18n import account_language
 from app.services.kakeibo import UNCLASSIFIED, pillar_bucket_sql
 from app.services.monthly_comparison import build_comparison
 from app.services.observed_insights import (
@@ -27,7 +28,7 @@ from app.services.observed_periods import (
     salary_boundaries,
 )
 from app.services.report_figures import (
-    UNCATEGORIZED_NAME,
+    uncategorized_name,
     category_breakdown,
     possible_duplicate_sql,
     reportable_expense_sql,
@@ -35,6 +36,7 @@ from app.services.report_figures import (
 )
 from app.services.report_windows import shift_month
 from app.services.seen_twice import seen_twice_count
+from app.services.spending_basis import SpendingBasis, spending_basis, spending_merchants
 
 BASES = ("month", "cycle")
 BASIS_PATTERN = "^(month|cycle)$"
@@ -95,11 +97,10 @@ _REVIEW_COUNT_SQL = f"""
 class ReportError(Exception):
     """A request for a period that does not exist or a basis the owner cannot use."""
 
-    def __init__(self, status: int, code: str, message: str):
-        super().__init__(message)
+    def __init__(self, status: int, code: str):
+        super().__init__(code)
         self.status = status
         self.code = code
-        self.message = message
 
 
 def _zone() -> ZoneInfo:
@@ -127,26 +128,29 @@ def list_periods(cur, user_id: str, basis: str, *, now: datetime) -> dict[str, A
     first_day = first_recorded_day(cur, user_id)
     boundaries, cycle_status = salary_boundaries(cur, user_id, now)
     cycle_available = bool(boundaries)
+    language, _region = account_language(cur, user_id)
     periods: list[ObservedPeriod] = []
     if first_day is not None and basis == "month":
         today = now.astimezone(_zone()).date()
         year, month = today.year, today.month
         for _ in range(CLOSED_PERIOD_LIMIT + 1):
-            period = month_period(year, month, now=now)
+            period = month_period(year, month, now=now, language=language)
             if local_end(period) < first_day:
                 break
             periods.append(period)
             year, month = shift_month(year, month, -1)
     elif first_day is not None and basis == "cycle" and boundaries:
-        periods.append(ObservedPeriod("cycle", boundaries[-1], now, cycle_label(boundaries[-1], now, open_cycle=True), False))
+        periods.append(ObservedPeriod("cycle", boundaries[-1], now,
+                                      cycle_label(boundaries[-1], now, open_cycle=True, language=language), False))
         closed = [
-            ObservedPeriod("cycle", start, end, cycle_label(start, end - timedelta(microseconds=1), open_cycle=False), True)
+            ObservedPeriod("cycle", start, end,
+                           cycle_label(start, end - timedelta(microseconds=1), open_cycle=False, language=language), True)
             for start, end in zip(boundaries[:-1], boundaries[1:])
         ]
         periods.extend(reversed(closed[-CLOSED_PERIOD_LIMIT:]))
     return {
         "periods": periods, "first_day": first_day,
-        "cycle_available": cycle_available, "cycle_status": cycle_status,
+        "cycle_available": cycle_available, "cycle_status": cycle_status, "language": language,
     }
 
 
@@ -168,14 +172,14 @@ def default_period(periods: list[ObservedPeriod]) -> ObservedPeriod | None:
 
 def resolve_period(listing: dict[str, Any], basis: str, start_date: date | None) -> ObservedPeriod:
     if basis == "cycle" and not listing["cycle_available"]:
-        raise ReportError(409, "cycle_unavailable", "Siklus gaji belum tersedia. Gunakan bulan kalender.")
+        raise ReportError(409, "cycle_unavailable")
     periods = listing["periods"]
     if start_date is None:
         period = default_period(periods)
     else:
         period = next((item for item in periods if local_start(item) == start_date), None)
     if period is None:
-        raise ReportError(404, "period_not_found", "Periode laporan tidak ditemukan.")
+        raise ReportError(404, "period_not_found")
     return period
 
 
@@ -188,7 +192,7 @@ def _previous_window(listing: dict[str, Any], period: ObservedPeriod, basis: str
     if basis == "month":
         start = local_start(period)
         year, month = shift_month(start.year, start.month, -1)
-        return month_period(year, month, now=now)
+        return month_period(year, month, now=now, language=listing["language"])
     return None
 
 
@@ -208,7 +212,7 @@ def _income_sources(cur, user_id: str, start: datetime, end: datetime) -> list[d
     sources = [
         {
             "category_id": str(row["category_id"]) if row["category_id"] else None,
-            "name": row["name"] or UNCATEGORIZED_NAME,
+            "name": row["name"] or uncategorized_name(cur, user_id),
             "amount": int(row["amount"]), "count": int(row["count"]),
         }
         for row in cur.fetchall()
@@ -307,12 +311,19 @@ def _data_quality(cur, user_id: str, period: ObservedPeriod, kakeibo: dict[str, 
     }
 
 
-def _budget(breakdown: list[dict[str, Any]], outflow: int, overall_budget: int | None, basis: str) -> dict[str, Any] | None:
-    """Budget against actual, or None when the owner set no budget at all (budgets stay hidden)."""
+def _budget(breakdown: list[dict[str, Any]], outflow: int, overall_budget: int | None, basis: str,
+            spending: SpendingBasis) -> dict[str, Any] | None:
+    """Budget against actual, or None when the owner set no budget at all (budgets stay hidden).
+
+    `spent` and `remaining` are on the Belanja basis; `spending` and `spending_remaining` beside them on the
+    Pengeluaran basis, which Laporan shows (apply-markas-laporan D29, owner decision 2026-11-08).
+    """
     rows = [
         {
             "category_id": row["id"], "name": row["name"], "budget": int(row["monthly_budget"]),
             "spent": int(row["spent"]), "remaining": int(row["monthly_budget"]) - int(row["spent"]),
+            "spending": spending.category(row["id"]),
+            "spending_remaining": int(row["monthly_budget"]) - spending.category(row["id"]),
         }
         for row in breakdown
         if not row["is_uncategorized"] and not row["is_archived"] and (row["monthly_budget"] or 0) > 0
@@ -327,7 +338,11 @@ def _budget(breakdown: list[dict[str, Any]], outflow: int, overall_budget: int |
         "categories": rows,
         "total_budget": sum(item["budget"] for item in rows),
         "total_spent": sum(item["spent"] for item in rows),
-        "overall": None if overall is None else {"budget": overall, "spent": outflow, "remaining": overall - outflow},
+        "total_spending": sum(item["spending"] for item in rows),
+        "overall": None if overall is None else {
+            "budget": overall, "spent": outflow, "remaining": overall - outflow,
+            "spending": spending.total, "spending_remaining": overall - spending.total,
+        },
     }
 
 
@@ -368,6 +383,9 @@ def build_report(
     kakeibo = kakeibo_breakdown(cur, user_id, start, end, figures["inflow"], offsets)
     breakdown = category_breakdown(cur, user_id, start, end, offsets)
     merchants = sorted(merchant_spending(cur, user_id, start, end).values(), key=lambda item: (-item["amount"], item["name"]))
+    # Pengeluaran beside the Belanja-basis figures, so every "Pengeluaran" on Laporan is one figure (D29).
+    spending = spending_basis(cur, user_id, start, end, offsets)
+    pengeluaran_merchants = spending_merchants(cur, user_id, start, end)
     pillar_amounts = {
         "need": kakeibo["need_spent"], "want": kakeibo["want_spent"], "culture": kakeibo["culture_spent"],
         "unexpected": kakeibo["unexpected_spent"], "saving": kakeibo["saving_expenses"],
@@ -378,7 +396,7 @@ def build_report(
     comparison = build_comparison(
         cur, user_id, basis=basis, period=period, listing=listing, now=now,
         kakeibo_breakdown=kakeibo_breakdown, recurring_in_period=lambda *_args, **_kwargs: recurring,
-        merchants=merchants,
+        merchants=merchants, spending_merchants=pengeluaran_merchants,
     )
     first_day = listing["first_day"]
     previous_reflection = None
@@ -389,7 +407,7 @@ def build_report(
     return {
         "basis": basis,
         "period": describe_period(period, basis, first_day),
-        "flow": {key: figures[key] for key in FLOW_KEYS},
+        "flow": {**{key: figures[key] for key in FLOW_KEYS}, "spending_reimbursement_offset": spending.reimbursed},
         "income": {"total": figures["inflow"], "sources": _income_sources(cur, user_id, start, end)},
         "savings": {
             "fresh_saving": kakeibo["saving_spent"],
@@ -410,13 +428,17 @@ def build_report(
             "top_merchants": [
                 {"name": item["name"], "search_text": item["search_text"], "amount": item["amount"]} for item in merchants[:TOP_LIMIT]
             ],
+            "top_spending_merchants": [
+                {"name": item["name"], "search_text": item["search_text"], "amount": item["amount"]}
+                for item in pengeluaran_merchants[:TOP_LIMIT]
+            ],
             "unexpected": {"amount": kakeibo["unexpected_spent"], **_unexpected_items(cur, user_id, start, end)},
             "recurring": recurring,
             "essential": essential,
         },
         "comparison": comparison,
         "data_quality": _data_quality(cur, user_id, period, kakeibo, now=now),
-        "budget": _budget(breakdown, figures["outflow"], overall_budget, basis),
+        "budget": _budget(breakdown, figures["outflow"], overall_budget, basis, spending),
         "reflection": load_reflection(cur, user_id, basis, local_start(period)),
         "previous_reflection": previous_reflection,
     }

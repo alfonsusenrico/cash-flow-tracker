@@ -256,10 +256,10 @@ def test_unsupported_currency_stays_a_schema_error(browser):
     assert isinstance(response.json()["detail"], list)
 
 
-def test_not_authenticated_stays_a_plain_string(browser):
+def test_not_authenticated_is_a_coded_error(browser):
     response = browser().get("/api/auth/me")
     assert response.status_code == 401
-    assert response.json()["detail"] == "Not authenticated"
+    assert response.json()["detail"] == {"code": "not_authenticated", "params": {}, "message": "Not authenticated"}
 
 
 # --- Starter data by account language (task 2.5) -------------------------------------------------------------

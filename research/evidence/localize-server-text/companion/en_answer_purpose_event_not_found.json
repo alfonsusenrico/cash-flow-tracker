@@ -1,0 +1,12 @@
+{
+  "status": 404,
+  "content_language": "en",
+  "body": {
+    "ok": false,
+    "detail": {
+      "code": "event_not_found",
+      "params": {},
+      "message": "Notification event not found"
+    }
+  }
+}

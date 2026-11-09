@@ -1,0 +1,12 @@
+{
+  "status": 404,
+  "content_language": "id",
+  "body": {
+    "ok": false,
+    "detail": {
+      "code": "event_not_found",
+      "params": {},
+      "message": "Notifikasi tidak ditemukan."
+    }
+  }
+}

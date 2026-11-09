@@ -2,10 +2,11 @@ import datetime
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
 from app.db.pool import db_conn
+from app.errors import ErrorCode, api_error
 from app.routers.accounts import get_accounts_with_balances
 from app.services.auth import get_current_user
 from app.services.credit_accounts import ensure_not_credit
@@ -51,7 +52,7 @@ def _validate_goal_accounts(cur, user_id: str, account_ids: list[UUID]) -> list[
     rows = cur.fetchall()
     found = {str(row["id"]) for row in rows}
     if found != set(requested):
-        raise HTTPException(status_code=404, detail="One or more linked accounts were not found")
+        raise api_error(404, ErrorCode.LINKED_ACCOUNTS_NOT_FOUND)
     # A goal is funded by money held, never by credit owed (add-credit-accounts D7).
     for row in rows:
         ensure_not_credit(row)
@@ -213,7 +214,7 @@ def get_goal(goal_id: UUID, current_user: dict = Depends(get_current_user)):
             )
             row = cur.fetchone()
             if not row:
-                raise HTTPException(status_code=404, detail="Goal not found")
+                raise api_error(404, ErrorCode.GOAL_NOT_FOUND)
 
         goal_accounts_map = get_goal_accounts_map(conn, user_id, [str(goal_id)])
         linked_accounts = goal_accounts_map.get(str(goal_id), [])
@@ -229,7 +230,7 @@ def create_goal(payload: GoalCreate, current_user: dict = Depends(get_current_us
         try:
             t_date = datetime.date.fromisoformat(payload.target_date)
         except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid target_date format, expected YYYY-MM-DD")
+            raise api_error(400, ErrorCode.INVALID_TARGET_DATE)
 
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -238,7 +239,7 @@ def create_goal(payload: GoalCreate, current_user: dict = Depends(get_current_us
                 (user_id, name),
             )
             if cur.fetchone():
-                raise HTTPException(status_code=409, detail="Goal with this name already exists")
+                raise api_error(409, ErrorCode.GOAL_NAME_TAKEN)
 
             valid_account_ids = _validate_goal_accounts(cur, user_id, payload.account_ids)
 
@@ -316,7 +317,7 @@ def update_goal(
                 updates.append("target_date = %s")
                 params.append(t_date)
             except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid target_date format")
+                raise api_error(400, ErrorCode.INVALID_TARGET_DATE)
 
     if payload.color is not None:
         updates.append("color = %s")
@@ -335,7 +336,7 @@ def update_goal(
         params.append(payload.is_archived)
 
     if not updates and payload.account_ids is None:
-        raise HTTPException(status_code=400, detail="No fields to update")
+        raise api_error(400, ErrorCode.NO_FIELDS_TO_UPDATE)
 
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -345,7 +346,7 @@ def update_goal(
             )
             existing_goal = cur.fetchone()
             if not existing_goal:
-                raise HTTPException(status_code=404, detail="Goal not found")
+                raise api_error(404, ErrorCode.GOAL_NOT_FOUND)
 
             new_account_ids = None
             if payload.account_ids is not None:
@@ -354,10 +355,7 @@ def update_goal(
                 cur.execute("SELECT account_id FROM goal_accounts WHERE goal_id = %s", (str(goal_id),))
                 new_account_ids = [str(row["account_id"]) for row in cur.fetchall()]
             if payload.current_amount is not None and new_account_ids:
-                raise HTTPException(
-                    status_code=409,
-                    detail="Account-backed goal progress is derived from linked account balances",
-                )
+                raise api_error(409, ErrorCode.GOAL_PROGRESS_DERIVED)
 
             if updates:
                 updates.append("updated_at = NOW()")
@@ -412,7 +410,7 @@ def adjust_goal_progress(
 ):
     user_id = current_user["id"]
     if payload.amount == 0:
-        raise HTTPException(status_code=422, detail="Adjustment amount must not be zero")
+        raise api_error(422, ErrorCode.ADJUSTMENT_ZERO)
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -426,16 +424,13 @@ def adjust_goal_progress(
             )
             goal = cur.fetchone()
             if not goal:
-                raise HTTPException(status_code=404, detail="Goal not found")
+                raise api_error(404, ErrorCode.GOAL_NOT_FOUND)
             cur.execute("SELECT 1 FROM goal_accounts WHERE goal_id = %s LIMIT 1", (str(goal_id),))
             if cur.fetchone():
-                raise HTTPException(
-                    status_code=409,
-                    detail="Account-backed goal progress cannot be adjusted directly",
-                )
+                raise api_error(409, ErrorCode.GOAL_PROGRESS_NOT_ADJUSTABLE)
             new_amount = int(goal["current_amount"]) + payload.amount
             if new_amount < 0:
-                raise HTTPException(status_code=409, detail="Goal progress cannot be negative")
+                raise api_error(409, ErrorCode.GOAL_PROGRESS_NEGATIVE)
             cur.execute(
                 "UPDATE goals SET current_amount = %s, updated_at = NOW() WHERE id = %s RETURNING current_amount",
                 (new_amount, str(goal_id)),
@@ -471,6 +466,6 @@ def delete_goal(
                 )
             row = cur.fetchone()
             if not row:
-                raise HTTPException(status_code=404, detail="Goal not found")
+                raise api_error(404, ErrorCode.GOAL_NOT_FOUND)
             conn.commit()
             return {"ok": True, "deleted": True}

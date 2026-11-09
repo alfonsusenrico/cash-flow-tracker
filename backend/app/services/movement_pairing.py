@@ -18,6 +18,8 @@ from fastapi import HTTPException
 
 from app.core.config import settings
 from app.db.pool import db_conn
+from app.errors import ErrorCode, api_error
+from app.i18n import account_language, t
 from app.services.ledger_mutations import (
     MOVEMENT_ACCOUNT_TYPES, ensure_generic_movement_accounts, lock_owned_accounts,
 )
@@ -33,7 +35,6 @@ logger = logging.getLogger(__name__)
 CANDIDATE_LIMIT = 50
 REPAIR_LEG_LIMIT = 500
 FEE_CATEGORY_NAME = "Biaya Admin & Transfer"
-FEE_NOTES = "Biaya transfer"
 COMPLETION_KEY_PREFIX = "movement-complete:"
 # The other leg of an own transfer may already be on the chosen account as its own row; completing must
 # link it rather than record the money twice.
@@ -597,10 +598,10 @@ def link_pair(cur, user_id: str, expense_id: str, income_id: str, *, fee: int, n
     )
     rows = {str(row["id"]): row for row in cur.fetchall()}
     if len(rows) != 2 or any(row["movement_id"] for row in rows.values()):
-        raise HTTPException(status_code=409, detail="A leg is already linked or was removed")
+        raise api_error(409, ErrorCode.LEG_UNAVAILABLE)
     expense, income = rows[expense_id], rows[income_id]
     if transfer_fee(expense["amount"], income["amount"]) != fee:
-        raise HTTPException(status_code=409, detail="The legs changed since they were matched")
+        raise api_error(409, ErrorCode.LEGS_CHANGED)
     if fee:
         cur.execute(
             "UPDATE transactions SET amount = amount - %s, updated_at = NOW() WHERE user_id = %s AND id = %s",
@@ -615,7 +616,7 @@ def link_pair(cur, user_id: str, expense_id: str, income_id: str, *, fee: int, n
             """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, kakeibo_type,
                    idempotency_key, fee_for_movement_id, source, review_status, classified_by, classification_confidence)
                VALUES (%s, %s, %s, 'expense', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
-            (user_id, expense["account_id"], category["id"], fee, FEE_NOTES, expense["date"],
+            (user_id, expense["account_id"], category["id"], fee, t(account_language(cur, user_id)[0], "notes.transfer_fee"), expense["date"],
              category["kakeibo_type"], f"movement-fee:{result['movement_id']}", result["movement_id"],
              "movement", "auto", "system", None),
         )
@@ -688,7 +689,8 @@ def attach_events_to_movement(cur, user_id: str, movement_id: str, accounts: dic
     source, target = accounts[str(legs["expense"]["account_id"])], accounts[str(legs["income"]["account_id"])]
     key = events[0]["result_key"] or f"notification:{events[0]['id']}"
     snapshot = committed_snapshot(
-        key=key, kind="internal_movement", description=legs["expense"]["notes"] or "Pindah saldo",
+        key=key, kind="internal_movement",
+        description=legs["expense"]["notes"] or t(account_language(cur, user_id)[0], "notes.movement"),
         amount=int(legs["expense"]["amount"]), source=account_label(source, listed), target=account_label(target, listed),
     )
     refresh_duplicate_results(cur, user_id, [str(leg["id"]) for leg in legs.values()], key, snapshot)
@@ -840,16 +842,13 @@ def complete_movement(
     )
     row = cur.fetchone()
     if not row:
-        raise HTTPException(status_code=404, detail="Transaction not found")
+        raise api_error(404, ErrorCode.TRANSACTION_NOT_FOUND)
     if recorder is not None:
         # The Tinjau undo record (redesign-review-triage D10): the leg's state before anything is written.
         recorder.capture([transaction_id])
     expected_role = {"expense": "target", "income": "source"}.get(row["type"])
     if expected_role != role:
-        raise HTTPException(status_code=422, detail={
-            "code": "counterpart_side_mismatch",
-            "message": "An outgoing leg needs target_account_id; an incoming leg needs source_account_id.",
-        })
+        raise api_error(422, ErrorCode.COUNTERPART_SIDE_MISMATCH)
     completion_key = f"{COMPLETION_KEY_PREFIX}{transaction_id}"
     if row["movement_id"]:
         cur.execute(
@@ -864,24 +863,21 @@ def complete_movement(
             if partner["idempotency_key"] != completion_key:
                 response = {**response, "created_transaction_id": None, "linked_transaction_id": str(partner["id"])}
             return response
-        raise HTTPException(status_code=409, detail={"code": "already_linked", "message": "The transaction is already part of a movement."})
+        raise api_error(409, ErrorCode.ALREADY_LINKED)
     if not is_movement(row["category_system_key"]):
-        raise HTTPException(status_code=422, detail={
-            "code": "not_awaiting_counterpart",
-            "message": "Only an unlinked Internal Movement transaction can be completed.",
-        })
+        raise api_error(422, ErrorCode.NOT_AWAITING_COUNTERPART)
     if row["goal_id"] or row["obligation_id"] or row["recurring_rule_id"] or row["fee_for_movement_id"]:
-        raise HTTPException(status_code=409, detail={"code": "transaction_not_completable", "message": "A linked transaction cannot be completed."})
+        raise api_error(409, ErrorCode.TRANSACTION_NOT_COMPLETABLE)
     own_account_id = str(row["account_id"])
     if counterpart_account_id == own_account_id:
-        raise HTTPException(status_code=422, detail={"code": "same_account", "message": "Accounts must be different"})
+        raise api_error(422, ErrorCode.SAME_ACCOUNT)
     locked = lock_owned_accounts(cur, user_id, [own_account_id, counterpart_account_id])
     other = locked[counterpart_account_id]
     ensure_generic_movement_accounts(locked[own_account_id], other)
     if any(account["type"] not in MOVEMENT_ACCOUNT_TYPES for account in locked.values()):
-        raise HTTPException(status_code=422, detail={"code": "account_not_liquid", "message": "Both accounts must be liquid"})
+        raise api_error(422, ErrorCode.ACCOUNT_NOT_LIQUID)
     if other["has_children"]:
-        raise HTTPException(status_code=422, detail={"code": "account_has_pockets", "message": "Choose a pocket, not its parent account"})
+        raise api_error(422, ErrorCode.ACCOUNT_HAS_POCKETS)
 
     expense_category_id, income_category_id = ensure_internal_movement_categories(cur, user_id)
     new_type = "income" if row["type"] == "expense" else "expense"
@@ -894,11 +890,7 @@ def complete_movement(
             if recorder is not None:
                 recorder.capture([str(only["id"])])
             return link_existing_counterpart(cur, user_id, row, only, notes)
-        raise HTTPException(status_code=409, detail={
-            "code": "counterpart_candidates",
-            "message": "The chosen account already has a matching transaction; link it or confirm a new one.",
-            "candidates": [candidate_summary(candidate) for candidate in candidates],
-        })
+        raise api_error(409, ErrorCode.COUNTERPART_CANDIDATES, extra={"candidates": [candidate_summary(candidate) for candidate in candidates]})
     cur.execute(
         """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, idempotency_key,
                source, review_status, classified_by, classification_confidence)

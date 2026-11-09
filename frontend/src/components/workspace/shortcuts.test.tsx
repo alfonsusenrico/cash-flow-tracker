@@ -270,6 +270,17 @@ describe("isTypingTarget", () => {
     expect(isTypingTarget(null)).toBe(false);
   });
 
+  it("lets single keys through on a checkbox or radio, which take no text (apply-markas-transaksi D18)", () => {
+    for (const type of ["checkbox", "radio"]) {
+      const input = document.createElement("input");
+      input.type = type;
+      expect(isTypingTarget(input)).toBe(false);
+    }
+    const search = document.createElement("input");
+    search.type = "search";
+    expect(isTypingTarget(search)).toBe(true);
+  });
+
   it("Page keys in the help", async () => {
     installStorage();
     const group: PageShortcutGroup = { name: "Di Tinjau", entries: [{ keys: ["J", "K"], text: "Pindah item" }] };
