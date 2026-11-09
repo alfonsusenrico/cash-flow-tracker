@@ -35,16 +35,25 @@ The system SHALL offer one monthly report ("Laporan Bulanan") per period at `GET
 - **THEN** it SHALL contain November 2026 (in progress), October 2026 and September 2026 with `tracking_started_inside: true` and first recorded date 15 September
 
 ### Requirement: Four Kakeibo questions in a fixed order
-The report SHALL answer the Kakeibo month-end questions with its figures: Masuk with its sources by category, Ditabung & investasi (fresh savings: saving-classified expenses and net savings movements, separate from the cash-flow surplus) and Pengeluaran. The page SHALL show the reflection note only when one exists. Every figure SHALL come from the existing reporting services and their rules.
+The page SHALL answer four numbered questions in this order: 1 "Berapa uang masuk?" (Masuk and its sources by category), 2 "Berapa yang ditabung?" (Ditabung & investasi: saving-classified expenses and net savings movements, separate from the surplus), 3 "Berapa pengeluarannya?" (Pengeluaran and its breakdowns), 4 "Apa yang mau diperbaiki bulan depan?" (facts and the note). Every figure SHALL come from the existing reporting services.
 
 #### Scenario: Savings separate from surplus
 - **GIVEN** a month with Rp 5.000.000 inflow, Rp 3.000.000 outflow, a Rp 500.000 movement into a goal-linked pocket and a Rp 100.000 saving-classified expense
 - **WHEN** the report is requested
-- **THEN** fresh savings SHALL be Rp 600.000 with both components listed, the API surplus SHALL be Rp 2.000.000, and the page's Selisih SHALL be Masuk minus Pengeluaran, Rp 2.100.000, without calling it money set aside
+- **THEN** fresh savings SHALL be Rp 600.000 with both components listed under question 2, the API surplus SHALL be Rp 2.000.000, and the page's Selisih SHALL be Masuk minus Pengeluaran, Rp 2.100.000, without calling it money set aside
 
 #### Scenario: No reflection note
 - **WHEN** neither the period nor the previous period has a reflection note
-- **THEN** the page SHALL show no "Apa yang mau diperbaiki bulan depan?" block and no empty form
+- **THEN** question 4 SHALL show its facts and a "Tulis catatan untuk {period}" button, and no empty form and no line about last period's note
+
+#### Scenario: Writing the first note
+- **GIVEN** the October report without a note
+- **WHEN** the owner selects "Tulis catatan untuk Oktober 2026", types "Kurangi jajan kopi" and saves
+- **THEN** the note SHALL be stored with `PUT /api/reports/monthly/reflection`, the form SHALL close, the note SHALL be shown read-only with "Ubah", and focus SHALL move to "Ubah"
+
+#### Scenario: Numbered questions
+- **WHEN** the October report is shown at 1440 and at 390 px
+- **THEN** the four questions SHALL be numbered 1 to 4 in that order, each heading SHALL be a level-2 heading, and each question SHALL be 48 px below the previous one with a rule between them (32 px on the phone)
 
 ### Requirement: Spending answer
 The spending answer SHALL give net outflow, spending per Kakeibo pillar and "Belum diklasifikasi", the top five categories and merchants, the "Tak Terduga" items and the recurring charges detected in the period. The page SHALL present Pengeluaran without the saving pillar, whose expenses belong to Ditabung & investasi.
@@ -141,11 +150,11 @@ The report SHALL return `budget: null` and show no budget figure when the owner 
 - **THEN** it SHALL show budget Rp 500.000, spent Rp 620.000 and Rp 120.000 over, in text
 
 ### Requirement: Report page layout
-`/laporan` SHALL present the report in Indonesian without verdict words, on phone and desktop in both themes, with the basis switch and stepper in the top bar and `basis` and `start` in the URL. "Kualitas data" SHALL be one line, then KPI cards, the pillar and category table, "Yang bisa diperbaiki", the monthly chart and top merchants, with no prose lead and no unused column. States SHALL be truthful.
+`/laporan` SHALL show, without verdict words, the basis segment and stepper in its title block with `basis` and `start` in the URL, then one hero "Pengeluaran {period}", the four questions in a reading column of at most 880 px and a context panel with "Kualitas data" in one line, "Selisih" and "Laporan sebelumnya", beside it from 1200 px and after it below. It SHALL have no KPI cards or prose lead, and states SHALL be truthful.
 
 #### Scenario: Phone width
-- **WHEN** the page is shown at 390 CSS pixels
-- **THEN** no content SHALL overflow horizontally and every action SHALL be keyboard operable with a visible focus
+- **WHEN** the page is shown at 390 and at 320 CSS pixels
+- **THEN** no content SHALL overflow horizontally, the panel SHALL follow the questions, and every action SHALL be keyboard operable with a visible focus
 
 #### Scenario: New user
 - **WHEN** a user without any transaction opens `/laporan`
@@ -158,7 +167,20 @@ The report SHALL return `budget: null` and show no budget figure when the owner 
 
 #### Scenario: Past reports
 - **WHEN** the report page is shown on a desktop
-- **THEN** a "Laporan sebelumnya" card SHALL list the earlier periods of the basis with their readiness, each linking to its report
+- **THEN** the panel's "Laporan sebelumnya" SHALL list the periods of the basis with "Berjalan" or "Lengkap" and " · ada catatan", each a whole-row link to its report, the shown one marked with the straight selection bar and `aria-current="page"`
+
+#### Scenario: Hero against both comparisons
+- **GIVEN** October with Pengeluaran Rp 5.993.830, a whole September of Rp 5.240.000 and an average of Rp 4.943.333
+- **WHEN** the October report is shown
+- **THEN** the hero SHALL read "Pengeluaran Oktober 2026" with "▲ Rp 753.830 vs September · ▲ Rp 1.050.497 vs rata-rata 3 bulan", and the page SHALL have exactly one 44 px figure
+
+#### Scenario: Whole-row targets and expense colour
+- **WHEN** the owner activates a merchant row, a pillar row of the table or an income source
+- **THEN** the ledger SHALL open on that report's window with the row's filter, and merchant amounts SHALL read "−Rp …" in the expense text colour
+
+#### Scenario: Hidden balances
+- **WHEN** "Sembunyikan saldo" is on
+- **THEN** every amount, change, bar label and chart description SHALL read as hidden, and only percentages and counts SHALL stay
 
 ### Requirement: Three-Period Average
 A completed period SHALL also be compared with the average of the three most recent completed, non-partial periods before it on the same basis: Oktober with Juli to September. The period SHALL never be part of its own average. Averages SHALL be whole rupiah rounded half up, with two usable periods labelled as a two-period average, and with fewer none.
@@ -177,12 +199,12 @@ A completed period SHALL also be compared with the average of the three most rec
 - **THEN** there SHALL be no baseline, the page SHALL say "Rata-rata muncul setelah 2 bulan lengkap", and no Rp 0 baseline SHALL be shown
 
 ### Requirement: Running Period Progress
-For the period in progress the report SHALL show Pengeluaran so far and its share of the previous whole period's Pengeluaran, in total and per pillar, as a bar and "{n}% dari total {period}". It SHALL show no change, no ▲ or ▼, and no words judging the period until it is complete.
+For the period in progress the report SHALL show Pengeluaran so far and its share of the previous whole period's Pengeluaran, in total and per pillar, as a bar and "{n}% dari total {period}", and in total its share of the 3-period average when one exists. It SHALL show no change, no ▲ or ▼, and no words judging the period until it is complete.
 
 #### Scenario: November in progress
-- **GIVEN** Rp 1.450.000 of Pengeluaran in November so far and Rp 4.802.000 in October
+- **GIVEN** Rp 1.450.000 of Pengeluaran in November so far, Rp 4.802.000 in October and a 3-month average of Rp 3.910.167
 - **WHEN** the November report is shown on 4 November
-- **THEN** it SHALL read "30% dari total Oktober 2026" with a bar, and no figure SHALL carry "naik", "turun" or an arrow
+- **THEN** it SHALL read "30% dari total Oktober 2026 · 37% dari rata-rata 3 bulan" with a bar and "Periode berjalan · dibandingkan setelah selesai", and no figure SHALL carry "naik", "turun" or an arrow
 
 #### Scenario: No previous whole period
 - **WHEN** the running period has no completed previous period
@@ -216,11 +238,19 @@ The report SHALL show "Yang bisa diperbaiki": at most seven deterministic facts,
 - **THEN** "Sejauh ini" SHALL list only the top merchant, the recurring bills seen and the unexpected spending, without any comparison
 
 ### Requirement: Monthly Spending History
-The report SHALL show the Pengeluaran of the last four completed periods and the running one as stacked pillar bars with their amounts as text, the viewed period highlighted and the running one marked "berjalan", and SHALL say that a running period is not compared until it ends.
+The report SHALL show the Pengeluaran of the last four completed periods and the running one as one series of bars proportional to their amounts, each with its amount as text, the viewed period highlighted, the running one hatched and marked "berjalan", a legend naming both, and the same values as a table, and SHALL say that a running period is not compared until it ends.
 
 #### Scenario: Five bars
 - **WHEN** the October report is shown in November with data since Juli
 - **THEN** the chart SHALL show Juli, Agustus, September, Oktober (highlighted) and November marked "berjalan", each with its amount as text
+
+#### Scenario: Proportional heights
+- **WHEN** the bars are Rp 4.980.000, Rp 5.240.000, Rp 5.993.830 and Rp 2.463.990
+- **THEN** their heights SHALL be 93, 98, 112 and 46 px within 1 px
+
+#### Scenario: Table alternative
+- **WHEN** the owner selects "Lihat sebagai tabel"
+- **THEN** a table SHALL list each period with its Pengeluaran, the viewed one marked "dilihat" and the running one "berjalan"
 
 ### Requirement: Whole-Period Comparison API
 `GET /api/reports/monthly/comparison` SHALL return, for the owner and the requested basis and period, the totals, the previous period, the baseline, running progress, pillars with categories, facts and history. Running progress SHALL carry `baseline_share`, Pengeluaran so far as a whole percent of the baseline's, rounded half up, or null. `GET /api/reports/monthly` SHALL return the same object as `comparison`. Every amount SHALL equal the ledger summary of its window and filters.
@@ -245,3 +275,37 @@ The report SHALL show the Pengeluaran of the last four completed periods and the
 #### Scenario: No baseline share
 - **WHEN** the running period has fewer than two whole, non-partial periods before it, or a completed period is requested
 - **THEN** `progress.baseline_share` SHALL be null, or `progress` SHALL be null as before
+
+### Requirement: Laporan in Both Languages
+Laporan SHALL read in English and Indonesian from one catalogue per language, with period labels and facts from the server's codes and dates and amounts formatted by the account region, and SHALL show no untranslated-page notice. Every figure SHALL be the same string in both languages for the same data, and "Pengeluaran" / "Spending" SHALL be the only label of the spending figure.
+
+#### Scenario: English Laporan
+- **WHEN** an English account in region Indonesia opens the October report
+- **THEN** it SHALL read "Report", "Spending for October 2026", "How much came in?" and "Data quality", amounts SHALL read "Rp 5.993.830", and no region SHALL carry `lang="id"`
+
+#### Scenario: Figures in both languages
+- **GIVEN** an English and an Indonesian account with the same data
+- **WHEN** both open the same report
+- **THEN** every amount, count, percent and date number SHALL be the same string in both
+
+### Requirement: One Pengeluaran on Laporan
+Every "Pengeluaran" figure on Laporan SHALL equal the comparison's `totals.spending` for its period, as on Beranda, Transaksi and Analisis, so expenses with the Tabungan pillar never count as spending there. The report SHALL return read-only Pengeluaran-basis fields beside its Belanja-basis fields, which keep their values, and Laporan SHALL show them for its top places, budgets, reimbursement caption and top-merchant fact.
+
+#### Scenario: Pengeluaran-basis fields
+- **WHEN** a report is requested
+- **THEN** it SHALL contain `spending.top_spending_merchants`, `budget.categories[].spending` and `spending_remaining`, `budget.total_spending`, `budget.overall.spending` and `spending_remaining`, `flow.spending_reimbursement_offset` and `comparison.spending_top_merchant`, each from the Pengeluaran rule of `services/spending_basis.py`
+
+#### Scenario: Same Pengeluaran as Analisis
+- **GIVEN** a closed month with Rp 635.000 of Pengeluaran after a Rp 60.000 reimbursement and Rp 1.240.000 of expenses with the Tabungan pillar
+- **WHEN** Laporan and Analisis show that month
+- **THEN** both SHALL read Pengeluaran Rp 635.000, and the sums of Analisis's daily, category, calendar and flow figures SHALL equal it
+
+#### Scenario: Top places without saving
+- **GIVEN** the largest merchant of the month holds only expenses with the Tabungan pillar
+- **WHEN** the report is shown
+- **THEN** "Tempat belanja terbesar" and the top-merchant fact SHALL name the largest merchant of Pengeluaran instead, and `spending.top_merchants` SHALL keep its value
+
+#### Scenario: Budget on Pengeluaran
+- **GIVEN** a Rp 1.000.000 budget on Belanja Dapur with Rp 450.000 of Pengeluaran and a Rp 900.000 row with the Tabungan pillar in it
+- **WHEN** the report is shown
+- **THEN** the budget row SHALL read "Rp 450.000 dari Rp 1.000.000 · sisa Rp 550.000", while `spent` stays Rp 1.350.000
