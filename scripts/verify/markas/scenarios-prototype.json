@@ -494,5 +494,61 @@
     "click": "^Tindakan lain$|^…$"
    }
   ]
+ },
+ {
+  "name": "pengaturan-perangkat",
+  "path": "/pengaturan/perangkat",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-kebiasaan",
+  "path": "/pengaturan/kebiasaan",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-tampilan",
+  "path": "/pengaturan/tampilan",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-profil",
+  "path": "/pengaturan/profil",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-gaji",
+  "path": "/pengaturan/gaji",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-anggaran",
+  "path": "/pengaturan/anggaran",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-pemetaan",
+  "path": "/pengaturan/pemetaan",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-pengirim",
+  "path": "/pengaturan/pengirim",
+  "pengaturan": true
+ },
+ {
+  "name": "pengaturan-sesi-uji",
+  "path": "/pengaturan/sesi-uji",
+  "pengaturan": true
+ },
+ {
+  "name": "dlg-hubungkan-ponsel",
+  "path": "/pengaturan/perangkat",
+  "steps": [
+   {
+    "click": "^Hubungkan ponsel$",
+    "after": 900
+   }
+  ],
+  "pengaturan": true
  }
 ]
