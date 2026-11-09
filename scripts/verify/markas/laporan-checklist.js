@@ -57,7 +57,9 @@
     }
   }
 
-  if (!dialog && first(".lp-article")) {
+  const loading = Boolean(first(".lp-article[aria-busy='true']"));
+  if (loading) add("loading article is a busy status", first(".lp-article[aria-busy='true']").getAttribute("role"), "status");
+  if (!dialog && first(".lp-article") && !loading) {
     add("one 44 px figure", all(".t-hero").length, 1);
     const figure = first(".t-hero");
     if (figure && !first(".skel", figure)) add("hero figure 44/52 600 (32/40 below 360 px)", font(figure), innerWidth < 360 ? "32/40 600" : "44/52 600");
