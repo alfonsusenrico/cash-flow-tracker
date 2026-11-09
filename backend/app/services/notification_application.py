@@ -24,7 +24,9 @@ from app.services.movement_pairing import (
 )
 from app.services.notification_context import CANDIDATE_LIMIT, discover_candidates, sanitize_text
 from app.services.notification_evidence import EvidenceError, NotificationFacts, parse_idr_amount
-from app.services.notification_interpretation import Interpretation, validate_interpretation
+from app.services.notification_interpretation import (
+    DETERMINISTIC_SOURCES, Interpretation, record_shape_error, validate_interpretation,
+)
 from app.services.notification_resolution import (
     category_system_key, institution_parent, main_endpoint, movement_categories, observed_endpoint,
     observed_endpoint_with_basis, pocket_endpoint, root_account_id, transfer_signature,
@@ -130,7 +132,15 @@ def memory_interpretation(facts: NotificationFacts, context: dict) -> Interpreta
         "source_evidence": "", "target_evidence": "", "candidate_transaction_id": None,
         "confidence": 1.0, "review_reason": "none",
     }
-    return Interpretation.model_validate_json(json.dumps(payload))
+    return backend_interpretation(payload, allow_uncategorized=False)
+
+
+def backend_interpretation(payload: dict, *, allow_uncategorized: bool) -> Interpretation:
+    """An interpretation built by backend code; an incomplete one is a programming error, not model uncertainty."""
+    interpretation = Interpretation.model_validate_json(json.dumps(payload))
+    if problem := record_shape_error(interpretation, allow_uncategorized=allow_uncategorized):
+        raise ValueError(f"Backend interpretation is incomplete: {problem}")
+    return interpretation
 
 
 def classify_without_model(facts: NotificationFacts, context: dict, *, fallback: bool = False) -> tuple[Interpretation, str]:
@@ -184,7 +194,7 @@ def deterministic_interpretation(facts: NotificationFacts, context: dict) -> Int
         "source_evidence": "", "target_evidence": "", "candidate_transaction_id": None,
         "confidence": 1.0, "review_reason": "none",
     }
-    return Interpretation.model_validate_json(json.dumps(payload), context={"allow_uncategorized": True})
+    return backend_interpretation(payload, allow_uncategorized=True)
 
 
 
@@ -278,8 +288,10 @@ def lock_application_categories(cur, user_id: str, expected: dict[str, str]):
         raise EvidenceError("invalid_current_category")
 
 
-def resolve_record(facts: NotificationFacts, proposal: Interpretation, context: dict) -> dict:
-    validate_interpretation(proposal, facts, context)
+def resolve_record(
+    facts: NotificationFacts, proposal: Interpretation, context: dict, *, allow_uncategorized: bool = False
+) -> dict:
+    validate_interpretation(proposal, facts, context, allow_uncategorized=allow_uncategorized)
     accounts = context["accounts"]
     if proposal.direction == "internal_movement":
         if facts.institution != "jago":
@@ -328,7 +340,8 @@ def apply_interpretation(
     if source_pocket_gate(cur, event, facts):
         return 0
     facts = resolved_facts(cur, event, facts)
-    validate_interpretation(proposal, facts, context)
+    allow_uncategorized = source in DETERMINISTIC_SOURCES
+    validate_interpretation(proposal, facts, context, allow_uncategorized=allow_uncategorized)
     if proposal.outcome != "record":
         state = "ignored" if proposal.outcome == "ignored" else "needs_review"
         cur.execute("UPDATE notification_events SET processing_state = %s, error_code = %s, lease_token = NULL, lease_expires_at = NULL WHERE id = %s", (state, "model_uncertain" if state == "needs_review" else None, event["id"]))
@@ -347,7 +360,7 @@ def apply_interpretation(
     user_id, event_id = str(event["user_id"]), str(event["id"])
     accounts = context["accounts"]
     key = f"notification:{event_id}"
-    resolved = resolve_record(facts, proposal, context)
+    resolved = resolve_record(facts, proposal, context, allow_uncategorized=allow_uncategorized)
     if proposal.direction == "internal_movement":
         source, target = resolved["source"], resolved["target"]
         exp_category, inc_category = resolved["expense_category"], resolved["income_category"]

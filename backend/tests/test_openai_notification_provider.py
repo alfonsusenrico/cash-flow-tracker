@@ -290,3 +290,133 @@ def test_history_suggestions_reject_invalid_output():
     with pytest.raises(ProviderError) as error:
         run_history(handler, {"rows": []})
     assert error.value.code == "provider_invalid_output"
+
+
+def raw_envelope(text: str, *, status="completed", incomplete_reason=None, refusal=None, output_tokens=40):
+    content = []
+    if text is not None:
+        content.append({"type": "output_text", "text": text, "annotations": []})
+    if refusal is not None:
+        content.append({"type": "refusal", "refusal": refusal})
+    body = envelope()
+    body["status"] = status
+    body["output"][0]["content"] = content
+    body["usage"] = {"input_tokens": 3000, "output_tokens": output_tokens, "total_tokens": 3000 + output_tokens}
+    if incomplete_reason:
+        body["incomplete_details"] = {"reason": incomplete_reason}
+    return body
+
+
+def interpret_reply(body, *, capture=False):
+    """Run `interpret` against one synthetic response; returns (proposal or error, provider)."""
+    async def run():
+        async with httpx2.AsyncClient(transport=httpx2.MockTransport(lambda request: httpx2.Response(200, json=body))) as transport:
+            provider = OpenAINotificationProvider(
+                transport, api_key="synthetic-test-credential", model="gpt-6-luna", reasoning_effort="none",
+                capture_invalid_output=capture,
+            )
+            try:
+                result = await provider.interpret(
+                    {"notification": "Synthetic payment"}, prompt=load_prompt("notification_interpretation", "id"),
+                )
+            except ProviderError as error:
+                result = error
+            return result, provider
+    return asyncio.run(run())
+
+
+def complete_reply(**changes):
+    return {**proposal(), "merchant": None, "mappings": [], **changes}
+
+
+@pytest.mark.parametrize("changes", [
+    {"category_id": None, "kakeibo": None},
+    {"account_id": None},
+])
+def test_schema_valid_incomplete_record_is_not_an_invalid_output(changes):
+    """Regression for the 2026-11-08 benchmark: the provider honoured the sent schema and the parser rejected it."""
+    sent = {}
+
+    def handler(request):
+        sent.update(json.loads(request.content))
+        return httpx2.Response(200, json=envelope(complete_reply(**changes)))
+
+    interpreted = run_provider(handler)
+    assert interpreted.outcome == "record"
+    schema = sent["text"]["format"]["schema"]
+    for field, value in changes.items():
+        # The sent schema allows null for this field on every outcome.
+        assert {"type": "null"} in schema["properties"][field]["anyOf"]
+        assert getattr(interpreted, field) is value
+
+
+def test_schema_mismatch_names_fields_and_error_types_without_values():
+    body = raw_envelope(json.dumps(complete_reply(
+        description="SENTINEL-DESCRIPTION " + "x" * 160, merchant="SENTINEL-MERCHANT",
+        mappings=[{"role": "observed", "account_id": "SENTINEL-ID", "confidence": 0.5, "alternatives": []}],
+        **{"SENTINEL-KEY": "SENTINEL-VALUE"},
+    )), output_tokens=277)
+    error, _ = interpret_reply(body)
+    assert error.code == "provider_invalid_output"
+    assert error.diagnosis.failure == "schema_mismatch"
+    assert set(error.diagnosis.fields) == {
+        "description:string_too_long", "mappings.0.account_id:uuid_parsing", "?:extra_forbidden",
+    }
+    assert error.diagnosis.output_tokens == 277
+    assert "SENTINEL" not in json.dumps(error.diagnosis.as_dict()) and "SENTINEL" not in str(error)
+
+
+@pytest.mark.parametrize("body,failure,reason", [
+    (raw_envelope('{"outcome":', status="incomplete", incomplete_reason="max_output_tokens"), "incomplete", "max_output_tokens"),
+    (raw_envelope('{"outcome":"record"', status="incomplete", incomplete_reason="content_filter"), "incomplete", "content_filter"),
+    (raw_envelope(None, refusal="I cannot help with that."), "refusal", None),
+    (raw_envelope(""), "empty_output", None),
+    (raw_envelope("not JSON"), "json_decode", None),
+    ({}, "malformed_response", None),
+])
+def test_each_invalid_output_class_is_diagnosed(body, failure, reason):
+    error, _ = interpret_reply(body)
+    assert error.code == "provider_invalid_output"
+    assert (error.diagnosis.failure, error.diagnosis.incomplete_reason) == (failure, reason)
+
+
+def test_incomplete_partial_text_is_never_parsed(monkeypatch):
+    from app.services import openai_notification_provider as module
+    parsed = []
+    monkeypatch.setattr(module, "parse_output", lambda *args, **kwargs: parsed.append(args) or pytest.fail("parsed"))
+    complete_json = json.dumps(complete_reply())
+    error, _ = interpret_reply(raw_envelope(complete_json, status="incomplete", incomplete_reason="max_output_tokens"))
+    assert error.diagnosis.failure == "incomplete" and parsed == []
+
+
+def test_reply_text_is_kept_only_when_capture_is_enabled():
+    text = json.dumps(complete_reply(description="y" * 5000))
+    error, provider = interpret_reply(raw_envelope(text))
+    assert error.diagnosis.failure == "schema_mismatch" and provider.last_invalid_output is None
+    error, provider = interpret_reply(raw_envelope(text), capture=True)
+    assert provider.last_invalid_output == text[:4000]
+    _, provider = interpret_reply(raw_envelope(None, refusal="Synthetic refusal"), capture=True)
+    assert provider.last_invalid_output == "Synthetic refusal"
+    result, provider = interpret_reply(raw_envelope(json.dumps(complete_reply())), capture=True)
+    assert result.outcome == "record" and provider.last_invalid_output is None
+
+
+def test_only_the_synthetic_benchmark_enables_reply_capture():
+    import pathlib
+    import re
+    backend = pathlib.Path(__file__).resolve().parents[1]
+    enabling = sorted(
+        str(path.relative_to(backend)) for path in backend.rglob("*.py")
+        if "tests" not in path.parts and re.search(r"capture_invalid_output\s*=\s*True", path.read_text(encoding="utf-8"))
+    )
+    assert enabling == ["evaluation/notification_benchmark.py"]
+
+
+def test_sibling_calls_share_the_diagnosis():
+    def handler(request):
+        return httpx2.Response(200, json=envelope({"suggestions": [{"ref": "r1"}]}))
+
+    with pytest.raises(ProviderError) as error:
+        run_history(handler, {"rows": []})
+    assert error.value.diagnosis.failure == "schema_mismatch"
+    assert "suggestions.0.description:missing" in error.value.diagnosis.fields

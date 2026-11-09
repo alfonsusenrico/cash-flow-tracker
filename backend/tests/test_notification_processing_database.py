@@ -1596,3 +1596,137 @@ def test_owner_resolution_is_owner_classified_and_pairing_is_not_an_owner_edit(c
         ).fetchall()
     assert len(legs) == 2
     assert all(leg["classified_by"] == "rule" and leg["owner_edited_at"] is None and leg["review_status"] == "auto" for leg in legs)
+
+
+def reply(owner, **changes):
+    """A synthetic reply that satisfies the sent strict schema, as the provider returns it."""
+    body = {
+        "outcome": "record", "direction": "expense", "description": "Belanja harian", "merchant": None,
+        "account_id": owner["bca"], "source_account_id": None, "target_account_id": None,
+        "category_id": owner["expense"], "kakeibo": "need", "amount_evidence": "IDR 45,000.00",
+        "direction_evidence": "You spent", "source_evidence": "", "target_evidence": "",
+        "candidate_transaction_id": None, "confidence": 0.7, "review_reason": "none", "mappings": [],
+    }
+    body.update(changes)
+    return json.dumps(body)
+
+
+def process_with_replies(claimed, replies):
+    """Process one claim with the real provider against synthetic Responses API answers; returns the request count."""
+    import httpx2
+    from app.services import notification_processing as processing
+    from app.services.openai_notification_provider import OpenAINotificationProvider
+
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        text = replies[min(len(requests), len(replies)) - 1]
+        return httpx2.Response(200, json={
+            "id": "resp_synthetic", "object": "response", "created_at": 0, "status": "completed",
+            "model": "gpt-5.6-luna", "usage": {"input_tokens": 3000, "output_tokens": 120, "total_tokens": 3120},
+            "output": [{"id": "msg_synthetic", "type": "message", "status": "completed", "role": "assistant",
+                        "content": [{"type": "output_text", "text": text, "annotations": []}]}],
+        })
+
+    async def run():
+        async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as transport:
+            provider = OpenAINotificationProvider(
+                transport, api_key="synthetic-test-credential", model="gpt-5.6-luna", reasoning_effort="low",
+            )
+            await processing.process_claim(claimed, provider)
+
+    asyncio.run(run())
+    return len(requests)
+
+
+def stored_interpretation(event_id):
+    from app.db.pool import db_conn
+    with db_conn() as conn:
+        return conn.execute(
+            "SELECT processing_state, error_code, interpretation FROM notification_events WHERE id = %s", (event_id,),
+        ).fetchone()
+
+
+@pytest.mark.parametrize("changes", [{"category_id": None, "kakeibo": None}, {"account_id": None}])
+def test_incomplete_model_record_falls_back_without_asking_again(client, notification_owner, monkeypatch, changes):
+    from app.db.pool import db_conn
+    from app.services import notification_processing as processing
+    enable_ai(monkeypatch)
+    event = ingest(client, notification("You spent IDR 45,000.00 at Shopping.", "com.bca.mybca.omni.android"))["results"][0]
+    model_description = "Model-only description"
+    requests = process_with_replies(processing.claim_event(), [reply(notification_owner, description=model_description, **changes)])
+    assert requests == 1
+    result = client.get(f"/api/ingest/notifications/{event['event_id']}/result").json()["result"]
+    assert result["status"] == "recorded" and "error_code" not in result
+    stored = stored_interpretation(event["event_id"])
+    assert stored["interpretation"]["source"] == "deterministic_fallback"
+    assert stored["interpretation"]["review_reasons"][0] == "model_fallback"
+    with db_conn() as conn:
+        row = conn.execute("SELECT notes, review_status, account_id, amount FROM transactions WHERE user_id = %s",
+                           (notification_owner["user_id"],)).fetchone()
+    assert row["review_status"] == "needs_review" and row["notes"] != model_description
+    assert (str(row["account_id"]), row["amount"]) == (notification_owner["bca"], 45000)
+
+
+def test_model_movement_with_one_endpoint_is_never_written_from_the_reply(client, notification_owner, monkeypatch):
+    from app.services import notification_processing as processing
+    enable_ai(monkeypatch)
+    text = "Rp500.000 has been moved from your Main Pocket Pocket to your Dana Darurat Pocket."
+    event = ingest(client, notification(text))["results"][0]
+    requests = process_with_replies(processing.claim_event(), [reply(
+        notification_owner, direction="internal_movement", account_id=None, category_id=None, kakeibo=None,
+        source_account_id=notification_owner["main"], target_account_id=None,
+        amount_evidence="Rp500.000", direction_evidence="has been moved",
+    )])
+    assert requests == 1
+    stored = stored_interpretation(event["event_id"])
+    # The deterministic path proves both pockets from the text, so it records the movement itself.
+    assert stored["processing_state"] == "recorded"
+    assert stored["interpretation"]["source"] == "deterministic_fallback"
+    assert count_transactions(notification_owner) == 2
+
+
+def test_incomplete_record_for_an_unresolved_name_does_not_write_or_learn(client, notification_owner, monkeypatch):
+    from app.services import notification_processing as processing
+    enable_ai(monkeypatch)
+    event = ingest_move(client)
+    requests = process_with_replies(processing.claim_event(), [reply(
+        notification_owner, direction="internal_movement", description="Pindah saldo", account_id=None,
+        category_id=None, kakeibo=None, source_account_id=notification_owner["main"], target_account_id=None,
+        amount_evidence="Rp1.250.000", direction_evidence="has been moved",
+        mappings=[{"role": "target", "account_id": notification_owner["gopay"], "confidence": 0.95, "alternatives": []}],
+    )])
+    assert requests == 1
+    result = client.get(f"/api/ingest/notifications/{event['event_id']}/result").json()["result"]
+    assert result["status"] in {"needs_review", "needs_confirmation"}
+    assert count_transactions(notification_owner) == 0 and aliases_of(notification_owner) == []
+
+
+def test_structurally_invalid_reply_is_asked_again_and_logged_without_content(client, notification_owner, monkeypatch, caplog):
+    import logging
+    from app.services import notification_processing as processing
+    enable_ai(monkeypatch)
+    event = ingest(client, notification("You spent IDR 45,000.00 at Shopping.", "com.bca.mybca.omni.android"))["results"][0]
+    too_long = reply(notification_owner, description="SENTINEL-DESCRIPTION " + "x" * 160, merchant="SENTINEL-MERCHANT")
+    with caplog.at_level(logging.WARNING, logger="app.services.notification_processing"):
+        requests = process_with_replies(processing.claim_event(), [too_long, reply(notification_owner)])
+    assert requests == 2
+    result = client.get(f"/api/ingest/notifications/{event['event_id']}/result").json()["result"]
+    assert result["status"] == "recorded"
+    assert stored_interpretation(event["event_id"])["interpretation"]["source"] == "ai"
+    [line] = [record.getMessage() for record in caplog.records if "model output unusable" in record.getMessage()]
+    assert f"event={event['event_id']}" in line and "failure=schema_mismatch" in line
+    assert "fields=description:string_too_long" in line and "output_tokens=120" in line
+    assert "SENTINEL" not in caplog.text and "Shopping" not in caplog.text and "45,000" not in caplog.text
+
+
+def test_two_structurally_invalid_replies_keep_the_existing_fallback(client, notification_owner, monkeypatch):
+    from app.services import notification_processing as processing
+    enable_ai(monkeypatch)
+    event = ingest(client, notification("You spent IDR 45,000.00 at Shopping.", "com.bca.mybca.omni.android"))["results"][0]
+    requests = process_with_replies(processing.claim_event(), ["not JSON"])
+    assert requests == 2
+    stored = stored_interpretation(event["event_id"])
+    assert stored["processing_state"] == "recorded"
+    assert stored["interpretation"]["source"] == "deterministic_fallback"

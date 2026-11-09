@@ -11,7 +11,7 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 import psycopg
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.config import settings
 from app.db.pool import db_conn
@@ -1010,12 +1010,3 @@ def reject_suggestions(user_id: str, ids: list[str]) -> dict:
             undo = recorder.finish()
         conn.commit()
     return {"rejected": len(pending), "skipped": sorted(sid for sid in ids if sid not in pending), **undo}
-
-
-def parse_batch(output: str) -> HistorySuggestionBatch:
-    from app.services.openai_notification_provider import ProviderError
-
-    try:
-        return HistorySuggestionBatch.model_validate_json(output)
-    except (ValueError, TypeError, ValidationError):
-        raise ProviderError("provider_invalid_output") from None

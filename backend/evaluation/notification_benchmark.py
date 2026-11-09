@@ -22,7 +22,7 @@ from evaluation.notification_cases import (
 )
 from app.services.notification_context import sanitize_text
 from app.services.notification_evidence import EvidenceError, collect_facts
-from app.services.notification_interpretation import Interpretation, validate_interpretation
+from app.services.notification_interpretation import Interpretation, record_shape_error, validate_interpretation
 from app.services.notification_resolution import (
     endpoint_context, institution_parent, observed_endpoint, pocket_endpoint, signatures_compatible, transfer_signature,
 )
@@ -204,6 +204,29 @@ def pairing_window_seconds() -> int:
     return int(os.getenv("NOTIFICATION_PAIRING_WINDOW_SECONDS", "900"))
 
 
+REFERENCE_FIELDS = ("account_id", "source_account_id", "target_account_id", "category_id", "candidate_transaction_id")
+
+
+def reply_shape(text: str | None) -> dict | None:
+    """The structure of a captured synthetic reply: what it proposed and how long its strings were."""
+    if text is None:
+        return None
+    try:
+        reply = json.loads(text)
+    except ValueError:
+        return {"decodable": False, "length": len(text)}
+    if not isinstance(reply, dict):
+        return {"decodable": True, "object": False, "length": len(text)}
+    return {
+        "decodable": True, "object": True, "length": len(text),
+        "outcome": reply.get("outcome"), "direction": reply.get("direction"),
+        "null_references": [field for field in REFERENCE_FIELDS if reply.get(field) is None],
+        "string_lengths": {key: len(value) for key, value in reply.items() if isinstance(value, str)},
+        "mappings": len(reply["mappings"]) if isinstance(reply.get("mappings"), list) else None,
+        "unknown_keys": len(set(reply) - set(Interpretation.model_fields)),
+    }
+
+
 def score_case(case: SyntheticCase, interpretation, *, latency: float, error_code: str | None = None) -> dict:
     if evaluation_route(case) != "model":
         raise ValueError("Only model-eligible cases can be scored as model output")
@@ -255,6 +278,8 @@ def score_case(case: SyntheticCase, interpretation, *, latency: float, error_cod
         "expected_record": expected_record, "proposed_record": actual_record,
         "validated_outcome": decision["outcome"], "validation_rejected": rejected,
         "validation_rejection_code": rejection_code,
+        # A schema-valid record the backend rejects for a missing reference (D5): never a provider failure.
+        "incomplete_record": record_shape_error(interpretation) if interpretation else None,
         "unsafe_validated_write": unsafe_write,
         "unambiguous_classification": bool(expected.get("classification_unambiguous")),
         "expected_movement": bool(expected.get("candidate_transaction_id") or expected.get("direction") == "internal_movement" and expected_record),
@@ -297,6 +322,8 @@ def summarize(rows: list[dict]) -> dict:
         "unambiguous_classification_percent": classification_accuracy,
         "description_rubric_percent": description_percent,
         "validation_rejections": sum(row["validation_rejected"] for row in rows),
+        "incomplete_records": sum(bool(row.get("incomplete_record")) for row in rows),
+        "invalid_output_failures": invalid_output_failures(rows),
         "record_recall_percent": 100 * mean(int(row["proposed_record"]) for row in positives) if positives else 0,
         "movement_precision_percent": 100 * mean(int(row["movement"]) for row in movement_proposed) if movement_proposed else 0,
         "movement_recall_percent": 100 * mean(int(row["movement"]) for row in movement_expected) if movement_expected else 0,
@@ -308,6 +335,15 @@ def summarize(rows: list[dict]) -> dict:
         "observed_usage_usd": sum(usage_cost(row.get("usage")) for row in rows),
         "cases": rows,
     }
+
+
+def invalid_output_failures(rows: list[dict]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        failure = (row.get("invalid_output") or {}).get("failure")
+        if failure:
+            counts[failure] = counts.get(failure, 0) + 1
+    return counts
 
 
 async def evaluate_model(provider, cases: list[SyntheticCase], *, repeats: int = 3, interval: float = 0.5) -> dict:
@@ -323,6 +359,7 @@ async def evaluate_model(provider, cases: list[SyntheticCase], *, repeats: int =
             started = time.perf_counter()
             interpretation = None
             error = terminal_error
+            failure = None
             attempted = terminal_error is None
             if attempted:
                 provider.last_usage = None
@@ -330,6 +367,7 @@ async def evaluate_model(provider, cases: list[SyntheticCase], *, repeats: int =
                     interpretation = await provider.interpret(context, prompt=case_prompt(case))
                 except ProviderError as exc:
                     error = exc.code
+                    failure = invalid_output_record(provider, exc)
                     if exc.code in {
                         "provider_access_denied", "provider_credential_missing", "provider_model_not_permitted",
                         "provider_timeout", "provider_unavailable",
@@ -338,6 +376,7 @@ async def evaluate_model(provider, cases: list[SyntheticCase], *, repeats: int =
             row = score_case(case, interpretation, latency=time.perf_counter() - started, error_code=error)
             usage = getattr(provider, "last_usage", None) if attempted else None
             row["usage"] = usage if isinstance(usage, dict) else None
+            row["invalid_output"] = failure
             row["repeat"] = repeat + 1
             row["request_attempted"] = attempted
             rows.append(row)
@@ -349,6 +388,17 @@ async def evaluate_model(provider, cases: list[SyntheticCase], *, repeats: int =
     summary["eligible_by_evaluation"] = summary["eligible_by_evaluation"] and deterministic_routes["gate_pass"]
     return {"repeats": repeats, "unavailable_reason": terminal_error,
             "requests_attempted": sum(row["request_attempted"] for row in rows), **summary}
+
+
+def invalid_output_record(provider, error: ProviderError) -> dict | None:
+    """The diagnosis, shape and raw synthetic text of an unusable reply (D4); synthetic cases only."""
+    if error.code != "provider_invalid_output":
+        return None
+    text = getattr(provider, "last_invalid_output", None)
+    record = error.diagnosis.as_dict() if error.diagnosis else {"failure": None}
+    record["shape"] = reply_shape(text)
+    record["synthetic_reply"] = text
+    return record
 
 
 def selected_reasoning_efforts(efforts: list[str]) -> list[str]:
@@ -442,6 +492,7 @@ async def run_live(reasoning_efforts: list[str], *, repeats: int, partition: str
                 api_key=credential,
                 model=model,
                 reasoning_effort=reasoning_effort,
+                capture_invalid_output=True,
             )
             result = await evaluate_model(provider, cases, repeats=repeats)
             result["reasoning_effort"] = reasoning_effort

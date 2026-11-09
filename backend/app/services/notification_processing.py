@@ -470,6 +470,21 @@ async def database_operation(function, *args):
         raise
 
 
+def log_invalid_output(event: dict, provider, error: ProviderError) -> None:
+    """One content-free line per unusable reply: identifiers, configuration and the diagnosis only (D3)."""
+    if error.code != "provider_invalid_output":
+        return
+    diagnosis = error.diagnosis
+    logger.warning(
+        "Notification model output unusable event=%s model=%s effort=%s prompt=%s failure=%s reason=%s fields=%s "
+        "output_tokens=%s",
+        event["id"], getattr(provider, "model", None), getattr(provider, "reasoning_effort", None),
+        event.get("prompt_version"), diagnosis.failure if diagnosis else None,
+        diagnosis.incomplete_reason if diagnosis else None,
+        ",".join(diagnosis.fields) if diagnosis else "", diagnosis.output_tokens if diagnosis else None,
+    )
+
+
 async def process_claim(event: dict, provider):
     try:
         if event["processing_mode"] == "deterministic":
@@ -496,6 +511,7 @@ async def process_claim(event: dict, provider):
                 if exc.transient or exc.code in RETRYABLE_FAILURE_CODES:
                     raise
                 provider_error = exc.code
+                log_invalid_output(event, provider, exc)
                 if exc.code != "provider_invalid_output":
                     break
         await database_operation(apply_claim, event, proposal, provider_error)
