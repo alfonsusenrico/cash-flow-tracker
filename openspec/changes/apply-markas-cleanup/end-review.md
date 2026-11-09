@@ -28,10 +28,12 @@ are listed from the proposal. Every other stated count matches.
   (D13).
 - Phase 11 remaining risk (`credit_terms` count 1 stored by Catat): the server stores no row for it, the same as a
   notification purchase; no figure differs (D14, regression test added).
-- Phase 9 axe `target-size` behind the phone sheet: re-verified after phase 11's modal Catat (D12).
+- Phase 9 axe `target-size` behind the phone sheet: re-verified after phase 11's modal Catat, 0 at 390 and 320 in
+  both languages (D12).
 - The `/komponen` sheet and the "This page is in Indonesian for now." path are gone (D1, D2), so the phase 4, 7 and
   11 notes about sheet sections not captured or not extended no longer apply.
-- Phase 5 further note 2 (count-only edit re-derives a kept first due date): flag F1, decided by the owner.
+- Phase 5 further note 2 (count-only edit re-derives a kept first due date): the owner chose option A on 2026-11-09;
+  a count-only edit now sends the kept date back and it stays set by the system (F1).
 
 ## Phase 4 — Tinjau (2026-11-08-apply-markas-tinjau)
 
@@ -442,8 +444,40 @@ Phase 3 — Beranda (2026-11-06-apply-markas-beranda):
 - Public sign-up stays closed (invite code); the language plan said "until phase 12", but opening it is an access
   decision for the owner, not cleanup. [add-language-system proposal]
 - A full catalogue-key prune (keys are reached dynamically, such as server error codes). [apply-markas-cleanup D3]
+- `test_balance_check.py` fixes `NOW` at import, so one test fails when the suite runs slowly. [apply-markas-cleanup
+  verification]
 
 ## Phase 12 — Cleanup (apply-markas-cleanup)
 
-Filled in after the gate: deviations, the visible differences found by the before/after pixel diff, and the prototype
-side-by-side images (D17).
+Gate on `606ff5d` against the base `170e182`; images in the session scratchpad
+`/private/tmp/claude-501/-Users-enrico-enrico-project-enrico-cash-flow-tracker/148d8a0e-cf25-4ec5-9de4-a0f135ad4203/scratchpad/cleanup/gate/`
+(below: `gate/`). [verification "Captures and pixel diff"]
+
+Visible differences the before/after pixel diff found (every other pair is identical, or explained in the
+verification as clock values, random codes or run noise):
+1. Laporan lists "Pengeluaran dari tabungan" / "Spending from savings" with "tetap dihitung sebagai pengeluaran"
+   under Rincian tabungan when not zero (October −Rp 360.000, November −Rp 141.000); the page grows by one row.
+   [D8; `gate/diff/side-by-side/laporan-1440-light.png`, `laporan-390-dark.png`]
+2. The Kredit provider header's "Pengeluaran pakai kredit" equals the hero (Rp 581.500; it read Rp 1.031.500 with a
+   purchase timed later today). [D9; `gate/diff/id-1440/transaksi-kredit-penyedia-1440-light.png`, `gate/d9/`]
+3. Catat Perpindahan preselects "Ke" Dana Darurat instead of Utama, the pocket BCA's money resolves to, so the default
+   pair saves. [D13; `gate/diff/id-1440/catat-perpindahan-1440-light.png`, `gate/d13/`]
+4. English short months read "Sep" (dates, ranges, cycle labels, notifications, Pengaturan). [D11;
+   `gate/crops/en-montage.png`, `gate/diff/en-1440/`]
+
+Deviations and notes:
+1. `/komponen` already answered 404 on the base production build (the sheet needed `NEXT_PUBLIC_COMPONENT_SHEET`);
+   now the route is gone from the build. [verification Checks]
+2. axe `target-size` on Target's "SPayLater · kredit" link behind the goal sheet (`dlg-target-manual`,
+   `dlg-target-progres`) at 390, on the base build too; the control is inert behind the modal sheet. Phase 9's
+   Perpindahan finding (D12) is 0 at 390 and 320. [verification "Checklists, axe"; "Target size"]
+3. Checklist failures carried from earlier phases, the same on the base build: Rekening's "groups 48 apart" measures
+   16 px on the combined seed; phase 2's shell checklist flags "content inside the frame" on several pages.
+   [verification "Checklists, axe"]
+4. `test_balance_check.py::test_saldo_cocok_starts_the_next_window` fails when more than a minute passes between test
+   collection and the test (import-time `NOW`); it passed in the full re-run. [verification Checks]
+5. The ledger list with type counts on a 19,506-row owner: p95 670.6 ms → 116.3 ms with JIT off. [D10; verification
+   "Ledger list timing"]
+
+Prototype side-by-side images (D17): 135 (68 at 1440, 67 at 390, Indonesian, light) in
+`gate/prototype-side-by-side/`.
