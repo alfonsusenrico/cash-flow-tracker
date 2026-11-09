@@ -83,8 +83,8 @@ describe("straight selection marks", () => {
 
   it("marks the goal account picker's chosen pocket, the Grafik legend, the Tinjau rows and the rail with the shared bars", () => {
     const source = (file: string) => readFileSync(path.join(srcDir, file), "utf8");
-    expect(source("components/goals/GoalDialogs.tsx")).toMatch(/data-selected=\{isChildChecked \? "" : undefined\}[\s\S]{0,120}ws-select-row/);
-    expect(source("components/goals/GoalDialogs.tsx")).toContain('className="ws-group-rail ml-4');
+    expect(source("components/goals/GoalDialog.tsx")).toMatch(/className="tg-choice ws-select-row" data-selected=\{on \? "" : undefined\}/);
+    expect(source("components/goals/GoalDialog.tsx")).toContain('className="ws-group-rail tg-pockets"');
     expect(source("components/accounts/RekeningChart.tsx")).toContain('className="ws-select-row" aria-pressed=');
     expect(source("components/workspace/lists.tsx")).toMatch(/cn\("row", "ws-select-row", layout === "stacked" && "is-stacked"\)/);
     expect(source("components/review/triage/TriageList.tsx")).toMatch(/<ListRow\s+layout="stacked"[\s\S]*current=\{item\.id === selectedId\}/);

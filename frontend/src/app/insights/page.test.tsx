@@ -23,8 +23,8 @@ vi.mock("@/components/layout/AppLayout", () => ({
     hideBalances: app.hide, bal: (amount: number) => (app.hide ? "Rp ••••••" : `Rp ${amount.toLocaleString("id-ID")}`),
   }),
 }));
-vi.mock("@/components/recurring/RecurringRulesModal", () => ({
-  RecurringRulesModal: ({ open, expenseDraft }: { open: boolean; expenseDraft?: { name: string; amount: number } | null }) =>
+vi.mock("@/components/recurring/PlansDialog", () => ({
+  PlansDialog: ({ open, expenseDraft }: { open: boolean; expenseDraft?: { name: string; amount: number } | null }) =>
     open ? <div role="dialog" aria-label="Rencana baru">{expenseDraft?.name} {expenseDraft?.amount}</div> : null,
 }));
 

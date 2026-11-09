@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import type { IconName } from "@/components/ui/Icon";
 import { ListRow, SectionHeader } from "@/components/workspace/lists";
 import { useMoney } from "@/components/workspace/money";
+import type { CreditBill } from "@/lib/creditBills";
 import type { Words } from "@/lib/i18n/types";
 import type { ReviewQueue } from "@/lib/review";
 import type { AutoLinkedOccurrence, RecurringRule } from "@/types/recurring";
@@ -39,25 +40,36 @@ export interface TodoItem {
   onSelect?: () => void;
 }
 
+/** Plans and credit bills of one urgency, by due date then name (apply-markas-target D16). */
+function byDueThenName(items: { due: string; name: string; item: TodoItem }[]): TodoItem[] {
+  return [...items].sort((a, b) => a.due.localeCompare(b.due) || a.name.localeCompare(b.name)).map((entry) => entry.item);
+}
+
 /**
  * Everything that needs the owner, ranked as D6 orders it: open questions, plans past due, plans due today,
  * awaiting transfers, ambiguous pairs, groups, the automatic-link check, then plans due within two days. Plans
- * arrive sorted by due date.
+ * arrive sorted by due date. Unpaid credit bills rank with the plans of the same urgency (apply-markas-target D16);
+ * choosing one opens Perpindahan into that account with the amount left, and nothing is recorded until saved.
  */
 export function todoItems({
   queue,
   plans,
+  creditBills = [],
   autoLinks,
   today,
   words,
   onOpenPlans,
+  onPayBill,
 }: {
   queue: ReviewQueue | undefined;
   plans: RecurringRule[];
+  /** Unpaid bills due up to the plans' horizon, without the ones a listed plan already pays. */
+  creditBills?: CreditBill[];
   autoLinks: AutoLinkedOccurrence[];
   today: string;
   words: Words;
   onOpenPlans: () => void;
+  onPayBill?: (bill: CreditBill) => void;
 }): TodoItem[] {
   const { t, format } = words;
   const signedAmount = (type: "expense" | "income", amount: number): TodoItem["amount"] => ({ value: amount, kind: type });
@@ -81,8 +93,29 @@ export function todoItems({
     amount: { value: plan.amount, kind: "plain" },
     onSelect: onOpenPlans,
   });
-  const overdue = plans.filter((plan) => plan.next_due_date < today).map(duePlan);
-  const dueToday = plans.filter((plan) => plan.next_due_date === today).map(duePlan);
+  const tomorrow = jakartaDay(new Date(Date.parse(`${today}T12:00:00+07:00`) + 86_400_000));
+  const billItem = (bill: CreditBill): TodoItem => ({
+    key: `credit-${bill.account_id}-${bill.due_date}`,
+    icon: "calendar",
+    title: t("home.creditBill", { account: bill.account_name }),
+    meta:
+      bill.due_date <= today ? (
+        <>
+          <span className="c-warning">{bill.due_date < today ? t("home.planOverdue") : t("home.planDueToday")}</span> · {t("home.creditMark")}
+        </>
+      ) : (
+        t("home.creditWhen", { when: bill.due_date === tomorrow ? t("home.tomorrow") : format.shortDate(bill.due_date) })
+      ),
+    amount: { value: bill.left_to_pay, kind: "plain" },
+    onSelect: onPayBill ? () => onPayBill(bill) : undefined,
+  });
+  const ranked = (planFilter: (due: string) => boolean, toItem: (plan: RecurringRule) => TodoItem) =>
+    byDueThenName([
+      ...plans.filter((plan) => planFilter(plan.next_due_date)).map((plan) => ({ due: plan.next_due_date, name: plan.name, item: toItem(plan) })),
+      ...creditBills.filter((bill) => planFilter(bill.due_date)).map((bill) => ({ due: bill.due_date, name: bill.account_name, item: billItem(bill) })),
+    ]);
+  const overdue = ranked((due) => due < today, duePlan);
+  const dueToday = ranked((due) => due === today, duePlan);
   const awaiting = queue?.awaiting ?? [];
   const awaitingItems: TodoItem[] = awaiting.length
     ? [{
@@ -127,17 +160,17 @@ export function todoItems({
         onSelect: onOpenPlans,
       }]
     : [];
-  const tomorrow = jakartaDay(new Date(Date.parse(`${today}T12:00:00+07:00`) + 86_400_000));
-  const upcoming: TodoItem[] = plans
-    .filter((plan) => plan.next_due_date > today)
-    .map((plan) => ({
+  const upcoming = ranked(
+    (due) => due > today,
+    (plan) => ({
       key: `p-${plan.id}-${plan.next_due_date}`,
       icon: "calendar",
       title: plan.name,
       meta: t("home.planWhen", { when: plan.next_due_date === tomorrow ? t("home.tomorrow") : format.shortDate(plan.next_due_date) }),
       amount: { value: plan.amount, kind: "plain" },
       href: "/goals",
-    }));
+    }),
+  );
   return [...questions, ...overdue, ...dueToday, ...awaitingItems, ...ambiguousItems, ...groups, ...autoLinkItems, ...upcoming];
 }
 

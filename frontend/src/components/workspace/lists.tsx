@@ -51,6 +51,11 @@ export interface ListRowProps {
   href?: string;
   onClick?: () => void;
   time?: string;
+  /**
+   * The time column holds a short date ("10 Nov", "30 Sept") rather than a clock time: it is wider and never wraps,
+   * so every row's date stays on one line and the titles stay aligned.
+   */
+  timeIsDate?: boolean;
   icon?: IconName;
   title: ReactNode;
   /** The meta line beside the title on a desktop and under it on the phone. */
@@ -86,12 +91,12 @@ export interface ListRowProps {
  * the row has two lines, the title and the meta, and only the amount stays beside them.
  */
 export function ListRow({
-  href, onClick, time, icon, title, meta, phoneMeta, category, status, amount, chevron, selected, current, layout, rowKey, actions,
+  href, onClick, time, timeIsDate, icon, title, meta, phoneMeta, category, status, amount, chevron, selected, current, layout, rowKey, actions,
   selectable, pressHandlers,
 }: ListRowProps) {
   const content = (
     <>
-      {time !== undefined && <span className="r-time">{time}</span>}
+      {time !== undefined && <span className={cn("r-time", timeIsDate && "is-date")}>{time}</span>}
       {icon && (
         <span className="r-ico">
           <Icon name={icon} className="h-4 w-4" />

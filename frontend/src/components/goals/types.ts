@@ -36,10 +36,6 @@ export interface ObligationItem {
   created_at: string;
 }
 
-export const GOAL_COLORS = [
-  { value: "#10b981", label: "Hijau" },
-  { value: "#3b82f6", label: "Biru" },
-  { value: "#f59e0b", label: "Amber" },
-  { value: "#8b5cf6", label: "Ungu" },
-  { value: "#ec4899", label: "Merah muda" },
-];
+/** A new goal's colour and icon, as the form always sent them; no page draws a goal's colour since the redesign (D8). */
+export const DEFAULT_GOAL_COLOR = "#10b981";
+export const DEFAULT_GOAL_ICON = "target";

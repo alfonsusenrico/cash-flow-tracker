@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
+import { PlansDialog } from "@/components/recurring/PlansDialog";
 import { ListRow, PanelBlock, SectionHeader } from "@/components/workspace/lists";
 import { MaskedMoney } from "@/components/workspace/money";
 import { ShellDialog } from "@/components/workspace/ShellDialog";
@@ -151,7 +151,7 @@ export function BillsPanel({ money }: { money: Money }) {
           </ul>
         </ShellDialog>
       )}
-      <RecurringRulesModal
+      <PlansDialog
         open={draft !== null}
         onClose={() => {
           setDraft(null);
