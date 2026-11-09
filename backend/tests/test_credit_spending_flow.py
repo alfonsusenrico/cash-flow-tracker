@@ -13,7 +13,7 @@ from datetime import date, timedelta
 from uuid import uuid4
 
 from test_category_system_keys import differences, without_volatile
-from test_cycle_summary import at_local, make_owner, now_utc, owner, today, unlimited_rate_limits  # noqa: F401 - fixtures
+from test_cycle_summary import JAKARTA, at_local, make_owner, now_utc, owner, today, unlimited_rate_limits  # noqa: F401 - fixtures
 
 CREDIT_CODES = (
     "credit_terms_not_credit_purchase", "credit_terms_count_range", "credit_terms_due_before_purchase",
@@ -435,6 +435,69 @@ def test_overview_refuses_a_bank_account_and_another_owners_account(owner, make_
     stranger = make_owner()
     refused(stranger.session.get(f"/api/credit/accounts/{owner['credit']}"), 404, "account_not_found")
     refused(owner.session.get(f"/api/credit/accounts/{uuid4()}"), 404, "account_not_found")
+
+
+def list_spending(owner, key="credit", **params):
+    query = "&".join(f"{name}={value}" for name, value in {"limit": 1, "type": "credit", "account_id": owner[key], **params}.items())
+    response = owner.session.get(f"/api/transactions?{query}")
+    assert response.status_code == 200, response.text
+    return response.json()["summary"]["period"]
+
+
+def test_overview_with_the_list_window_counts_exactly_the_listed_rows(owner):
+    """The Kredit header reads the list's own window (apply-markas-cleanup D9): a purchase before the salary instant
+    on the cycle's first day, or timed later than now, is in neither; whole local days still count both."""
+    from urllib.parse import quote
+
+    add_credit(owner)
+    start = today() - timedelta(days=2)
+    owner.salary(start)
+    owner.tx("expense", 20_000, category="makan", account="credit", when=at_local(start, 7))
+    purchase(owner, 459_000)
+    later = now_utc() + timedelta(minutes=10)
+    owner.tx("expense", 77_000, category="makan", account="credit", when=later)
+
+    listed = list_spending(owner, period="cycle", period_offset=0)
+    windowed = overview(owner, period="cycle", period_offset=0)
+    assert listed["spending"] == windowed["totals"]["spent_on_credit"] == 459_000
+    assert windowed["period"] == {"from": start.isoformat(), "to": today().isoformat()}
+
+    instants = {"from_date": quote(listed["start"]), "to_date": quote(listed["end"])}
+    assert overview(owner, **instants)["totals"]["spent_on_credit"] == 459_000
+    assert list_spending(owner, **instants)["spending"] == 459_000
+
+    whole_days = overview(owner, **{"from": start.isoformat(), "to": later.astimezone(JAKARTA).date().isoformat()})
+    assert whole_days["totals"]["spent_on_credit"] == 459_000 + 20_000 + 77_000
+
+    month = overview(owner, period="month", period_offset=0)
+    assert month["totals"]["spent_on_credit"] == list_spending(owner, period="month", period_offset=0)["spending"]
+
+
+def test_overview_refuses_two_period_forms_and_half_a_range(owner, make_owner):
+    add_credit(owner)
+    base = f"/api/credit/accounts/{owner['credit']}"
+    instant = "2026-11-01T00%3A00%3A00%2B07%3A00"
+    refused(owner.session.get(f"{base}?period=cycle&from=2026-11-01"), 422, "period_with_dates")
+    refused(owner.session.get(f"{base}?period=month&to_date={instant}"), 422, "period_with_dates")
+    refused(owner.session.get(f"{base}?from=2026-11-01&from_date={instant}"), 422, "period_with_dates")
+    refused(owner.session.get(f"{base}?from_date={instant}"), 422, "credit_period_invalid")
+    later = "2026-11-02T00%3A00%3A00%2B07%3A00"
+    refused(owner.session.get(f"{base}?from_date={later}&to_date={instant}"), 422, "credit_period_invalid")
+    assert owner.session.get(f"{base}?period=week").status_code == 422
+    stranger = make_owner()
+    refused(stranger.session.get(f"{base}?period=cycle"), 404, "account_not_found")
+
+
+def test_paid_in_full_terms_from_catat_store_nothing(owner):
+    """Catat sends `{installment_count: 1}` for "Sekali bayar"; it stores no terms row, like a notification
+    purchase, and both purchases sit on the same bill (apply-markas-cleanup D14)."""
+    add_credit(owner)
+    with_terms = purchase(owner, 50_000, terms={"installment_count": 1})
+    without_terms = purchase(owner, 50_000)
+    assert stored_terms(owner, with_terms) is None and stored_terms(owner, without_terms) is None
+    bills = overview(owner)["bills"]
+    holding = {item["transaction_id"]: (bill["due_date"], item["installment"], item["amount"]) for bill in bills for item in bill["items"]}
+    assert holding[with_terms] == holding[without_terms]
 
 
 def test_no_payment_day_reports_due_dates_unavailable(owner):

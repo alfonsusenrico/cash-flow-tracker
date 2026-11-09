@@ -387,3 +387,25 @@ def test_credit_type_filter(saver, make_owner):
     advance = pay(saver, 30_000, source="credit", target="bank")
     legs = listing(saver, "type=credit&logical_movements=true")["transactions"]
     assert advance["expense_transaction_id"] in {row["id"] for row in legs}
+
+
+def test_ledger_list_runs_without_jit_inside_its_own_transaction(saver, monkeypatch):
+    """The list request turns JIT off for its transaction only (apply-markas-cleanup D10); counts are unchanged."""
+    from app.db.pool import db_conn
+    from app.routers import transactions
+
+    expected = listing(saver, "include=daily_totals,type_counts&limit=50")
+    seen = []
+    original = transactions.load_type_counts
+
+    def observed(cur, *args, **kwargs):
+        cur.execute("SHOW jit")
+        seen.append(cur.fetchone()["jit"])
+        return original(cur, *args, **kwargs)
+
+    monkeypatch.setattr(transactions, "load_type_counts", observed)
+    page = listing(saver, "include=daily_totals,type_counts&limit=50")
+    assert seen == ["off"]
+    assert (page["type_counts"], page["daily_totals"], page["total"]) == (expected["type_counts"], expected["daily_totals"], expected["total"])
+    with db_conn() as conn:
+        assert conn.execute("SHOW jit").fetchone()["jit"] == "on"

@@ -182,7 +182,10 @@ def test_default_report_is_last_closed_month_with_the_four_answers(client, owner
     assert pillars == {"need": 412_500, "want": 150_000, "culture": 0, "unexpected": 80_000, "saving": 40_000, "unclassified": 150_000}
     assert body["spending"]["total"] == body["flow"]["outflow"] == sum(pillars.values()) == 832_500
     assert body["flow"]["reimbursement_offset"] == 50_000
-    assert body["savings"] == {"fresh_saving": 40_000, "saving_expenses": 40_000, "net_saving_transfers": 0, "surplus": 5_250_000 - 832_500}
+    assert body["savings"] == {
+        "fresh_saving": 40_000, "saving_expenses": 40_000, "net_saving_transfers": 0, "paid_from_savings": 0,
+        "surplus": 5_250_000 - 832_500,
+    }
 
     top = [(item["name"], item["amount"]) for item in body["spending"]["top_categories"]]
     assert top == [("Belanja Dapur", 410_000), ("Makan Bareng", 150_000), ("Lain-lain", 100_000), ("Servis", 80_000), ("Tanpa kategori", 50_000)]
@@ -193,6 +196,36 @@ def test_default_report_is_last_closed_month_with_the_four_answers(client, owner
     }
     assert body["spending"]["essential"]["as_of"] == "now"
     assert body["reflection"] is None and body["previous_reflection"] is None
+
+
+def test_savings_parts_add_up_when_spending_is_paid_from_savings(client, owners):
+    """Question 2 lists spending paid from a savings account, so its parts add up (apply-markas-cleanup D8)."""
+    from app.db.pool import db_conn
+
+    owner, _ = owners
+    m1 = month_start(-1)
+    with db_conn() as conn:
+        conn.execute("UPDATE accounts SET role = 'tabungan' WHERE id = %s", (owner["pocket"],))
+        conn.commit()
+    insert(owner, "salary", 5_000_000, at(m1, 9), tx_type="income")
+    moved = client.post("/api/movements", json={
+        "source_account_id": owner["cash"], "target_account_id": owner["pocket"], "amount": 500_000,
+        "date": at(m1.replace(day=2)).isoformat(),
+    })
+    assert moved.status_code == 200, moved.text
+    insert(owner, "saving", 100_000, at(m1.replace(day=3)))
+    insert(owner, "groceries", 150_000, at(m1.replace(day=4)), account="pocket")
+
+    body = report(client)
+    savings = body["savings"]
+    assert {key: savings[key] for key in ("saving_expenses", "net_saving_transfers", "paid_from_savings", "fresh_saving")} == {
+        "saving_expenses": 100_000, "net_saving_transfers": 500_000, "paid_from_savings": 150_000, "fresh_saving": 450_000,
+    }
+    assert savings["saving_expenses"] + savings["net_saving_transfers"] - savings["paid_from_savings"] == savings["fresh_saving"]
+    # The Rp 150.000 stays Pengeluaran in its pillar.
+    pillars = {item["pillar"]: item["amount"] for item in body["spending"]["pillars"]}
+    assert pillars["need"] == 150_000
+    assert body["comparison"]["totals"]["fresh_saving"] == 450_000
 
 
 def test_report_equals_the_ledger_for_the_same_window(client, owners):
