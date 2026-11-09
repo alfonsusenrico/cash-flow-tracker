@@ -383,7 +383,7 @@ The Accounts page SHALL open each account, pocket or product in a detail dialog 
 - **THEN** all offered actions are reachable, focus remains visible, the page has not scrolled, and focus returns to "Lainnya" and then to the tile that opened the detail
 
 ### Requirement: Responsive Settings Entry
-The application SHALL show one direct Settings entry in the desktop sidebar and SHALL NOT duplicate it in the desktop top bar. On mobile/tablet, a top-bar menu button SHALL open the navigation drawer, where Settings SHALL remain reachable. Each Settings entry SHALL link to the `/settings` page. Icon-only menu and settings controls SHALL have meaningful accessible names and visible keyboard focus. This replaces the older mobile top-bar Settings shortcut without removing mobile access.
+The application SHALL show one direct Settings entry in the sidebar and SHALL NOT duplicate it in the top bar. Below 768 px, where the sidebar is hidden, Settings SHALL be reachable from the phone tab bar's "Lainnya" sheet; there is no navigation drawer. Each Settings entry SHALL link to the `/settings` page. Icon-only controls SHALL have meaningful accessible names and visible keyboard focus.
 
 #### Scenario: Opening Settings on desktop
 - **WHEN** a desktop user views the application header and sidebar
@@ -391,5 +391,5 @@ The application SHALL show one direct Settings entry in the desktop sidebar and 
 - **AND** activating the sidebar Settings entry navigates to `/settings`, where the entry is marked as the current page
 
 #### Scenario: Opening Settings from mobile navigation
-- **WHEN** a mobile user activates the top-bar menu button and then the Settings control in the drawer
-- **THEN** the drawer opens, the Settings page opens from that drawer and the drawer closes, and the header shows no duplicate Settings gear
+- **WHEN** a phone user at 390 px activates "Lainnya" in the tab bar and then "Pengaturan"
+- **THEN** the sheet closes, the Settings page opens, no hamburger button or drawer exists, and the header shows no Settings gear

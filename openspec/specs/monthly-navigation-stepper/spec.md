@@ -5,8 +5,15 @@ Provide a month-and-year navigation stepper for historical financial views witho
 
 ## Requirements
 
-### Requirement: Month-and-Year Stepper Navigation
-Every page whose figures depend on a selected period (Transaksi, Analisis, Laporan, and any page not yet redesigned that reads the shared period) SHALL show a period stepper in its title block: two chevron buttons around the period's name in the interface language and the region's date style, and a reset to the current period once stepped back. Beranda SHALL NOT show a stepper.
+### Requirement: Removal of Dual-Timeframe Rolling Pills
+The application SHALL NOT present dual rolling timeframe selector pills (`[ 30 Hari | 90 Hari ]`) in the workspace top bar, unifying all views under monthly statement or salary-cycle accounting.
+
+#### Scenario: Clean TopBar presentation
+- **WHEN** viewing the workspace top bar on desktop or mobile
+- **THEN** the 30d/90d pill switcher is absent, leaving the page title and subtitle, any page-specific period stepper, search, theme, notifications, "+ Catat" and the account menu (with the balance-privacy choice)
+
+### Requirement: Period Stepper
+Every page whose figures depend on a selected period (Transaksi, Analisis and Laporan) SHALL show a period stepper in its title block: two chevron buttons around the period's name in the interface language and the region's date style, and a reset to the current period once stepped back. Beranda SHALL NOT show a stepper.
 
 #### Scenario: User views active month
 - **WHEN** the user opens Transaksi on the calendar-month basis
@@ -24,21 +31,10 @@ Every page whose figures depend on a selected period (Transaksi, Analisis, Lapor
 - **WHEN** the stepper is shown at 1440 px
 - **THEN** its chevrons SHALL be 36 × 36 px icon buttons (44 × 44 px below 768 px), its label 14 px medium at least 168 px wide, and it SHALL have no box, border or fill
 
-#### Scenario: Stepper on an untranslated page
-- **WHEN** an English account opens a page that its phase has not translated yet, such as Pengaturan
-- **THEN** the stepper SHALL read in English while the page content stays Indonesian
-
 #### Scenario: Beranda has no stepper
 - **WHEN** the user opens Beranda
 - **THEN** no period stepper is shown, and Beranda describes the current salary cycle or current month as defined by `beranda-cycle-summary`
 
 #### Scenario: Report period name
 - **WHEN** an English account opens the October 2026 report and then the cycle report of 25 September to 22 October
-- **THEN** the stepper SHALL read "October 2026" and then "Cycle 25 Sept – 22 Oct", formatted from the report's dates
-
-### Requirement: Removal of Dual-Timeframe Rolling Pills
-The application SHALL NOT present dual rolling timeframe selector pills (`[ 30 Hari | 90 Hari ]`) in the workspace top bar, unifying all views under monthly statement or salary-cycle accounting.
-
-#### Scenario: Clean TopBar presentation
-- **WHEN** viewing the workspace top bar on desktop or mobile
-- **THEN** the 30d/90d pill switcher is absent, leaving the page title and subtitle, any page-specific period stepper, search, theme, notifications, "+ Catat" and the account menu (with the balance-privacy choice)
+- **THEN** the stepper SHALL read "October 2026" and then "Cycle 25 Sep – 22 Oct", formatted from the report's dates

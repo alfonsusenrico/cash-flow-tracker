@@ -261,6 +261,16 @@ and the base worktree (`git worktree remove`, then `git worktree prune`; `git wo
 checkout and this worktree). A listener check of 8771–8779, 3830–3849 and 9830–9849 found none, and no capture, proxy,
 uvicorn or Next process of this gate remains.
 
+## Final revision
+
+Archived on 2026-11-09 as `2026-11-09-apply-markas-cleanup`; the specs of `clean-core-ledger`, `credit-accounts`,
+`design-tokens`, `explainable-figures`, `interface-language`, `monthly-navigation-stepper`, `monthly-report`,
+`tactile-pulse-ui`, `theme-presets-switcher` and `transaction-ledger-management` took the deltas. The first
+`openspec validate --all --strict` after archiving failed two merged specs on the "requirement text over 500
+characters" rule: "Credit Account Overview" (the listing sentences moved to a new requirement "Credit Bills Across
+Accounts" with their scenario "Bills due soon across accounts") and "Four Kakeibo questions in a fixed order" (shorter
+wording, same obligations). Then: 84 passed, 0 failed (84 items).
+
 ## For PROJECT_STATE.md
 
 `PROJECT_STATE.md` is untracked in the owner's checkout, which this run does not touch; the coordinator carries these
