@@ -92,6 +92,18 @@ describe("HP & perangkat", () => {
     expect(trigger).toHaveFocus();
   });
 
+  it("says a failed load in Status HP and the manual key instead of showing them empty (D21)", async () => {
+    vi.mocked(getDevices).mockRejectedValue(new Error("offline"));
+    vi.mocked(getApiKeyInfo).mockRejectedValue(new Error("offline"));
+    show();
+    const status = screen.getByRole("region", { name: "Status HP" });
+    expect(await within(status).findByText("Daftar perangkat gagal dimuat.")).toBeInTheDocument();
+    const manual = screen.getByRole("region", { name: "Kunci API manual (cadangan)" });
+    expect(await within(manual).findByText("Info kunci API gagal dimuat.")).toBeInTheDocument();
+    expect(within(manual).queryByText("Belum ada kunci")).not.toBeInTheDocument();
+    expect(within(manual).getByRole("button", { name: "Coba lagi" })).toBeInTheDocument();
+  });
+
   it("reads the section in English", async () => {
     show("en");
     const section = screen.getByRole("region", { name: "Phone & devices" });

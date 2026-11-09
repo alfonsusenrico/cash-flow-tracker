@@ -8,6 +8,7 @@ import { useFormat } from "@/lib/format";
 import { queryKeys } from "@/lib/queryKeys";
 import { Icon } from "@/components/ui/Icon";
 import { SectionHeader } from "@/components/workspace/lists";
+import { ErrorState, Skeleton } from "@/components/workspace/primitives";
 import { CompanionStatus } from "@/components/workspace/CompanionStatus";
 import { pairedDevices } from "@/components/settings/DevicePairingSection";
 
@@ -70,19 +71,31 @@ function PhoneBlock({ device, checkedAt }: { device: PairedDevice; checkedAt: nu
 export function PhoneStatus() {
   const t = useTranslations("settings.devices");
   // Staleness is judged against the moment the list was fetched, so a render never reads the clock.
-  const { data, dataUpdatedAt } = useQuery({ queryKey: queryKeys.devices, queryFn: getDevices });
+  const { data, dataUpdatedAt, isError, isPending, refetch } = useQuery({ queryKey: queryKeys.devices, queryFn: getDevices });
   const devices = pairedDevices(data?.devices);
   return (
     <section aria-labelledby="phone-status-title">
       <SectionHeader id="phone-status-title" label={t("status")} />
-      <div className="set-box">
-        <div className="set-companion">
-          <CompanionStatus />
+      {/* A failed device list says so instead of an empty box (D21). */}
+      {isError ? (
+        <ErrorState message={t("loadFailed")} onRetry={() => void refetch()} />
+      ) : isPending ? (
+        <div aria-busy="true">
+          <Skeleton style={{ height: 112 }} />
+          <p role="status" className="sr-only">
+            {t("loading")}
+          </p>
         </div>
-        {devices.map((device) => (
-          <PhoneBlock key={device.id} device={device} checkedAt={dataUpdatedAt} />
-        ))}
-      </div>
+      ) : (
+        <div className="set-box">
+          <div className="set-companion">
+            <CompanionStatus />
+          </div>
+          {devices.map((device) => (
+            <PhoneBlock key={device.id} device={device} checkedAt={dataUpdatedAt} />
+          ))}
+        </div>
+      )}
     </section>
   );
 }

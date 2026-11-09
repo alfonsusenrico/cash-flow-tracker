@@ -7,6 +7,7 @@ import { getApiKeyInfo, rotateApiKey, type ApiKeyMetadata } from "@/lib/api";
 import { useFormat } from "@/lib/format";
 import { queryKeys } from "@/lib/queryKeys";
 import { ListRow, SectionHeader } from "@/components/workspace/lists";
+import { ErrorState } from "@/components/workspace/primitives";
 import { SettingsAlert } from "@/components/settings/SettingsSection";
 
 /**
@@ -19,7 +20,7 @@ export function ManualApiKey() {
   const common = useTranslations("common");
   const format = useFormat();
   const qc = useQueryClient();
-  const { data, isError } = useQuery<{ ok: boolean; api_key: ApiKeyMetadata | null }>({
+  const { data, isError, refetch } = useQuery<{ ok: boolean; api_key: ApiKeyMetadata | null }>({
     queryKey: queryKeys.auth.apiKey,
     queryFn: getApiKeyInfo,
   });
@@ -66,24 +67,28 @@ export function ManualApiKey() {
   return (
     <section aria-labelledby="manual-api-key-title">
       <SectionHeader id="manual-api-key-title" label={t("title")} />
-      {isError && <SettingsAlert>{t("loadFailed")}</SettingsAlert>}
       {error && <SettingsAlert>{error}</SettingsAlert>}
-      <ul className="list set-list">
-        <li>
-          <ListRow
-            layout="stacked"
-            title={key?.key_prefix ? t("row", { prefix: `${key.key_prefix}••••••••••••` }) : t("none")}
-            meta={
-              key
-                ? t("meta", {
-                    created: format.yearDateAt(key.created_at),
-                    used: key.last_used_at ? dateTime(key.last_used_at) : t("never"),
-                  })
-                : undefined
-            }
-          />
-        </li>
-      </ul>
+      {/* A failed load never reads as "Belum ada kunci" (D21). */}
+      {isError ? (
+        <ErrorState message={t("loadFailed")} onRetry={() => void refetch()} />
+      ) : (
+        <ul className="list set-list">
+          <li>
+            <ListRow
+              layout="stacked"
+              title={key?.key_prefix ? t("row", { prefix: `${key.key_prefix}••••••••••••` }) : t("none")}
+              meta={
+                key
+                  ? t("meta", {
+                      created: format.yearDateAt(key.created_at),
+                      used: key.last_used_at ? dateTime(key.last_used_at) : t("never"),
+                    })
+                  : undefined
+              }
+            />
+          </li>
+        </ul>
+      )}
       <p className="t-meta set-note">{t("note")}</p>
 
       {plainKey ? (
