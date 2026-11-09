@@ -14,6 +14,8 @@ export interface RincianLine {
   label: string;
   /** Already formatted, with its sign. */
   amount: string;
+  /** The amount is not money, such as "Belum diketahui": it stays visible while balances are hidden. */
+  plain?: boolean;
   parts?: ExplanationLine[];
   /** Short notes under the parts, such as the window of the scheduled amount. */
   partNotes?: string[];
@@ -25,7 +27,8 @@ export interface RincianData {
   lines: RincianLine[];
   /** When the period is over: what it is over by, shown before the total. */
   over?: { label: string; amount: string } | null;
-  total: { label: string; amount: string };
+  /** With `plain` the total is a count such as "5,4x biaya pokok · 162 hari", visible while balances are hidden. */
+  total: { label: string; amount: string; plain?: boolean };
   notes: string[];
   /** The rows still waiting for an answer, listed under the notes. */
   waiting?: { label: string; amount: string; lines: ExplanationLine[]; link: { href: string; label: string } } | null;
@@ -65,7 +68,7 @@ function Parts({ id, lines, notes = [], link }: { id: string; lines: Explanation
 function LineRow({ line }: { line: RincianLine }) {
   const [open, setOpen] = useState(false);
   const partsId = useId();
-  const amount = <MaskedMoney text={line.amount} className="t-amt" />;
+  const amount = line.plain ? <span className="t-amt">{line.amount}</span> : <MaskedMoney text={line.amount} className="t-amt" />;
   if (!line.parts?.length) {
     return (
       <li>
@@ -157,7 +160,7 @@ export function ExplanationDialog({ open, onClose, data }: { open: boolean; onCl
                 <span className="r-main">
                   <span className="r-title t-strong">{data.total.label}</span>
                 </span>
-                <MaskedMoney text={data.total.amount} className="t-fig" />
+                {data.total.plain ? <span className="t-fig">{data.total.amount}</span> : <MaskedMoney text={data.total.amount} className="t-fig" />}
               </div>
             </li>
           </ul>

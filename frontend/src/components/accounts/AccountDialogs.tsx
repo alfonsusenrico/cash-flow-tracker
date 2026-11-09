@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { api, type ApiErrorDetail } from "@/lib/api";
@@ -9,7 +9,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { cn, formatNumberWithDots, parseNumberFromDots, formatDecimalInput, parseDecimal, parseUnits } from "@/lib/utils";
 import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
 import { Icon } from "@/components/ui/Icon";
-import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
+import { PlansDialog } from "@/components/recurring/PlansDialog";
 import { InvestmentTradeModal } from "@/components/ui/InvestmentTradeModal";
 import { InvestmentTopupModal } from "@/components/ui/InvestmentTopupModal";
 import { AmountTrackingSwitchModal } from "@/components/ui/AmountTrackingSwitchModal";
@@ -17,6 +17,7 @@ import { GainText } from "@/components/workspace/figures";
 import { MaskedMoney, useMoney } from "@/components/workspace/money";
 import { useToast } from "@/components/workspace/overlays";
 import { RadioSegments } from "@/components/workspace/primitives";
+import { Field } from "@/components/workspace/Field";
 import { ShellDialog } from "@/components/workspace/ShellDialog";
 import { InvestmentScheduleDraft } from "@/lib/investmentTopups";
 import { DEFAULT_ACCOUNT_TAG_COLOR, INVESTMENT_ACCOUNT_TAG_COLOR, defaultAccountTagColor } from "@/lib/accountColours";
@@ -97,37 +98,6 @@ function errorText(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-/** A SPEC field: label, control, the error under it and a hint; the control gets its ids and state. */
-function Field({
-  id,
-  label,
-  hint,
-  error,
-  describedBy: extraDescription,
-  className,
-  children,
-}: {
-  id: string;
-  label: string;
-  hint?: ReactNode;
-  error?: string;
-  /** Another element that describes the control, such as a hint shared by two fields. */
-  describedBy?: string;
-  className?: string;
-  children: (aria: { id: string; "aria-invalid"?: true; "aria-describedby"?: string }) => ReactNode;
-}) {
-  const errorId = error ? `${id}-error` : undefined;
-  const hintId = hint ? `${id}-hint` : undefined;
-  const describedBy = [errorId, hintId, extraDescription].filter(Boolean).join(" ") || undefined;
-  return (
-    <div className={cn("field", className)}>
-      <label htmlFor={id}>{label}</label>
-      {children({ id, "aria-invalid": error ? true : undefined, "aria-describedby": describedBy })}
-      {error && <p id={errorId} className="err">{error}</p>}
-      {hint && <p id={hintId} className="hint">{hint}</p>}
-    </div>
-  );
-}
 
 /** The nine colours as one radio group: arrows move and choose, the chosen swatch has a 1 px ink outline. */
 function ColourField({ value, onChange }: { value: string; onChange: (hex: string) => void }) {
@@ -1277,7 +1247,7 @@ export function useAccountDialogs() {
         )}
       </ShellDialog>
 
-      <RecurringRulesModal
+      <PlansDialog
         open={recurringModalOpen}
         onClose={() => { setRecurringModalOpen(false); setInvestmentSchedule(null); }}
         investmentDraft={investmentSchedule}

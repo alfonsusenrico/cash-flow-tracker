@@ -37,7 +37,7 @@ body {
 
 /* Tabular figures for every amount, count, time, date column, table, field, badge and chart label. */
 .tabular, .tabular-nums, .t-fig-l, .t-fig, .t-amt, .ws-cnt, .ws-kbd, .ws-pill, .ws-badge, .ws-tbl, .ws-xtable,
-.ws-kpi-value, .ws-dana-big b, .ws-dana-foot b,
+.ws-kpi-value,
 .ws-bigline, .ws-rows .r,
 .ws-chip-delta, table, dd, input, select, textarea, svg text {
   font-variant-numeric: tabular-nums lining-nums;
@@ -957,14 +957,9 @@ dialog.shell-dialog::backdrop { background: var(--scrim); animation: ws-fade var
 .ws-bar { position: relative; height: 8px; overflow: hidden; border-radius: 0; background: var(--surface-2); }
 .ws-bar > i { display: block; height: 100%; border-radius: 0; background: var(--bc, var(--in-solid)); }
 
-/* KPI cards with large figures (refine-workspace-layout D5), Transaksi's until its phase; Ketahanan Dana's large
- * line, Target & Tagihan's. */
+/* KPI cards with large figures (refine-workspace-layout D5), Transaksi's until its phase. */
 .ws-accent-link { display: inline-flex; align-items: center; min-height: 28px; color: var(--accent-fg); font-size: var(--fs-14); font-weight: 500; text-decoration: none; text-underline-offset: 3px; }
 .ws-accent-link:hover { text-decoration: underline; }
-.ws-dana-big { margin-top: 12px; color: var(--muted); font-size: 14px; }
-.ws-dana-big b { margin-right: 4px; color: var(--text); font-size: 32px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-.ws-dana-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; margin-top: 10px; color: var(--muted); font-size: 14px; }
-.ws-dana-foot b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 @container main (max-width: 900px) {
   .ws-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 18px; }
   .ws-kpi:nth-child(3) { border-left: 0; }
@@ -1194,6 +1189,20 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
 .dlg-f .dlg-error { flex-basis: 100%; order: 1; text-align: right; }
 .run-progress { display: block; width: 100%; height: 8px; margin-top: var(--sp-8); accent-color: var(--accent); }
 .history-estimate > * + *, .history-run > * + * { margin-top: var(--sp-4); }
+
+/* "Rencana & Pengingat" (option-6 `.rc-grid`, apply-markas-target D20): the plans beside the chosen plan's form. */
+.plans-dialog .rc-filter { margin-top: var(--sp-16); }
+.rc-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: var(--sp-24); margin-top: var(--sp-16); }
+.rc-grid > * { min-width: 0; }
+.rc-list .form-alert { margin-bottom: var(--sp-12); }
+.rc-empty { padding: var(--sp-48) var(--sp-24); }
+.rc-head > * + * { margin-top: var(--sp-4); }
+.rc-detail > * + * { margin-top: var(--sp-24); }
+.rc-actions { display: flex; flex-wrap: wrap; gap: var(--sp-8); }
+.rc-due > * + * { margin-top: var(--sp-12); }
+@media (max-width: 767px) {
+  .rc-grid { grid-template-columns: minmax(0, 1fr); }
+}
 
 /* ======================================================================
  * Rail (option-6 SPEC "Rail item", apply-markas-tinjau D5): 36 px items with a right-aligned count, the current
@@ -1577,4 +1586,51 @@ button.hbar:hover { background: var(--surface); }
   .ws-btn { min-height: 44px; }
   .ws-seg button { min-height: 40px; }
   .ws-icon-btn, .ws-close { width: 44px; height: 44px; }
+}
+
+/*
+ * Target & Tagihan (option-6 styles.css `.stacked`, `.goal-row`, `.supports`, apply-markas-target D1 to D15, D18,
+ * D19): the hero's thick bar and four figures, the goal rows, the panel's stacked rows, the toggles under a list,
+ * the goal picker and the dialogs' figure block.
+ */
+.tg-page .hero .tg-bar { margin-top: var(--sp-24); }
+.tg-page .hero .tg-supports { margin-top: var(--sp-24); }
+.tg-more { display: flex; justify-content: flex-start; margin-top: var(--sp-8); }
+.tg-note { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-8); margin-top: var(--sp-8); }
+.tg-empty > * + * { margin-top: var(--sp-12); }
+.row.goal-row { min-height: 72px; padding-top: var(--sp-12); padding-bottom: var(--sp-12); }
+.row .r-main.col { flex-direction: column; align-items: flex-start; gap: 0; }
+.row .r-main.col > * { max-width: 100%; }
+.row .r-main.col .r-meta { flex: none; }
+.goal-row .prog { width: 100%; max-width: 320px; margin-top: var(--sp-8); }
+.goal-row .r-amt .t-meta { display: block; }
+.row.stacked { display: block; padding-top: var(--sp-12); padding-bottom: var(--sp-12); }
+.row.stacked > * { display: block; }
+.row.stacked .line { display: flex; align-items: baseline; gap: var(--sp-12); min-width: 0; }
+.row.stacked .line > :first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row.stacked .line > :last-child:not(:first-child) { flex: none; white-space: nowrap; }
+.row.stacked .prog { margin: var(--sp-8) 0 var(--sp-4); }
+.tg-dialog .dlg-fig > * + * { margin-top: var(--sp-8); }
+.tg-dialog .dlg-fig .t-fig-l { display: inline-block; margin-top: var(--sp-4); }
+.tg-dialog .dlg-fig .prog { margin-top: var(--sp-12); }
+.tg-dialog .dlg-fig + .form-stack, .tg-dialog .tg-pay-part + .tg-pay-part { margin-top: var(--sp-24); }
+.tg-pay-part > * + * { margin-top: var(--sp-12); }
+.tg-picker-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-12); }
+.tg-picker { max-height: 264px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--r-control); }
+.tg-picker > li + li { border-top: 1px solid var(--line); }
+.tg-pockets { margin-left: var(--sp-24); }
+.tg-choice { display: flex; align-items: center; gap: var(--sp-12); min-height: 44px; padding: 0 var(--sp-12); cursor: pointer; }
+.tg-choice input { width: 16px; height: 16px; flex: none; margin: 0; accent-color: var(--accent-fg); }
+.tg-choice .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tg-linked { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.tg-amount-input.field-control { height: 56px; font-size: var(--fs-20); font-weight: 600; }
+.tg-notes.field-control { height: auto; padding: var(--sp-8) var(--sp-12); }
+@media (max-width: 767px) {
+  .tg-page .hero .tg-supports { --n: 2 !important; gap: var(--sp-16); }
+  .tg-page .hero .tg-supports .is-phone-hide { display: none; }
+  .row.goal-row { min-height: 72px; }
+  .row.stacked { min-height: 0; }
+}
+@media (max-width: 359px) {
+  .tg-page .hero .hero-fig { font-size: var(--fs-32); line-height: 40px; }
 }

@@ -22,7 +22,7 @@ vi.mock("@/lib/api", () => ({
 }));
 vi.mock("next/navigation", () => ({ usePathname: () => "/", useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("@/components/recurring/PendingScheduledBanner", () => ({ PendingScheduledBanner: () => null }));
-vi.mock("@/components/recurring/RecurringRulesModal", () => ({ RecurringRulesModal: () => null }));
+vi.mock("@/components/recurring/PlansDialog", () => ({ PlansDialog: () => null }));
 // "Sembunyikan saldo" for the hidden-balance cases; the real context otherwise.
 const display = vi.hoisted(() => ({ hidden: false }));
 vi.mock("@/components/layout/AppLayout", async (importOriginal) => {

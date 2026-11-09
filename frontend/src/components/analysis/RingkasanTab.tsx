@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { RecurringCharges } from "@/components/insights/ObservedInsights";
 import { QuestionRate } from "@/components/insights/QuestionRate";
 import { HabitsLearnedCard } from "@/components/analysis/HabitsLearnedCard";
-import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
+import { PlansDialog } from "@/components/recurring/PlansDialog";
 import { ExplainableFigure, type ExplanationData } from "@/components/workspace/explain";
 import { Card, CardHeader, ErrorState, Kpi, KpiStrip, Skeleton } from "@/components/workspace/primitives";
 import { Change, NoBaseline, Progress, baselineName } from "@/components/report/ComparisonParts";
@@ -142,7 +142,7 @@ export function RingkasanTab({ basis, offset, money, onLabel }: { basis: PeriodB
         narrow={[progressCard, baselineCard, daily, bills, asked, habits]}
       />
       <CategoryBudgetSection rawCategories={data.category_variance ?? []} reportPeriod={reportPeriodFilters(basis, offset)} bal={money} />
-      <RecurringRulesModal open={planDraft !== null} onClose={() => setPlanDraft(null)} expenseDraft={planDraft} />
+      <PlansDialog open={planDraft !== null} onClose={() => setPlanDraft(null)} expenseDraft={planDraft} />
     </div>
   );
 }

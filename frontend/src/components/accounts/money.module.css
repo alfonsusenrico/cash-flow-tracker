@@ -1,10 +1,7 @@
 /* Target & Tagihan and Pengaturan; Rekening & Kantong moved to globals.css (apply-markas-rekening D18) (redesign-money-and-settings D2, D4, D6, D12).
    Workspace tokens only; marks and bars are decorative and every value is written as text. */
 
-.root { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .grow { flex: 1; }
-.grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; align-items: start; gap: 16px; }
-.grid > .summaryFirst { order: 2; position: sticky; top: calc(var(--topbar-h) + 16px); }
 .stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .plainTitle { margin: 0; font-size: 16px; font-weight: 600; }
 
@@ -24,17 +21,10 @@
 
 .bar { margin-top: 14px; }
 
-.drawerBody { display: flex; flex-direction: column; gap: 14px; }
-.drawerBalance { display: flex; flex-direction: column; gap: 2px; }
-.drawerBalance b { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 .drawerFacts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; margin: 0; font-size: 14px; }
 .drawerFacts dt { color: var(--muted); }
 .drawerFacts dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 
-@container main (max-width: 900px) {
-  .grid { grid-template-columns: minmax(0, 1fr); }
-  .grid > .summaryFirst { order: 0; position: static; }
-}
 
 @container main (max-width: 640px) {
   .kindCol { display: none; }
@@ -43,23 +33,7 @@
   .disclosure { width: 44px; height: 44px; margin: -10px 0 -10px -10px; }
 }
 
-/* Target & Tagihan */
 .emptyBlock { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
-/* Target tabungan tiles (refine-workspace-layout D11): the whole tile opens the goal. */
-.goalTiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin: 14px 0 0; padding: 0; list-style: none; }
-.goalTile { display: flex; flex-direction: column; gap: 10px; width: 100%; padding: 16px; border-radius: var(--r-panel); background: var(--surface-2); text-align: left; }
-.goalTile:hover { background: var(--surface-3); }
-.goalTop { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.goalTop > b { font-size: 14px; font-weight: 600; }
-.goalPct { margin-left: auto; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.goalSources { color: var(--muted); font-size: 12px; }
-.progress { overflow: hidden; height: 8px; border-radius: 0; background: var(--surface-3); }
-.progress > i { display: block; height: 100%; border-radius: inherit; }
-.goalMeta b { color: var(--text); font-weight: 600; }
-.goalMeta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
-.archived { margin-top: 10px; }
-.archivedList { margin: 8px 0 0; padding: 0; list-style: none; font-size: 14px; }
-.archivedList li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
 .table tfoot th, .table tfoot td { padding-top: 10px; border-top: 1px solid var(--line); font-weight: 600; text-align: left; }
 .table tfoot td.r, .table tfoot td:last-child { text-align: right; }
 
@@ -108,18 +82,3 @@
 .linkRow { margin: 0; font-size: 14px; }
 .linkRow :global(.ws-linkbtn) { display: inline-flex; align-items: center; min-height: 24px; }
 
-/* Target & Tagihan (refine-workspace-layout D11): three equal cards, then the goals at full width. */
-.factsTwo { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 12px; }
-/* Doubled to outrank the shared ".ws-dana-big b" colour. */
-.debtBig.debtBig { color: var(--out-fg); }
-.debtNames { margin: 10px 0 0; padding: 0; color: var(--muted); font-size: 14px; list-style: none; }
-.debtNames :global(.ws-rowbtn) { display: inline; color: var(--text); font-size: 14px; }
-.trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; gap: 16px; }
-.trio > * { min-width: 0; }
-.billList { margin: 10px 0 0; padding: 0; list-style: none; }
-.billList li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
-.billList li:first-child { border-top: 0; }
-.billList li > span { display: flex; flex-direction: column; min-width: 0; }
-.billList li > span > span { color: var(--muted); font-size: 12px; }
-.billList b { font-weight: 600; font-variant-numeric: tabular-nums; }
-@container main (max-width: 900px) { .trio { grid-template-columns: minmax(0, 1fr); } }

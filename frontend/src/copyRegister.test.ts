@@ -62,7 +62,7 @@ function englishOffenders(catalogue: Catalogue): string[] {
 function spendingTermOffenders(catalogue: Catalogue, language: "en" | "id"): string[] {
   const rule = language === "en" ? SPEND_EN : SPENDING_ID;
   return messages(catalogue)
-    .filter(([key]) => /^(terms|review|transactions)\./.test(key) || (language === "id" && /^(home|breakdown)\./.test(key)))
+    .filter(([key]) => /^(terms|review|transactions|goals|plans)\./.test(key) || (language === "id" && /^(home|breakdown)\./.test(key)))
     .filter(([, value]) => rule.test(value))
     .map(([key]) => key);
 }
@@ -123,7 +123,7 @@ function sourceOffenders(files: string[]): string[] {
 /** The areas a redesign phase has translated (add-language-system D10); every phase adds its own here. */
 const TRANSLATED_ROOTS = [
   "components/workspace", "components/layout", "components/beranda", "app/page.tsx", "app/layout.tsx", "app/auth/login/page.tsx",
-  "components/recurring/PendingScheduledBanner.tsx", "components/ui/PeriodStepper.tsx", "components/ui/Modal.tsx",
+  "components/ui/PeriodStepper.tsx", "components/ui/Modal.tsx",
   "components/ui/ConfirmActionButton.tsx", "components/settings/TestSessionBanner.tsx", "i18n", "lib/i18n", "lib/format.ts",
   // Tinjau (apply-markas-tinjau D18).
   "components/review", "app/review", "lib/triage.ts", "lib/review.ts", "lib/reviewUndo.ts", "lib/historySuggestions.ts",
@@ -132,12 +132,16 @@ const TRANSLATED_ROOTS = [
   // Rekening & Kantong and its money dialogs (apply-markas-rekening D16).
   "app/accounts", "components/accounts", "components/ui/InvestmentTradeModal.tsx", "components/ui/InvestmentTopupModal.tsx",
   "components/ui/AmountTrackingSwitchModal.tsx",
+  // Rencana & Pengingat and Rencana jatuh tempo, shared by every page (apply-markas-target D22).
+  "components/recurring",
+  // Target & Tagihan and its dialogs (apply-markas-target D22).
+  "app/goals", "components/goals",
 ];
 /** Indonesian page copy that lives in a translated root until its page's phase moves it (D10). */
 const UNTRANSLATED_FILES = ["components/workspace/untranslatedPages.ts"];
 
-const MONEY_ROOTS = ["components/goals", "components/settings", "app/goals", "app/settings", "components/ui/ReconciliationFlag.tsx", "components/ui/DebtAllocationEditor.tsx",
-  "components/ui/SalarySettingsSection.tsx", "components/ui/SenderAliasesSection.tsx", "components/recurring/RecurringRulesModal.tsx",
+const MONEY_ROOTS = ["components/settings", "app/settings", "components/ui/ReconciliationFlag.tsx", "components/ui/DebtAllocationEditor.tsx",
+  "components/ui/SalarySettingsSection.tsx", "components/ui/SenderAliasesSection.tsx",
   "components/dashboard/EmergencyCoverage.tsx", "lib/habits.ts"];
 
 const UNTRANSLATED_ROOTS = ["components/capture",
@@ -150,8 +154,11 @@ const UNTRANSLATED_ROOTS = ["components/capture",
 
 /** Attributes and properties whose string is shown or announced. */
 const VISIBLE_NAMES = /^(aria-label|aria-description|title|placeholder|alt|label|heading|meta|subtitle|closeLabel|menuLabel|caption|emptyLabel|line|text|detail|help|rule)$/;
-/** Literal values that are not copy: key names, a directive and the product name. */
-const NOT_COPY = new Set(["use client", "Ctrl K", "Meta+K Control+K", "CashFlow", "English", "Bahasa Indonesia"]);
+/**
+ * Literal values that are not copy: key names, a directive, the product name, and "Bayar tagihan: ", the stored note of
+ * a manual debt payment, which is data the server has always received in this form (apply-markas-target D19).
+ */
+const NOT_COPY = new Set(["use client", "Ctrl K", "Meta+K Control+K", "CashFlow", "English", "Bahasa Indonesia", "Bayar tagihan: "]);
 /** A class list, a CSS value or a query: every token is lower-case code-like, and one has a separator. */
 function looksLikeCode(text: string): boolean {
   const tokens = text.trim().split(/\s+/);
