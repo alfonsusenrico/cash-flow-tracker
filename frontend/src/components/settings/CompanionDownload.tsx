@@ -13,15 +13,18 @@ export const COMPANION_RELEASE_URL = "https://github.com/alfonsusenrico/cash-flo
 /** minSdk 26 in mobile/app/build.gradle.kts. */
 export const COMPANION_MIN_ANDROID = "Android 8.0";
 
-/** The prototype's 136 px box less its 8 px padding and 1 px line on each side. */
-const DOWNLOAD_QR_SIZE = 118;
+/**
+ * The download link needs 45 modules with its margin, so the prototype's 118 px of code would give 2.6 px per module,
+ * under the 3 px a phone camera reads reliably; D9's fallback keeps 136 px of code (3 px per module) in a 154 px box.
+ */
+const DOWNLOAD_QR_SIZE = 136;
 
 function DownloadDetails() {
   const t = useTranslations("settings.devices");
   const [qrFailed, setQrFailed] = useState(false);
   return (
     <div className="set-qr-row">
-      <div className="qr">
+      <div className="qr is-download">
         <QrCode value={COMPANION_DOWNLOAD_URL} size={DOWNLOAD_QR_SIZE} label={t("downloadQr")} onError={() => setQrFailed(true)} />
       </div>
       <div className="grow">

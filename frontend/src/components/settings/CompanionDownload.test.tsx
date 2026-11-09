@@ -63,9 +63,9 @@ describe("companion app download", () => {
         expect.objectContaining({ errorCorrectionLevel: "M", color: { dark: "#000000", light: "#ffffff" } }),
       ),
     );
-    // The download QR fills the prototype's 136 px box: 118 css px, drawn at the device pixel ratio.
+    // 136 css px of code, so each of the link's 45 modules is 3 px (D9 fallback), drawn at the device pixel ratio.
     const canvas = within(section).getByRole("img", { name: "Kode QR tautan unduhan aplikasi pendamping" });
-    expect(canvas).toHaveStyle({ width: "118px", height: "118px" });
+    expect(canvas).toHaveStyle({ width: "136px", height: "136px" });
     expect(canvas.closest(".qr")).not.toBeNull();
     expect((await axe(container)).violations).toHaveLength(0);
   });

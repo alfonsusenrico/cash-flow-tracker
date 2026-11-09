@@ -90,7 +90,7 @@ export function SenderAliasesSection() {
           <>
             {searchable && (
               <div className="form-grid set-search">
-                <Field id="sender-search" label={t("search")} hint={<span role="status" className="tabular-nums">{t("matches", { shown: String(shown.length), total: String(aliases.length) })}</span>}>
+                <Field id="sender-search" className="full-row" label={t("search")} hint={<span role="status" className="tabular-nums">{t("matches", { shown: String(shown.length), total: String(aliases.length) })}</span>}>
                   {(field) => (
                     <input
                       {...field}

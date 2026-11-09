@@ -1919,6 +1919,10 @@ details.box.lp-details { display: block; padding: 0; }
 .set-note { margin-top: var(--sp-8); }
 .set-list { margin: 0 calc(-1 * var(--sp-12)); }
 .set-list > li > .row { flex-wrap: wrap; min-height: 56px; }
+.set-list > li > .row.is-stacked { align-items: center; }
+/* A row's actions move under its title when both do not fit side by side (Sesi uji's four actions on a phone). */
+.set-list .row .r-main { flex: 1 1 12rem; }
+.set-list .row .r-actions { flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
 .set-list .row .r-actions:has(> .set-confirm) { flex: 1 1 100%; justify-content: flex-end; padding-bottom: var(--sp-8); }
 .set-list .row .r-title { white-space: normal; overflow-wrap: anywhere; }
 .set-list .row .r-meta { white-space: normal; overflow-wrap: anywhere; }
@@ -1955,11 +1959,13 @@ details.box.lp-details { display: block; padding: 0; }
 .set-checks li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-4) var(--sp-8); min-height: 32px; }
 .set-checks li > svg { flex: none; }
 .set-checks .t-body { flex: 1 1 auto; min-width: 0; }
-.set-checks .t-meta { text-align: right; }
+.set-checks .t-meta { margin-left: auto; text-align: right; }
 
 /* Download and pairing QR codes: dark modules on white in both themes, inside a white quiet border. */
 .qr { flex: none; box-sizing: border-box; width: 136px; height: 136px; padding: var(--sp-8); border: 1px solid var(--line); border-radius: var(--r-control); background: #FFFFFF; }
 .qr canvas { display: block; width: 100%; height: 100%; }
+/* The download QR keeps 136 px of code (D9 fallback: 3 px per module). */
+.qr.is-download { width: 154px; height: 154px; }
 /* The pairing QR keeps at least 200 px of code (owner decision 2026-11-08), so the box is 218 px. */
 .qr.is-pairing { width: 218px; height: 218px; }
 .qr.is-empty { display: grid; place-items: center; padding: var(--sp-16); border-style: dashed; border-color: var(--line-strong); background: transparent; color: var(--text); font-size: var(--fs-14); line-height: 20px; text-align: center; }
@@ -2003,5 +2009,4 @@ details.box.lp-details { display: block; padding: 0; }
   .switch::before { content: ""; position: absolute; inset: -12px -4px; }
   .set-list .row .ws-btn, .set-list .row .ws-icon-btn, .set-actions .ws-btn, .set-confirm .ws-btn, .toggle .ws-btn { min-height: 44px; }
   .set-list .row .ws-icon-btn { width: 44px; height: 44px; }
-  .set-checks .t-meta { flex-basis: 100%; padding-left: 24px; text-align: left; }
 }
