@@ -348,6 +348,7 @@ def test_burn_rate_keeps_observed_averages_but_retires_forecasts():
              patch("app.routers.dashboard.category_breakdown", return_value=[]):
             mock_cur.fetchall.side_effect = [
                 [],  # daily_rows (the heatmap is derived from them)
+                [],  # the Pengeluaran basis per category, pillar and day (apply-markas-analisis D31)
                 [],  # prev_cat_map
                 [],  # kakeibo expenses
             ]

@@ -5,7 +5,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";
 import { HabitsSettings } from "./HabitsSettings";
 import { AppearanceSettings } from "./AppearanceSettings";
-import { HabitsLearnedCard } from "@/components/analysis/HabitsLearnedCard";
 
 vi.mock("@/lib/api", () => ({ api: { get: vi.fn() } }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
@@ -31,6 +30,16 @@ const listing = {
   truncated: false,
 };
 
+const questionRate = {
+  has_data: true,
+  weeks: [{ week_start: "2026-11-02", week_end: "2026-11-08", in_progress: true, recorded: 20, asked: 3, answered: 3, by_memory: 6, by_habit: 5, by_ai: 4, by_other: 2, corrections: 1, habit_corrections: 0 }],
+};
+
+/** The habit list for `/habits` and the weekly counts for the moved "Seberapa sering ditanya" panel. */
+function serve(habits: unknown) {
+  vi.mocked(api.get).mockImplementation(async (path: string) => (path.startsWith("/dashboard/question-rate") ? questionRate : habits));
+}
+
 function renderWith(node: React.ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(<QueryClientProvider client={client}>{node}</QueryClientProvider>);
@@ -39,7 +48,7 @@ function renderWith(node: React.ReactNode) {
 beforeEach(() => {
   vi.clearAllMocks();
   ctx.hide = false;
-  vi.mocked(api.get).mockResolvedValue(listing);
+  serve(listing);
 });
 
 describe("Kebiasaan", () => {
@@ -63,7 +72,7 @@ describe("Kebiasaan", () => {
 
   it("says when the server switch is off and masks hidden amounts", async () => {
     ctx.hide = true;
-    vi.mocked(api.get).mockResolvedValue({ ...listing, auto_record: { habits: false, topups: true } });
+    serve({ ...listing, auto_record: { habits: false, topups: true } });
     renderWith(<HabitsSettings />);
     expect(await screen.findByText("Siap, pencatatan otomatis nonaktif")).toBeInTheDocument();
     expect(screen.getByText("Nonaktif")).toBeInTheDocument();
@@ -71,7 +80,7 @@ describe("Kebiasaan", () => {
   });
 
   it("explains an empty list and shows an error with retry instead of an empty table", async () => {
-    vi.mocked(api.get).mockResolvedValue({ ...listing, habits: [], topups: [] });
+    serve({ ...listing, habits: [], topups: [] });
     const view = renderWith(<HabitsSettings />);
     expect(await screen.findByText("Belum ada kebiasaan yang dipelajari.")).toBeInTheDocument();
     view.unmount();
@@ -82,21 +91,14 @@ describe("Kebiasaan", () => {
   });
 });
 
-describe("Kebiasaan dihafal on Ringkasan", () => {
-  it("counts ready habits, links to Pengaturan and never shows 0 on failure", async () => {
-    const view = renderWith(<HabitsLearnedCard />);
-    expect(await screen.findByText("Kedai Awan")).toBeInTheDocument();
-    expect(screen.queryByText("Tanpa nama toko · BCA")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Lihat semua" })).toHaveAttribute("href", "/settings/kebiasaan");
-    view.unmount();
-    vi.mocked(api.get).mockResolvedValue({ ...listing, habits: [] });
-    const empty = renderWith(<HabitsLearnedCard />);
-    expect(await screen.findByText(/Belum ada kebiasaan/)).toBeInTheDocument();
-    empty.unmount();
-    vi.mocked(api.get).mockRejectedValue(new Error("down"));
-    renderWith(<HabitsLearnedCard />);
-    expect(await screen.findByRole("button", { name: "Coba lagi" })).toBeInTheDocument();
-    expect(screen.queryByText("0")).not.toBeInTheDocument();
+describe("Seberapa sering ditanya in Kebiasaan", () => {
+  it("shows the weekly panel after the habit and top-up tables (apply-markas-analisis D18)", async () => {
+    renderWith(<HabitsSettings />);
+    const tables = await screen.findAllByRole("table");
+    const panel = await screen.findByRole("heading", { name: "Seberapa sering ditanya" });
+    expect(tables.every((table) => table.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(await screen.findByTestId("question-rate-headline")).toHaveTextContent("15% minggu ini · 3 dari 20");
+    expect(api.get).toHaveBeenCalledWith("/dashboard/question-rate?weeks=8");
   });
 });
 

@@ -19,6 +19,7 @@ from zoneinfo import ZoneInfo
 
 from app.core.config import settings
 from app.i18n import t
+from app.services.spending_basis import spending_basis
 from app.services.account_roles import TABUNGAN
 from app.services.kakeibo import pillar_bucket_sql
 from app.services.reimbursements import load_spending_offsets
@@ -427,6 +428,8 @@ def build_flow(
     masuk = sum(int(row["amount"]) for row in in_range if row["reportable_income"])
     offsets = load_spending_offsets(cur, user_id, context.start, context.through_end)
     belanja = cash_flow_totals(masuk, belanja_gross, offsets.applied)
+    # Pengeluaran beside Belanja (apply-markas-analisis D31), on the same window and reimbursements.
+    spending = spending_basis(cur, user_id, context.start, context.through_end, offsets).total
     keluar = int(kakeibo_breakdown(cur, user_id, context.start, context.through_end, masuk, offsets)["total_allocated"])
     spend_gross = sum(link.amount for link in model.links.values() if link.kind == "spend")
 
@@ -447,6 +450,7 @@ def build_flow(
         "belanja_gross": belanja_gross,
         "reimbursement_offset": belanja["reimbursement_offset"],
         "belanja": belanja["outflow"],
+        "spending": spending,
         "keluar": keluar,
         "saving_net": net_into("sav:"),
         "investment_net": net_into("inv:"),

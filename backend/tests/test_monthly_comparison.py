@@ -82,6 +82,49 @@ def test_running_month_shows_progress_and_no_verdict(client, owners):
     assert {fact["kind"] for fact in body["facts"]} <= {"top_merchant", "recurring", "unexpected"}
 
 
+def test_running_share_of_the_average_is_a_whole_percent_of_the_baseline(client, owners):
+    owner, _ = owners
+    seed_four_months(owner)
+    body = comparison(client, start_date=month_start(0).isoformat())
+    # Agustus to Oktober (M3 to M1) average Rp 3.910.167; Rp 1.450.000 so far is 37 % of it.
+    assert body["baseline"]["totals"]["spending"] == 3_910_167
+    assert body["progress"]["baseline_share"] == 37
+    assert body["progress"]["share"] == share_percent(1_450_000, 4_802_000)
+    assert set(body["progress"]) == {"previous_label", "previous_spending", "spending", "share", "baseline_share", "pillars"}
+    assert set(body["baseline"]["change"].values()) == {None}
+
+
+def test_no_baseline_share_without_an_average_or_for_a_completed_period(client, owners):
+    owner, _ = owners
+    start_tracking(owner, -1)
+    insert(owner, "groceries", 400_000, at(month_start(-1).replace(day=5)))
+    insert(owner, "groceries", 100_000, at(month_start(0)))
+    running = comparison(client, start_date=month_start(0).isoformat())
+    assert running["baseline"] is None
+    assert running["progress"]["baseline_share"] is None
+    completed = comparison(client, start_date=month_start(-1).isoformat())
+    assert completed["progress"] is None
+
+
+def test_a_two_period_baseline_gives_its_share_and_a_zero_baseline_none(client, owners):
+    owner, other = owners
+    start_tracking(owner, -2)
+    for offset, amount in ((-2, 1_000_000), (-1, 3_000_000)):
+        insert(owner, "groceries", amount, at(month_start(offset).replace(day=5)))
+    insert(owner, "groceries", 500_000, at(month_start(0)))
+    body = comparison(client, start_date=month_start(0).isoformat())
+    assert body["baseline"]["period_count"] == 2
+    assert body["progress"]["baseline_share"] == share_percent(500_000, 2_000_000) == 25
+
+    as_user(other)
+    start_tracking(other, -2)
+    insert(other, "bonus", 900_000, at(month_start(-1).replace(day=5)), tx_type="income")
+    insert(other, "groceries", 10_000, at(month_start(0)))
+    zero = comparison(client, start_date=month_start(0).isoformat())
+    assert zero["baseline"]["totals"]["spending"] == 0
+    assert zero["progress"]["baseline_share"] is None
+
+
 def test_two_usable_months_give_a_two_month_average_and_fewer_give_none(client, owners):
     owner, _ = owners
     start_tracking(owner, -3)

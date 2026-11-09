@@ -144,6 +144,44 @@ export function SplitBar({
 }
 
 /**
+ * The 4 px progress bar (`.prog`, apply-markas-analisis D24): a square fill of `value` percent, clamped to 0–100, in
+ * a colour token. Hidden from assistive technology by default, because the text beside it carries the value.
+ */
+export function Meter({ value, tone = "var(--text)", width, label }: { value: number; tone?: string; width?: number; label?: string }) {
+  const clamped = Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
+  return (
+    <span
+      className="prog"
+      style={width ? { width } : undefined}
+      aria-hidden={label ? undefined : true}
+      role={label ? "img" : undefined}
+      aria-label={label}
+    >
+      <span style={{ width: `${clamped}%`, background: tone }} />
+    </span>
+  );
+}
+
+/**
+ * A change between two server amounts (apply-markas-analisis D5, D24): "▲ Rp 753.830" when the amount rose, "▼ Rp
+ * 120.000" when it fell, "sama" when equal, with the direction as hidden words for screen readers. For spending a
+ * rise reads in the expense ink and a fall in the income ink; the amount hides with "Sembunyikan saldo".
+ */
+export function ChangeFigure({ change, money, riseIsCost = true }: { change: number; money: (amount: number) => string; riseIsCost?: boolean }) {
+  const t = useTranslations("common.change");
+  if (change === 0) return <span className="t-amt">{t("same")}</span>;
+  const rose = change > 0;
+  const tone = rose === riseIsCost ? "c-expense" : "c-income";
+  return (
+    <span className={cn("t-amt chg", tone)}>
+      <span aria-hidden="true">{rose ? "▲" : "▼"} </span>
+      <span className="sr-only">{rose ? t("up") : t("down")} </span>
+      <MaskedMoney text={money(Math.abs(change))} />
+    </span>
+  );
+}
+
+/**
  * A progress bar (SPEC `.prog`): a 4 px track, 8 px with `thick`, and a square fill of `value` over `max`, capped at
  * the track. Decorative: the caller writes the values in text beside it (apply-markas-rekening D18).
  */

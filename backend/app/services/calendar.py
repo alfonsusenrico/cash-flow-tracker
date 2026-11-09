@@ -27,6 +27,7 @@ from app.services.report_windows import (
     shift_month,
 )
 from app.services.salary_cycles import resolve_cycle
+from app.services.spending_basis import spending_basis
 from app.services.salary_receipts import receipts
 from app.services.waiting_rows import fetch_waiting_rows
 
@@ -131,6 +132,7 @@ def build_calendar(conn, user: dict[str, Any], *, timeframe: str, cycle_offset: 
         )
         daily = {row["day"]: row for row in cur.fetchall()}
         day_offsets = daily_offsets(cur, user_id, read_start, read_end, offsets)
+        spending = spending_basis(cur, user_id, read_start, read_end, offsets)
         waiting = fetch_waiting_rows(cur, user_id, read_start, read_end)
         plans = plan_occurrences_in_window(
             cur, user_id, payday_day, start_date, grid_end, today, include_resolved=True,
@@ -156,8 +158,11 @@ def build_calendar(conn, user: dict[str, Any], *, timeframe: str, cycle_offset: 
         days.append({
             "date": day.isoformat(),
             "spend": spend,
+            # Pengeluaran of the day (apply-markas-analisis D31): Belanja without saving-pillar expenses.
+            "spending": spending.day(day),
             "spend_count": int(row["spend_count"]) if row else 0,
             "heat": 0,
+            "spending_heat": 0,
             "income_total": int(row["income_total"]) if row else 0,
             "income_count": int(row["income_count"]) if row else 0,
             "movement_total": int(row["movement_total"]) if row else 0,
@@ -182,8 +187,12 @@ def build_calendar(conn, user: dict[str, Any], *, timeframe: str, cycle_offset: 
         day += timedelta(days=1)
 
     thresholds = heat_thresholds([entry["spend"] for entry in days])
+    spending_thresholds = heat_thresholds([entry["spending"] for entry in days])
     for entry in days:
         entry["heat"] = heat_level(entry["spend"], thresholds)
+        entry["spending_heat"] = heat_level(entry["spending"], spending_thresholds)
+    if sum(entry["spending"] for entry in days) != spending.total:
+        raise RuntimeError("calendar days do not add up to the period's Pengeluaran")
 
     gross = sum(int(row["spend"]) for row in daily.values())
     spend_total = sum(entry["spend"] for entry in days)
@@ -217,10 +226,11 @@ def build_calendar(conn, user: dict[str, Any], *, timeframe: str, cycle_offset: 
             "status": expected.status,
             "reason": expected.reason,
         },
-        "totals": {"spend": spend_total, "gross_spend": gross, "offset_applied": gross - spend_total},
+        "totals": {"spend": spend_total, "gross_spend": gross, "offset_applied": gross - spend_total, "spending": spending.total},
         "days": days,
         "upcoming": upcoming,
         "upcoming_total": sum(line["amount"] for line in upcoming),
         "upcoming_basis": "expected_salary" if open_cycle and grid_end != end_date and expected.status == "estimated" else "window_end",
         "heat_thresholds": thresholds,
+        "spending_heat_thresholds": spending_thresholds,
     }

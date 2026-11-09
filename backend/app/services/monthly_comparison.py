@@ -214,11 +214,14 @@ def build_comparison(
         }
     if running:
         whole_previous = previous if previous is not None and not previous.partial else None
+        baseline_spending = result["baseline"]["totals"]["spending"] if result["baseline"] else None
         result["progress"] = {
             "previous_label": whole_previous.period.label if whole_previous else None,
             "previous_spending": whole_previous.spending if whole_previous else None,
             "spending": current.spending,
             "share": share_percent(current.spending, whole_previous.spending) if whole_previous else None,
+            # Pengeluaran so far as a share of the average whole period, read by Analisis (apply-markas-analisis D5).
+            "baseline_share": share_percent(current.spending, baseline_spending) if baseline_spending is not None else None,
             "pillars": [
                 {
                     "pillar": pillar, "amount": current.pillar(pillar),

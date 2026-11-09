@@ -33,6 +33,15 @@ DEBT_PAYMENT = "debt_payment"
 COUNTED_FLOWS = (SAVED, INVESTED, TAKEN, PAID_FROM_SAVINGS, SAVING_PILLAR)
 
 
+def saving_pillar_sql(tx: str = "t", category: str = "c") -> str:
+    """True for an expense whose pillar, its own or its category's, is Tabungan.
+
+    Such an expense counts in "Ditabung & investasi", not in Pengeluaran (`spending_basis`, apply-markas-analisis
+    D31), and its row's saving direction is `saving_pillar`. NULL for income, so callers wrap it in COALESCE.
+    """
+    return f"({effective_pillar_sql(tx, category)} = 'saving')"
+
+
 def counted_movement_sql(outbound: str, source: str, target: str) -> str:
     """True when a durably linked movement can count as saving.
 
@@ -91,7 +100,7 @@ def saving_flow_sql(tx: str = "t", category: str = "c") -> str:
     expense_flow = f"""CASE WHEN {reportable_expense_sql(tx, category)} THEN
             CASE
                 WHEN {SAVINGS_ACCOUNT_SQL.format(a="sf_ra")} THEN '{PAID_FROM_SAVINGS}'
-                WHEN {effective_pillar_sql(tx, category)} = 'saving' THEN '{SAVING_PILLAR}'
+                WHEN {saving_pillar_sql(tx, category)} THEN '{SAVING_PILLAR}'
             END
         END"""
     return f"COALESCE({movement_flow}, {expense_flow})"
