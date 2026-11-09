@@ -75,9 +75,11 @@ def main() -> None:
             category_id = created and (created.get("id") or created.get("category", {}).get("id"))
             if category_id:
                 add(f"spending in category {index + 1}", "POST", "/transactions", {"type": "expense", "account_id": harian["id"], "amount": 10_000 + index * 1_000, "category_id": category_id, "date": at(index % 6, 9, index % 60)})
-        # Monthly charges on the same day of the month for four months, so the detector finds twelve.
-        for charge in range(12):
-            merchant = f"{LONG_MERCHANT[:44]} {charge + 1:02d}"
+        # Monthly charges on the same day of the month for four months, so the detector finds twelve. The detector
+        # groups merchants without their digits, so each one is named by a word.
+        branches = ["Bandung", "Bekasi", "Bogor", "Cirebon", "Depok", "Garut", "Jakarta", "Malang", "Medan", "Padang", "Solo", "Tegal"]
+        for charge, branch in enumerate(branches):
+            merchant = f"{LONG_MERCHANT[:44]} {branch}"
             for month in range(4):
                 add(f"charge {charge + 1} month {month}", "POST", "/transactions", {"type": "expense", "account_id": harian["id"], "amount": 49_000 + charge * 1_000, "category_id": makan["id"], "merchant": merchant, "date": at(30 * month + charge % 5 + 1, 8, charge)})
     print(json.dumps(report, ensure_ascii=False, indent=1))
