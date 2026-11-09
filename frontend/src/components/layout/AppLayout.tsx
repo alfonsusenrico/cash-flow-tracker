@@ -29,7 +29,7 @@ import {
 import type { AutoLinkedOccurrence, DueExpectation, RecurringRule } from "@/types/recurring";
 import { PendingScheduledBanner } from "@/components/recurring/PendingScheduledBanner";
 import { RecurringRulesModal } from "@/components/recurring/RecurringRulesModal";
-import { WorkspaceContext, type PageHeader, type WorkspaceNotification, type WorkspaceValue } from "@/components/workspace/context";
+import { WorkspaceContext, type MovementCaptureDefaults, type PageHeader, type WorkspaceNotification, type WorkspaceValue } from "@/components/workspace/context";
 import { frameWidth } from "@/components/workspace/navigation";
 import { useNotificationSeen } from "@/components/workspace/Notifications";
 import { SideNav } from "@/components/workspace/SideNav";
@@ -227,13 +227,18 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   };
 
   const handleOpenMovement = (sourceAccountId?: string, targetAccountId?: string) => {
+    openMovementCapture({ sourceAccountId, targetAccountId });
+  };
+
+  function openMovementCapture({ sourceAccountId, targetAccountId, amount }: MovementCaptureDefaults) {
     setMovementDefaults({
       sourceAccountId: sourceAccountId ?? "",
       targetAccountId: targetAccountId ?? "",
     });
     setQuickAddDefaultType("movement");
+    setManualAmount(amount && amount > 0 ? amount : null);
     setQuickAddOpen(true);
-  };
+  }
 
   // "+ Catat", N and the phone tab open the text-first dialog; "Isi manual" there opens the form.
   const openExpenseCapture = useCallback(() => setCatatOpen(true), []);
@@ -414,6 +419,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     collapsed: sidebarCollapsed,
     toggleCollapsed,
     openCapture: openExpenseCapture,
+    openMovementCapture,
     openHelp,
     logout,
     header,

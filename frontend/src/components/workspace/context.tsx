@@ -24,6 +24,13 @@ export interface PageHeader {
   subtitle: string;
 }
 
+export interface MovementCaptureDefaults {
+  sourceAccountId?: string;
+  targetAccountId?: string;
+  /** A whole IDR amount to prefill, such as the next credit bill's `left_to_pay`. */
+  amount?: number;
+}
+
 export interface WorkspaceValue {
   username: string | null;
   /** The account's own name; null until set (Pengaturan · Profil). */
@@ -43,6 +50,11 @@ export interface WorkspaceValue {
   collapsed: boolean;
   toggleCollapsed: () => void;
   openCapture: () => void;
+  /**
+   * Opens the Perpindahan form with its accounts and amount filled in; nothing is posted until the owner saves
+   * (apply-markas-rekening D8: "Bayar tagihan"; phase 9 reuses it for due credit bills).
+   */
+  openMovementCapture: (defaults: MovementCaptureDefaults) => void;
   openHelp: () => void;
   logout: () => void;
   header: PageHeader | null;
