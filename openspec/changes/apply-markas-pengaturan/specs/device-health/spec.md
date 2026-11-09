@@ -21,7 +21,7 @@ Pengaturan › HP & perangkat SHALL show, in its "Status HP" box, for each paire
 
 #### Scenario: Ready phone
 - **WHEN** a phone reported ready an hour ago
-- **THEN** the box SHALL show it as "siap" with the report time, the app version and every check as "beres"
+- **THEN** the box SHALL show it as "siap" with the report time, the app version and every check as "Baik" ("Good")
 
 #### Scenario: Silent phone
 - **WHEN** a phone's last report is more than 24 hours old

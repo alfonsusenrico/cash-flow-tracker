@@ -32,7 +32,7 @@ Expected Result: every section opens in the prototype's frame on every width, an
 - [ ] 3.3 Rebuild "Hubungkan ponsel" on `ShellDialog` 520 and the revoke confirmation on `ShellDialog` 480 (D6, D9), and measure the QR modules. Evidence:
   - `DevicePairingDialog.test.tsx` and `DevicePairingSection.test.tsx` pass with the new markup: polling every 3 s, stop on close, ready and timeout, expiry and "Buat kode baru", the collapsed download, revoke and cancel with focus return;
   - spec "Pairing in Web Settings" scenario "Same pairing requests" against the request recorder;
-  - the module-size note in `verification.md`: modules per side and css px per module for the longest pairing payload and the download URL at 118 px, each ≥ 3 or the fallback of D9 applied and listed as a deviation.
+  - the module-size note in `verification.md`: modules per side and css px per module for the longest pairing payload at 200 px (owner override 2026-11-08) and the download URL at 118 px, each ≥ 3 or the fallback of D9 applied and listed as a deviation.
 - [ ] 3.4 Make the manual API key an open section with the inline confirmation and the once-only box (D8). Evidence: `DevicesSettings.test.tsx` covers spec "API Key Section in Settings" (rotate, paired phone kept, section last and open); a test asserts the key is not in `console` calls and is cleared from state after "Tutup".
 
 Expected Result: HP & perangkat matches the prototype with every device, pairing and key request unchanged.

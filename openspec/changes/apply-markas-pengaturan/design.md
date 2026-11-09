@@ -22,6 +22,39 @@ See proposal.md for the motivation. The code facts below were read on `origin/ma
 
 **Shared pieces from earlier phases this phase uses:** `ShellDialog` (phase 2, with phase 4's `fullHeight` unused here), `Rail`, `RailItem`, `RailRule` (phase 4, `components/workspace/rail.tsx`; Pengaturan uses the vertical rail on every width, never the phone chips), `SectionHeader` and `ListRow` (phase 3, with phase 4's `stacked`), `Segmented` (phase 1 `.seg`), `EmptyState`, `ErrorState`, `Skeleton`, `MaskedMoney`, `useMoney`, `lib/format.ts` (`add-language-system`), the phase 5 `RowAmount` for the salary amounts.
 
+## Re-based on the merged code (2026-11-09)
+
+Recorded before implementation (task 1.2). The branch is stacked on phase 7 (`origin/feat/markas-laporan` `27f0033`,
+PR #97, which contains `origin/main` `baa90a8` with phases 1 to 6, 8, 9, the language system, the server text and the
+credit flow); the coordinator's instruction replaces D23's "merged into `main` first" for phase 7. Where the plan and
+the merged code differ, the code wins and the plan adapts:
+
+- **Rail.** `RailItem` is a button with `aria-current="true"`. Pengaturan's sections are addresses, so `RailItem`
+  gains an `href` that renders a `Link` with `aria-current="page"` (the bar and fill already style both). The groups
+  use `Rail showLabel={false}` with one list per group labelled by its `RailLabel`.
+- **Segments.** `Segmented` is the `aria-pressed` group; the radio group of D11 and D13 is `RadioSegments`.
+- **CSS that exists.** `.stack`, `.field`, `.field-control`, `.form-grid` (`.full-row`), `.form-stack`, `.sec-h`,
+  `.row`/`.list`, `.c-income`, `.c-warning` and `.c-expense` came with earlier phases and are reused. `.box` is
+  Transaksi's flex box (padding 16), so the prototype's settings box is `.set-box` (padding 24, 16 on a phone).
+- **Breakpoints (D3).** `styles.css` also has a tablet rule (`max-width: 1199px`: `.set` 184 | `minmax(0, 1fr)`,
+  gap 32). The fidelity rule makes `styles.css` win, so the grid is 200 | ≤ 720 gap 48 from 1200 px, 184 | 1fr gap 32
+  from 768 to 1199 px, and one column below 768 px. On a phone the rail items are 44 px high (SPEC §11 targets).
+- **Salary amounts.** `RowAmount` takes a transaction row; the salary rows use its `KindAmount` with `kind="income"`.
+- **Copy register.** `beres` and `gajian` are in the register's slang list and English `OK` in its slang list, so a
+  passed check reads "Baik" / "Good" (D7, Appendix A `health.ok`), and the salary source meta keeps today's
+  "Dikenali dari nama pengirim" without "gajian sekitar tanggal {day}": `/salary/source` returns no day and
+  `payday_day` is deprecated, so there is no value to show (D12).
+- **Pairing QR (owner override 2026-11-08).** The pairing QR stays at least 200 css px (drawn at the device pixel
+  ratio, in a 218 px white `.qr` box with an 8 px quiet border), not the prototype's 118 px, because scan reliability on
+  a real phone matters more than the prototype's size. The download QR keeps the 136 px box. This replaces D9's
+  module-size fallback for the pairing QR.
+- **Untranslated example (D19).** After `/settings` leaves `untranslatedPages.ts`, only `/komponen` (the local
+  component sheet) remains there, so the untranslated-page test's example moves to `/komponen`.
+- **Process.** `PROJECT_STATE.md` lives in the owner's checkout and is not edited by this run; its notes go to
+  `verification.md` under "For PROJECT_STATE.md". No pull request is created (coordinator); the branch is pushed.
+- **Phase 6** already moved "Seberapa sering ditanya" (`QuestionRate`, same request) into Kebiasaan in the old
+  styling; this phase restyles and translates it.
+
 ## Goals / Non-Goals
 
 **Goals:** the prototype's frame, rail and section rhythm; every section restyled without losing a control or a request; both dialogs on `ShellDialog`; Keluar in Pengaturan; the whole page in English and Indonesian.

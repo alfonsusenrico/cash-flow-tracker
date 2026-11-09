@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Pairing in Web Settings
-Pengaturan › HP & perangkat SHALL show "Perangkat terhubung" with "Hubungkan ponsel", which SHALL open a centered 520 px dialog (a bottom sheet below 768 px) with the QR code in a 136 px box, three numbered steps, the code as text, a countdown and "Buat kode baru". Each phone SHALL be listed with "Cabut" behind a confirmation dialog.
+Pengaturan › HP & perangkat SHALL show "Perangkat terhubung" with "Hubungkan ponsel", which SHALL open a centered 520 px dialog (a bottom sheet below 768 px) with the pairing QR code drawn at least 200 px wide on a white quiet border in both themes, three numbered steps, the code as text, a countdown and "Buat kode baru". Each phone SHALL be listed with "Cabut" behind a confirmation dialog.
 
 #### Scenario: Expired code in the dialog
 - **WHEN** the countdown reaches zero
