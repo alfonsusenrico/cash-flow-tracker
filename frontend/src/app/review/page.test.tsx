@@ -1220,6 +1220,21 @@ describe("Tinjau", () => {
       await waitFor(() => expect(screen.queryByRole("dialog", { name: "Pindah saldo belum lengkap" })).not.toBeInTheDocument());
       await waitFor(() => expect(row("Masuk ke BCA Harian")).toHaveFocus());
     });
+
+    it("a deep link focuses the heading even when the next frame runs before the sheet renders", async () => {
+      // Under load the frame can fire before React commits the sheet; the sheet must still land on the heading.
+      const frame = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+        callback(0);
+        return 0;
+      });
+      try {
+        renderPage("/review?item=tx-ambiguous&folder=pindah");
+        await screen.findByRole("dialog", { name: "Pindah saldo belum lengkap" });
+        await waitFor(() => expect(itemHeading()).toHaveFocus());
+      } finally {
+        frame.mockRestore();
+      }
+    });
   });
 
   // --- Both languages --------------------------------------------------------------------------------------
