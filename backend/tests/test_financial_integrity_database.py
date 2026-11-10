@@ -110,16 +110,49 @@ def test_concurrent_movements_cannot_overdraw_the_same_source(auth_client):
     assert sorted(balances[target_id] for target_id in target_ids) == [0, 700]
 
 
-def test_concurrent_notification_delivery_creates_one_ledger_effect(auth_client, api_key):
+@pytest.fixture
+def bca_notification_owner(client):
+    """A registered owner of its own with one BCA account and a Bearer key.
+
+    The shared session owner collects every other test's accounts, and a random hex name suffix can contain
+    "bca". Two BCA-like accounts make the notification's account ambiguous, so it goes to review instead of the
+    ledger. The owner is made through the auth service, not the login route, so its rate limit stays untouched.
+    """
+    import os
+
+    from app.db.pool import db_conn
+    from app.services.auth import generate_api_key, register_user
+
+    user = register_user(
+        f"notify_owner_{uuid4().hex[:10]}", "testpassword1", os.getenv("INVITE_CODE", "TESTCODE"), language="id",
+    )
+    api_key, key_hash, key_prefix = generate_api_key()
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO api_keys (user_id, key_hash, key_prefix) VALUES (%s, %s, %s)",
+                (user["id"], key_hash, key_prefix),
+            )
+            cur.execute(
+                """INSERT INTO accounts (user_id, name, type, initial_balance)
+                   VALUES (%s, 'BCA Harian', 'bank', 200000) RETURNING id""",
+                (user["id"],),
+            )
+            account_id = str(cur.fetchone()["id"])
+        conn.commit()
+    yield {"user_id": user["id"], "api_key": api_key, "account_id": account_id}
+    with db_conn() as conn:
+        conn.execute("DELETE FROM users WHERE id = %s", (user["id"],))
+        conn.commit()
+
+
+def test_concurrent_notification_delivery_creates_one_ledger_effect(bca_notification_owner):
     from app.db.pool import db_conn
     from app.main import app
 
-    account_id = _create_account(
-        auth_client,
-        name=f"BCA test {uuid4().hex[:8]}",
-        balance=200_000,
-    )
-    user_id = auth_client.get("/api/auth/me").json()["user"]["id"]
+    account_id = bca_notification_owner["account_id"]
+    user_id = bca_notification_owner["user_id"]
+    api_key = bca_notification_owner["api_key"]
     payload_hash = sha256(uuid4().bytes).hexdigest()
     payload = {
         "events": [
