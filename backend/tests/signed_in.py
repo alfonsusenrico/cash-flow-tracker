@@ -6,6 +6,11 @@ raised later in the request follow the account. A plain lambda override skips th
 
 from __future__ import annotations
 
+import re
+
+# Record identifiers may be logged; a random UUID can contain a short secret such as "123" by chance.
+UUID_PATTERN = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.IGNORECASE)
+
 RENDERED_FIELDS = {"text", "prompt", "label", "reason", "explanation", "message", "question"}
 
 
@@ -49,5 +54,8 @@ def rendered_texts(value) -> set[str]:
 
 
 def leaked(log_lines: list[str], secrets: set[str]) -> list[str]:
-    """Log lines that contain a rendered text or a piece of user data."""
-    return [line for line in log_lines if any(secret.casefold() in line.casefold() for secret in secrets)]
+    """Log lines that contain a rendered text or a piece of user data, outside the record identifiers they name."""
+    return [
+        line for line in log_lines
+        if any(secret.casefold() in UUID_PATTERN.sub("<id>", line).casefold() for secret in secrets)
+    ]
