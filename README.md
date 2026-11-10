@@ -1,275 +1,290 @@
-# ⚡️ CashFlow — Frictionless Money Mindfulness & Self-Hosted Vault
+# CashFlow
 
-> **Stop typing coffee receipts into spreadsheets at 11 PM.**  
-> CashFlow is a self-hosted personal finance companion built for daily mindfulness, zero-effort automation, and absolute financial privacy.
+A self-hosted personal cash-flow tracker. An Android companion turns bank and e-wallet notifications into ledger
+entries, and the web app shows what came in, what went out and what is safe to spend until the next salary.
 
----
+<p align="center">
+  <img src="docs/assets/screenshots/home-light.webp" alt="Home page with the safe-to-spend amount, cycle figures, items that need action, net worth and the Kakeibo split" width="880" />
+</p>
 
-### Local HTTP sessions
+- **Built for Indonesian banks and e-wallets:** notifications from BCA, Bank Jago, GoPay, ShopeePay and Stockbit
+  are captured on the phone and recorded on your server.
+- **English by default, Indonesian as a switch:** each account chooses its language. Amounts read "Rp 1.234.567".
+- **Explainable figures:** every figure states its period and opens the rows behind it.
+- **Your server, your data:** Docker Compose, PostgreSQL and invite-only sign-up.
 
-Session cookies default to Secure. For local HTTP, explicitly set `APP_ENV=development` and `COOKIE_SECURE=false` as shown in `.env.example`, or include the local Compose override:
+All screenshots use synthetic data.
+
+## Contents
+
+- [The web app](#the-web-app)
+- [Recording money](#recording-money)
+- [Phone companion](#phone-companion)
+- [Optional AI interpretation](#optional-ai-interpretation)
+- [Architecture](#architecture)
+- [Self-hosting quickstart](#self-hosting-quickstart)
+- [API highlights](#api-highlights)
+- [Development and checks](#development-and-checks)
+- [License](#license)
+
+## The web app
+
+| Page | What it is for |
+| --- | --- |
+| **Home** | Safe to spend until payday; the cycle's income, spending, savings and scheduled payments; what needs action; recent activity; net worth, safety net and the Kakeibo split. |
+| **Review** | Notifications that need an answer, transfers waiting for their other half, and what was recorded automatically. Bulk actions can be undone for 10 minutes. |
+| **Transactions** | Every income, spending and transfer row, with type and period filters, search and row details. |
+| **Analysis** | Spending by Kakeibo pillar against the last whole period and the recent average, plus a calendar and a money-flow view. |
+| **Reports** | A monthly Kakeibo report: four questions, a data-quality box, drill-down on every figure and a reflection note. |
+| **Accounts & Pockets** | Banks, pockets, cash, e-wallets, credit accounts and investments, grouped by use or by account. |
+| **Goals & Bills** | Savings goals, the emergency fund, debts, plans and credit bills. |
+| **Settings** | Phone & devices (QR pairing), habits, appearance (language, theme, hidden balances), salary & cycle, currency & budget, notification mapping and sender names. |
+
+| | |
+| :---: | :---: |
+| <img src="docs/assets/screenshots/home-dark.webp" alt="Home page in the dark theme" width="430" /> | <img src="docs/assets/screenshots/transactions.webp" alt="Transactions page with type and period filters" width="430" /> |
+| Home, dark theme | Transactions |
+| <img src="docs/assets/screenshots/analysis.webp" alt="Analysis page with the Kakeibo pillars and the comparison with the last cycle" width="430" /> | <img src="docs/assets/screenshots/reports.webp" alt="Monthly report with income sources and the list of earlier reports" width="430" /> |
+| Analysis | Reports |
+
+**Throughout the app**
+
+- **Kakeibo pillars:** Needs, Wants, Culture, Unexpected and Savings. Spending without a pillar stays visible as
+  "No pillar yet" until you choose one.
+- **Salary cycles:** choose your salary source in Settings. A confirmed salary starts a new cycle; until then,
+  periods are calendar months.
+- **Plans never post:** a due bill or transfer is met by linking the transaction your phone captured, skipping it,
+  or recording it yourself.
+- **Hidden balances:** one toggle shows every amount as dots.
+- **Light, dark or system theme**, and a phone layout with a bottom navigation bar.
+- **Keyboard:** `N` records a transaction and `?` opens help.
+
+<p align="center">
+  <img src="docs/assets/screenshots/home-phone.webp" alt="Home page at phone width with the bottom navigation bar" width="300" />
+</p>
+
+## Recording money
+
+| Way | How it works |
+| --- | --- |
+| **Phone notifications** | The companion sends supported bank and e-wallet notifications. The server records settled ones and asks when something is unclear. |
+| **One sentence** | Type "lunch 35k" or "parking 5k yesterday". Code reads the amount and date; anything still unclear becomes one question at a time. |
+| **Manual form** | Spending, income or a transfer between your own accounts, in the same dialog under "Fill in manually". |
+
+<p align="center">
+  <img src="docs/assets/screenshots/record-sentence.webp" alt="Write a transaction dialog reading lunch 35k as a Rp 35.000 spending" width="760" />
+</p>
+
+**Credit and pay later.** Each credit card or pay-later provider (for example SPayLater, Kredivo or Akulaku) is its
+own credit account. A purchase can be split into 2 to 36 installments. It counts as spending on the purchase day,
+and the row says "pay later" because no cash leaves until the bill is paid. Bills, due dates and payments are
+tracked per account.
+
+## Phone companion
+
+The Android app (Android 8.0 or newer) lives in [`mobile/`](mobile/README.md). It reads notifications only from
+these apps and drops every other notification unread:
+
+| Bank or wallet | Apps |
+| --- | --- |
+| BCA | myBCA, BCA mobile |
+| Bank Jago | Bank Jago |
+| GoPay | GoPay, Gojek |
+| ShopeePay | ShopeePay, Shopee |
+| Stockbit | Stockbit |
+
+The phone keeps a local log, sends batches with its own device key and asks short questions, such as what a payment
+was for. It can also record a typed sentence.
+
+**Install and pair**
+
+1. Download `cashflow-companion.apk` from the
+   [latest release](https://github.com/alfonsusenrico/cash-flow-tracker/releases/latest), or scan the download QR in
+   **Settings → Phone & devices**.
+2. Check it against the release's `cashflow-companion.apk.sha256`:
+   ```bash
+   sha256sum -c cashflow-companion.apk.sha256      # Linux
+   shasum -a 256 -c cashflow-companion.apk.sha256  # macOS
+   ```
+3. Install it, choose **Connect a phone** in **Settings → Phone & devices**, and scan the QR code with the app.
+   A pairing code works once and expires after 5 minutes.
+4. Grant notification access when Android asks.
+
+The released app talks only to the hosted server. For your own server, set `PAIRING_SERVER_URL` to its HTTPS origin
+and build a debug APK for it:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+cd mobile
+./gradlew assembleDebug -PcompanionServerUrl=https://finance.example.com
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Production uses the base Compose file and rejects insecure cookies at startup. Do not include the local override in a release.
+## Optional AI interpretation
 
-## 🌟 The Magic Flow: Notification ➔ Instant Parse ➔ Live Ledger
+Without AI, the backend records the notifications it can parse and keeps unfamiliar ones for review. An optional
+OpenAI-backed interpreter can classify unfamiliar notifications, typed sentences and history suggestions.
 
-You tap your card or QRIS at lunch. By the time you lock your phone, your balances, category spending, and observed cash flow are already updated. **Zero manual entry. Zero cloud subscription fees. Zero data tracking.**
-
-<div align="center">
-
-| 📱 **Android Companion Listener**<br>*(On-device push interception & regex parsing)* | 💻 **Self-Hosted Web Ledger**<br>*(Instant zero-effort transaction append & audit log)* |
-| :---: | :---: |
-| <img src="docs/assets/mobile_listener_demo.gif" alt="Mobile Notification Extractor" width="340" /> | <img src="docs/assets/web_ui_demo.gif" alt="Web Ledger Real-Time Append" width="560" /> |
-
-*Watch a BCA salary notification arrive on the phone (left) — intercepted, parsed in <300ms, and automatically appended into the self-hosted ledger list (right).*
-
-</div>
-
----
-
-## 💡 Why CashFlow?
-
-Traditional personal finance apps fail for two big reasons:
-
-1. **Manual Logging Fatigue:** Opening an app, selecting a category, picking a date, typing `Rp 35.000`, and pressing save for every cup of coffee is exhausting. Within two weeks, everyone gives up and falls back into spreadsheet debt.
-2. **Privacy Invasive & Subscription Bloat:** Cloud aggregators want your direct banking credentials, sell your spending habits to advertiser networks, and charge $10/month for a glorified pie chart.
-
-**CashFlow takes the hacker-native approach:**
-- ⚡️ **Zero-Touch Ingestion:** A lightweight Android listener captures banking push notifications, parses the amount, sender, and category entirely on-device, and posts directly to your private server via secured Bearer API.
-- 🎯 **Observed, Explainable Figures:** No guessed paydays or linear forecasts. Every figure states its period and links back to the ledger rows behind it.
-- 🛡️ **100% Self-Hosted Sovereignty:** Built on FastAPI, PostgreSQL, Next.js, and Redis. All ledger entries, accounts, and financial credentials live exclusively on your own infrastructure.
-
----
-
-## 🚀 Core Superpowers
-
-### 1. 📱 Zero-Tap Mobile Interception (Android Companion)
-Runs silently in the background using native Android `NotificationListenerService`. Battery impact is virtually zero (<0.1% daily).
-- **Out-of-the-Box App Intelligence:**
-  - **BCA & myBCA:** Inbound transfers, salary deposits, QRIS payments, debit card spending.
-  - **Bank Jago:** Single pocket withdrawals, dual-pocket transfers (`Main Pocket ➔ Emergency Fund`), incoming transfers.
-  - **GoPay:** QRIS merchant payments, GoPay Tabungan internal movements, bank transfers.
-  - **ShopeePay:** Merchant checkouts, peer-to-peer transfers, top-ups.
-  - **Stockbit:** Real-time equity trade fills (`Beli 10 lot BBRI match di Rp 3.850`) updating stock units and RDN cash balances automatically!
-- **Strict Spam & Promo Rejection:** Marketing blasts, promo push notifications, OTPs, and cashback vouchers are strictly rejected on-device before any network request is made.
-
-#### Optional server-side interpretation
-
-The backend always preserves supported, unfamiliar financial notifications for safe review. Its optional OpenAI-backed interpreter is **disabled by default**. When explicitly enabled, it uses `gpt-5.6-luna` with `low` reasoning and receives only a bounded, redacted context of the user's active accounts, pockets, categories, rules, recent descriptions, and eligible movement candidates. It cannot set the amount or timestamp, create accounts/categories, or issue tools; the backend independently validates every reference and applies only settled whole-IDR facts.
-
-Set these environment variables only after completing the synthetic benchmark described below. Keep `OPENAI_API_KEY` in local/runtime secret management, never in source control. OpenAI API inputs are not used for training by default; requests use `store=false`, but standard abuse-monitoring retention can be up to 30 days unless the configured project has separately approved retention controls.
+- **Off by default:** `NOTIFICATION_AI_ENABLED=false`.
+- **Defaults when enabled** ([`config.py`](backend/app/core/config.py)): model `gpt-6-luna`, reasoning effort `none`.
+- **Bounded, redacted context:** active accounts, pockets, categories, rules, a limited number of recent
+  descriptions and eligible transfer candidates. Owner names, tokens and email addresses are redacted, and requests
+  use `store=false`.
+- **The backend decides:** the model cannot set amounts or timestamps, create accounts or categories, or call tools.
+  The backend validates every reference. Nothing from an invalid or incomplete answer is written; the backend
+  records only what it can prove and flags it for review.
 
 ```dotenv
 NOTIFICATION_AI_ENABLED=false
-NOTIFICATION_AI_MODEL=gpt-5.6-luna
-NOTIFICATION_AI_REASONING_EFFORT=low
-NOTIFICATION_AI_HISTORY_LIMIT=20
-NOTIFICATION_AI_TIMEOUT=30
+NOTIFICATION_AI_MODEL=gpt-6-luna
+NOTIFICATION_AI_REASONING_EFFORT=none
+LLM_ENGLISH_OUTPUT_ENABLED=false
 OPENAI_API_KEY=
 ```
 
-For an owner-authorized local parsing check without any event, ledger, balance, retry, or worker mutation, set `APP_ENV=development` and `NOTIFICATION_AI_DRY_RUN_ENABLED=true` locally while keeping `NOTIFICATION_AI_ENABLED=false`. Use authenticated `POST /api/ingest/notifications/dry-run` with `{"event": <normal notification payload>}`, or `POST /api/ingest/notifications/{event_id}/dry-run` for one owned stored local event. These routes return a safe proposed result only and return 404 outside explicitly enabled development.
+Keep `OPENAI_API_KEY` in your runtime secret store, never in source control. OpenAI API inputs are not used for
+training by default; standard abuse-monitoring retention can last up to 30 days.
 
-In this dry-run-only configuration, notification processing, salary detection, and market-price refresh background jobs are all suspended. Restore normal local runtime flags after testing to resume them. A `would_record` proposal passes the same account/default-pocket and category validation as recording, but does not simulate database application, counterpart merging, or concurrent changes. Uncertain mappings remain `needs_review`; they never become empty successful proposals.
-
-Accepted notification responses retain existing batch counters and add one result for every submitted event. A result is `recorded` only after its ledger transaction commits; `queued` only means recoverable asynchronous processing has begun.
-
-```json
-{
-  "payload_hash": "event-hash",
-  "event_id": "notification-event-id",
-  "status": "recorded",
-  "record_key": "movement:movement-id",
-  "type": "internal_movement",
-  "description": "Pindah saldo ke Dana Darurat",
-  "source": "Bank Jago · Kantong Utama",
-  "target": "Bank Jago · Dana Darurat",
-  "amount": 125000,
-  "currency": "IDR"
-}
-```
-
-Use `GET /api/ingest/notifications/{event_id}/result` to retrieve the same compact result. `POST` to the same path with `/retry` retries only unresolved owner-scoped events using their original captured facts; it never replays a committed ledger effect. Deterministic events retain that mode on retry. An AI event returns a conflict without changing state while AI processing is unavailable.
-
-The synthetic-only benchmark never accesses the runtime database or sends user notifications. With a configured key and reviewed OpenAI project access, spend limits, and retention controls, run each configuration separately to respect its $0.25 cap. Tune only on the development partition before using the held-out partition:
+**Benchmark.** A synthetic benchmark checks the interpreter without touching the database. Each run stops above a
+cost cap (`--max-estimated-usd`, default $0.25):
 
 ```bash
 PYTHONPATH=backend backend/.venv/bin/python -m evaluation.notification_benchmark \
-  --live --partition development --repeats 3 --reasoning-efforts low
-PYTHONPATH=backend backend/.venv/bin/python -m evaluation.notification_benchmark \
-  --live --partition development --repeats 3 --reasoning-efforts none
-PYTHONPATH=backend backend/.venv/bin/python -m evaluation.notification_benchmark \
-  --live --partition held_out --repeats 3 --reasoning-efforts low
-PYTHONPATH=backend backend/.venv/bin/python -m evaluation.notification_benchmark \
-  --live --partition held_out --repeats 3 --reasoning-efforts none
+  --live --model gpt-6-luna --reasoning-efforts none --partition development --repeats 3
 ```
 
-The tool reports direct-access denial explicitly and does not activate the processor. It compares the operational `low` setting with the permitted `none` latency baseline using the same fictional fixtures.
+The latest runs (2026-11-09) passed the safety gate but failed the held-out quality gate for classification, so
+English model output (`LLM_ENGLISH_OUTPUT_ENABLED`) stays off. See the
+[verification record](openspec/changes/archive/2026-11-09-align-notification-output-contract/verification.md).
 
-The 2026-09-29 held-out evaluation failed the required schema-validity and unambiguous-classification gates for both reasoning settings. Keep `NOTIFICATION_AI_ENABLED=false`; a passing development run or accepted sample descriptions do not authorize activation. See [the synthetic benchmark report](openspec/changes/add-ai-notification-processing/benchmark-report.md) for measured quality, latency, and cost. Local dry runs remain available only under their separate development flags and never write the ledger.
-
-### 2. 🎯 Salary Cycles & Observed Cash Flow
-- **Confirmed Salary Cycles:** Choose one recorded income as your salary source in Settings. A payment from that source that says *gaji* or *salary* starts a new cycle automatically; bonuses, refunds and unclear payments wait for your review. The current cycle has no guessed end; until a salary is confirmed, reports use calendar months.
-- **Observed, Not Predicted:** Beranda shows inflow, outflow and net cash flow for the period, the remaining monthly budget when you set one, and plans due in the next 30 days. There is no daily allowance or end-of-cycle forecast.
-- **Plans Never Post:** Recurring bills, transfers and monthly investment top-ups are reminders. When one is due, link the transaction your phone already captured, skip it, or record it manually if the notification was missed (same-amount captures must be ruled out first). Debts are paid down by linking the actual payment once.
-- **Kakeibo Classifications:** Five classifications (Kebutuhan, Keinginan, Budaya, Tak Terduga, Tabungan) are shown individually and link to their ledger rows. The 50 / 30 / 20 grouping is an optional reference, not a health verdict, and cash-flow surplus is kept separate from money actually set aside.
-
-### 3. 🏦 Multi-Vault Liquidity & Asset Portfolio
-- **Cash, Banks & E-Wallets:** Real-time balances for physical cash, bank accounts, and digital wallets with 1-tap internal transfers.
-- **Investment Portfolio & RDN:** Track stock lots and weighted-average buy price (WAC) with direct source account linking.
-
-### 4. 🎨 Linear-Grade Craft & Density
-- High-contrast, dark-first Bauhaus visual language.
-- Monospaced tabular digits for currencies, sub-millisecond keyboard shortcuts (`N` for quick entry), and responsive desktop/mobile layouts.
-
----
-
-## 🛠️ Technical Architecture
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  📱 Mobile Listener (Android companion)                     │
-│  - Native NotificationListenerService                       │
-│  - On-device capture and local inbox                        │
-│  - Secured Bearer Post                                      │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│  ⚡️ FastAPI Backend (:8000)                                 │
-│  - Single unified auth (Starlette Sessions + Bearer Tokens) │
-│  - High-performance Psycopg3 connection pooling             │
-│  - Strict CSRF protection & origin validation               │
-└────────────┬──────────────────────────────┬─────────────────┘
-             │                              │
-             ▼                              ▼
-┌───────────────────────────┐  ┌──────────────────────────────┐
-│  🐘 PostgreSQL 16         │  │  ⚡️ Redis 7                 │
-│  - Core 5-table ledger    │  │  - Ephemeral cache           │
-│  - ACID transaction logs  │  │  - Rate limiting & locks     │
-└───────────────────────────┘  └──────────────────────────────┘
+ Android companion ──HTTPS, device key──┐
+                                        ▼
+ Browser ─────────────────────▶ nginx (web, port 8090)
+                                 ├── /       ▶ Next.js frontend
+                                 └── /api/*  ▶ FastAPI backend ──▶ PostgreSQL 16
+                                                 │                  (schema by Flyway)
+                                                 ├──▶ Redis 7 (cache and rate limits)
+                                                 └──▶ OpenAI (optional, off by default)
 ```
 
----
+- **Schema:** Flyway migrations in [`db/migrations/`](db/migrations/) are the only schema owner. Compose runs them
+  before the API starts.
+- **Background jobs:** the notification worker, salary detection, price sync and transfer re-pairing run inside the
+  API.
+- **Backups:** an optional `backup` service dumps the database nightly; see
+  [docs/database-backups.md](docs/database-backups.md).
+- **Production:** releases go through the deploy workflow; see
+  [docs/production-deployment.md](docs/production-deployment.md).
 
-## 📦 Quickstart (Docker Compose)
-
-### 1. Clone & Configure
+## Self-hosting quickstart
 
 ```bash
 git clone https://github.com/alfonsusenrico/cash-flow-tracker.git
 cd cash-flow-tracker
-
-# Copy environment template
 cp .env.example .env
 
-# Generate secure secrets
+# Generate the secrets
 SESSION_SECRET=$(openssl rand -hex 32)
 POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | head -c 32)
 INVITE_CODE=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 24)
-
 sed -i.bak "s/^SESSION_SECRET=.*/SESSION_SECRET=${SESSION_SECRET}/" .env
 sed -i.bak "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${POSTGRES_PASSWORD}/" .env
 sed -i.bak "s/^INVITE_CODE=.*/INVITE_CODE=${INVITE_CODE}/" .env
 rm -f .env.bak
+
+# Migrate and start everything
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
 ```
 
-### 2. Run Database Migrations & Start
+Open <http://localhost:8090>, choose **Create one**, and enter a username, a password and the `INVITE_CODE` from
+`.env`. Then add your accounts in **Accounts & Pockets** and pair a phone in **Settings → Phone & devices**.
+
+**Local HTTP and cookies.** Session cookies are Secure by default. `docker-compose.local.yml` sets
+`APP_ENV=development` and `COOKIE_SECURE=false` so sign-in works over plain HTTP. Production uses the base Compose
+file only and refuses to start with insecure cookies. Never include the local override in a release.
+
+## API highlights
+
+The browser signs in with a session cookie; the companion and scripts send `Authorization: Bearer <key>`. Behind
+nginx, every API path starts with `/api`.
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /api/transactions` | Record spending or income. Accounts and categories can be given by name. |
+| `POST /api/movements` | Move money between your own accounts. |
+| `POST /api/capture/text` | Record a typed sentence such as "lunch 35k". |
+| `POST /api/ingest/notifications` | Companion batch upload. A repeated event never duplicates a ledger entry. |
+| `GET /api/ingest/notifications/{event_id}/result` | The result of one notification; `POST …/retry` retries an unresolved one. |
+| `GET /api/dashboard/cycle-summary` | Home's cycle figures and their breakdown. |
+| `GET /api/reports/monthly` | The monthly Kakeibo report. |
+| `GET /api/accounts` | Balances of every account and pocket. |
+| `POST /api/devices/pairing-codes` | A single-use pairing code (browser session only). |
+
+```json
+{
+  "type": "income",
+  "amount": 1500000,
+  "account_name": "BCA",
+  "category_name": "Salary",
+  "notes": "PT Contoh Karya",
+  "date": "2026-09-16T15:33:14Z"
+}
+```
+
+A name must match one active account or category (case and extra spaces are ignored). An unknown or ambiguous name
+returns HTTP 422 with `account_name_unresolved` or `category_name_unresolved` and up to five candidates, and nothing
+is created. Send `account_id` or `category_id` to be explicit.
+
+The backend serves its OpenAPI docs at `/docs`, for example `http://127.0.0.1:8000/docs` when you run it directly.
+
+## Development and checks
+
+These match CI in [`checks.yml`](.github/workflows/checks.yml) and [`android-ci.yml`](.github/workflows/android-ci.yml).
+
+**Backend** (Python 3.12). CI first migrates a disposable PostgreSQL 16 with `flyway/flyway:10`. Without a reachable
+`TEST_DATABASE_URL`, the database tests are skipped.
 
 ```bash
-# Spin up database and execute migrations
-docker compose up -d db
-docker compose run --rm migrate
-
-# Start all services
-docker compose up -d
+pip install -r backend/requirements-dev.txt
+cd backend
+TEST_DATABASE_URL=postgresql://ledger:ledgerpass@localhost:5432/ledger_test \
+SKIP_TEST_MIGRATIONS=1 REQUIRE_TEST_DATABASE=1 \
+python -m pytest tests/ -ra
 ```
 
-Open **`http://localhost:8090`** in your browser.
+**Frontend** (Node 22):
 
-### 3. Register & Initial Setup
-1. Click **First time? Register** on the login page.
-2. Enter your chosen username, password, and the `INVITE_CODE` from your `.env`.
-3. Add your bank accounts or wallets in **Rekening & Saldo**.
-4. Generate an API Key under your profile menu for companion app pairing.
+```bash
+cd frontend
+npm ci
+npm run type-check
+npm run lint
+npm test
+npm run build
+```
 
----
+**Operations:**
 
-## 📲 Pairing the Mobile Companion App
+```bash
+docker compose -f docker-compose.yml config --quiet
+docker compose -f docker-compose.yml --profile backup config --quiet
+scripts/verify/backup_restore_roundtrip.sh
+```
 
-The app lives in [`mobile/`](mobile/README.md). It needs Android 8.0 or newer.
-
-1. In web **Settings → Perangkat & akses**, open **Unduh aplikasi pendamping** and scan its QR code with the phone, or download the signed APK directly from <https://github.com/alfonsusenrico/cash-flow-tracker/releases/latest/download/cashflow-companion.apk>.
-2. Compare the file's SHA-256 with the `.sha256` on the [latest release](https://github.com/alfonsusenrico/cash-flow-tracker/releases/latest), then install it.
-3. In the same Settings section choose **Hubungkan ponsel** and scan the pairing QR code from the app.
-4. Grant **Notification Access** when prompted by Android.
-
-The released app talks only to the hosted server. A self-hosted server needs its own debug build:
+**Companion** (JDK 17 in `JAVA_HOME`):
 
 ```bash
 cd mobile
-./gradlew assembleDebug -PcompanionServerUrl=https://finance.your-domain.com
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+./gradlew testDebugUnitTest
+./gradlew lintDebug
+./gradlew assembleDebug
 ```
 
----
+**Local backend without Docker:** set `DATABASE_URL`, `SESSION_SECRET`, `APP_ENV=development` and
+`COOKIE_SECURE=false`, then run `uvicorn app.main:app --reload --host 127.0.0.1 --port 8000` from `backend/`.
 
-## 🔌 API Reference Highlights
+## License
 
-Every account can authenticate via Session Cookie (browser) or Bearer Token (mobile companion & automation scripts).
-
-- `POST /api/transactions` — 1-call expense or income entry (internal movements use `POST /api/movements`).
-  ```json
-  {
-    "type": "income",
-    "amount": 1500000,
-    "account_name": "BCA",
-    "category_name": "Gaji",
-    "notes": "PT TEKNOLOGI KARYA",
-    "date": "2026-09-16T15:33:14Z"
-  }
-  ```
-  Names must match one of your active accounts or categories exactly (case and extra spaces are ignored). An unknown or ambiguous name returns HTTP 422 with `account_name_unresolved` or `category_name_unresolved` and up to five candidates, and nothing is created. Send `account_id` or `category_id` to be explicit.
-- `GET /api/pulse` — Returns today's spending, remaining daily allowance, and monthly pace.
-- `GET /api/dashboard/overview?timeframe=cycle` — Full financial health KPIs, cumulative cashflow, and Kakeibo breakdown.
-- `GET /api/accounts` — Balance snapshot across all liquid and investment accounts.
-
-Interactive Swagger API docs are available at **`/api/docs`**.
-
----
-
-## 💻 Development & Verification Commands
-
-- **Backend Tests:** without `TEST_DATABASE_URL` pointing at a reachable PostgreSQL, the 566 database tests are skipped. CI migrates a disposable PostgreSQL 16 with Flyway first and sets `SKIP_TEST_MIGRATIONS=1` and `REQUIRE_TEST_DATABASE=1` (`.github/workflows/checks.yml`).
-  ```bash
-  cd backend
-  pip install -r requirements-dev.txt
-  TEST_DATABASE_URL=postgresql://ledger:ledgerpass@localhost:5432/ledger_test python -m pytest tests/
-  ```
-- **Frontend Typecheck & Build:**
-  ```bash
-  cd frontend
-  npm run type-check
-  npm run build
-  ```
-- **Mobile Companion Checks** (JDK 17 in `JAVA_HOME`):
-  ```bash
-  cd mobile
-  ./gradlew testDebugUnitTest
-  ./gradlew lintDebug
-  ./gradlew assembleDebug
-  ```
-- **Database Backups and Restore:** production dumps nightly and before every migration; see [docs/database-backups.md](docs/database-backups.md). A local stack opts in with `docker compose --profile backup up -d` (dumps go to `./storage/backups`). Prove backup and restore on disposable containers:
-  ```bash
-  scripts/verify/backup_restore_roundtrip.sh
-  ```
-
----
-
-## 📄 License
-
-MIT License. Crafted for personal sovereignty and frictionless money mindfulness.
+MIT License.
