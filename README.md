@@ -99,15 +99,18 @@ these apps and drops every other notification unread:
 The phone keeps a local log, sends batches with its own device key and asks short questions, such as what a payment
 was for. It can also record a typed sentence. Its interface is in Indonesian, with a light and a dark theme.
 
-**From phone to web.** A synthetic myBCA notification, "Transfer QRIS Rp 35.000 ke Kopi Senja berhasil", is
-captured on the phone, uploaded and recorded on the server. With AI off, the unknown category waits for an answer in
-Review.
+**From phone to web.** This demo ran on a real phone with a demo build of the companion, paired by QR with a local
+server that holds synthetic data. The app had notification access, so its home screen shows the normal listening
+state; every bank app was switched off in it, so no real notification was read. Android does not let another app post as myBCA, so the synthetic notification "Transfer QRIS Rp 35.000 ke
+Kopi Senja berhasil" was handed straight to the app's capture step. From there it took the normal path: stored on
+the phone, uploaded and recorded on the server. With AI off, the unknown category waits for an answer in Review.
 
 | | Light | Dark |
 | --- | :---: | :---: |
-| **1. Captured on the phone** | <img src="docs/assets/screenshots/phone-capture-log-light.webp" alt="Companion capture log with the recorded Kopi Senja payment, light theme" width="300" /> | <img src="docs/assets/screenshots/phone-capture-log-dark.webp" alt="Companion capture log with the recorded Kopi Senja payment, dark theme" width="300" /> |
-| **2. What the tracker recorded** | <img src="docs/assets/screenshots/phone-capture-detail-light.webp" alt="Companion detail with the recorded amount, account and the original notification, light theme" width="300" /> | <img src="docs/assets/screenshots/phone-capture-detail-dark.webp" alt="Companion detail with the recorded amount, account and the original notification, dark theme" width="300" /> |
-| **3. Arrived on the web** | <img src="docs/assets/screenshots/web-captured-transaction-light.webp" alt="Web transaction detail recorded from the bank notification, light theme" width="300" /> | <img src="docs/assets/screenshots/web-captured-transaction-dark.webp" alt="Web transaction detail recorded from the bank notification, dark theme" width="300" /> |
+| **1. Listening** | <img src="docs/assets/screenshots/phone-home-light.webp" alt="Companion home screen: listening, one notification captured today, everything sent, light theme" width="300" /> | <img src="docs/assets/screenshots/phone-home-dark.webp" alt="Companion home screen: listening, one notification captured today, everything sent, dark theme" width="300" /> |
+| **2. Captured on the phone** | <img src="docs/assets/screenshots/phone-capture-log-light.webp" alt="Companion capture log with the recorded Kopi Senja payment, light theme" width="300" /> | <img src="docs/assets/screenshots/phone-capture-log-dark.webp" alt="Companion capture log with the recorded Kopi Senja payment, dark theme" width="300" /> |
+| **3. What the tracker recorded** | <img src="docs/assets/screenshots/phone-capture-detail-light.webp" alt="Companion detail with the recorded amount, account and the original notification, light theme" width="300" /> | <img src="docs/assets/screenshots/phone-capture-detail-dark.webp" alt="Companion detail with the recorded amount, account and the original notification, dark theme" width="300" /> |
+| **4. Arrived on the web** | <img src="docs/assets/screenshots/web-captured-transaction-light.webp" alt="Web transaction detail recorded from the bank notification, light theme" width="300" /> | <img src="docs/assets/screenshots/web-captured-transaction-dark.webp" alt="Web transaction detail recorded from the bank notification, dark theme" width="300" /> |
 
 **Install and pair**
 
