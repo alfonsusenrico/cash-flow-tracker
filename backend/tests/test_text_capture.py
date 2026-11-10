@@ -674,6 +674,13 @@ def test_logs_hold_no_text_or_amounts(client, owner, caplog, language):
     assert leaked(messages, {"rahasiaku", "123", *rendered}) == []
 
 
+def test_leak_check_ignores_identifiers_but_not_data():
+    """A UUID that happens to hold "123" is not a leak; the amount itself in a log line still is."""
+    by_chance = "Text capture submitted id=de57ebde-93e9-4cf1-a123-029b8b21db08 status=needs_detail"
+    assert leaked([by_chance], {"123"}) == []
+    assert leaked([f"{by_chance} text=123rb"], {"123"}) == [f"{by_chance} text=123rb"]
+
+
 # --- Schema validation and provider -----------------------------------------------------------
 
 
