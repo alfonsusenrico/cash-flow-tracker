@@ -1,816 +1,477 @@
-# Cash Flow Tracker New User Guide
+# CashFlow new-user guide
 
-This guide explains how to start using the app and how each menu relates to the others. The app is not only a transaction list. It is a connected personal finance system:
+CashFlow records what comes in and goes out, and tells you how much is safe to spend until your next salary. Your
+phone sends bank and e-wallet notifications; the web app turns them into transactions and asks when it is unsure.
 
-- Accounts hold balances.
-- Transactions change account balances and feed summaries, analysis, and categories.
-- Buckets describe money purposes.
-- Allocation plans decide how income should be distributed into buckets.
-- Strategy rules help preview allocation logic.
-- Goals track long-term targets and can be linked to buckets.
-- Assets and net worth track investments and overall wealth.
+This guide is for using the app. To run your own server, see the [README](../README.md).
 
-## Recommended Starting Order
+## Contents
 
-Use the app in this order when setting it up for the first time.
+1. [First steps](#1-first-steps)
+2. [How the pieces connect](#2-how-the-pieces-connect)
+3. [The pages](#3-the-pages)
+4. [Recording money](#4-recording-money)
+5. [Habits that keep it accurate](#5-habits-that-keep-it-accurate)
+6. [Privacy, language and shortcuts](#6-privacy-language-and-shortcuts)
+7. [Common questions](#7-common-questions)
 
-1. Open Settings and set your pay cycle.
+## 1. First steps
 
-   Use the top bar `Set pay cycle` button. This defines the day of the month your financial cycle starts. Many summary and analysis views use this cycle instead of a plain calendar month.
+There is no setup wizard: after sign-up you land on **Home**. Follow these steps in order.
 
-2. Create Accounts.
+### Step 1: Create your account
 
-   Add every cash account you want to track: bank accounts, wallets, spending accounts, savings accounts, and payroll accounts. Transactions need accounts, so accounts should be created first.
+1. On the sign-in page, choose **Create one**.
+2. Choose **English** or **Bahasa Indonesia** at the foot of the card.
+3. Enter a display name, a username, a password and the **Invite code** from whoever runs the server.
+4. Choose a **Region**: Indonesia or United States. It sets the number and date style; the language changes words only.
 
-3. Review Categories.
+Your account starts with two accounts, **Cash** and **Main account**, both at Rp 0, and a set of starter categories.
 
-   Categories are system-wide labels such as income, expense, transfer, and adjustment. They are used when recording transactions and later drive spending analysis.
+### Step 2: Choose language and theme
 
-4. Add Transactions.
+Open **Settings → Appearance**.
 
-   Record income, expenses, transfers, and adjustments. This is the main source of truth for cash flow. Summary, accounts, dashboard, analysis, and categories all depend on transaction data.
-
-5. Create Buckets.
-
-   Buckets are purposes for money: emergency fund, rent, food, tax, vacation, investing, debt repayment, and similar planned uses.
-
-6. Create Allocation Plans.
-
-   Allocation plans turn expected income into planned bucket funding. This is where you decide where money should go during a pay cycle.
-
-7. Add Goals.
-
-   Goals are longer-term targets. Link goals to buckets when a bucket represents the money container for that goal.
-
-8. Add Assets and Record Net Worth.
-
-   Assets track investments or holdings. Net worth combines cash balances plus invested assets and records snapshots over time.
-
-9. Use Summary and Analysis for review.
-
-   After data exists, Summary and Analysis become useful for understanding whether spending, savings, investments, and goals are on track.
-
-## Core Concepts
-
-### Pay Cycle
-
-The app uses a pay cycle to decide the active reporting window. If your payday is the 25th, then the current cycle may run from the 25th of one month to the 24th of the next. This affects Summary, Transactions, Analysis, Dashboard metrics, and exports.
-
-If no pay cycle has been saved yet, the top bar shows `Set pay cycle`. Save it in Settings before relying on the cycle-based numbers.
-
-### Account
-
-An account is a place where cash is stored. Examples:
-
-- Main bank account
-- Payroll account
-- Cash wallet
-- Savings account
-- Fixed spending account
-
-Transactions belong to accounts. Account balances are calculated from account starting balance plus transactions.
-
-### Transaction
-
-A transaction is a cash movement. It can be:
-
-- Income: cash in
-- Expense: cash out
-- Transfer: moving money between two accounts
-- Adjustment: correcting a balance
-
-Transactions are the main data source for Summary, Accounts, Analysis, Dashboard, and Category spending.
-
-### Bucket
-
-A bucket is a planned purpose for money. It does not replace accounts. Accounts say where money is physically stored; buckets say what the money is for.
-
-Examples:
-
-- Emergency Fund
-- Rent
-- Groceries
-- Annual Insurance
-- Investment Contribution
-- Vacation
-
-Buckets can be linked to one or more accounts so the bucket can show an actual current amount. Buckets can also be linked to allocation items, strategy rules, and goals.
-
-### Buckets vs Allocation vs Strategy vs Goals
-
-These four menus are related, but they answer different questions:
-
-| Menu | Main Question | What It Stores | What It Does Not Do |
-| --- | --- | --- | --- |
-| Buckets | What is this money for? | Named money purposes, targets, linked accounts. | Does not decide monthly funding by itself. |
-| Allocation | How should this pay-cycle income be assigned? | A monthly/pay-cycle plan and allocation items. | Does not invent rules automatically. |
-| Strategy | What reusable rule should guide allocation? | Rule templates, previews, and generated allocation plans. | Does not move money by itself. |
-| Goals | What long-term target am I trying to reach? | Target amount, deadline, projection, optional linked bucket. | Does not represent a bank account by itself. |
-
-Use them in this order when starting fresh: create accounts, create buckets for purposes, optionally create goals for long-term targets, use strategy to preview income rules, then generate or create an allocation plan for the current pay cycle.
-
-### Allocation Plan
-
-An allocation plan is a pay-cycle plan. It starts with expected income and breaks that amount into allocation items. Each item can be a fixed amount or a percentage of expected income. Items can optionally link to buckets.
-
-Allocation plans influence Dashboard health metrics because active plan items become planned or committed allocations.
-
-### Strategy Rule
-
-A strategy rule is reusable allocation logic. It can say things like:
-
-- Put 20 percent into emergency fund.
-- Put a fixed amount into rent.
-- Send the remainder to investing.
-
-The Strategy page previews distribution for a sample income amount. After previewing, you can create an allocation plan from the active strategy rules.
-
-### Goal
-
-A goal is a target amount by a target date. Goals calculate progress and monthly requirements. If a goal links to a bucket, its progress comes from that bucket's linked account balances.
-
-### Asset
-
-An asset is an investment or non-cash holding, such as stocks, ETFs, crypto, gold, property, or other investments. Assets affect invested assets and net worth.
-
-### Net Worth
-
-Net worth is calculated from:
-
-- Liquid assets from account balances
-- Invested assets from asset holdings and latest prices
-- Liabilities are not fully tracked yet
-
-Snapshots let you record net worth over time.
-
-## Menu Guide
-
-### Navigation
-
-On a computer the sidebar lists seven pages: Beranda, Tinjau, Transaksi, Analisis, Laporan, Rekening & Kantong and Target & Tagihan. Tinjau shows how many rows wait for your answer, and Laporan shows a badge while a new monthly report is fresh. The foot of the sidebar holds Pengaturan and your account card (name and username), which opens the account menu. Whether your phone is ready is shown in Pengaturan · HP & perangkat, and help in Pengaturan · Tampilan ("Bantuan & pintasan", or press `?` anywhere). Between 761 and 1180 px wide the sidebar is an icon rail; above that you can collapse it yourself. The old `/tanya` address opens Beranda.
-
-The top bar holds the page title, search (⌘K or Ctrl+K; Enter opens Transaksi with your text), the theme (Terang, Gelap or Ikuti sistem), notifications and "+ Catat"; on a phone it also holds the account menu (Sembunyikan saldo, Pengaturan, Keluar). Transaksi and Analisis show their period stepper in the top bar too.
-
-On a phone a tab bar at the bottom offers Beranda, Tinjau, Catat, Transaksi and Lainnya; Lainnya lists Rekening & Kantong, Target & Tagihan, Analisis, Laporan and Pengaturan, then the notifications and Keluar.
-
-Keyboard: N opens Catat, ? opens the shortcut help, Esc closes the open menu, explanation or dialog. The single-key shortcuts (N, ? and the keys of Tinjau) can be switched off in the help.
-
-## 1. Beranda
-
-Route: `/` (the old `/dashboard` link still opens it)
-
-Beranda describes the current salary cycle, or the current calendar month while no salary cycle is confirmed. It has no period selector; earlier periods are on Transaksi, Analisis and Laporan.
-
-### What You See
-
-- Five KPI cards: **Aman dipakai sampai gajian** (the largest), Masuk, Pengeluaran, Ditabung & investasi and Kekayaan bersih. Every underlined figure opens "Rincian hitungan", which lists the lines that make it up and links to the matching transactions.
-- Uang siklus ini: what you received, split into Pengeluaran, Ditabung & investasi, Terjadwal (unpaid plans and goal set-asides) and Aman dipakai, which add up to Masuk.
-- Perlu tindakan: open questions, transfers waiting for their other side, groups that need an answer and plans due within two days, with the amount still waiting for an answer.
-- Aktivitas terbaru (every row opens its detail), Kakeibo with the Pengeluaran total and Tabungan apart, and Ketahanan Dana.
-
-### How the numbers are counted
-
-- Pengeluaran is spending without savings: needs, wants, culture, unexpected and spending without a pillar yet. Ditabung & investasi is the saving pillar plus money moved into savings or invested. Together they are the Kakeibo total. Moves between your own ordinary accounts are not counted.
-- Rows waiting in Tinjau stay recorded and counted. Answering moves the amount to the right pillar.
-- Aman dipakai sampai gajian is what is left for the whole period: Masuk less Pengeluaran, Ditabung & investasi and Terjadwal. The days left and the expected salary date are written under it when your last three confirmed salaries came at regular dates; otherwise it says the next salary date is not known yet. There is no per-day figure.
-
-### When to Use It
-
-Open Beranda once a day: check what is safe to spend, then clear "Perlu tindakan".
-
-## Tinjau
-
-Route: `/review` (links such as `/review?item=<id>&folder=pindah` open one item; the older `#review-…` links still work)
-
-Tinjau is an inbox: the list on the left, one item large on the right. On a phone, or in a narrow window, you see the list first; tapping an item opens it with a "Daftar" button, and the browser's back gesture returns to the list.
-
-- Folders: Semua, Belum dikenali (payments without a shop name), Perlu jawaban (groups the app is unsure about, one answer for every row of the same shop) and Pindah saldo belum lengkap (transfers whose other side is missing). Their counts add up to the number on the Tinjau badge.
-- Optional, folded below the list: Dicatat otomatis (rows the rules or the AI recorded; checking them is optional), Saran dari riwayat (proposals for older rows; nothing changes until you accept), Terlihat dua kali and Dilewati otomatis. "Cari saran dari riwayat" starts a new proposal run after showing its estimate.
-- Terlihat dua kali: one transfer is often reported by two apps, for example GoPay's "menerima Tabungan by Jago" and Jago's "received from GoPay" seconds apart. The app records that money once and lists the second report here, with the transaction it repeats. Each item names the account both apps saw ("Rekening yang sama · GoPay juga terlihat di Bank Jago"). "Benar, satu transaksi" confirms it and links that account to the other app, so its later repeats are skipped (the message offers "Batalkan"); "Catat terpisah" records it as its own transaction, with Urungkan. Items stay for 30 days and do not count on the Tinjau badge.
-- Dilewati otomatis: second reports of a linked account, skipped because the other app already reported the same money. Each shows the transaction it repeats and the link ("GoPay juga dilaporkan Bank Jago"); "Catat terpisah" records one anyway, with Urungkan. A report is only skipped when the other report has the same amount and direction, came within five minutes, and one of the two is on the linked account; a same-amount transfer in the other direction beside it is paired instead, and anything further apart is shown for review. Items stay for 30 days and do not count on the Tinjau badge.
-- One press answers: a numbered choice, "Terima", "Iya, top up …", an account for a transfer, or "Bukan pindah saldo, ini pengeluaran". Tinjau saves it, says what happened and moves to the next item. When nothing is left it shows "Semua sudah ditinjau" with this cycle's Pengeluaran, Aman dipakai sampai gajian and Belum diklasifikasi.
-- Urungkan: the message after each answer offers "Urungkan", and Z does the same later, for 10 minutes. It puts the answer back exactly, including what the app learned. If the row changed since (for example you edited it in Transaksi), Tinjau says it cannot undo and links to the row.
-- Keys, while focus is in Tinjau: J and K move, Enter opens, E accepts the highlighted suggestion, T opens "Ini top up investasi", 1–9 pick a numbered choice, Z undoes and ? lists them. They are ignored while you type and can be switched off in the help ("Pintasan satu tombol").
-
-## Analisis
-
-Route: `/insights` (`?tab=kalender&day=YYYY-MM-DD` opens a day of the calendar, `?tab=aliran&view=tabel` the money map as a table; `/insights` alone is Ringkasan)
-
-Analisis has three tabs. One switch, Siklus gaji or Bulan kalender, and the period stepper in the top bar apply to all three.
-
-- Ringkasan: Masuk, Pengeluaran (without what you saved) and Ditabung & investasi for the period. While the period runs, "{period} sejauh ini" shows spending so far as a share of the previous whole period, per pillar, without saying higher or lower until the period ends. Then the last completed period against the average of the three completed periods before it ("vs rata-rata 3 bulan", or 2 when only two exist), each pillar with its change as an amount. Below: Belanja harian with its highest day and a table, detected bills and subscriptions, how often the app asked and learned habits (each with its headline first and details behind "Rincian"), and Kategori & anggaran, where categories and budgets are managed.
-- Kalender: every day of the period with its spending written in the cell and shaded by level (the legend names each level's amounts), plus marks for money in, transfers, top-ups, bills and rows waiting in Tinjau. Arrow keys move between days, Home and End go to the start and end of the week, PageUp and PageDown move a week, and Enter opens the day: its spending, its transactions (each opens the transaction detail), its waiting rows (each links to Tinjau) and its bills. "Sebelum gaji berikutnya" lists the bills still due before the expected salary, or until the end of the period when that date cannot be estimated yet. On a phone the calendar is a week strip.
-- Peta Aliran: where money came from and where it went, as a map with a full table ("Peta" or "Tabel"). Each account balances: what was there before the period plus what came in equals what went out plus "Masih ada". Transfers waiting for their other side go to "Menunggu pasangan"; rows waiting for a category answer stay in their pillar and are marked. By default the map shows only money that left or moved; "Tampilkan uang masuk, saldo dan Masih ada" adds the rest, and the table always lists everything. Choose a point or a row to see its transactions; Tab into the map and use the arrow keys, Enter for details. "Putar ulang" replays the period day by day (off when your system asks for reduced motion; the slider still works).
-
-## Laporan
-
-Route: `/laporan?basis=month|cycle&start=YYYY-MM-DD` (`lengkapi=1` opens the classification dialog, `atur=anggaran` the budget editor)
-
-The basis switch and the report stepper are in the top bar. A report compares whole periods, never the same first days: a completed month against the previous whole month and against the average of the three completed months before it (Oktober against Juli to September). A month in which tracking began late is marked "belum lengkap" and never enters an average; with fewer than two whole months the page says when the average appears. A running month shows only its progress, such as "30% dari total Oktober 2026", and no verdict.
-
-The page shows, in order: "Kualitas data" as one line with its fixes; the KPI cards Pengeluaran, Masuk, Ditabung & investasi and Selisih (Masuk minus Pengeluaran); "Pengeluaran per pilar dan kategori", each pillar with its categories sorted by amount, their share and change, every amount linking to its transactions; "Yang bisa diperbaiki" (categories at least Rp 50.000 and 10% above their own average, the Keinginan share against last month, the top shop, recurring bills and unexpected spending; while the month runs, only the last three as "Sejauh ini"); "Pengeluaran per bulan" for the last four completed months and the running one; the top shops, spending details, budget (only when one is set), savings and income details, and "Laporan sebelumnya". "Apa yang mau diperbaiki bulan depan?" appears only when a note exists, read-only with "Ubah".
-
-## 2. Transactions
-
-Route: `/ledger`
-
-Transactions is the cash ledger. This is the most important operational page because it records the activity that drives the rest of the app. The sidebar and the phone tab open this salary cycle (`/ledger?period=cycle`); the top-bar stepper moves to earlier cycles or months, and "Semua waktu" shows everything.
-
-### What You Can Do
-
-- One toolbar row: tabs (Semua, Pengeluaran, Masuk, Pindah saldo and Investasi, each with its row count), search, "Filter" (period mode, the quick chips Menunggu jawaban, Belum dicek, Dari HP and Lewat Catat, account, category, pillar and status; the button shows how many are active) and "⋯" (Gabungkan dua transaksi, Rutin). Active filters appear as removable chips under the row.
-- Narrow with one chip: Menunggu jawaban (the rows behind the Tinjau badge), Belum dicek (recorded automatically), Dari HP or Lewat Catat. "Filter" adds account, category, Kakeibo pillar and status; each active filter shows as a chip you can remove.
-- Read the period's Masuk, Pengeluaran and Bersih (Masuk less Pengeluaran). Pengeluaran leaves out what you saved, the same figure as on Beranda. A reimbursement appears as "sudah dikurangi penggantian".
-- Read rows grouped by day. Each day heading shows that day's Pengeluaran, Masuk, Pindah saldo and how many rows are "menunggu jawaban", counted over the whole day even when part of it is not loaded yet ("2 lagi di hari ini · Muat lagi"). "Muat 50 lagi" adds older rows.
-- Read a Pindah saldo by its route, from where the money left to where it arrived, with the bank of each pocket: "BCA · ATM → Gopay". When only one side has been recorded, the unknown side is "?" and the row says "Pasangan belum ditemukan". Filtered to one account, each Pindah saldo also says "Masuk dari …" or "Keluar ke …".
-- Open a row: a centered dialog on a wide screen, a sheet on a phone. "Dari" and "Ke" follow the same route as the row's title. It shows the amount, where the row came from and who classified it, and the original notification or typed text. From there: "Ubah" (including switching between Pengeluaran and Masuk, "Pindah saldo" to pick its pair in the list, and "Top up Investasi"), "Tandai sudah dicek" with "Urungkan", and "Hapus", which first says what the delete changes and cannot be undone. A row waiting in Tinjau shows "Jawab di Tinjau".
-- "Gabungkan" picks one outgoing and one incoming row of the same amount and makes them one Pindah saldo.
-- Keys while focus is in the list: J and K move, Enter opens, Z undoes the last "Tandai sudah dicek" or top up, and ⌘K focuses the search.
-
-### Data Used
-
-- Accounts
-- Categories
-- Transactions
-- Pay-cycle date range
-
-### How It Connects to Other Menus
-
-- Accounts: every transaction belongs to an account and changes that account balance.
-- Categories: transaction category selection feeds spending and income analysis.
-- Summary: income, expenses, net cash movement, and safe-to-spend come from transactions.
-- Analysis: charts and category breakdowns are computed from transactions.
-- Net Worth: cash balances from transactions contribute to liquid assets.
-
-### Best Practice
-
-Enter transactions regularly. If the ledger is incomplete, almost every other screen becomes less useful.
-
-## 3. Rekening & Kantong
-
-Route: `/accounts` (`?akun=<id>` opens an account's detail)
-
-Rekening & Kantong lists where the money is, as cards like the old app.
-
-### What You See
-
-- **KPI cards**: Total aset, Siap pakai, Investasi with its gain or loss, and Kekayaan bersih. Kekayaan bersih is the same figure as on Beranda: a negative balance that waits for reconciliation and every active debt are subtracted (see its "Rincian hitungan"), and pockets are counted once.
-- **Komposisi aset**: each account's share of the assets, without debt.
-- **Account cards**: each account with its colour badge, kind, balance and its pockets or products inside. A card says when an account needs reconciliation ("Perlu rekonsiliasi") and how many unfinished movements it has; the movements are completed in Tinjau. Investment products show their value with the gain or loss (▲/▼, amount and %), or "Modal belum dicatat"; a platform shows its total gain.
-
-### What You Can Do
-
-- Press a card or a pocket row to see its details and actions in a centered dialog (a bottom sheet on a phone): add a pocket, top up or buy and sell a product, update a value ("Perbarui nilai"), switch a product to amount tracking, reconcile ("Sesuaikan Saldo"), edit and archive (after a confirmation). "Juga dilaporkan" lists the other apps that report this account, learned from "Benar, satu transaksi" in Tinjau; "Lepaskan" (after a confirmation) stops a link, and the next repeat is asked again. The "+" on a card adds a pocket.
-- Drag a card or a pocket by its ⠿ handle, or use the ▲▼ buttons that appear on hover or keyboard focus; the order is saved at once and announced. On a phone, "Ubah urutan" switches to move buttons; "Selesai" leaves the mode.
-- "Perbarui harga" refreshes market prices, "Rencana" manages planned payments and "Tambah rekening" opens the account form.
-
-### How It Connects to Other Menus
-
-- Transactions require accounts.
-- Beranda shows the same Kekayaan bersih.
-- Ketahanan Dana moved to Target & Tagihan.
-
-## 4. Buckets
-
-Route: `/buckets`
-
-Buckets describe what money is for. They are planning containers, not bank accounts.
-
-### What You Can Do
-
-- Create a bucket.
-- Edit a bucket.
-- Delete/archive a bucket.
-- Set kind, target amount, linked accounts, priority, and notes.
-- Search, filter by active/archived status, filter by priority, and sort.
-
-### Data Used
-
-- Bucket records
-- Optional linked accounts
-- Current account balances for linked accounts
-
-### How It Connects to Other Menus
-
-- Allocation items can link to buckets.
-- Strategy rules can target buckets.
-- Goals can link to buckets.
-- Dashboard uses bucket and allocation data when computing financial health.
-- Goals can use buckets as the money container behind a long-term target.
-
-### Example
-
-You might have one real bank savings account, but several buckets:
-
-- Emergency Fund
-- Laptop Replacement
-- Vacation
-- Annual Tax
-
-The account says where the money is. The bucket says why it is reserved. If one bucket links to multiple accounts, the bucket current amount is the sum of those account balances.
-
-## 5. Allocation
-
-Route: `/allocation`
-
-Allocation is where expected income becomes a plan.
-
-### What You Can Do
-
-- Create a pay-cycle allocation plan.
-- Edit a draft plan.
-- Delete a draft plan.
-- Activate a draft plan.
-- Add allocation items.
-- Edit or delete allocation items.
-- Fund an allocation item manually.
-
-### Data Used
-
-- Allocation plans
-- Allocation items
-- Buckets
-- Expected income
-
-### How It Connects to Other Menus
-
-- Buckets: allocation items can point to buckets.
-- Summary: active allocation items affect planned/committed money and safe-to-spend.
-- Strategy: strategy rules can be used as a model when deciding what allocation items to create.
-- Goals: if a goal is linked to a bucket, an allocation item can fund the bucket that supports the goal.
-
-### Draft vs Active
-
-Use draft status while planning. Activate a plan once it represents the current pay cycle. Active plans influence high-level financial metrics.
-
-## 6. Analysis
-
-Route: `/analysis`
-
-Analysis explains what happened in a selected month or cycle. It is a review screen, not a data-entry screen.
-
-### What You See
-
-- Income
-- Expenses
-- Net cash flow
-- Savings rate
-- Daily net movement
-- Spending by category
-- Insights
-
-### Data Used
-
-- Transactions
-- Categories
-- Selected month
-- Account movement
-
-### How It Connects to Other Menus
-
-- Transactions are the source data.
-- Categories determine the spending breakdown.
-- Accounts determine where the money moved.
-- Summary links to Analysis when something needs review.
-
-### When to Use It
-
-Use Analysis after entering enough transactions for the month or pay cycle. It answers: "Where did my money go?"
-
-## 7. Strategy
-
-Route: `/strategy`
-
-Strategy defines rules for how income should be distributed. It is useful before or during allocation planning.
-
-### What You Can Do
-
-- Create strategy rules.
-- Edit or delete rules.
-- Set rule priority.
-- Set rule mode: percentage, fixed amount, target balance, or overflow/remainder.
-- Link a rule to a bucket.
-- Preview distribution for a sample income amount.
-- Create an allocation plan from the preview.
-
-### Data Used
-
-- Strategy rules
-- Buckets
-- Preview income amount
-
-### How It Connects to Other Menus
-
-- Buckets are rule targets.
-- Allocation is where the generated plan is reviewed and funded.
-- Strategy can generate allocation items, but it does not move money or mark items funded.
-
-### Rule Order
-
-Rules are applied by type first, then priority inside each type:
-
-- Fixed amount rules reserve exact amounts.
-- Target balance rules fill the linked bucket shortfall.
-- Percentage rules use total income as their calculation base.
-- Overflow rules receive whatever remains.
-
-Lower priority numbers run first inside the same type.
-
-## 8. Target & Tagihan
-
-Route: `/goals` (`?target=<id>` or `?utang=<id>` opens a detail dialog)
-
-Three equal cards (Ketahanan Dana, Utang and the bills), then the goals at full width.
-
-- **Ketahanan Dana** comes first on a phone: how many months the emergency fund covers, from the server's runway, or "Belum dapat dihitung" when the essential monthly cost is unknown.
-- **Target tabungan**: one row per goal with its status in words ("Tercapai", "Perlu Rp X/bulan", "Tanpa tanggal"), progress and where the progress comes from. A goal's detail offers "Tambah progres" only for goals without linked accounts (it records progress, not a transaction), "Ubah target" and "Arsipkan target".
-- **Utang**: paid against total, the remaining amount and the minimum payment. The detail links an existing payment or records one, edits and archives. Paid-off debts move to the archive list.
-- **Tagihan sampai gaji berikutnya**: the count, the total and the next three bills before the next salary (or the next 30 days when the salary date cannot be estimated). Planned payments are the same lines as Beranda's Terjadwal. Charges that recurred with a steady amount but have no plan yet are added from today and marked "perkiraan". "Kelola" opens the plans.
-
-## 9. Assets
-
-Route: `/assets`
-
-Assets track investments and non-cash holdings.
-
-### What You Can Do
-
-- Create an asset.
-- Edit or delete/deactivate an asset.
-- Add a holding to a specific asset.
-- Record a price snapshot for a specific asset.
-- Search holdings.
-
-### Data Used
-
-- Asset records
-- Holdings
-- Latest price snapshots
-- Optional account/broker link
-
-### How It Connects to Other Menus
-
-- Net Worth uses assets as invested assets.
-- Summary shows net worth and invested assets.
-- Accounts can optionally be used as the account or broker for a holding.
-
-### Important Limitation
-
-Watchlist and investment notes are currently placeholders. They are visible as coming-soon areas and do not store user data yet.
-
-## 10. Net Worth
-
-Route: `/net-worth`
-
-Net Worth combines liquid assets and invested assets, then records snapshots over time.
-
-### What You Can Do
-
-- Record today's net-worth snapshot.
-- View current net worth.
-- View liquid assets and invested assets.
-- Change chart period.
-- View recent or all snapshots.
-- Open Assets for investment details.
-
-### Data Used
-
-- Account balances as liquid assets
-- Asset holdings and latest prices as invested assets
-- Net-worth snapshots
-
-### How It Connects to Other Menus
-
-- Accounts and Transactions determine liquid assets.
-- Assets determine invested assets.
-- Summary displays net worth and history signals.
-
-### When to Use It
-
-Record snapshots periodically, such as weekly, monthly, or after major asset updates. The history becomes more useful after several snapshots exist.
-
-## 11. Categories
-
-Route: `/categories`
-
-Categories classify transactions. They are currently system-wide and read-only in the UI.
-
-### What You Can Do
-
-- Search categories.
-- View categories grouped by type: income, expense, transfer, adjustment.
-
-### Data Used
-
-- Category records
-
-### How It Connects to Other Menus
-
-- Transactions use categories when you record income or expenses.
-- Analysis uses categories to build spending breakdowns.
-- Summary and Dashboard use categorized transaction data indirectly.
-
-### Why Categories Matter
-
-If transactions are uncategorized or categorized incorrectly, spending analysis becomes inaccurate. Review categories before entering many transactions so you understand the available options.
-
-## Form Field Reference
-
-This section documents the fields users see when creating or editing data. "Required" means the app expects a value before the record is useful or can be saved correctly. "Optional" means the field can be left blank or at its default value.
-
-## Pengaturan
-
-Route: `/settings` (each section has its own address; wide screens open HP & perangkat)
-
-- **HP & perangkat**: whether the phone is ready and when it last captured a notification, paired phones, the pairing code, device health and the manual API key.
-- **Kebiasaan** (`/settings/kebiasaan`): the habits and investment top-ups learned from answers in Tinjau, read only. Each row says whether it is recorded automatically ("Dicatat otomatis"), still learning ("Masih belajar · 2 dari 3") or asked because answers differ. The automatic-recording switches are server settings and are shown as facts.
-- **Tampilan** (`/settings/tampilan`): theme, single-key shortcuts, "Sembunyikan saldo" and "Bantuan & pintasan" (the help dialog, also on `?`).
-- **Akun**: Profil, Gaji & siklus, Mata uang & anggaran, Pemetaan notifikasi, Nama pengirim and Sesi uji. Every section saves its own fields.
-- **Sesi uji** (`/settings/sesi-uji`): a capture-only test session for trying notification flows with real small amounts.
-  - **Running a session:** "Mulai sesi" starts one for 15 minutes to 6 hours (2 hours by default). While it runs, a banner shows on every page, with "Lihat sesi" and "Akhiri sesi".
-  - **What gets captured:** every notification posted inside the session's window is stored, and nothing is recorded, paired, asked or learned. The phone shows such notifications as "Diabaikan". A notification posted before "Mulai sesi" is recorded as usual. One posted during the session but uploaded later stays capture-only.
-  - **The report:** lists each notification with its app, direction, amount, post time and how long it took to arrive. You can give each one a case number and a note. "Unduh CSV" downloads the report.
-  - **Deleting:** "Hapus data" removes the session's notifications after a confirmation. The session's time window stays, so a late upload from it is still never recorded.
-
-## Settings Fields
-
-Settings is opened from the top bar.
-
-### Payday
-
-| Field | Required | What It Means | Effect |
-| --- | --- | --- | --- |
-| Payday day | Required for accurate cycle reporting | Day of month when your pay cycle starts, from 1 to 31. | Controls the active pay-cycle range used by Summary, Transactions date range, Analysis context, exports, and cycle-based metrics. |
-
-### Privacy
-
-| Field | Required | What It Means | Effect |
-| --- | --- | --- | --- |
-| Hide balances | Optional | Masks money values on screen. | Does not change stored data. It only hides displayed amounts for privacy. |
-
-### API Key
-
-| Field | Required | What It Means | Effect |
-| --- | --- | --- | --- |
-| Reset API Key | Optional | Generates a new API key for external access. | The old key stops working. The new key is shown once, so copy it immediately if you use API integrations. |
-
-## Transactions Fields
-
-Transactions are created from `Transactions > Add Transaction` or the quick action `Add Transaction`.
-
-### Add or Edit Transaction
-
-| Field | Required | What It Means | Effect |
-| --- | --- | --- | --- |
-| Cash In / Cash Out | Required | Direction of money movement. Cash In is income; Cash Out is spending. | Determines whether the transaction increases or decreases the selected account balance. It also filters available categories by income or expense type. |
-| Account | Required | Account where the transaction happened. | Updates that account's balance and appears in account summaries. |
-| Description | Required | Human-readable transaction name, such as "Lunch" or "Salary". | Used in the ledger, search, exports, and detail panels. |
-| Amount | Required | Transaction amount. | Changes account balance and feeds income, expense, safe-to-spend, analysis, and dashboard metrics. |
-| Date & Time | Required | When the transaction happened. | Determines which pay cycle, month, analysis period, and summary range includes this transaction. |
-| Category | Optional | Income or expense category. | Feeds spending-by-category analysis. If left blank, transaction totals still count, but category analysis is less useful. |
-| Notes | Optional | Extra context about the transaction. | Stored on the transaction detail. Useful for later review, but does not affect calculations. |
-| Tags | Optional | Comma-separated labels such as `reimbursable` or `recurring`. | Helps classify and search transactions. Tags do not directly affect balances. |
-| Mark as reviewed | Optional | Indicates that you already checked this transaction. | Supports review workflows and filters. It does not change money values. |
-| Mark as Payroll / Top-up | Optional, only available for Cash In | Marks income as payroll/top-up for the cycle. | Helps distinguish regular income or cycle funding from other cash-in entries. |
-
-### Transfer Between Accounts
-
-Transfers are created from `Transactions > Transfer` or the quick action `Transfer`.
-
-| Field | Required | What It Means | Effect |
-| --- | --- | --- | --- |
-| From Account | Required | Account money leaves. | Creates the outgoing side of the transfer and lowers this account's balance. |
-| To Account | Required | Account money enters. Must be different from From Account. | Creates the incoming side of the transfer and raises this account's balance. |
-| Amount | Required | Transfer amount. | Moves money between accounts without treating it as income or expense. |
-| Date & Time | Required | When the transfer happened. | Determines where the transfer appears in the ledger and reporting period. |
-
-## Accounts Fields
-
-Accounts are created from `Accounts > Add Account`.
-
-### New Account / Edit Account
-
-| Field | Required | What It Means | Effect |
-| --- | --- | --- | --- |
-| Account Name | Required | Display name of the account. Example: "BCA Main", "Cash Wallet", "Payroll Account". | Used everywhere the account appears: Transactions, Summary, Accounts, Assets broker selection, and filters. |
-| Initial Balance | Optional; create only | Starting balance when the account is created. | Sets the opening balance baseline. Later transactions build on top of this amount. This field is not shown when editing an existing account. |
-| Monthly Budget Limit | Optional | Budget cap for the account in the current month. | Feeds account budget progress and account overview. If left at 0, no budget limit is created. |
-| Profile Type | Required | How the account should be treated conceptually. Options are Dynamic Spending, Fixed Spending, and Savings. | Used for account grouping and future spending logic. It also helps users understand account purpose. |
-| Payroll source | Optional checkbox | Marks this account as where salary or income normally arrives. | Shows in account stats and helps identify income source accounts. |
-| Buffer account | Optional checkbox | Marks this account as a reserve or safety account. | Shows in account stats and helps distinguish emergency or buffer cash. |
-| No spending limit | Optional checkbox | Indicates this account should not be constrained by a normal budget limit. | Saved on the account profile. Useful for accounts that should not be judged by spending-limit logic. |
-
-### Profile Type Details
-
-| Profile Type | Use It For | Effect |
+| Setting | Choices | Where it is kept |
 | --- | --- | --- |
-| Dynamic Spending | Flexible spending accounts such as daily wallet, debit account, or card account. | Useful when spending varies and should be monitored. |
-| Fixed Spending | Accounts used for predictable recurring payments. | Helps separate fixed obligations from flexible spending. |
-| Savings | Savings, reserve, or holding accounts. | Helps distinguish stored money from active spending money. |
+| Language | English, Bahasa Indonesia | Your account, on every device |
+| Theme | Light, Dark, Match system | This browser |
 
-## Buckets Fields
+The theme is also in the top bar (the sun or moon icon).
 
-Buckets are created from `Buckets > New Bucket`.
+### Step 3: Add your accounts and pockets
 
-| Field | Required | What It Means | Effect |
-| --- | --- | --- | --- |
-| Name | Required | Bucket name, such as "Emergency Fund", "Rent", or "Vacation". | Used by Allocation, Strategy, Goals, and bucket lists. |
-| Kind | Required | Bucket type: spending, sinking, emergency, goal, investment. | Controls the bucket icon/color and helps classify the purpose. |
-| Target Amount | Optional | Desired amount for this bucket. | Shows target and progress context. It can guide allocation and goal planning. |
-| Linked Accounts | Optional | One or more accounts related to this bucket. | Bucket current amount becomes the sum of selected account balances. It does not move money automatically. If the same account is linked to several buckets, that balance appears in each linked bucket. |
-| Priority | Optional, defaults to medium-style value | Numeric priority. Lower number means higher priority. | Used for sorting and priority labels. High-priority buckets should be funded earlier. |
-| Notes | Optional | Description or reminder for this bucket. | Shown on bucket cards. Does not affect calculations. |
+Open **Accounts & Pockets** and choose **Add account**.
 
-## Allocation Fields
+| Type | Use it for |
+| --- | --- |
+| Bank | A bank account, such as BCA or Jago |
+| E-wallet | GoPay, ShopeePay and similar |
+| Cash | Money in your wallet |
+| Investment | A platform with several products (Bibit, Bareksa, Stockbit) or a single holding |
+| Credit | One credit card or pay-later provider, such as SPayLater |
 
-Allocation has multiple forms: plan, item, and funding confirmation.
+For each bank, e-wallet or cash account:
 
-### Allocation Plan
+1. Enter the **Name** and the **Opening balance**.
+2. Choose its **Use**: Everyday money, Savings, or Investment cash (money not yet invested, such as an RDN).
+3. Add pockets with **Add pocket** in the account's menu, for example a Jago pocket for monthly shopping.
+4. Optional: pick a **Default pocket for notifications**. Phone transactions without a pocket go there.
 
-| Field | Required | What It Means | Effect |
-| --- | --- | --- | --- |
-| Month (YYYY-MM) | Required | Month this allocation plan belongs to. | Identifies the plan period. When editing a draft plan, this field is locked. |
-| Expected Income | Optional but recommended | Income amount you expect to allocate for the plan. | Used to calculate percentage allocation item amounts and plan totals. If left at 0, percentage items calculate to 0. |
+For a **Credit** account, enter **Owed now**, and optionally the **Limit**, **Bill issued on day** and **Due on day**.
+The due day lets the app work out your bills.
 
-### Allocation Item
+The starter **Cash** and **Main account** begin at Rp 0. Rename them with **Edit account**, then enter today's balance
+with **Adjust balance**. An adjustment never counts as income or spending.
 
-| Field | Required | What It Means | Effect |
-| --- | --- | --- | --- |
-| Label | Required | Name of the item, such as "Rent", "Emergency Fund", or "Investing". | Appears in the allocation item table and plan summary. |
-| Mode | Required | Percent of income or fixed amount. | Controls how planned amount is calculated. |
-| Percentage | Required when mode is Percent | Percent of expected income assigned to this item. | Planned amount equals expected income multiplied by this percentage. |
-| Amount | Required when mode is Fixed | Fixed rupiah amount assigned to this item. | Planned amount equals the entered amount. |
-| Bucket | Optional | Bucket this allocation item funds. | Connects allocation planning to bucket purposes and goal-related buckets. |
+### Step 4: Pair your phone
 
-### Fund Allocation Item
+You need an Android phone (Android 8.0 or newer).
 
-| Field | Required | What It Means | Effect |
-| --- | --- | --- | --- |
-| Amount to fund | Required for funding action | Amount you want to mark as funded for that allocation item. | Increases funded amount and changes item progress/status. It does not create a bank transaction by itself. |
+1. Open **Settings → Phone & devices** and choose **Download cashflow-companion.apk**, or scan the download QR code
+   with the phone.
+2. Install and open the app on the phone. Its interface is in Indonesian.
+3. On the web, choose **Connect a phone**. A QR code appears. It works once and is valid for 5 minutes.
+4. On the phone, choose **Mulai**, then **Scan QR**. Or choose **Ketik kode aja** and type the code under the QR.
+5. Follow the phone's five setup steps: pairing, notification access, battery and background, notification
+   permission and a capture test.
+6. Keep the web page open. It updates by itself and ends with "The phone is ready."
 
-## Strategy Fields
+> TECNO/Infinix (HiOS) and Xiaomi (MIUI) phones usually need an extra permission so the app is not frozen. Let the
+> app run without battery limits.
 
-Strategy rules are created from `Strategy > Add Rule`.
+The phone reads notifications only from these apps and drops every other notification unread:
 
-| Field | Required | What It Means | Effect |
-| --- | --- | --- | --- |
-| Name | Required | Rule name, such as "Emergency 20%" or "Rent Fixed". | Displayed in strategy table and preview output. |
-| Trigger | Required | When the rule conceptually applies. Options are Manual and On Income Arrival. | Stored with the rule. Current UI uses rules mainly for preview and planning. |
-| Mode | Required | Allocation method: Percentage, Fixed Amount, Target Balance, or Remainder. | Determines how preview calculates suggested allocation. |
-| Percentage (%) | Required when mode is Percentage | Percent of total income to allocate. | Preview and generated allocation plans calculate this from expected income. |
-| Amount | Required for fixed/target-balance fallback modes | Rupiah amount. | Fixed rules allocate this amount. Target balance rules use the linked bucket shortfall when the bucket has a target; otherwise they use this fallback amount. |
-| Target Bucket | Optional | Bucket the rule sends money to. | Shows bucket name in strategy table and preview; connects strategy to buckets. |
-| Priority | Required | Numeric order inside the same rule type. Lower number runs first. | Used after the fixed/target/percent/overflow type order. |
-| Active | Optional checkbox, defaults on | Whether the rule is active. | Inactive rules remain saved but are ignored by preview and plan generation. |
+| Bank or wallet | Apps |
+| --- | --- |
+| BCA | myBCA, BCA mobile |
+| Bank Jago | Bank Jago |
+| GoPay | GoPay, Gojek |
+| ShopeePay | ShopeePay, Shopee |
+| Stockbit | Stockbit |
 
-### Preview Distribution Field
+### Step 5: Record your first transactions
 
-| Field | Required | What It Means | Effect |
-| --- | --- | --- | --- |
-| Income Amount | Required for preview | Sample income amount to test against the active rules. | Calculates suggested allocation results. Preview does not create transactions or allocation items. |
-| Pay Cycle Ending Month | Required for plan creation | Month label for the allocation plan, such as `2026-05`. | Strategy uses this when creating the allocation plan. Duplicate months are rejected. |
-| Create Allocation Plan | Optional action after preview | Writes the preview result into Allocation. | Creates a draft allocation plan and allocation items. It does not fund the items or create bank transactions. |
+- Pay with a supported app and watch the transaction appear in **Transactions**.
+- For cash and other payments, press **Add** (or `N`) and type a sentence such as `lunch 35k`.
+- Open **Review** and answer anything the app was unsure about.
 
-## Goals Fields
+See [Recording money](#4-recording-money) for every way.
 
-Goals are created from `Goals > Add New Goal`.
+### Step 6: Set your salary source
 
-### New Goal / Edit Goal
+Do this once your salary has been recorded, by the phone or by hand.
 
-| Field | Required | What It Means | Effect |
-| --- | --- | --- | --- |
-| Goal Name | Required | Goal label, such as "Emergency Fund" or "House Down Payment". | Used in goal cards, Summary goal progress, and dashboards. |
-| Target Amount | Required | Amount you want to reach. | Used for progress percentage and required monthly contribution calculations. |
-| Target Date | Optional | Date by which you want to reach the goal. | Enables deadline and projection calculations. Without a date, the app can still track amount progress but deadline guidance is limited. |
-| Inflation Rate (%/year) | Optional, defaults to 0 | Assumed annual inflation for the goal. | Increases inflation-adjusted target in projections. Useful for future expenses. |
-| Expected Return (%/year) | Optional, defaults to 0 | Expected annual growth on saved/invested money. | Affects projection and required monthly contribution estimates. |
-| Linked Bucket | Optional | Bucket related to the goal. | If set, goal progress is derived from the bucket's linked account balances instead of manual goal contributions. |
-| Status | Required when editing | Active, Paused, or Completed. | Controls goal state and whether it appears as active progress. |
+1. Open **Settings → Salary & cycle** and choose **Choose source**.
+2. Pick the salary income and choose **Make it the salary source**.
+3. Confirm that income as salary: choose **Mark as salary**, or **Check income from this source** and then **This is
+   salary** under **Needs review**.
 
-### Goal Contribution
+A confirmed salary starts a new pay cycle. Later incomes from the same source that say "salary" or "gaji" are confirmed
+automatically; unclear ones wait under **Needs review**. Until a salary is confirmed, the app uses calendar months.
 
-| Field | Required | What It Means | Effect |
-| --- | --- | --- | --- |
-| Amount | Required for contribution action | Manual contribution amount toward an unlinked goal. | Increases manual goal progress. Linked goals use bucket balance instead and cannot be manually contributed to from the goal card. |
+### Step 7: Optional extras
 
-## Assets Fields
+| What | Where |
+| --- | --- |
+| Emergency fund target (1 to 36 months) and display currency (IDR or USD) | **Settings → Currency & budget** |
+| Monthly spending limit | **Settings → Currency & budget** (empty means the total of category budgets) |
+| Budget per category | **Analysis → Spending by category → Set budgets** |
+| Savings goals and the emergency fund goal | **Goals & Bills** |
+| Debts, such as a motorbike installment | **Goals & Bills → Add debt** |
+| Plans for regular bills and transfers | **Plans**, on **Accounts & Pockets** or **Goals & Bills** |
+| Your names as banks write them | **Settings → Profile → Names in bank notifications** |
 
-Assets has forms for assets, holdings, and price updates.
+The names in bank notifications help the app recognize transfers to and from yourself.
 
-### New Asset / Edit Asset
+## 2. How the pieces connect
 
-| Field | Required | What It Means | Effect |
-| --- | --- | --- | --- |
-| Name | Required | Asset name, such as "BBCA", "Bitcoin", or "Gold". | Used in holdings table, asset allocation, and net-worth calculations. |
-| Class | Required | Asset class: stock, ETF, mutual fund, bond, crypto, metal, property, or other. | Groups asset allocation and controls icon/color. |
-| Ticker | Optional | Market symbol or shorthand, such as `BBCA.JK`. | Helps identify the asset. Current price updates are manual, so ticker does not fetch prices automatically. |
+### Accounts and pockets
 
-### Add Holding
+An account is where money sits: a bank, an e-wallet, cash, an investment platform or a credit provider. A pocket is
+a part of an account, such as a Jago pocket. A parent account and its pockets are never counted twice.
 
-| Field | Required | What It Means | Effect |
-| --- | --- | --- | --- |
-| Quantity | Required | Number of units held. | Used with latest unit price to calculate current value. |
-| Cost Basis | Optional but recommended | Total purchase cost for the holding. | Used to calculate average buy price and unrealized gain/loss. |
-| Acquired Date | Required | Date the holding was acquired. | Stored for holding history and context. |
-| Account/Broker | Optional | Account or broker associated with the holding. | Helps connect investments to where they are held. Does not change cash account balance. |
+The **Use** of an account decides where its money counts:
 
-### Update Price
+| Use | Counts as |
+| --- | --- |
+| Everyday money | Available balance |
+| Savings | Available balance; money moved in counts as **Saved & invested** |
+| Investment cash | Money not yet invested |
+| Investments | Products such as stocks, mutual funds or gold |
+| Debt | Credit accounts (set by the type) |
 
-| Field | Required | What It Means | Effect |
-| --- | --- | --- | --- |
-| Unit Price | Required | Latest known price per unit. | Updates current asset value and unrealized gain/loss calculations. |
-| As of Date | Required | Date for the price snapshot. | Determines price date shown in holdings and net-worth calculations. |
+### Three kinds of transaction
 
-## Net Worth Fields
-
-Net Worth has one primary action: `Record Today`.
-
-| Action / Field | Required | What It Means | Effect |
-| --- | --- | --- | --- |
-| Record Today | Optional action | Records a snapshot using current account balances and asset values. | Adds or updates today's net-worth snapshot. This builds net-worth history over time. |
-
-Net worth snapshots are calculated from existing data. You do not manually enter the snapshot amount on the Net Worth page.
-
-## Categories Fields
-
-Categories are currently read-only in the UI.
-
-| Field / Control | Required | What It Means | Effect |
-| --- | --- | --- | --- |
-| Search categories | Optional | Filters the category list by name. | Helps users find available categories before assigning them to transactions. |
-
-Category creation and editing exist in the backend, but the current UI presents categories as system-wide read-only data to keep transaction classification consistent.
-
-## Quick Actions
-
-"+ Catat" in the top bar, the Catat button of the phone tab bar and the N key open Catat: type one sentence such as "parkir 5rb jam 2". While you type, Catat shows what it read (amount, time, account, category) without recording anything; text without an amount is refused with the reason. "Catat" records it the way the phone does, asks a follow-up question inline when one is needed, and the message offers "Urungkan" for a few seconds. "Isi manual" opens the full form for an expense, income or a move between your accounts, with the amount already filled in. "Perlu tindakan" on Beranda opens the item that needs you.
-
-## Common Workflows
-
-### Daily or Weekly Tracking
-
-1. Open Transactions.
-2. Add income and expenses.
-3. Categorize each transaction.
-4. Use Summary to check safe-to-spend.
-5. Use Analysis to review spending patterns.
-
-### Payday Planning
-
-1. Confirm your pay cycle in Settings.
-2. Open Strategy and preview how income should be split.
-3. Create an allocation plan from the strategy preview.
-4. Review the generated allocation items in Allocation.
-5. Activate the plan.
-6. Fund allocation items as money is assigned.
-
-### Saving for a Goal
-
-1. Create a bucket for the purpose.
-2. Create a goal with target amount and target date.
-3. Link the goal to the bucket.
-4. Add allocation items each cycle to fund that bucket.
-5. Track progress in Goals and Summary.
-
-Example: if your emergency fund is split across two Jago pockets, link both accounts to one Emergency Fund bucket. Then create an Emergency Fund goal and link it to that bucket. The goal progress will use the combined balance from both linked Jago pockets.
-
-### Investment Tracking
-
-1. Open Assets.
-2. Create assets such as stocks, ETFs, crypto, gold, or property.
-3. Add holdings for each asset.
-4. Record price snapshots when prices change.
-5. Open Net Worth and record a snapshot.
-6. Review Summary for total net worth.
-
-## Data Dependency Map
-
-Use this map to understand why one menu may look empty until another menu has data.
-
-| Menu | Depends On | Feeds Into |
+| Kind | Example | Counts as |
 | --- | --- | --- |
-| Summary | Accounts, transactions, allocation, goals, assets, net worth | Overall review |
-| Transactions | Accounts, categories | Summary, accounts, analysis, net worth |
-| Accounts | User-created accounts, transactions | Transactions, summary, net worth, assets |
-| Buckets | User-created buckets, optional accounts | Allocation, strategy, goals |
-| Allocation | Buckets, expected income | Summary, dashboard health |
-| Analysis | Transactions, categories | Review decisions |
-| Strategy | Buckets, strategy rules | Allocation planning decisions |
-| Goals | Goals, optional buckets | Summary, dashboard health |
-| Assets | Asset records, holdings, price snapshots | Net worth, summary |
-| Net Worth | Accounts, assets, snapshots | Summary, wealth history |
-| Categories | System categories | Transactions, analysis |
+| Spending | Lunch, a bill, a purchase on credit | Spending, under a Kakeibo pillar |
+| Income | Salary, a sale | Income |
+| Transfer | BCA to Jago, a cash withdrawal, paying a credit bill | Neither: money moves between your own accounts |
 
-## What To Do If A Page Looks Empty
+A transfer between your accounts is one transfer with two sides. The phone often sees each side as a separate
+notification; the app pairs them. Until both sides are known, the transfer waits in **Review** and is not counted as
+spending or income.
 
-- Summary is empty or low value: add accounts and transactions.
-- Transactions is empty: add an account first, then add transactions.
-- Accounts has no balances: add transactions or create accounts with initial balances.
-- Buckets is empty: create buckets for money purposes.
-- Allocation is empty: create an allocation plan, then add items.
-- Analysis is empty: add categorized transactions.
-- Strategy is empty: create rules and target buckets.
-- Goals is empty: create goals and optionally link buckets.
-- Assets is empty: create assets and add holdings.
-- Net Worth has no history: record snapshots.
-- Categories is empty: this usually indicates categories have not been seeded or loaded.
+A refund or reimbursement in the **Reimbursements** category is not income. It reduces spending in the category it
+pays back.
+
+### Kakeibo pillars and categories
+
+Every spending has a category, and each category has a Kakeibo pillar. A single transaction can override its
+category's pillar.
+
+| Pillar | For |
+| --- | --- |
+| Needs | Everyday essentials: daily meals, groceries, regular transport, bills, installments |
+| Wants | Can wait: cafés, snacks, eating out for fun, non-essential shopping, entertainment |
+| Culture | Growth and relationships: sport, courses, books, events, offerings, planned gifts |
+| Unexpected | Not planned this month: repairs, sudden medical costs, short-notice weddings, fines |
+| Savings | Set aside, not spent |
+
+Spending without a pillar shows as **No pillar yet**. It still counts as spending, but never as Needs. Manage
+categories in **Analysis → Spending by category → Manage categories**.
+
+### Salary cycles
+
+A pay cycle runs from one confirmed salary to the next. While the next salary has not arrived, the current cycle stays
+open. After three confirmed salaries that arrive on regular days, the app estimates the next payday. The estimate is
+never used as a cycle boundary.
+
+Analysis, Reports and Transactions let you switch between **Pay cycle** and **Calendar month**.
+
+### Safe to spend
+
+Home's main figure is **Safe to spend until payday**:
+
+> Income − Spending − Saved & invested − Scheduled
+
+**Scheduled** is unpaid bills and goal deposits not yet made, until the day before the expected salary. When that date
+is unknown, the next 30 days are used. Choose **Breakdown** on Home to see every line behind the figure.
+
+### Plans and bills never post on their own
+
+A plan is a reminder, not a payment. It changes no balance. When a plan is due, you do one of three things:
+
+1. **Link** the transaction your phone already captured.
+2. **Skip this time** if it did not happen.
+3. **Add manually (not captured)** if the notification was missed.
+
+When exactly one recorded transaction matches (account, amount, around the due date), the app links it automatically.
+You can undo that link.
+
+### Goals and the safety net
+
+- A **savings goal** follows the balance of linked accounts and pockets, or progress you enter by hand. Adding
+  progress by hand moves no money.
+- Mark one goal as the **emergency fund**. Without one, the safety net counts all cash balances.
+- **Safety net** = the reserve balance ÷ your monthly essential costs. Essential costs come from Needs and No pillar
+  yet spending in complete past periods, or from your Needs budgets when there is no complete period yet.
+
+### Credit and pay later
+
+| Moment | What happens |
+| --- | --- |
+| Purchase | Counts as spending on the purchase day. The amount owed grows; no cash balance changes. |
+| Installments | A purchase can be split into 2 to 36 installments, with no interest. |
+| Bill | Bills follow the account's bill and due days. |
+| Payment | A transfer from a bank, e-wallet or cash account into the credit account. Cash leaves now, but it is not counted as spending again. |
+| Fee or interest | Recorded as its own spending, in Credit fee. |
+
+A payment settles the oldest amount due first. Going over the limit is marked, never refused.
+
+## 3. The pages
+
+On a computer, the sidebar groups the pages as **Daily**, **Overview** and **Money**. The top bar has search, **Hide
+balances**, the theme, notifications and **Add**. At phone width, a bottom bar shows **Home**, **Review**,
+**Transactions**, **Add** and **More**.
+
+<p align="center">
+  <img src="assets/screenshots/home-light.webp" alt="Home page with the safe-to-spend amount, the cycle figures, items that need action, net worth, the safety net and the Kakeibo split" width="880" />
+</p>
+
+### Home
+
+Your cycle at a glance.
+
+- **Safe to spend until payday**, with the days until payday and **Breakdown**.
+- **Income**, **Spending**, **Saved & invested** and **Scheduled** for this cycle (or this month).
+- **Needs action**: notifications to answer, transfers to pair, plans and credit bills due. **Open Review** goes to the
+  full list.
+- **Recent activity** for today and yesterday.
+- On the side: **Net worth**, **Safety net** and the Kakeibo split.
+
+### Review
+
+Everything the app could not settle alone, in folders:
+
+| Folder | What it holds |
+| --- | --- |
+| Not recognized | Payments the app could not identify; it asks what they were for |
+| Needs an answer | Groups of transactions whose category needs your answer |
+| Transfer not complete | One side of a transfer, waiting for its other side |
+| Recorded automatically | Recorded by a rule or AI. Checking is optional. |
+| Suggestions | Proposed names and categories for older transactions. Nothing changes until you accept. |
+| Seen twice | One transaction reported by two apps, recorded once |
+| Skipped automatically | Reports already recorded through another app |
+
+Answer one item at a time; the next one opens by itself. Your answers are remembered for similar transactions. Bulk
+actions can be undone for 10 minutes. **Find suggestions from history**, in the page menu, proposes better names and
+categories for a period you choose.
+
+### Transactions
+
+Every income, spending and transfer row.
+
+- Filter by type (All, Spending, Income, Transfer, Investments, Savings & investments, Credit) and by period.
+- Search notes, merchants and categories, or use **Filter** for account, category, pillar, status and source.
+- Open a row for its details, including the original notification. From there: **Edit**, **Delete** or **Mark as
+  checked**.
+- **Merge two transactions** joins a money-out and a money-in row of the same amount from two accounts into one
+  transfer.
+- The **Credit** type shows each provider's amount owed and next bill.
+
+### Analysis
+
+Where the money went, compared with the last whole period and the recent average.
+
+| Tab | What it shows |
+| --- | --- |
+| Overview | Spending by Kakeibo pillar, daily spending, spending by category, and detected bills and subscriptions |
+| Calendar | Spending per day, day details and unpaid bills before the next payday |
+| Money flow | A map (or table) of money from income through your accounts to spending and savings |
+
+From **Bills & subscriptions**, **Make it a plan** turns a detected repeating payment into a plan.
+
+### Reports
+
+A monthly Kakeibo report, by calendar month or pay cycle. A new report shows a badge on **Reports** and a notification.
+
+1. How much came in?
+2. How much was saved?
+3. How much was spent?
+4. What to improve next month?
+
+Every figure opens the transactions behind it. The **Data quality** box lists what is waiting in Review, spending
+without a pillar, possible duplicates and days without records. At the end, write a **note** for the period: it shows
+again in the next report.
+
+<p align="center">
+  <img src="assets/screenshots/reports-light.webp" alt="Monthly report with the spending total, the first two Kakeibo questions, the data-quality box and earlier reports" width="880" />
+</p>
+
+### Accounts & Pockets
+
+Balances of every account, pocket, investment and debt, with your **net worth** at the top.
+
+- View as **Cards** or **Chart**, grouped **By use** or **By account**. **Arrange** changes the order.
+- **Check balance**: compare an account with your bank app. The app lists possible causes of a difference. Then
+  choose **Balance matches** or **Adjust balance**.
+- Credit accounts show the limit left and the next bill, with **Pay bill**.
+- Investments: **Buy** and **Sell** for stocks, gold, crypto and unit-tracked funds. A mutual fund tracked by amount
+  uses **Top up** and **Update value**. **Update prices** refreshes products that have a market code.
+
+### Goals & Bills
+
+- The top shows how many months of essential costs your emergency fund covers, and how many days it would last if
+  income stopped.
+- **Bills** until the next salary (or the next 30 days), including credit bills. **Manage** opens your plans.
+- **Savings goals**, with **Add goal**.
+- **Debts & credit**, with **Add debt**. A debt is archived when it is paid off and becomes active again if its payment
+  is reversed.
+
+### Settings
+
+| Section | What it is for |
+| --- | --- |
+| Phone & devices | Phone status, pairing, the app download, paired phones (**Revoke**) and a backup API key |
+| Habits | What the app learned from your answers, and how often it asked you each week |
+| Appearance | Language, theme, single-key shortcuts, **Hide balances** and help |
+| Profile | Display name and the names that appear in bank notifications |
+| Salary & cycle | The salary source and the confirmed salaries |
+| Currency & budget | Region, display currency, emergency fund target and monthly spending limit |
+| Notification mapping | Which notification text points to which account |
+| Sender names | Sender names already recognized, to edit or remove |
+| Test session | Save notifications for testing without recording them |
+
+## 4. Recording money
+
+| Way | Best for |
+| --- | --- |
+| Phone notifications | Everything paid or received through a supported app |
+| One sentence | Cash and anything the phone did not see |
+| Manual form | Full control, transfers and credit installments |
+
+### Phone notifications
+
+1. The phone captures a notification from a supported app and sends it to the server.
+2. A clear, settled transaction is recorded at once.
+3. When something is unclear, the app asks. Questions appear in **Review** on the web and on the phone.
+
+On the phone, account, pocket and sender questions arrive at once. "What was this for?" questions wait for one evening
+reminder, at 20.00 by default; you can change it or turn it off in the phone's settings.
+
+Answer the same kind of payment the same way several times and it becomes a habit: the app suggests that answer
+first and, when automatic recording is on for your server, records it for you. **Settings → Habits** shows what was
+learned and how far along each habit is.
+
+### One sentence
+
+1. Press **Add** (or `N`). **Write a transaction** opens.
+2. Type one sentence with the amount, for example `lunch 35k`, `parking 5k yesterday` or `coffee 18k`.
+3. Check **Read as**: type, account, category and date.
+4. Choose **Record**. You can undo it from the message that follows, for 10 seconds.
+
+Amounts can be written as `35k`, `35rb`, `1,5jt` or `35.000`. Times such as "yesterday" or "this morning" are read
+too. If the account, type or time is still unclear, the dialog asks one short question at a time.
+
+<p align="center">
+  <img src="assets/screenshots/record-sentence-light.webp" alt="Write a transaction dialog reading lunch 35k as a Rp 35.000 spending" width="640" />
+</p>
+
+### Manual form
+
+In **Write a transaction**, choose **Fill in manually**. Then choose **Spending**, **Income** or **Transfer**.
+
+1. Enter the **Amount**. The **Quick add** buttons add round amounts.
+2. Choose the account (**Pay from** or **Paid into**) and the **Category**.
+3. Optional: open **More details** for the time, a goal, a bill or debt being paid, a note and a receipt (JPG, PNG,
+   WebP or PDF, up to 5 MB).
+4. Choose **Save transaction**.
+
+### Transfers between your own accounts
+
+- **Manual:** **Fill in manually → Transfer**, choose **From account** and **To account**, then **Move balance**.
+- **Sentence:** Indonesian transfer phrases are understood, such as `tarik tunai 200rb` (a cash withdrawal into Cash)
+  or `pindah 500rb dari BCA ke Jago`.
+- **From the phone:** when only one side arrives, **Review → Transfer not complete** asks for the other account. Link
+  the other side if it is already recorded, or choose **Not a transfer, this is spending**.
+- **Two rows already recorded:** use **Merge two transactions** on **Transactions**.
+
+### Credit purchases and installments
+
+1. In the manual form, choose **Spending** and set **Pay from** to the credit account.
+2. **Pay with credit** appears, with the limit left.
+3. Choose **Pay in full**, **3x**, **6x**, **12x** or **Other** (2 to 36).
+4. Check the **First due date**. It follows the account's bill date; you can change it.
+5. Save. The form shows the plan first, for example "pay later · 3 installments from [date] · Rp 400.000 each · no
+   interest".
+
+A sentence that names a credit account is shown as "pay later". For installments, use the manual form.
+
+To pay a bill, choose **Pay bill** on the credit account, or the due bill under **Needs action** on Home. A transfer
+opens with **Pay the amount left**. Add a **Fee / interest** if the provider charged one.
+
+## 5. Habits that keep it accurate
+
+| When | What to do |
+| --- | --- |
+| Daily | Clear **Review**. Glance at **Home** for safe to spend and **Needs action**. Record cash with a sentence. |
+| When a plan or bill is due | Link, skip or add it from the notification or **Needs action**. Pay credit bills with **Pay bill**. |
+| Now and then | **Check balance** on your main accounts against the bank app. |
+| Monthly | When the report is ready, open **Reports**. Clear the **Data quality** items, read the four answers and write the note. |
+
+## 6. Privacy, language and shortcuts
+
+### Hidden balances
+
+Press the eye icon in the top bar, or turn on **Settings → Appearance → Hide balances**. Every amount shows as dots.
+The choice is kept in this browser.
+
+### Switching language
+
+Choose **Settings → Appearance → Language**. The app switches at once and the choice follows your account. Your own
+data (account names, categories, notes) is never translated.
+
+| English | Bahasa Indonesia |
+| --- | --- |
+| Home | Beranda |
+| Review | Tinjau |
+| Transactions | Transaksi |
+| Analysis | Analisis |
+| Reports | Laporan |
+| Accounts & Pockets | Rekening & Kantong |
+| Goals & Bills | Target & Tagihan |
+| Settings | Pengaturan |
+
+### Keyboard shortcuts
+
+| Key | Action |
+| --- | --- |
+| `N` | Add a transaction |
+| `?` | Help & shortcuts |
+| `⌘K` / `Ctrl K` | Search transactions |
+| `Esc` | Close the top layer |
+| `J` / `K` | Next or previous item (Review, Transactions) |
+| `Enter` | Open the selected item |
+| `E` | Accept the suggested answer (Review) |
+| `T` | This is an investment top-up (Review) |
+| `1`–`9` | Choose a numbered answer (Review) |
+| `Z` | Undo the last answer (Review), or the last check or top-up (Transactions) |
+
+Single-key shortcuts can be turned off in **Settings → Appearance**.
+
+## 7. Common questions
+
+**Home says "pay cycle not available yet".** No salary is confirmed. Set the source in **Settings → Salary & cycle**
+(see [Step 6](#step-6-set-your-salary-source)). Until then Home uses the calendar month.
+
+**Why is a transfer not counted as spending?** Money moving between your own accounts is not spent. Only spending
+rows count.
+
+**A payment from my phone is missing.** Open **Settings → Phone & devices** and check the phone's status: notification
+access, running in the background, the capture test and when it last reported. Also check **Review**: it may be waiting
+there, or be listed under **Seen twice** or **Skipped automatically**.
+
+**A bill was due but nothing changed.** Plans never post. Link the captured payment, skip it, or add it manually.
+
+**My balance differs from the bank app.** Use **Check balance** on the account. It lists likely causes, such as a
+transfer without its other side or a report not yet recorded. If nothing explains it, **Adjust balance**.
+
+**Can I undo?** A sentence can be undone for 10 seconds after recording. Bulk actions in **Review** can be undone for
+10 minutes. Deleting a transaction cannot be undone.
+
+**Can I see amounts in dollars?** Yes: **Settings → Currency & budget → Display currency**. Data stays stored in
+rupiah.
+
+**Does the app move money?** No. It only records. Plans and bills are reminders.
