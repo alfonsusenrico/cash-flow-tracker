@@ -4,7 +4,10 @@ A self-hosted personal cash-flow tracker. An Android companion turns bank and e-
 entries, and the web app shows what came in, what went out and what is safe to spend until the next salary.
 
 <p align="center">
-  <img src="docs/assets/screenshots/home-light.webp" alt="Home page with the safe-to-spend amount, cycle figures, items that need action, net worth and the Kakeibo split" width="880" />
+  <picture>
+    <source media="(prefers-reduced-motion: no-preference)" srcset="docs/assets/screenshots/home-theme.webp" />
+    <img src="docs/assets/screenshots/home-light.webp" alt="Home page with the safe-to-spend amount, cycle figures, items that need action, net worth and the Kakeibo split, switching between the light and dark themes" width="880" />
+  </picture>
 </p>
 
 - **Built for Indonesian banks and e-wallets:** notifications from BCA, Bank Jago, GoPay, ShopeePay and Stockbit
@@ -13,7 +16,7 @@ entries, and the web app shows what came in, what went out and what is safe to s
 - **Explainable figures:** every figure states its period and opens the rows behind it.
 - **Your server, your data:** Docker Compose, PostgreSQL and invite-only sign-up.
 
-All screenshots use synthetic data.
+All screenshots use synthetic data, in the light and the dark theme.
 
 ## Contents
 
@@ -40,12 +43,12 @@ All screenshots use synthetic data.
 | **Goals & Bills** | Savings goals, the emergency fund, debts, plans and credit bills. |
 | **Settings** | Phone & devices (QR pairing), habits, appearance (language, theme, hidden balances), salary & cycle, currency & budget, notification mapping and sender names. |
 
-| | |
-| :---: | :---: |
-| <img src="docs/assets/screenshots/home-dark.webp" alt="Home page in the dark theme" width="430" /> | <img src="docs/assets/screenshots/transactions.webp" alt="Transactions page with type and period filters" width="430" /> |
-| Home, dark theme | Transactions |
-| <img src="docs/assets/screenshots/analysis.webp" alt="Analysis page with the Kakeibo pillars and the comparison with the last cycle" width="430" /> | <img src="docs/assets/screenshots/reports.webp" alt="Monthly report with income sources and the list of earlier reports" width="430" /> |
-| Analysis | Reports |
+| | Light | Dark |
+| --- | :---: | :---: |
+| **Home** | <img src="docs/assets/screenshots/home-light.webp" alt="Home page, light theme" width="400" /> | <img src="docs/assets/screenshots/home-dark.webp" alt="Home page, dark theme" width="400" /> |
+| **Transactions** | <img src="docs/assets/screenshots/transactions-light.webp" alt="Transactions page with type and period filters, light theme" width="400" /> | <img src="docs/assets/screenshots/transactions-dark.webp" alt="Transactions page with type and period filters, dark theme" width="400" /> |
+| **Analysis** | <img src="docs/assets/screenshots/analysis-light.webp" alt="Analysis page with the Kakeibo pillars and the comparison with the last cycle, light theme" width="400" /> | <img src="docs/assets/screenshots/analysis-dark.webp" alt="Analysis page with the Kakeibo pillars and the comparison with the last cycle, dark theme" width="400" /> |
+| **Reports** | <img src="docs/assets/screenshots/reports-light.webp" alt="Monthly report with income sources and the list of earlier reports, light theme" width="400" /> | <img src="docs/assets/screenshots/reports-dark.webp" alt="Monthly report with income sources and the list of earlier reports, dark theme" width="400" /> |
 
 **Throughout the app**
 
@@ -59,9 +62,9 @@ All screenshots use synthetic data.
 - **Light, dark or system theme**, and a phone layout with a bottom navigation bar.
 - **Keyboard:** `N` records a transaction and `?` opens help.
 
-<p align="center">
-  <img src="docs/assets/screenshots/home-phone.webp" alt="Home page at phone width with the bottom navigation bar" width="300" />
-</p>
+| Phone width, light | Phone width, dark |
+| :---: | :---: |
+| <img src="docs/assets/screenshots/home-phone-light.webp" alt="Home page at phone width with the bottom navigation bar, light theme" width="280" /> | <img src="docs/assets/screenshots/home-phone-dark.webp" alt="Home page at phone width with the bottom navigation bar, dark theme" width="280" /> |
 
 ## Recording money
 
@@ -71,9 +74,9 @@ All screenshots use synthetic data.
 | **One sentence** | Type "lunch 35k" or "parking 5k yesterday". Code reads the amount and date; anything still unclear becomes one question at a time. |
 | **Manual form** | Spending, income or a transfer between your own accounts, in the same dialog under "Fill in manually". |
 
-<p align="center">
-  <img src="docs/assets/screenshots/record-sentence.webp" alt="Write a transaction dialog reading lunch 35k as a Rp 35.000 spending" width="760" />
-</p>
+| Light | Dark |
+| :---: | :---: |
+| <img src="docs/assets/screenshots/record-sentence-light.webp" alt="Write a transaction dialog reading lunch 35k as a Rp 35.000 spending, light theme" width="420" /> | <img src="docs/assets/screenshots/record-sentence-dark.webp" alt="Write a transaction dialog reading lunch 35k as a Rp 35.000 spending, dark theme" width="420" /> |
 
 **Credit and pay later.** Each credit card or pay-later provider (for example SPayLater, Kredivo or Akulaku) is its
 own credit account. A purchase can be split into 2 to 36 installments. It counts as spending on the purchase day,
@@ -94,7 +97,17 @@ these apps and drops every other notification unread:
 | Stockbit | Stockbit |
 
 The phone keeps a local log, sends batches with its own device key and asks short questions, such as what a payment
-was for. It can also record a typed sentence.
+was for. It can also record a typed sentence. Its interface is in Indonesian, with a light and a dark theme.
+
+**From phone to web.** A synthetic myBCA notification, "Transfer QRIS Rp 35.000 ke Kopi Senja berhasil", is
+captured on the phone, uploaded and recorded on the server. With AI off, the unknown category waits for an answer in
+Review.
+
+| | Light | Dark |
+| --- | :---: | :---: |
+| **1. Captured on the phone** | <img src="docs/assets/screenshots/phone-capture-log-light.webp" alt="Companion capture log with the recorded Kopi Senja payment, light theme" width="300" /> | <img src="docs/assets/screenshots/phone-capture-log-dark.webp" alt="Companion capture log with the recorded Kopi Senja payment, dark theme" width="300" /> |
+| **2. What the tracker recorded** | <img src="docs/assets/screenshots/phone-capture-detail-light.webp" alt="Companion detail with the recorded amount, account and the original notification, light theme" width="300" /> | <img src="docs/assets/screenshots/phone-capture-detail-dark.webp" alt="Companion detail with the recorded amount, account and the original notification, dark theme" width="300" /> |
+| **3. Arrived on the web** | <img src="docs/assets/screenshots/web-captured-transaction-light.webp" alt="Web transaction detail recorded from the bank notification, light theme" width="300" /> | <img src="docs/assets/screenshots/web-captured-transaction-dark.webp" alt="Web transaction detail recorded from the bank notification, dark theme" width="300" /> |
 
 **Install and pair**
 
