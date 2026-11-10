@@ -303,4 +303,4 @@ cd mobile
 
 ## License
 
-MIT License.
+[MIT](LICENSE).
