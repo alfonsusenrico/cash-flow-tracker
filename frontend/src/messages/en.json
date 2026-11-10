@@ -1266,7 +1266,7 @@
       "title": "Connect a phone",
       "meta": "Scan with the companion app",
       "step1": "Open the companion app on the phone.",
-      "step2": "Choose Connect to web.",
+      "step2": "Tap Mulai, then Scan QR.",
       "step3": "Scan this code. Valid for {time}.",
       "steps": "Steps",
       "qr": "Phone pairing QR code, code {code}",

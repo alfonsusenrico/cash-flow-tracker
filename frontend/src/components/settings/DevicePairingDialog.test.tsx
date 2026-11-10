@@ -112,7 +112,7 @@ describe("live pairing checklist", () => {
     );
     const steps = within(dialog).getByRole("list", { name: "Langkah" });
     expect(within(steps).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
-      "Buka aplikasi pendamping di HP.", "Pilih Hubungkan ke web.", "Pindai kode ini. Berlaku 05:00.",
+      "Buka aplikasi pendamping di HP.", "Ketuk Mulai, lalu Scan QR.", "Pindai kode ini. Berlaku 05:00.",
     ]);
     expect(within(dialog).getByText("Atau ketik kode")).toBeInTheDocument();
     expect(within(dialog).getByText("ABCDE 12345")).toBeInTheDocument();
