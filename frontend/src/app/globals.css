@@ -745,6 +745,7 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
 .c-transfer { color: var(--tr-fg); }
 .c-invest { color: var(--inv-fg); }
 .c-warning { color: var(--warn-fg); }
+.c-credit { color: var(--credit-fg); }
 .c-accent { color: var(--accent-fg); }
 .dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; }
 .dot.is-unclassified { border: 1.5px dashed var(--k-none); background: transparent; }
@@ -1147,6 +1148,21 @@ html:has(.tx-list.is-selecting) { scroll-padding-top: calc(var(--topbar-h) + 48p
 .tx-installments li { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--sp-4) var(--sp-12); padding: var(--sp-8) 0; border-top: 1px solid var(--line); font-size: var(--fs-12); line-height: 16px; }
 .tx-installments li:first-child { border-top: 0; }
 .tx-installments .muted { flex-basis: 100%; }
+.tx-settled .t-label { margin: 0 0 var(--sp-8); }
+.tx-settled ul { margin: 0; border: 1px solid var(--line); border-radius: var(--r-panel); overflow: hidden; }
+.tx-settled li + li { border-top: 1px solid var(--line); }
+.tx-settled-row { display: flex; align-items: center; gap: var(--sp-8) var(--sp-12); width: 100%; min-height: 56px; padding: var(--sp-8) var(--sp-12); color: var(--text); text-align: left; }
+button.tx-settled-row { cursor: pointer; transition: background-color var(--t-state); }
+button.tx-settled-row:hover { background: var(--surface); }
+button.tx-settled-row:active { background: var(--surface-2); }
+button.tx-settled-row:focus-visible { outline-offset: -2px; }
+.tx-settled-row.is-static { padding-right: calc(var(--sp-12) + 16px + var(--sp-12)); }
+.tx-settled-row .chev { flex: none; color: var(--muted); }
+.tx-settled-main { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.tx-settled-title, .tx-settled-meta { display: block; }
+.tx-settled-meta { color: var(--muted); font-size: var(--fs-12); line-height: 16px; }
+.tx-settled-amount { flex: none; text-align: right; }
+.tx-settled-amount .t-amt { display: block; }
 .dlg-f .grow-text { flex: 1; min-width: 0; }
 .field .hint { color: var(--muted); font-size: var(--fs-12); line-height: 16px; }
 .field-control.is-select, .field select.field-control { border: 1px solid var(--line-strong); background: var(--window); }
