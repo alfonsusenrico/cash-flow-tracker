@@ -1,7 +1,7 @@
 ## 1. Credit colour
 
-- [ ] 1.1 Add `--credit-fg` (`#8A5A06` light, `#FBBF24` dark) and `.c-credit`. Evidence: `tokens.test.ts` passes, and a test measures at least 4.5:1 on canvas, surface and surface-2 in both themes.
-- [ ] 1.2 `RowAmount` uses the credit colour for a purchase with no `settled_on`. Evidence: `rows.test.tsx` covers unpaid, partly paid, fully paid, no payment day, a bank expense, and hidden balances.
+- [x] 1.1 Add `--credit-fg` (`#8A5A06` light, `#FBBF24` dark) and `.c-credit`. Evidence: `tokens.test.ts` passes, and a test measures at least 4.5:1 on canvas, surface and surface-2 and 14 OKLab units from `--out-fg` in both themes.
+- [x] 1.2 `RowAmount` uses the credit colour for a purchase with no `settled_on`. Evidence: `rows.test.tsx` covers unpaid, partly paid, fully paid, no payment day, a bank expense, and hidden balances.
 - [ ] 1.3 Owner check: captures of Transactions and Home at 1440 and 390 in light and dark, shown to the owner. Evidence: the owner's answer recorded in `verification.md`. Stop here until the owner accepts the colour.
 
 Expected Result: unpaid credit purchases are amber, and the owner has accepted the shade.

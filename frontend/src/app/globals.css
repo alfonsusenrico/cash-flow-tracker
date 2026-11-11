@@ -745,6 +745,7 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
 .c-transfer { color: var(--tr-fg); }
 .c-invest { color: var(--inv-fg); }
 .c-warning { color: var(--warn-fg); }
+.c-credit { color: var(--credit-fg); }
 .c-accent { color: var(--accent-fg); }
 .dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; }
 .dot.is-unclassified { border: 1.5px dashed var(--k-none); background: transparent; }

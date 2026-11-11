@@ -32,6 +32,7 @@ This is part 1 of the owner's credit idea of 2026-11-11. Part 2, capturing SPayL
 ### Modified Capabilities
 
 - `credit-accounts`: the unpaid purchase colour, and a payment's list of what it paid.
+- `transaction-ledger-management`: a credit purchase row is no longer always red.
 
 No project capability is added. The `money` standards apply: figures must not change, and this is verified by parity.
 
@@ -44,4 +45,4 @@ No project capability is added. The `money` standards apply: figures must not ch
 
 ## Approval
 
-Pending the owner's review.
+Approved by the owner in session on 2026-11-11, building up to the colour check first (task 1.3).

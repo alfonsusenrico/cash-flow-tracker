@@ -309,19 +309,20 @@ export function maskedTag(text: string) {
   };
 }
 
-export type AmountKind = RowKind | "plain";
+export type AmountKind = RowKind | "credit" | "plain";
 
 const AMOUNT_CLASS: Record<AmountKind, string> = {
   expense: "t-amt c-expense",
+  credit: "t-amt c-credit",
   income: "t-amt c-income",
   movement: "t-amt c-transfer",
   topup: "t-amt c-invest",
   plain: "t-amt",
 };
 
-/** A signed amount in its kind's colour (D29): "−Rp" in the expense red, "+Rp" green, transfers sky, top-ups lavender. */
+/** A signed amount in its kind's colour (D29): "−Rp" in the expense red or the unpaid-credit amber, "+Rp" green, transfers sky, top-ups lavender. */
 export function KindAmount({ kind, amount, money, className }: { kind: AmountKind; amount: number; money: (amount: number) => string; className?: string }) {
-  const sign = kind === "expense" ? "−" : kind === "income" ? "+" : "";
+  const sign = kind === "expense" || kind === "credit" ? "−" : kind === "income" ? "+" : "";
   // A size class (the dialog's 32 px `t-fig-l`) replaces the row's `t-amt`; the kind's colour stays.
   const classes = className ? AMOUNT_CLASS[kind].replace("t-amt", className) : AMOUNT_CLASS[kind];
   return <MaskedMoney text={`${sign}${money(amount)}`} className={classes} />;
@@ -329,7 +330,14 @@ export function KindAmount({ kind, amount, money, className }: { kind: AmountKin
 
 /** The one row amount of Transaksi, Beranda, the dialog and the Rekening detail (D22, D29). */
 export function RowAmount({ row, money, className }: { row: RowFacts; money: (amount: number) => string; className?: string }) {
-  return <KindAmount kind={rowKind(row)} amount={row.amount} money={money} className={className} />;
+  return <KindAmount kind={amountKind(row)} amount={row.amount} money={money} className={className} />;
+}
+
+/** A credit purchase stays amber until its last item is settled; then it reads as ordinary spending. */
+function amountKind(row: RowFacts): AmountKind {
+  const kind = rowKind(row);
+  const unpaidCredit = kind === "expense" && row.credit?.role === "purchase" && !row.credit.settled_on;
+  return unpaidCredit ? "credit" : kind;
 }
 
 const JAKARTA_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" });

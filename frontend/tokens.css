@@ -74,6 +74,7 @@
   --tr-fg: #075985;
   --inv-fg: #5B21B6;
   --warn-fg: #8F4F04;
+  --credit-fg: #8A5A06;
   --ok-dot: #047857;
 
   /* Mark colours: dots, bars and chart marks, never text. */
@@ -154,6 +155,7 @@
   --tr-fg: #38BDF8;
   --inv-fg: #B39DFB;
   --warn-fg: #FBBF24;
+  --credit-fg: #FBBF24;
   --ok-dot: #10B981;
 
   --in-solid: #10B981;

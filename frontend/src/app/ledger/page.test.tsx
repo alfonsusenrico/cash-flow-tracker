@@ -691,12 +691,12 @@ describe("Credit (H5)", () => {
     withTotals = false;
   });
 
-  it("says a purchase is paid later in red, and a payment is a bill payment", async () => {
+  it("says a purchase is paid later in amber, and a payment is a bill payment", async () => {
     pages = [[purchase, payment]];
     renderPage();
     const bought = await findRow(/Warung Contoh/);
     expect(bought.querySelector(".r-meta")).toHaveTextContent("dibayar nanti · SPayLater · jatuh tempo 11 Des");
-    expect(within(bought).getByText("−Rp 120.000")).toHaveClass("c-expense");
+    expect(within(bought).getByText("−Rp 120.000")).toHaveClass("c-credit");
     const paid = rowButton(/Jago → SPayLater/);
     expect(paid.querySelector(".r-meta")).toHaveTextContent("bayar tagihan");
     expect(paid.querySelector(".r-pillar")).toHaveTextContent("Bayar utang");

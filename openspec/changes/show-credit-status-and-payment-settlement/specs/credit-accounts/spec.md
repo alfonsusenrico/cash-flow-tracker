@@ -27,7 +27,7 @@ A credit purchase that is not fully settled SHALL show its amount in the credit 
 
 #### Scenario: Readable and distinct
 - **WHEN** `--credit-fg` is measured in either theme
-- **THEN** it SHALL have at least 4.5:1 contrast on canvas, surface and surface-2, and SHALL NOT be `--warn-fg` or `--out-fg`
+- **THEN** it SHALL have at least 4.5:1 contrast on canvas, surface and surface-2, SHALL be at least 14 OKLab units from `--out-fg`, and SHALL be its own token, separate from `--warn-fg`
 
 ### Requirement: Payment Lists What It Paid
 The detail of a payment into a credit account SHALL list the items that payment settled, in settlement order, with the share it paid of each, and the part kept for later. The list SHALL be computed from the account's schedule and SHALL NOT be stored. The shares plus the part kept for later SHALL equal the payment.
