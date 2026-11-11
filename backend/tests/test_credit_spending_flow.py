@@ -882,3 +882,104 @@ def test_overview_of_2000_rows_reads_under_300_ms(owner, capsys):
     with capsys.disabled():
         print(f"\ncredit overview, 2000 rows: median {median:.1f} ms of {[round(value, 1) for value in timings]}")
     assert median < 300
+
+
+# --- What a payment paid (show-credit-status-and-payment-settlement) ------------------------------------------
+
+
+def detail_credit(owner, transaction_id):
+    response = owner.session.get(f"/api/transactions/{transaction_id}")
+    assert response.status_code == 200, response.text
+    return response.json()["transaction"]["credit"]
+
+
+def test_a_payment_lists_what_it_paid_on_either_leg(owner, monkeypatch):
+    freeze(monkeypatch, date(2026, 11, 21))
+    add_credit(owner)
+    by_merchant = owner.tx("expense", 300_000, category="makan", account="credit", when=at_local(date(2026, 11, 5)), merchant="Kopi Senja", notes="Sarapan")
+    by_note = owner.tx("expense", 100_000, category="makan", account="credit", when=at_local(date(2026, 11, 6)), notes="Makan malam")
+    paid = pay(owner, 450_000, date(2026, 11, 7))
+    on_credit = detail_credit(owner, paid["income_transaction_id"])
+    on_cash = detail_credit(owner, paid["expense_transaction_id"])
+    assert on_credit == on_cash
+    assert (on_cash["role"], on_cash["account_id"], on_cash["account_name"]) == ("payment", owner["credit"], "SPayLater Contoh")
+    assert on_cash["settled_items"] == [
+        {"kind": "purchase", "transaction_id": by_merchant, "title": "Kopi Senja", "installment": {"number": 1, "count": 1},
+         "amount": 300_000, "item_amount": 300_000, "due_date": "2026-12-11"},
+        {"kind": "purchase", "transaction_id": by_note, "title": "Makan malam", "installment": {"number": 1, "count": 1},
+         "amount": 100_000, "item_amount": 100_000, "due_date": "2026-12-11"},
+    ]
+    assert on_cash["kept_for_later"] == 50_000 and on_cash["due_dates_unavailable"] is False
+
+
+def test_a_payment_lists_one_instalment_and_a_share_of_the_next(owner, monkeypatch):
+    freeze(monkeypatch, date(2026, 11, 21))
+    add_credit(owner)
+    shoes = purchase(owner, 300_000, date(2026, 11, 5), terms={"installment_count": 3})
+    paid = pay(owner, 150_000, date(2026, 11, 7))
+    block = detail_credit(owner, paid["income_transaction_id"])
+    assert [(item["transaction_id"], item["installment"], item["amount"], item["item_amount"]) for item in block["settled_items"]] == [
+        (shoes, {"number": 1, "count": 3}, 100_000, 100_000),
+        (shoes, {"number": 2, "count": 3}, 50_000, 100_000),
+    ]
+    assert block["kept_for_later"] == 0
+
+
+def test_a_payment_lists_a_fee_and_opening_debt(owner, monkeypatch):
+    freeze(monkeypatch, date(2026, 11, 21))
+    add_credit(owner, owed=40_000, created=date(2026, 11, 1))
+    paid = pay(owner, 50_000, date(2026, 11, 7), fee=5_000)
+    items = detail_credit(owner, paid["income_transaction_id"])["settled_items"]
+    assert sorted(item["kind"] for item in items) == ["fee", "opening"]
+    fee = next(item for item in items if item["kind"] == "fee")
+    opening = next(item for item in items if item["kind"] == "opening")
+    assert fee["transaction_id"] == paid["fee_transaction_id"] and fee["title"] and fee["installment"] is None
+    assert (opening["transaction_id"], opening["title"], opening["amount"]) == (None, None, 40_000)
+
+
+def test_a_payment_of_another_owner_is_not_found(owner, make_owner):
+    add_credit(owner)
+    purchase(owner, 100_000)
+    paid = pay(owner, 100_000)
+    stranger = make_owner()
+    for leg in ("income_transaction_id", "expense_transaction_id"):
+        refused(stranger.session.get(f"/api/transactions/{paid[leg]}"), 404, "transaction_not_found")
+
+
+def test_a_payment_without_a_payment_day_lists_nothing(owner):
+    add_credit(owner, payment_day=None)
+    purchase(owner, 100_000)
+    paid = pay(owner, 100_000)
+    for leg in ("income_transaction_id", "expense_transaction_id"):
+        block = detail_credit(owner, paid[leg])
+        assert (block["settled_items"], block["kept_for_later"], block["due_dates_unavailable"]) == ([], 0, True)
+
+
+def test_deleting_a_listed_purchase_settles_the_next_item_or_keeps_the_amount(owner, monkeypatch):
+    freeze(monkeypatch, date(2026, 11, 21))
+    add_credit(owner)
+    first = purchase(owner, 100_000, date(2026, 11, 5))
+    second = purchase(owner, 80_000, date(2026, 11, 6))
+    paid = pay(owner, 100_000, date(2026, 11, 7))
+    leg = paid["income_transaction_id"]
+    assert [item["transaction_id"] for item in detail_credit(owner, leg)["settled_items"]] == [first]
+    assert owner.session.delete(f"/api/transactions/{first}").status_code == 200
+    block = detail_credit(owner, leg)
+    assert [(item["transaction_id"], item["amount"]) for item in block["settled_items"]] == [(second, 80_000)]
+    assert block["kept_for_later"] == 20_000
+
+
+def test_the_list_carries_no_settlement_and_builds_no_schedule_for_payments(owner, monkeypatch):
+    import app.services.credit_bills as credit_bills
+
+    add_credit(owner)
+    pay(owner, 50_000)
+    built = []
+    original = credit_bills.build_schedule
+    monkeypatch.setattr(credit_bills, "build_schedule", lambda account, *args: built.append(str(account["id"])) or original(account, *args))
+    for query in ("limit=200", "limit=200&logical_movements=true"):
+        response = owner.session.get(f"/api/transactions?{query}")
+        assert response.status_code == 200
+        blocks = [row["credit"] for row in response.json()["transactions"] if row["credit"]]
+        assert blocks and all(set(block) == {"role", "account_id", "account_name"} for block in blocks)
+    assert built == []
