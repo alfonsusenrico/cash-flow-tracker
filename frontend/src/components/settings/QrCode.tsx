@@ -31,6 +31,10 @@ export function QrCode({
       margin: 2,
       errorCorrectionLevel: "M",
       color: { dark: "#000000", light: "#ffffff" },
+    }).then(() => {
+      // The library sets the canvas's css size to its pixel buffer, which draws the code at twice its box on a 2x screen.
+      canvas.style.width = `${size}px`;
+      canvas.style.height = `${size}px`;
     }).catch(() => {
       if (!cancelled) onError();
     });
