@@ -852,6 +852,11 @@
         "item": "Installment {k} of {n} · due {date}",
         "itemPaid": "Paid {date}",
         "itemLeft": "<amount></amount> left to pay",
+        "settledHeading": "Paid by this payment",
+        "itemDue": "Due {date}",
+        "shareOf": "of <amount></amount>",
+        "openingDebt": "Opening debt",
+        "keptForLater": "Kept for later",
         "billPayment": "{provider} bill payment",
         "unavailable": "The due dates cannot be worked out yet.",
         "status": {
