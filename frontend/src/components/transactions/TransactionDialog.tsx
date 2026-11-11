@@ -259,8 +259,8 @@ export function TransactionDialog({
                 </div>
               </div>
             )}
-            <Facts row={row} kind={kind} onOpenFee={openRow} onMarkChecked={() => markChecked.mutate(row)} marking={markChecked.isPending} />
             {row.credit?.role === "payment" && <PaymentSettlement credit={row.credit} onOpenRow={openRow} />}
+            <Facts row={row} kind={kind} onOpenFee={openRow} onMarkChecked={() => markChecked.mutate(row)} marking={markChecked.isPending} />
             {row.origin && (
               <figure className="raw">
                 <figcaption className="t-meta">
