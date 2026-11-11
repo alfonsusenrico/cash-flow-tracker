@@ -855,7 +855,7 @@
         "settledHeading": "Paid by this payment",
         "itemDue": "Due {date}",
         "shareOf": "of <amount></amount>",
-        "openingDebt": "Opening debt",
+        "openingDebt": "Opening balance",
         "keptForLater": "Kept for later",
         "billPayment": "{provider} bill payment",
         "unavailable": "The due dates cannot be worked out yet.",

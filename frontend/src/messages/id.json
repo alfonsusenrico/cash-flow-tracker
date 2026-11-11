@@ -855,7 +855,7 @@
         "settledHeading": "Dibayar oleh pembayaran ini",
         "itemDue": "Jatuh tempo {date}",
         "shareOf": "dari <amount></amount>",
-        "openingDebt": "Utang awal",
+        "openingDebt": "Saldo awal",
         "keptForLater": "Disimpan untuk tagihan berikutnya",
         "billPayment": "Bayar tagihan {provider}",
         "unavailable": "Tanggal jatuh tempo belum bisa dihitung.",

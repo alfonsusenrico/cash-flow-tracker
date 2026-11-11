@@ -33,7 +33,7 @@ Consequence, accepted: recording a backdated purchase can change what an earlier
 
 **D8 Detail endpoint only.** `settled_items` is added only under `with_installments=True`, as instalments are, so the list endpoint is not slowed. `load_credit_blocks` loads schedules for payment rows only in that mode.
 
-**D9 (default) Shape of the list.** Each entry: `kind`, `transaction_id`, `title`, `installment`, `amount` (the share paid by this payment), `item_amount` and `due_date`. A partly covered item shows "Rp 100.000 of Rp 300.000". `kept_for_later` is the part of the payment that covers nothing yet. Opening debt has no `transaction_id` and is shown as a plain row labelled as opening debt.
+**D9 (default) Shape of the list.** Each entry: `kind`, `transaction_id`, `title`, `installment`, `amount` (the share paid by this payment), `item_amount` and `due_date`. A partly covered item shows "Rp 100.000 of Rp 300.000". `kept_for_later` is the part of the payment that covers nothing yet. Opening debt has no `transaction_id` and is shown as a plain row labelled "Opening balance" ("Saldo awal"), the name the account's bill list uses (owner, 2026-11-11).
 
 **D10 (default) Rows open the purchase.** A listed row is a whole-row button that switches the same dialog to that purchase, through the dialog's existing `shownId`.
 

@@ -85,7 +85,7 @@ describe("What a payment paid (show-credit-status-and-payment-settlement)", () =
     expect(list.getByRole("button", { name: /Sepatu lari.*Cicilan 3\/6.*jatuh tempo 11 Des.*Rp\s?100\.000/ })).toBeInTheDocument();
     expect(list.getByRole("button", { name: /Tas kerja.*Rp\s?70\.000.*dari Rp\s?200\.000/ })).toBeInTheDocument();
     expect(list.getAllByRole("button")).toHaveLength(3);
-    expect(list.getByText("Utang awal")).toBeInTheDocument();
+    expect(list.getByText("Saldo awal")).toBeInTheDocument();
     expect(list.getByText("Disimpan untuk tagihan berikutnya").closest("li")).toHaveTextContent(/Rp\s?30\.000/);
     expect((await axe(dialog)).violations).toHaveLength(0);
   });
@@ -100,7 +100,7 @@ describe("What a payment paid (show-credit-status-and-payment-settlement)", () =
     }), "en");
     const list = within(await within(dialog).findByRole("region", { name: "Paid by this payment" }));
     expect(list.getByRole("button", { name: /Kopi Senja.*Due 11 Dec/ })).toHaveTextContent(/of Rp\s?300\.000/);
-    expect(list.getByText("Opening debt")).toBeInTheDocument();
+    expect(list.getByText("Opening balance")).toBeInTheDocument();
     expect(list.getByText("Kept for later")).toBeInTheDocument();
   });
 

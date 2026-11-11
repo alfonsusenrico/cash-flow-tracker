@@ -25,5 +25,5 @@ Expected Result: every check passes and no figure changed.
 
 ## 4. Delivery
 
-- [ ] 4.1 Write `verification.md`, and show the owner the result. Evidence: the file and the owner's acceptance. `verification.md` is written (2026-11-11); the owner's acceptance is pending.
-- [ ] 4.2 After the owner accepts: archive the change, push, create the PR and report its URL. Evidence: the PR URL.
+- [x] 4.1 Write `verification.md`, and show the owner the result. Evidence: the file and the owner's acceptance on 2026-11-11 ("use Opening balance, push and open the PR").
+- [x] 4.2 After the owner accepts: archive the change, push, create the PR and report its URL. Evidence: the PR URL.

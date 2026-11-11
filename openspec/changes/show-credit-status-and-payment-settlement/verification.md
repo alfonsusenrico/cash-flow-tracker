@@ -28,8 +28,7 @@ values were not changed.
    out of view on a phone, behind nine facts.
 2. `due_dates_unavailable` is also sent as `false` when dates exist, as `purchase_facts` does. The design names only
    the `true` case.
-3. D9's "opening debt" is the label: "Opening debt" / "Utang awal". The account's bill list calls the same item "Opening
-   balance" / "Saldo awal". Say if one name should replace the other.
+3. The opening item is labelled "Opening balance" / "Saldo awal", matching the account's bill list (owner decision, 2026-11-11; the earlier captures show "Opening debt").
 4. Opening a row moves focus to the new row's body, because the button that was pressed is gone. The existing "View fee
    transaction" link uses the same handler and gains this too.
 5. The self-review found that a pending focus move survived a row answering 404. Fixed in `1082946`, with a regression
@@ -115,5 +114,5 @@ opening debt and kept for later, hidden balances, a row opened). The five scenar
   local only, not pushed, no PR, not archived. Next: the owner reviews; then task 4.2.
 - Unpaid credit purchases are amber (`--credit-fg`), accepted by the owner 2026-11-11. A payment's dialog lists what it
   paid, computed from `credit_bills.credit_shares`, on the detail endpoint only.
-- Open question for the owner: "Opening debt" in the payment list against "Opening balance" in the account's bill list.
+- Owner decision, 2026-11-11: the payment list uses "Opening balance" / "Saldo awal", the same name as the account's bill list.
 - Known: 156 axe findings outside this change on axe 4.14.0, also present on `710d758`.
