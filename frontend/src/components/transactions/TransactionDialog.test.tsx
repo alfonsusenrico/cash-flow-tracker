@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axe } from "vitest-axe";
 import type { Language } from "@/i18n/language";
-import { api } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import { renderWithIntl } from "@/lib/i18n/testing";
 import { TransactionDialog } from "./TransactionDialog";
 import type { CreditBlock, CreditSettledItem, LedgerRowDetail } from "./types";
@@ -139,6 +139,30 @@ describe("What a payment paid (show-credit-status-and-payment-settlement)", () =
     await user.keyboard(key);
     expect(await screen.findByRole("dialog", { name: "Kopi Senja" })).toBeInTheDocument();
     await waitFor(() => expect(document.activeElement).toBe(dialog.querySelector(".dlg-b")));
+  });
+
+  it("does not carry a focus move over to the next opening when the row is gone", async () => {
+    const user = userEvent.setup();
+    const row = payment({ settled_items: [settled({})], kept_for_later: 0 });
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { accounts: [] };
+      if (path === "/transactions/payment-1") return { transaction: row };
+      throw new ApiError(404, "not found");
+    });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    const dialogWith = (id: string | null) => (
+      <QueryClientProvider client={queryClient}><TransactionDialog transactionId={id} onClose={vi.fn()} record={vi.fn()} /></QueryClientProvider>
+    );
+    const view = render(dialogWith("payment-1"));
+    const dialog = await screen.findByRole("dialog", { name: "Bayar SPayLater" });
+    await user.click(await within(dialog).findByRole("button", { name: /Kopi Senja/ }));
+    await within(dialog).findByRole("alert");
+    view.rerender(dialogWith(null));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    view.rerender(dialogWith("payment-1"));
+    const reopened = await screen.findByRole("dialog", { name: "Bayar SPayLater" });
+    await within(reopened).findByRole("button", { name: /Kopi Senja/ });
+    expect(document.activeElement).not.toBe(reopened.querySelector(".dlg-b"));
   });
 
   it("hides every amount with Sembunyikan saldo", async () => {

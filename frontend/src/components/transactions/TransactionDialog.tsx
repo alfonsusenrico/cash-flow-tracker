@@ -116,6 +116,7 @@ export function TransactionDialog({
     setMode("view");
     setEditing(false);
     setActionError("");
+    focusOpenedRow.current = false;
   }, [transactionId]);
 
   const accounts = useQuery<{ accounts: any[] }>({ queryKey: queryKeys.accounts, queryFn: () => api.get("/accounts"), enabled: Boolean(shownId) }).data?.accounts ?? [];
