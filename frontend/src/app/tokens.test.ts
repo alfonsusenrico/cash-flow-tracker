@@ -78,6 +78,26 @@ function luminance(colour: Rgb): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
+/** Perceptual distance between two colours, in OKLab units times 100. */
+function oklabDistance(first: Rgb, second: Rgb): number {
+  const oklab = (colour: Rgb) => {
+    const [r, g, b] = colour.map((channel) => {
+      const value = channel / 255;
+      return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+    });
+    const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    return [
+      0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+      1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+      0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+    ];
+  };
+  const [a, b] = [oklab(first), oklab(second)];
+  return 100 * Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+}
+
 function contrast(first: Rgb, second: Rgb): number {
   const [light, dark] = [luminance(first), luminance(second)].sort((a, b) => b - a);
   return (light + 0.05) / (dark + 0.05);
@@ -385,6 +405,13 @@ describe("design tokens", () => {
         expect(contrast(painted(theme, text), painted(theme, background)), `${text} on ${background} in ${selector}`)
           .toBeGreaterThanOrEqual(4.5);
       }
+    });
+
+    it("paints unpaid credit amounts at 4.5:1 everywhere, well apart from the expense red", () => {
+      for (const background of ["--canvas", ...SURFACES]) {
+        expect(contrast(painted(theme, "--credit-fg"), painted(theme, background)), `--credit-fg on ${background} in ${selector}`).toBeGreaterThanOrEqual(4.5);
+      }
+      expect(oklabDistance(painted(theme, "--credit-fg"), painted(theme, "--out-fg")), selector).toBeGreaterThanOrEqual(14);
     });
 
     it("paints expense amounts with --out-fg at 4.5:1 on the canvas, every surface and the dialog (D29)", () => {

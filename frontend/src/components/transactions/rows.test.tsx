@@ -187,6 +187,42 @@ describe("credit rows (H5, D30)", () => {
 describe("the one row amount (D29)", () => {
   const money = (amount: number) => `Rp ${amount.toLocaleString("id-ID")}`;
 
+  describe("a credit purchase", () => {
+    const facts = { role: "purchase", account_id: "spl", account_name: "SPayLater", installment_count: 1, installments_settled: 0, next_due_date: "2026-12-11", settled_on: null } as const;
+    const onCredit = (credit: Partial<typeof facts> | Record<string, unknown>) => leg({ category_system_key: null, category_name: "Makan", credit: { ...facts, ...credit } as never });
+
+    it("is amber with a minus while unpaid", () => {
+      render(<RowAmount row={onCredit({})} money={money} />);
+      expect(screen.getByText("−Rp 500.000", { selector: ".c-credit" })).toBeInTheDocument();
+    });
+
+    it("stays amber while some instalments are still unpaid", () => {
+      render(<RowAmount row={onCredit({ installment_count: 6, installments_settled: 2 })} money={money} />);
+      expect(screen.getByText("−Rp 500.000", { selector: ".c-credit" })).toBeInTheDocument();
+    });
+
+    it("stays amber on an account with no payment day", () => {
+      render(<RowAmount row={onCredit({ next_due_date: null, due_dates_unavailable: true })} money={money} />);
+      expect(screen.getByText("−Rp 500.000", { selector: ".c-credit" })).toBeInTheDocument();
+    });
+
+    it("turns the expense red once fully paid", () => {
+      render(<RowAmount row={onCredit({ settled_on: "2026-12-04", next_due_date: null })} money={money} />);
+      expect(screen.getByText("−Rp 500.000", { selector: ".c-expense" })).toBeInTheDocument();
+    });
+
+    it("leaves a credit fee and a bank expense red", () => {
+      const { container } = render(
+        <>
+          <RowAmount row={onCredit({ role: "fee" })} money={money} />
+          <RowAmount row={spend} money={money} />
+        </>,
+      );
+      expect(container.querySelectorAll(".c-expense")).toHaveLength(2);
+      expect(container.querySelector(".c-credit")).toBeNull();
+    });
+  });
+
   it("paints spending red with a minus, income green with a plus, transfers sky and top-ups lavender", () => {
     const { container } = render(
       <>

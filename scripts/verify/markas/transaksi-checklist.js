@@ -17,12 +17,17 @@
   const font = (element) => `${px(style(element).fontSize)}/${px(style(element).lineHeight)} ${style(element).fontWeight}`;
   const phone = innerWidth < 768;
   const wide = innerWidth >= 1200;
-  // The expense ink as the page resolves it, to compare every "−Rp" amount with (D29).
-  const probe = document.createElement("span");
-  probe.style.color = "var(--out-fg)";
-  document.body.appendChild(probe);
-  const expenseInk = style(probe).color;
-  probe.remove();
+  // An ink as the page resolves it, to compare every "−Rp" amount with (D29).
+  const ink = (token) => {
+    const probe = document.createElement("span");
+    probe.style.color = `var(${token})`;
+    document.body.appendChild(probe);
+    const colour = style(probe).color;
+    probe.remove();
+    return colour;
+  };
+  const expenseInk = ink("--out-fg");
+  const creditInk = ink("--credit-fg");
 
   const dialog = first("dialog.shell-dialog[open]");
   const tx = first(".tx");
@@ -117,11 +122,24 @@
     }
   }
 
-  // Every spending amount on the page or in the open dialog is the expense ink (D29), and every amount is tabular.
+  // An unpaid credit purchase says so in words, so its colour is checked against the text, not against itself: a
+  // row carries "pay later", and its dialog a "Due" fact where a paid one has "Paid".
+  const unpaidCredit = (element) => {
+    const row = element.closest(".row");
+    if (row) return /dibayar nanti|pay later/.test(row.textContent);
+    const open = element.closest("dialog");
+    return Boolean(open) && [...open.querySelectorAll(".dl dt")].some((term) => /^(Jatuh tempo|Due)$/.test(term.textContent.trim()));
+  };
+  // Every spending amount on the page or in the open dialog is the expense ink (D29), an unpaid credit purchase the
+  // credit ink, and every amount is tabular.
   const amounts = all(".t-amt, .t-fig-l");
-  const expenses = amounts.filter((element) => /^−/.test(element.textContent.trim()));
+  const signed = amounts.filter((element) => /^−/.test(element.textContent.trim()));
+  const credits = signed.filter(unpaidCredit);
+  const expenses = signed.filter((element) => !unpaidCredit(element));
   const offInk = expenses.filter((element) => style(element).color !== expenseInk);
   if (expenses.length) add(`spending amounts in --out-fg (${expenses.length})`, offInk.length, 0);
+  const offCreditInk = credits.filter((element) => style(element).color !== creditInk);
+  if (credits.length) add(`unpaid credit amounts in --credit-fg (${credits.length})`, offCreditInk.length, 0);
   const notTabular = amounts.filter((element) => !style(element).fontVariantNumeric.includes("tabular-nums"));
   if (amounts.length) add("amounts tabular", notTabular.length, 0);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -11,13 +11,14 @@ import { useToast } from "@/components/workspace/overlays";
 import { ShellDialog } from "@/components/workspace/ShellDialog";
 import { ApiError, api } from "@/lib/api";
 import { useFormat } from "@/lib/format";
+import { isPlaceholderNote } from "@/lib/placeholderNotes";
 import { isHabitRecorded } from "@/lib/provenance";
 import { queryKeys } from "@/lib/queryKeys";
 import type { UndoFields } from "@/lib/reviewUndo";
 import {
   RowAmount, accountLabel, bucketName, maskedTag, movementRoute, rowKind, rowTitle, savingFlowLabel, useRowLabels, type RowKind,
 } from "./rows";
-import type { LedgerRowDetail } from "./types";
+import type { CreditBlock, CreditSettledItem, LedgerRowDetail } from "./types";
 import { useRefreshTransactionViews } from "./useTransactionUndo";
 
 // The editors load when first used, so Beranda, which also opens this dialog, stays light.
@@ -91,6 +92,8 @@ export function TransactionDialog({
   const cancelDeleteRef = useRef<HTMLButtonElement>(null);
   const editButtonRef = useRef<HTMLButtonElement>(null);
   const returnToEdit = useRef(false);
+  const amountRef = useRef<HTMLDivElement>(null);
+  const focusOpenedRow = useRef(false);
 
   // Focus returns to whatever opened the dialog once it closes (ShellDialog leaves that to its caller); Transaksi
   // moves it to the row again after its list settles.
@@ -113,6 +116,7 @@ export function TransactionDialog({
     setMode("view");
     setEditing(false);
     setActionError("");
+    focusOpenedRow.current = false;
   }, [transactionId]);
 
   const accounts = useQuery<{ accounts: any[] }>({ queryKey: queryKeys.accounts, queryFn: () => api.get("/accounts"), enabled: Boolean(shownId) }).data?.accounts ?? [];
@@ -133,6 +137,16 @@ export function TransactionDialog({
   useEffect(() => {
     if (missing) refresh(shownId ?? undefined);
   }, [missing, refresh, shownId]);
+
+  // The control that opened another row is gone with the row it sat in, so focus moves to the new row's body.
+  useEffect(() => {
+    if (!row || !focusOpenedRow.current) return;
+    focusOpenedRow.current = false;
+    const body = amountRef.current?.closest<HTMLElement>(".dlg-b");
+    if (!body) return;
+    body.scrollTop = 0;
+    body.focus({ preventScroll: true });
+  }, [row]);
 
   // Closing the edit returns to the detail with focus on "Ubah" (D15).
   useEffect(() => {
@@ -173,6 +187,11 @@ export function TransactionDialog({
       : t("transactions.dialog.when", { date, time });
   })() : undefined;
 
+  const openRow = (id: string) => {
+    setMode("view");
+    focusOpenedRow.current = true;
+    setShownId(id);
+  };
   const startEdit = () => {
     setActionError("");
     if (row) setEditing(true);
@@ -228,7 +247,7 @@ export function TransactionDialog({
         )}
         {row && kind && (
           <>
-            <div className="tx-amount">
+            <div ref={amountRef} className="tx-amount">
               <span className="t-meta">{t("transactions.dialog.amount")}</span>
               <RowAmount row={row} money={money} className="t-fig-l" />
             </div>
@@ -241,7 +260,8 @@ export function TransactionDialog({
                 </div>
               </div>
             )}
-            <Facts row={row} kind={kind} onOpenFee={(id) => { setMode("view"); setShownId(id); }} onMarkChecked={() => markChecked.mutate(row)} marking={markChecked.isPending} />
+            {row.credit?.role === "payment" && <PaymentSettlement credit={row.credit} onOpenRow={openRow} />}
+            <Facts row={row} kind={kind} onOpenFee={openRow} onMarkChecked={() => markChecked.mutate(row)} marking={markChecked.isPending} />
             {row.origin && (
               <figure className="raw">
                 <figcaption className="t-meta">
@@ -498,6 +518,84 @@ function CreditFacts({ row }: { row: LedgerRowDetail }) {
       )}
     </>
   );
+}
+
+/** What a credit payment paid, from the server's schedule (show-credit-status-and-payment-settlement D9, D10). */
+function PaymentSettlement({ credit, onOpenRow }: { credit: CreditBlock; onOpenRow: (id: string) => void }) {
+  const t = useTranslations("transactions.detail.credit");
+  const money = useMoney();
+  const headingId = useId();
+  const items = credit.settled_items ?? [];
+  const kept = credit.kept_for_later ?? 0;
+  if (items.length === 0 && kept === 0) return null;
+  return (
+    <section className="tx-settled" aria-labelledby={headingId}>
+      <h3 id={headingId} className="t-label">{t("settledHeading")}</h3>
+      <ul>
+        {items.map((item) => (
+          <li key={`${item.kind}-${item.transaction_id ?? "opening"}-${item.installment?.number ?? 1}`}>
+            <SettledItem item={item} onOpenRow={onOpenRow} />
+          </li>
+        ))}
+        {kept > 0 && (
+          <li>
+            <div className="tx-settled-row is-static">
+              <span className="tx-settled-main">{t("keptForLater")}</span>
+              <span className="tx-settled-amount"><MaskedMoney text={money(kept)} className="t-amt" /></span>
+            </div>
+          </li>
+        )}
+      </ul>
+    </section>
+  );
+}
+
+/** One settled item: a whole-row button opening its transaction; opening debt has none and stays a plain row. */
+function SettledItem({ item, onOpenRow }: { item: CreditSettledItem; onOpenRow: (id: string) => void }) {
+  const t = useTranslations("transactions.detail.credit");
+  const kinds = useTranslations("accounts.detail.item");
+  const money = useMoney();
+  const format = useFormat();
+  const labels = useRowLabels();
+  const title = settledItemTitle(item, {
+    opening: t("openingDebt"), fee: kinds("fee"), cashAdvance: kinds("cash_advance"), undescribed: labels.undescribed,
+  });
+  const date = format.shortDate(item.due_date);
+  const installment = item.installment && item.installment.count > 1 ? item.installment : null;
+  const content = (
+    <>
+      <span className="tx-settled-main">
+        <span className="tx-settled-title">{title}</span>
+        <span className="tx-settled-meta">
+          {installment ? t("item", { k: String(installment.number), n: String(installment.count), date }) : t("itemDue", { date })}
+        </span>
+      </span>
+      <span className="tx-settled-amount">
+        <MaskedMoney text={money(item.amount)} className="t-amt" />
+        {item.amount < item.item_amount && (
+          <span className="tx-settled-meta">{t.rich("shareOf", { amount: maskedTag(money(item.item_amount)) })}</span>
+        )}
+      </span>
+    </>
+  );
+  const transactionId = item.transaction_id;
+  if (!transactionId) return <div className="tx-settled-row is-static">{content}</div>;
+  return (
+    <button type="button" className="tx-settled-row" onClick={() => onOpenRow(transactionId)}>
+      {content}
+      <Icon name="chevron-right" className="h-4 w-4 chev" />
+    </button>
+  );
+}
+
+/** An item by its own row's title; a cash advance carrying only the server's default note is named by its kind. */
+function settledItemTitle(
+  item: CreditSettledItem,
+  names: { opening: string; fee: string; cashAdvance: string; undescribed: string },
+): string {
+  if (item.kind === "opening") return names.opening;
+  if (item.kind === "cash_advance") return isPlaceholderNote(item.title) ? names.cashAdvance : (item.title as string);
+  return item.title || (item.kind === "fee" ? names.fee : names.undescribed);
 }
 
 /** What a delete undoes, named before it happens (deviation 8). */

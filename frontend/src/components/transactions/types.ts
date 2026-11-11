@@ -34,6 +34,18 @@ export interface CreditInstallment {
   bill_status?: string | null;
 }
 
+/** One item a credit payment paid, with the share it paid (show-credit-status-and-payment-settlement D9). */
+export interface CreditSettledItem {
+  kind: "purchase" | "fee" | "cash_advance" | "opening";
+  /** Null for opening debt, which has no ledger row to open. */
+  transaction_id: string | null;
+  title: string | null;
+  installment: { number: number; count: number } | null;
+  amount: number;
+  item_amount: number;
+  due_date: string;
+}
+
 /** The row's tie to a credit account (`credit` on `GET /transactions`); null for every other row. */
 export interface CreditBlock {
   role: CreditRole;
@@ -52,6 +64,10 @@ export interface CreditBlock {
   /** Only on `GET /transactions/{id}`: the stored first due date and who set it ("owner" or "system"), or null. */
   first_due_date?: string | null;
   first_due_date_set_by?: "owner" | "system" | null;
+  /** Only on `GET /transactions/{id}` of a payment, in settlement order. */
+  settled_items?: CreditSettledItem[];
+  /** Only on `GET /transactions/{id}` of a payment: the part that covers nothing yet. */
+  kept_for_later?: number;
 }
 
 /** The facts a list row describes itself with: one ledger row, or two movement legs consolidated into one. */

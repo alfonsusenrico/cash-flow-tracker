@@ -63,13 +63,17 @@ class Item:
     def settled_on_time(self) -> bool | None:
         return self.settled_on <= self.due_date if self.settled_on else None
 
+    @property
+    def installment(self) -> dict[str, int] | None:
+        return {"number": self.number, "count": self.count} if self.kind == PURCHASE else None
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "kind": self.kind,
             "transaction_id": self.transaction_id,
             "date": self.date.isoformat(),
             "due_date": self.due_date.isoformat(),
-            "installment": {"number": self.number, "count": self.count} if self.kind == PURCHASE else None,
+            "installment": self.installment,
             "amount": self.amount,
             "left_to_pay": self.left_to_pay,
             "settled_on": self.settled_on.isoformat() if self.settled_on else None,
@@ -83,6 +87,15 @@ class Credit:
     kind: str
     transaction_id: str
     date: date
+    amount: int
+    movement_id: str | None = None
+
+
+@dataclass
+class ItemShare:
+    """The part of one item a credit paid."""
+
+    item: Item
     amount: int
 
 
@@ -211,6 +224,31 @@ def settle(items: list[Item], credits: list[Credit]) -> None:
             item.settled_on = max(credits[bisect_left(covered, running)].date, item.date)
 
 
+def credit_shares(schedule: Schedule, credit: Credit) -> tuple[list[ItemShare], int]:
+    """What one credit paid: its share of each item, in settlement order, and the part that covers nothing yet.
+
+    `settle` leaves the schedule's items and credits in its order and walks both as cumulative totals, so a
+    credit's share of an item is where their two ranges overlap (show-credit-status-and-payment-settlement D6).
+    """
+    start = 0
+    for earlier in schedule.credits:
+        if earlier is credit:
+            break
+        start += earlier.amount
+    end = start + credit.amount
+    shares: list[ItemShare] = []
+    running = 0
+    for item in schedule.items:
+        overlap = min(end, running + item.amount) - max(start, running)
+        if overlap > 0:
+            shares.append(ItemShare(item, overlap))
+        running += item.amount
+    kept_for_later = max(end - max(start, running), 0)
+    if sum(share.amount for share in shares) + kept_for_later != credit.amount:
+        raise CreditInvariantError(f"credit {credit.transaction_id}: its shares do not add up to {credit.amount}")
+    return shares, kept_for_later
+
+
 def bill_status(bill: Bill, today: date) -> str:
     if bill.left_to_pay == 0:
         return PAID if all(item.settled_on_time for item in bill.items) else PAID_LATE
@@ -238,7 +276,8 @@ def build_schedule(account: dict[str, Any], rows: list[dict[str, Any]], today: d
     for row in rows:
         role = row_role(row)
         if role in (PAYMENT, REFUND):
-            schedule.credits.append(Credit(role, str(row["id"]), row["local_date"], int(row["amount"])))
+            movement_id = str(row["movement_id"]) if row["movement_id"] else None
+            schedule.credits.append(Credit(role, str(row["id"]), row["local_date"], int(row["amount"]), movement_id))
         else:
             schedule.items.extend(_items_for_row(row, role, statement_day, payment_day))
     settle(schedule.items, schedule.credits)
@@ -384,6 +423,54 @@ def purchase_facts(schedule: Schedule | None, transaction_id: str, terms_count: 
         "settled_on": settled_on.isoformat() if settled_on else None,
         "days_to_settle": (settled_on - items[0].date).days if settled_on else None,
         "settled_on_time": all(item.settled_on_time for item in items) if complete else None,
+        "due_dates_unavailable": False,
+    }
+
+
+ITEM_DESCRIPTIONS_SQL = """
+    SELECT t.id, t.merchant, t.notes, c.name AS category_name
+    FROM transactions t
+    LEFT JOIN categories c ON c.id = t.category_id
+    WHERE t.user_id = %s AND t.id = ANY(%s::uuid[])
+"""
+
+
+def _item_title(item: Item, description: dict[str, Any] | None) -> str | None:
+    """The item's name as its own ledger row is titled; a movement leg has only its note."""
+    if description is None:
+        return None
+    if item.kind == CASH_ADVANCE:
+        return description["notes"] or None
+    return description["merchant"] or description["notes"] or description["category_name"]
+
+
+def payment_settlement(cur, user_id: str, schedule: Schedule | None, movement_id: str) -> dict[str, Any]:
+    """What a payment paid, for its detail: found by its movement, so either leg gets the same list (D7, D9)."""
+    if schedule is None or not schedule.due_dates_available:
+        return {"settled_items": [], "kept_for_later": 0, "due_dates_unavailable": True}
+    credit = next((entry for entry in schedule.credits if entry.movement_id == movement_id), None)
+    if credit is None:
+        raise CreditInvariantError(f"credit account {schedule.account['id']}: movement {movement_id} is not one of its payments")
+    shares, kept_for_later = credit_shares(schedule, credit)
+    item_ids = sorted({share.item.transaction_id for share in shares if share.item.transaction_id})
+    descriptions: dict[str, dict[str, Any]] = {}
+    if item_ids:
+        cur.execute(ITEM_DESCRIPTIONS_SQL, (user_id, item_ids))
+        descriptions = {str(row["id"]): row for row in cur.fetchall()}
+    return {
+        "settled_items": [
+            {
+                "kind": share.item.kind,
+                "transaction_id": share.item.transaction_id,
+                "title": _item_title(share.item, descriptions.get(share.item.transaction_id or "")),
+                "installment": share.item.installment,
+                "amount": share.amount,
+                "item_amount": share.item.amount,
+                "due_date": share.item.due_date.isoformat(),
+            }
+            for share in shares
+        ],
+        "kept_for_later": kept_for_later,
         "due_dates_unavailable": False,
     }
 

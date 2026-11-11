@@ -629,12 +629,16 @@ def credit_side(row: dict[str, Any]) -> tuple[str, str, str] | None:
 def load_credit_blocks(
     cur, user_id: str, rows: list[dict[str, Any]], *, with_installments: bool = False,
 ) -> dict[str, dict[str, Any] | None]:
-    """Each row's `credit` block; schedules are built once per credit account on the page."""
+    """Each row's `credit` block; schedules are built once per credit account on the page.
+
+    A list needs a schedule only for purchases; a payment's settlement is read only with its detail (D8).
+    """
     sides = {str(row["id"]): credit_side(row) for row in rows}
-    purchase_accounts = sorted({side[1] for side in sides.values() if side and side[0] == credit_bills.PURCHASE})
+    scheduled_roles = (credit_bills.PURCHASE, credit_bills.PAYMENT) if with_installments else (credit_bills.PURCHASE,)
+    scheduled_accounts = sorted({side[1] for side in sides.values() if side and side[0] in scheduled_roles})
     schedules = credit_bills.load_schedules(
-        cur, user_id, credit_bills.local_today(), purchase_accounts, include_archived=True,
-    ) if purchase_accounts else {}
+        cur, user_id, credit_bills.local_today(), scheduled_accounts, include_archived=True,
+    ) if scheduled_accounts else {}
     blocks: dict[str, dict[str, Any] | None] = {}
     for row in rows:
         side = sides[str(row["id"])]
@@ -652,6 +656,8 @@ def load_credit_blocks(
                 first_due = row.get("credit_first_due_date")
                 block["first_due_date"] = first_due.isoformat() if first_due else None
                 block["first_due_date_set_by"] = row.get("credit_first_due_date_set_by")
+        elif role == credit_bills.PAYMENT and with_installments:
+            block.update(credit_bills.payment_settlement(cur, user_id, schedules.get(account_id), str(row["movement_id"])))
         blocks[str(row["id"])] = block
     return blocks
 
