@@ -782,7 +782,7 @@ def get_dashboard_overview(
                 -- Same top-up marker as the ledger, joined here so marking a row costs no extra query.
                 LEFT JOIN investment_topups topup ON topup.id = t.movement_id AND topup.user_id = t.user_id
                 WHERE t.user_id = %s
-                ORDER BY t.date DESC, t.created_at DESC
+                ORDER BY t.date DESC, t.created_at DESC, t.id DESC
                 LIMIT 10
                 """,
                 (user_id,),
