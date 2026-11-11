@@ -166,7 +166,7 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
                 JOIN accounts sa ON sa.id = t.account_id
                 LEFT JOIN categories c ON c.id = t.category_id
                 WHERE t.user_id = %s AND t.date >= %s AND t.date <= %s
-                ORDER BY t.date DESC, t.created_at DESC
+                ORDER BY t.date DESC, t.created_at DESC, t.id DESC
                 """,
                 (user_id, today_start, today_end),
             )

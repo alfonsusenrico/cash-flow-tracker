@@ -415,6 +415,32 @@ def test_renaming_system_categories_changes_only_their_names(client, seeded_owne
     assert "Investasi" in breakdown and "Investments" not in breakdown and "Transfer" not in breakdown
 
 
+def test_recent_rows_keep_their_order_when_a_movement_legs_tie(client, seeded_owner):
+    """The two legs of a movement share their date and creation time, so only the id can order them."""
+    from app.db.pool import db_conn
+
+    owner = seeded_owner
+    post(client, "/api/movements", {
+        "source_account_id": owner["Rekening Utama"], "target_account_id": owner["Uang Tunai"], "amount": 500_000,
+    })
+
+    def listed():
+        return [
+            [row["id"] for row in client.get("/api/dashboard/overview").json()["recent_transactions"]],
+            [row["id"] for row in client.get("/api/pulse").json()["today_transactions"]],
+        ]
+
+    for rows in listed():
+        assert rows == sorted(rows, reverse=True)
+    # Rewriting one leg moves it in the table, which changes the order of rows the query leaves tied.
+    with db_conn() as conn:
+        for leg in listed()[0]:
+            conn.execute("UPDATE transactions SET notes = notes WHERE id = %s", (leg,))
+            conn.commit()
+            for rows in listed():
+                assert rows == sorted(rows, reverse=True)
+
+
 def test_renamed_investment_is_never_offered_as_a_spending_choice(client, seeded_owner):
     from app.db.pool import db_conn
     from app.services.capture_resolution import reportable_categories
