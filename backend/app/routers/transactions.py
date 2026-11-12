@@ -1477,10 +1477,14 @@ def update_transaction(
                     raise refuse("credit_account_not_allowed")
 
             if new_type == "expense":
-                if locked_account.get("type") in {"cash", "bank", "wallet", "ewallet"} and not locked_account.get("instrument_type"):
-                    available = get_locked_ledger_balance(cur, user_id, new_account_id)
-                    if old_tx["type"] == "expense" and str(old_tx["account_id"]) == new_account_id:
-                        available += int(old_tx["amount"])
+                same_debit = old_tx["type"] == "expense" and str(old_tx["account_id"]) == new_account_id
+                already_taken = int(old_tx["amount"]) if same_debit else 0
+                # A settled notification may have left the account below zero; an edit is only
+                # refused when it takes more money than the row already did.
+                takes_more = new_amount > already_taken
+                liquid = locked_account.get("type") in {"cash", "bank", "wallet", "ewallet"} and not locked_account.get("instrument_type")
+                if liquid and takes_more:
+                    available = get_locked_ledger_balance(cur, user_id, new_account_id) + already_taken
                     if available < new_amount:
                         raise api_error(409, ErrorCode.INSUFFICIENT_FUNDS, {"required_amount": new_amount, "available_amount": available}, extra={"required_amount": new_amount, "available_amount": available, "account_id": new_account_id})
 
