@@ -14,4 +14,4 @@ Expected Result: edits that take no extra money save on any balance, and raises 
 
 ## 3. Deliver
 
-- [ ] 3.1 After the owner accepts, archive the change, push `fix/edit-keeps-balance-check`, open the PR and report its URL.
+- [x] 3.1 After the owner accepts, archive the change, push `fix/edit-keeps-balance-check`, open the PR and report its URL.
