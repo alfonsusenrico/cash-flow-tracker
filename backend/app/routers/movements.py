@@ -365,7 +365,7 @@ def update_movement(
         with conn.cursor() as cur:
             reject_topup_movement(cur, user_id, str(movement_id))
             cur.execute(
-                "SELECT id, movement_role, notes FROM transactions WHERE user_id = %s AND movement_id = %s FOR UPDATE",
+                "SELECT id, movement_role, notes, account_id, amount FROM transactions WHERE user_id = %s AND movement_id = %s FOR UPDATE",
                 (user_id, str(movement_id)),
             )
             movement_rows = cur.fetchall()
@@ -375,13 +375,17 @@ def update_movement(
             ensure_generic_movement_accounts(locked[source_id], locked[target_id])
             from app.services.ledger_mutations import ensure_sufficient_funds
 
-            ensure_sufficient_funds(
-                cur,
-                user_id,
-                locked[source_id],
-                payload.amount,
-                exclude_movement_id=str(movement_id),
-            )
+            outbound = next(row for row in movement_rows if row["movement_role"] == "outbound")
+            already_taken = int(outbound["amount"]) if str(outbound["account_id"]) == source_id else 0
+            # The source may sit below zero after a settled notification; only extra money is checked.
+            if payload.amount > already_taken:
+                ensure_sufficient_funds(
+                    cur,
+                    user_id,
+                    locked[source_id],
+                    payload.amount,
+                    exclude_movement_id=str(movement_id),
+                )
             tx_date = payload.date or datetime.now(timezone.utc)
             notes = payload.notes.strip() if payload.notes else t(language_for_user(current_user), "notes.movement_default")
             from app.services.ledger_mutations import movement_kakeibo
