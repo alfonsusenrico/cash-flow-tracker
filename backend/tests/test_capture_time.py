@@ -309,3 +309,27 @@ def test_stated_date_with_time_keeps_the_amount():
     facts = parse_capture("3/10 jam 14.30 makan 20rb", sent(2, 15), accounts=[], aliases=[], tz=TZ)
     assert (facts.amount, facts.date, facts.description) == (20_000, local(10, 3, 14, 30), "Makan")
     assert facts.time["evidence"] == "3/10 jam 14.30"
+
+
+THIRTEENTH = datetime(2026, 11, 13, 10, 0, tzinfo=JAKARTA)
+
+
+@pytest.mark.parametrize("text, day", [
+    ("tgl 11 kemarin, beli pedigree 47619", "2026-11-11"),
+    ("tanggal 11 kmrn beli pakan", "2026-11-11"),
+    ("tgl 11 yang kemarin beli pakan", "2026-11-11"),
+    ("tgl 11 lalu beli pakan", "2026-11-11"),
+    ("tgl 20 kemarin beli pakan", "2026-10-20"),
+    ("11 november kemarin beli pakan", "2026-11-11"),
+    ("tgl 12 kemarin beli pakan", "2026-11-12"),
+])
+def test_a_past_word_after_a_date_belongs_to_it(text, day):
+    reading = parse_time(text, THIRTEENTH, TZ)
+    assert reading.moment.date().isoformat() == day
+    assert reading.explicit_date.isoformat() == day
+
+
+@pytest.mark.parametrize("text", ["kemarin tgl 11 beli pakan", "tgl 11 beli pakan kemarin"])
+def test_a_past_word_away_from_the_date_still_names_yesterday(text):
+    with pytest.raises(CaptureDateError):
+        parse_time(text, THIRTEENTH, TZ)

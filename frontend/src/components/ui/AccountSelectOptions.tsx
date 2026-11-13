@@ -46,6 +46,8 @@ interface Props {
    * the pickers that may book on credit list them (add-credit-accounts D7).
    */
   includeCredit?: boolean;
+  /** Lists only the credit accounts, as plain options: the picker under Catat's "Bayar nanti". */
+  creditOnly?: boolean;
   labels?: AccountOptionLabels;
 }
 
@@ -56,10 +58,24 @@ export function AccountSelectOptions({
   excludeAccountId,
   liquidOnly = false,
   includeCredit = false,
+  creditOnly = false,
   labels = INDONESIAN_ACCOUNT_OPTION_LABELS,
 }: Props) {
   const getId = (a: AccountOptionItem) => (a.id || a.account_id || "") as string;
   const getName = (a: AccountOptionItem) => (a.name || a.account_name || "") as string;
+  const creditOption = (account: AccountOptionItem) => {
+    const owed = creditOwed(account);
+    return (
+      <option key={getId(account)} value={getId(account)}>
+        {getName(account)}
+        {formatBalance && owed > 0 ? ` (${labels.owed(formatBalance(owed))})` : ""}
+      </option>
+    );
+  };
+
+  if (creditOnly) {
+    return <>{listCreditAccountChoices(accounts).filter((account) => getId(account) !== excludeAccountId).map(creditOption)}</>;
+  }
 
   // Top-level accounts have parent_id null or undefined; credit accounts only appear in the "Kredit" group.
   const topAccounts = accounts.filter((account) => !account.parent_id && !isCreditAccountChoice(account));
@@ -152,15 +168,7 @@ export function AccountSelectOptions({
       })}
       {creditAccounts.length > 0 && (
         <optgroup label={labels.creditGroup}>
-          {creditAccounts.map((account) => {
-            const owed = creditOwed(account);
-            return (
-              <option key={getId(account)} value={getId(account)}>
-                {getName(account)}
-                {formatBalance && owed > 0 ? ` (${labels.owed(formatBalance(owed))})` : ""}
-              </option>
-            );
-          })}
+          {creditAccounts.map(creditOption)}
         </optgroup>
       )}
     </>

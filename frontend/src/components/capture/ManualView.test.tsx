@@ -521,6 +521,13 @@ describe("Catat transaksi (manual view)", () => {
     expect(vi.mocked(api.post).mock.calls[0][1]).not.toHaveProperty("offset_category_id");
   });
 
+  it("shows no Kapan bayar to an owner without a credit account", async () => {
+    renderCapture();
+    const account = await screen.findByRole("combobox", { name: "Bayar dari" });
+    await waitFor(() => expect(account).toHaveValue("account-1"));
+    expect(screen.queryByRole("radiogroup", { name: "Kapan bayar" })).not.toBeInTheDocument();
+  });
+
   it("lists accounts without balances while balances are hidden", async () => {
     appCtx.hideBalances = true;
     renderCapture();
@@ -569,22 +576,26 @@ describe("Catat transaksi with credit accounts (H11)", () => {
 
   const setTime = (value: string) => fireEvent.change(screen.getByLabelText("Waktu transaksi"), { target: { value } });
 
+  const payLater = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(await screen.findByRole("radio", { name: "Bayar nanti (kredit)" }));
+    return screen.getByRole("combobox", { name: "Bayar dari" });
+  };
+
   const chooseSpaylater = async (user: ReturnType<typeof userEvent.setup>) => {
-    const account = await screen.findByRole("combobox", { name: "Bayar dari" });
-    await within(account).findByRole("group", { name: "Kredit" });
+    const account = await payLater(user);
     await user.selectOptions(account, "spaylater");
     return account;
   };
 
-  it("books an expense on credit from a Kredit group, without a debt link, and tells when it passes the limit", async () => {
+  it("books an expense on credit under Bayar nanti, without a debt link, and tells when it passes the limit", async () => {
     vi.mocked(api.post).mockResolvedValue({ ok: true, transaction_id: "dinner", over_limit: true });
     const { user, baseElement } = renderCapture();
-    const account = await screen.findByRole("combobox", { name: "Bayar dari" });
-    const group = await within(account).findByRole("group", { name: "Kredit" });
-    expect(within(group).getAllByRole("option").map((option) => option.textContent)).toEqual(["SPayLater (utang Rp 1.314.000)", "Kredivo"]);
     await openDetails(user);
     expect(screen.getByRole("button", { name: "+ Tambah tagihan" })).toBeInTheDocument();
-    await user.selectOptions(account, "spaylater");
+    const account = await payLater(user);
+    expect(within(account).getAllByRole("option").map((option) => option.textContent)).toEqual(["SPayLater (utang Rp 1.314.000)", "Kredivo"]);
+    expect(account).toHaveValue("spaylater");
+    expect(screen.queryByRole("button", { name: "+ Tambah tagihan" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "+ Tambah tagihan" })).not.toBeInTheDocument();
     await user.selectOptions(screen.getByRole("combobox", { name: "Kategori" }), "makan");
     await user.type(amountField(), "120000");
@@ -669,8 +680,7 @@ describe("Catat transaksi with credit accounts (H11)", () => {
 
   it("No payment day: the date starts empty with a hint, and nothing is sent without one", async () => {
     const { user } = renderCapture();
-    const account = await screen.findByRole("combobox", { name: "Bayar dari" });
-    await within(account).findByRole("group", { name: "Kredit" });
+    const account = await payLater(user);
     await user.selectOptions(account, "kredivo");
     const due = screen.getByLabelText("Jatuh tempo pertama");
     expect(due).toHaveValue("");
@@ -683,12 +693,15 @@ describe("Catat transaksi with credit accounts (H11)", () => {
     expect((vi.mocked(api.post).mock.calls[0][1] as { credit_terms: object }).credit_terms).toEqual({ installment_count: 1 });
   });
 
-  it("Not a credit account: the credit choices disappear and no credit_terms is sent", async () => {
+  it("Back to paying now: the first cash account, no credit account listed, and no credit_terms", async () => {
     const { user } = renderCapture();
     const account = await chooseSpaylater(user);
     expect(screen.getByRole("group", { name: /Bayar pakai kredit/ })).toBeInTheDocument();
-    await user.selectOptions(account, "jago");
+    await user.click(screen.getByRole("radio", { name: "Bayar sekarang" }));
     expect(screen.queryByRole("group", { name: /Bayar pakai kredit/ })).not.toBeInTheDocument();
+    expect(account).toHaveValue("jago");
+    expect(within(account).queryByRole("group", { name: "Kredit" })).not.toBeInTheDocument();
+    expect(within(account).queryByRole("option", { name: /SPayLater|Kredivo/ })).not.toBeInTheDocument();
     await user.type(amountField(), "50000");
     await user.click(submitButton("Simpan transaksi"));
     await waitFor(() => expect(api.post).toHaveBeenCalled());
@@ -725,6 +738,30 @@ describe("Catat transaksi with credit accounts (H11)", () => {
     const error = await screen.findByText("Jatuh tempo pertama tidak boleh sebelum tanggal pembelian, 5 Nov.");
     expect(error.id).toBe("capture-credit-due-error");
     await waitFor(() => expect(screen.getByLabelText("Jatuh tempo pertama")).toHaveFocus());
+  });
+
+  it("Kapan bayar starts on Bayar sekarang with cash accounts only, and arrow keys switch it", async () => {
+    const { user, baseElement } = renderCapture();
+    const account = await screen.findByRole("combobox", { name: "Bayar dari" });
+    const choice = screen.getByRole("radiogroup", { name: "Kapan bayar" });
+    expect(within(choice).getByRole("radio", { name: "Bayar sekarang" })).toBeChecked();
+    expect(within(account).queryByRole("option", { name: /SPayLater|Kredivo/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: /Bayar pakai kredit/ })).not.toBeInTheDocument();
+    expect((await axe(baseElement)).violations).toHaveLength(0);
+    within(choice).getByRole("radio", { name: "Bayar sekarang" }).focus();
+    await user.keyboard("{ArrowRight}");
+    expect(within(choice).getByRole("radio", { name: "Bayar nanti (kredit)" })).toBeChecked();
+    expect(account).toHaveValue("spaylater");
+    expect(screen.getByRole("group", { name: /Bayar pakai kredit/ })).toBeInTheDocument();
+  });
+
+  it("has no Kapan bayar for an income or a transfer", async () => {
+    const { user } = renderCapture();
+    await screen.findByRole("radiogroup", { name: "Kapan bayar" });
+    await user.click(screen.getByRole("radio", { name: "Pemasukan" }));
+    expect(screen.queryByRole("radiogroup", { name: "Kapan bayar" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "Perpindahan" }));
+    expect(screen.queryByRole("radiogroup", { name: "Kapan bayar" })).not.toBeInTheDocument();
   });
 
   it("does not offer credit accounts for an income", async () => {

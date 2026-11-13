@@ -82,10 +82,13 @@ MONTH_WORDS = "|".join(sorted(MONTHS, key=len, reverse=True))
 YESTERDAY_WORDS = "kemarin|kemaren|kmrn|kmarin|yesterday"
 
 SLASH_DATE = re.compile(r"(?<![\w/])(?P<day>\d{1,2})/(?P<month>\d{1,2})(?:/(?P<year>\d{2}|\d{4}))?(?![\w/])")
+# "tgl 11 kemarin" is "this past 11th": a past word right after a date belongs to it, not yesterday.
+PAST_DATE_SUFFIX = rf"(?:\s+(?:yang\s+|yg\s+)?(?:{YESTERDAY_WORDS}|lalu))?"
 MONTH_DATE = re.compile(
-    rf"\b(?:(?:tgl|tanggal)\.?\s*)?(?P<day>\d{{1,2}})\s+(?P<month>{MONTH_WORDS})(?:\s+(?P<year>\d{{4}}))?\b"
+    rf"\b(?:(?:tgl|tanggal)\.?\s*)?(?P<day>\d{{1,2}})\s+(?P<month>{MONTH_WORDS})(?:\s+(?P<year>\d{{4}}))?"
+    rf"{PAST_DATE_SUFFIX}\b"
 )
-DAY_DATE = re.compile(r"\b(?:tgl|tanggal)\.?\s*(?P<day>\d{1,2})\b")
+DAY_DATE = re.compile(rf"\b(?:tgl|tanggal)\.?\s*(?P<day>\d{{1,2}}){PAST_DATE_SUFFIX}\b")
 WEEKDAY = re.compile(
     rf"\b(?:(?P<hari>hari)\s+|(?P<last>last)\s+)?(?P<day>{WEEKDAY_WORDS})"
     rf"(?:\s+(?P<suffix>minggu lalu|minggu kemarin|pekan lalu|last week|{YESTERDAY_WORDS}|lalu))?\b"

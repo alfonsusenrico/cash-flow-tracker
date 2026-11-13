@@ -104,6 +104,17 @@ def test_relative_and_explicit_dates():
     assert parse("makan 20rb").date == SENT
 
 
+def test_the_owners_credit_sentence_reads_its_date_amount_and_account():
+    accounts = [*ACCOUNTS, {"id": "spaylater", "name": "Spaylater", "type": "credit"}]
+    sent = datetime(2026, 11, 13, 10, 0, tzinfo=JAKARTA)
+    facts = parse_capture("tgl 11 kemarin, beli pedigree spaylater kredit 47619", sent, accounts=accounts, aliases=[],
+                          tz="Asia/Jakarta")
+    assert facts.date.date().isoformat() == "2026-11-11"
+    assert (facts.amount, facts.kind or facts.kind_guess) == (47_619, "expense")
+    assert [item.candidates for item in facts.mentions] == [("spaylater",)]
+    assert "kemarin" not in facts.phrase
+
+
 @pytest.mark.parametrize("text", ["3/12 makan 20rb", "31/2 makan 20rb", "tgl 32 makan 20rb", "kemarin tgl 3 makan 20rb"])
 def test_future_impossible_or_repeated_dates_are_rejected(text):
     with pytest.raises(CaptureDateError):

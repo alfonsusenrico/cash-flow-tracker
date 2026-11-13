@@ -110,4 +110,21 @@ describe("AccountSelectOptions", () => {
       expect(screen.queryByRole("option", { name: /SPayLater|Kredivo/ })).not.toBeInTheDocument();
     }
   });
+
+  it("lists only the credit accounts, as plain options, under creditOnly", async () => {
+    const accounts = [
+      { id: "bank", name: "Bank", type: "bank", balance: 500_000 },
+      { id: "spaylater", name: "SPayLater", type: "credit", balance: -470_000, credit_owed: 470_000 },
+      { id: "kredivo", name: "Kredivo", type: "credit", balance: 0, credit_owed: 0 },
+    ];
+    const money = (value: number) => `Rp ${value.toLocaleString("id-ID")}`;
+    const { container } = render(
+      <select aria-label="Rekening">
+        <AccountSelectOptions creditOnly formatBalance={money} accounts={accounts} />
+      </select>,
+    );
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual(["SPayLater (utang Rp 470.000)", "Kredivo"]);
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
+    expect((await axe(container)).violations).toHaveLength(0);
+  });
 });
