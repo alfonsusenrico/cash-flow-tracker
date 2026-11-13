@@ -19,7 +19,7 @@ Expected Result: unrecognised wording is read once, guarded, and recorded once.
 ## 3. Benchmark
 
 - [x] 3.1 Synthetic benchmark cases: "added into" moves (named and unnamed source), unrecognised reminders, pending items and promotions that must stay ignored. Evidence: benchmark unit tests pass offline.
-- [ ] 3.2 With the owner's OK, one paid benchmark run on the production model covering the new and existing cases. Evidence: scores and cost in `verification.md`; existing cases do not regress.
+- [x] 3.2 With the owner's OK, one paid benchmark run on the production model covering the new and existing cases. Evidence: scores and cost in `verification.md`; existing cases do not regress.
 
 Expected Result: the model reads the new shape correctly and stays quiet on noise.
 

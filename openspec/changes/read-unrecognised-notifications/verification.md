@@ -48,7 +48,39 @@ All scenarios are tested on synthetic data in `backend/tests/test_notification_m
 - **Benchmark scoring:** `tests/test_notification_benchmark.py` scores the six new `unread-*` cases and `unsettled` offline. The unnamed-source move is scored as `needs_confirmation`.
 - **Companion:** `pocketQuestionPreselectsTheSuggestionButWaitsForTheOwner`, in light and dark themes.
 
+## Paid benchmark (task 3.2, owner OK 2026-11-13)
+
+**Run:**
+- Revision `83d359a`, clean working tree. Prompt `notification-interpretation-13`, fixture `synthetic-notifications-6`.
+- Partition `all`, `gpt-6-luna` at effort `none`.
+- 43 model cases × 3 repeats = 129 requests.
+- Cost: upper bound USD 0.729 (cap 0.80); observed USD 0.114, token-priced, not account billing.
+- Report: `cash-flow-tracker-prototypes/research/evidence/read-unrecognised-notifications/bench-id-all.json`.
+
+| Prompt | Requests | Schema | Record recall | Unambiguous classification | Movement P / R | Safety | Quality |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `-13`, all (this run) | 129 | 99.2% | 100% | 83.3% | 100% / 69.7% | pass | fail |
+| `-12`, development (2026-11-09) | 57 | 98.2% | 98.0% | 100% | 100% / 100% | pass | pass |
+| `-12`, held-out (2026-11-09) | 51 | 100% | 100% | 66.7% | 100% / 33.3% | pass | fail |
+
+- **Regressions:** none against `-12`.
+- **Quality gate:** it fails for the reason recorded on 2026-11-09. `gopay-bank-out` (self-transfer category) fails every repeat, as it did before this change. That field is decided by the backend, not the model.
+- **Other failures:** one `json_decode` failure (`archived-mapping`), and no unsafe validated write.
+
+**New cases** (3 repeats each):
+
+| Case | Result |
+| --- | --- |
+| `unread-jago-added-locked` | 3/3 `needs_confirmation`. Target quoted as "Bayar Kredit"; the suggested source Jajan matches the recent movements. |
+| `unread-jago-topped-up-named` | 3/3 recorded Jajan → Dana Darurat. |
+| `unread-bill-reminder`, `unread-locked-unlock-date`, `unread-future-interest` | 3/3 ignored each. |
+| `unsettled` ("Transfer Rp50.000 ke BCA") | 3/3 `needs_review`. |
+| `unread-jago-income` ("Rp150.000 sudah masuk ke Jajan Pocket kamu.", expected income) | 3/3 read as a move into Jajan with no named source (confidence 0.94). Nothing is recorded: the source question is asked, and the model's suggestion (Jajan, the target itself) is dropped. This question has no "not a pocket move" answer, so a misread income waits in the question; see the open point below. |
+
+## Open point for the owner
+
+A model-read move whose source question has no right answer, because the money came from outside, cannot be turned into income from the companion today.
+
 ## Not yet verified
 
-- **Paid benchmark run (task 3.2):** waits for the owner's OK. Run: 43 model cases × 3 repeats on `gpt-6-luna`, effort `none`. Conservative estimate ceiling: USD 0.73.
 - **Production behaviour after deploy (task 5.3).**
