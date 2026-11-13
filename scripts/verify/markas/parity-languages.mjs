@@ -36,11 +36,11 @@ const EXTRACT = String.raw`(() => {
 
 const SCENES = [
   { name: "beranda", steps: [] },
-  { name: "rincian", steps: ["^(Rincian aman dipakai sampai gajian|Breakdown of safe to spend until payday)$"] },
+  { name: "rincian", steps: ["^(Rincian aman dipakai|Safe to spend breakdown)$"] },
   {
     name: "rincian-lines-open",
-    steps: ["^(Rincian aman dipakai sampai gajian|Breakdown of safe to spend until payday)$", "^(Masuk|Income)", "^(Pengeluaran|Spending)",
-      "^(Ditabung & investasi|Saved & invested|Tabungan berkurang|Savings went down)", "^(Terjadwal|Scheduled)", "^(Menunggu jawaban|Waiting for an answer)"],
+    steps: ["^(Rincian aman dipakai|Safe to spend breakdown)$", "^(Uang harian|Everyday money)", "^(Tagihan kredit|Credit bills)",
+      "^(Terjadwal|Scheduled)"],
   },
 ];
 

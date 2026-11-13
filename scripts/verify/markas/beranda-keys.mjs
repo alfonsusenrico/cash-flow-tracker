@@ -75,8 +75,8 @@ try {
     }
     const regions = stops.map((stop) => stop.region).filter((region, index, all) => all.indexOf(region) === index);
     record("Tab order hero → Perlu tindakan → Aktivitas terbaru → panel", cell,
-      JSON.stringify(regions) === JSON.stringify(["Aman dipakai sampai gajian", "Perlu tindakan", "Aktivitas terbaru", "Ringkasan simpanan"]), regions.join(" → "));
-    record("Rincian is the hero's first stop", cell, stops[0]?.name === "Rincian aman dipakai sampai gajian", stops[0]?.name);
+      JSON.stringify(regions) === JSON.stringify(["Aman dipakai", "Perlu tindakan", "Aktivitas terbaru", "Ringkasan simpanan"]), regions.join(" → "));
+    record("Rincian is the hero's first stop", cell, stops[0]?.name === "Rincian aman dipakai", stops[0]?.name);
     const names = stops.map((stop) => stop.name);
     // The header link precedes its rows, as in the prototype's DOM (sec-h, then the list).
     const buka = names.findIndex((name) => name.startsWith("Buka Tinjau"));
@@ -89,12 +89,12 @@ try {
 
     // Rincian with Enter, a line with Enter and Space, Esc, then the close button.
     await open("/");
-    await browser.evaluate(`document.querySelector('[aria-label="Rincian aman dipakai sampai gajian"]').focus()`);
+    await browser.evaluate(`document.querySelector('[aria-label="Rincian aman dipakai"]').focus()`);
     await browser.key(...ENTER);
     await sleep(500);
     const inside = await browser.evaluate(`Boolean(document.querySelector("dialog[open]")?.contains(document.activeElement))`);
     record("Enter opens Rincian with focus inside", cell, inside, (await focused())?.name);
-    await browser.evaluate(`[...document.querySelectorAll("dialog[open] .row.is-line")].find((row) => row.textContent.startsWith("Pengeluaran")).focus()`);
+    await browser.evaluate(`[...document.querySelectorAll("dialog[open] .row.is-line")].find((row) => row.textContent.startsWith("Tagihan kredit")).focus()`);
     await browser.key(...ENTER);
     await sleep(300);
     const expanded = await browser.evaluate(`document.activeElement.getAttribute("aria-expanded")`);
@@ -111,19 +111,20 @@ try {
     await browser.key(...ESC);
     await sleep(400);
     record("Esc closes Rincian and returns focus to it", cell,
-      (await browser.evaluate(`!document.querySelector("dialog[open]")`)) && (await focused())?.name === "Rincian aman dipakai sampai gajian", (await focused())?.name);
+      (await browser.evaluate(`!document.querySelector("dialog[open]")`)) && (await focused())?.name === "Rincian aman dipakai", (await focused())?.name);
     await browser.key(...ENTER);
     await sleep(500);
     await browser.evaluate(`document.querySelector('dialog[open] [aria-label="Tutup rincian"]').focus()`);
     await browser.key(...ENTER);
     await sleep(400);
-    record("the close button closes Rincian and returns focus to it", cell, (await focused())?.name === "Rincian aman dipakai sampai gajian", (await focused())?.name);
+    record("the close button closes Rincian and returns focus to it", cell, (await focused())?.name === "Rincian aman dipakai", (await focused())?.name);
 
     // A row opens the transaction dialog; closing returns focus to the row.
     const rowName = await browser.evaluate(`(() => { const row = document.querySelector('section[aria-labelledby="beranda-activity"] .row'); row.focus(); return row.textContent.trim().slice(0, 40); })()`);
     await browser.key(...ENTER);
     await sleep(1200);
-    const drawer = await browser.evaluate(`Boolean(document.querySelector('[role="dialog"][aria-modal="true"]'))`);
+    // The transaction dialog is a native modal <dialog>, which carries no role attribute.
+    const drawer = await browser.evaluate(`Boolean(document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]'))`);
     await browser.key(...ESC);
     await sleep(600);
     const back = await browser.evaluate(`document.activeElement.classList.contains("row") && document.activeElement.textContent.trim().slice(0, 40)`);
