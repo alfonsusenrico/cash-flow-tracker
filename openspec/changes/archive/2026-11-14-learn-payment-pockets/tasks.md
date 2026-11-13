@@ -22,4 +22,4 @@ Expected Result: no payment lands on an assumed pocket, and the owner's choices 
 ## 4. Verify and deliver
 
 - [x] 4.1 `openspec validate --all --strict`, backend suite, companion tests, `verification.md`.
-- [ ] 4.2 After `read-unrecognised-notifications` merges, rebase on `main`. After the owner accepts, archive, push, open the PRs and report their URLs.
+- [x] 4.2 After `read-unrecognised-notifications` merges, rebase on `main`. After the owner accepts, archive, push, open the PRs and report their URLs.

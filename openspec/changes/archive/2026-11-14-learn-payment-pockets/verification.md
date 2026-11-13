@@ -61,3 +61,7 @@ The shared sample payment "You've paid Rp125.000 to Kedai Awan" named no pocket 
 ## Not yet verified
 
 - Production behaviour after deploy, including the owner's earlier corrections counting as choices.
+
+## Acceptance
+
+The owner accepted the result on 2026-11-14 ("accept"). The production check after deploy follows the merge.
