@@ -1,7 +1,7 @@
 # payment-pocket-learning Specification
 
 ## Purpose
-TBD - created by archiving change learn-payment-pockets. Update Purpose after archive.
+Decide which pocket an outgoing payment or an unnamed-source move used without assuming one: ask the owner, and record automatically only when the owner's own earlier choices for the same merchant, kind of notification or target pocket agree.
 
 ## Requirements
 
