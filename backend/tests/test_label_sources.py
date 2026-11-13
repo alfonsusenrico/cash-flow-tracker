@@ -87,12 +87,7 @@ def test_every_cycle_summary_line_says_where_its_label_comes_from(owner):
     owned = {line["label"]: line["label_source"] for key, line in net.items() if key.startswith(("debt:", "credit:"))}
     assert owned == {"Pinjaman Contoh": "user", "PayLater Contoh": "user"}
 
-    remaining = data["remaining"]["lines"]
-    assert [(line["key"], line["label"], line["label_source"]) for line in remaining] == [
-        ("masuk", "Masuk", "system"), ("keluar", "Keluar", "system"), ("scheduled", "Terjadwal", "system"),
-    ]
-
-    for figure in ("keluar", "masuk", "scheduled", "remaining", "net_worth"):
+    for figure in ("keluar", "masuk", "scheduled", "net_worth"):
         for line in data[figure]["lines"]:
             assert line["label_source"] in ("user", "system"), (figure, line)
     # Rekening's net worth shares the rule, so its lines carry the same sources.

@@ -390,7 +390,7 @@ def figure_snapshot(session) -> dict:
         "spending": summary["spending"]["amount"],
         "fresh_saving": summary["fresh_saving"]["amount"],
         "masuk": summary["masuk"]["total"],
-        "remaining": summary["remaining"]["total"],
+        "safe": summary["safe_amount"]["amount"] - summary["safe_amount"]["short_by"],
         "net_worth": summary["net_worth"]["total"],
         "net_worth_lines": [(line["key"], line["amount"]) for line in summary["net_worth"]["lines"]],
         "today_spent": session.get("/api/pulse").json()["today_spent"],

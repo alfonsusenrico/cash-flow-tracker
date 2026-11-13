@@ -46,7 +46,7 @@ def pay(owner, source, amount, **extra):
 
 def figures(owner):
     data = owner.summary()
-    return {"keluar": data["keluar"]["total"], "masuk": data["masuk"]["total"], "remaining": data["remaining"]["total"],
+    return {"keluar": data["keluar"]["total"], "masuk": data["masuk"]["total"], "remaining": data["safe_amount"]["amount"] - data["safe_amount"]["short_by"],
             "net": data["net_worth"]}
 
 

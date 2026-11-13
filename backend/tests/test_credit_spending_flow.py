@@ -101,6 +101,11 @@ def put_terms(owner, transaction_id, **body):
     return owner.session.put(f"/api/transactions/{transaction_id}/credit-terms", json=body)
 
 
+def safe(summary) -> int:
+    """Aman dipakai with its sign: what is left after credit owed and plans, negative when short."""
+    return summary["safe_amount"]["amount"] - summary["safe_amount"]["short_by"]
+
+
 def figures(owner):
     """Every figure a credit change must not move: Beranda, Kakeibo, the ledger totals and the month report."""
     summary = owner.summary()
@@ -111,7 +116,7 @@ def figures(owner):
     return {
         "spending": {key: value for key, value in summary["spending"].items() if key != "credit"},
         "keluar": summary["keluar"], "masuk": summary["masuk"], "fresh_saving": summary["fresh_saving"],
-        "remaining": summary["remaining"], "scheduled": summary["scheduled"]["total"],
+        "safe": safe(summary), "scheduled": summary["scheduled"]["total"],
         "report": without_volatile(report.json()),
         "ledger": {key: ledger[key] for key in ("cycle", "cumulative")},
     }
@@ -178,7 +183,7 @@ def test_six_instalments_at_purchase_count_in_full_on_the_purchase_day(owner):
     tx = purchase(owner, 1_200_000, terms={"installment_count": 6})
     after = owner.summary()
     assert after["spending"]["amount"] == before["spending"]["amount"] + 1_200_000
-    assert after["remaining"]["total"] == before["remaining"]["total"] - 1_200_000
+    assert safe(after) == safe(before) - 1_200_000
     terms = owner.session.get(f"/api/transactions/{tx}").json()["transaction"]["credit"]
     assert terms["installment_count"] == 6 and [item["amount"] for item in terms["installments"]] == [200_000] * 6
     assert terms["left_to_pay"] == 1_200_000
@@ -596,8 +601,11 @@ def test_purchase_and_payment_in_one_cycle(owner):
         "key": f"credit:{owner['credit']}", "account_id": owner["credit"], "label": "SPayLater Contoh",
         "label_source": "user", "spent_on_credit": 120_000, "paid_to_credit": 470_000,
     }]
-    for figure in ("keluar", "masuk", "fresh_saving", "remaining"):
+    for figure in ("keluar", "masuk", "fresh_saving"):
         assert after[figure] == before[figure], figure
+    # Rp 120.000 of the payment clears what was owed; the Rp 350.000 beyond it leaves daily money and sits on the
+    # credit account as an overpayment, which is not money to spend.
+    assert safe(after) == safe(before) - 350_000
 
 
 def test_no_credit_accounts_gives_zero_credit_figures(owner):
@@ -626,7 +634,7 @@ def test_f1_credit_bill_plan_is_not_counted_twice(owner):
     start = owner.summary()
     purchase(owner, 470_000)
     bought = owner.summary()
-    assert bought["remaining"]["total"] == start["remaining"]["total"] - 470_000
+    assert safe(bought) == safe(start) - 470_000
     due = today() + timedelta(days=3)
     rule = credit_plan(owner, "bayar", "Bayar SPayLater", 470_000, due)
     planned = owner.summary()
@@ -634,7 +642,7 @@ def test_f1_credit_bill_plan_is_not_counted_twice(owner):
     assert (line["plan_amount"], line["amount"], line["counted_elsewhere"]) == (470_000, 0, 470_000)
     assert line["credit_account_id"] == owner["credit"]
     # Lower by Rp 470.000 only, through Pengeluaran: not Rp 940.000.
-    assert planned["remaining"]["total"] == start["remaining"]["total"] - 470_000
+    assert safe(planned) == safe(start) - 470_000
     assert planned["scheduled"]["plans_total"] == start["scheduled"]["plans_total"]
 
     payment = pay(owner, 470_000)
@@ -643,7 +651,7 @@ def test_f1_credit_bill_plan_is_not_counted_twice(owner):
     assert response.status_code == 200, response.text
     paid = owner.summary()
     assert plan_line(paid, rule) == []
-    assert paid["remaining"]["total"] == planned["remaining"]["total"]
+    assert safe(paid) == safe(planned)
 
 
 def test_f1_worked_numbers_from_the_research_note(owner):
@@ -665,7 +673,11 @@ def test_f1_worked_numbers_from_the_research_note(owner):
     assert (summary["masuk"]["total"], summary["keluar"]["total"]) == (10_000_000, 9_000_000)
     # Before F1 the plan subtracted the bill again: 10.000.000 - 9.000.000 - 2.000.000 = -1.000.000.
     assert summary["scheduled"]["total"] == 0
-    assert summary["remaining"]["total"] == 1_000_000
+    # The safe amount subtracts the Rp 2.000.000 once, as owed on credit, and the plan into it not at all.
+    safe_amount = summary["safe_amount"]
+    assert (safe_amount["credit_owed"]["total"], safe_amount["scheduled"]["total"]) == (2_000_000, 0)
+    assert safe(summary) == safe_amount["daily_money"]["total"] - 2_000_000
+    assert [line["not_counted_reason"] for line in safe_amount["scheduled"]["lines"] if line.get("rule_id") == rule_id] == ["in_credit_owed"]
     [line] = plan_line(summary, rule_id)
     assert (line["plan_amount"], line["amount"], line["counted_elsewhere"]) == (2_000_000, 0, 2_000_000)
 
@@ -700,9 +712,11 @@ def test_f2_payment_from_a_savings_pocket(owner):
     owner.move("bank", "tabungan", 200_000)
     saved = owner.summary()
     assert saved["fresh_saving"]["amount"] == start["fresh_saving"]["amount"] + 200_000
-    assert saved["remaining"]["total"] == start["remaining"]["total"] - 200_000
+    assert safe(saved) == safe(start) - 200_000
     owner.move("tabungan", "credit", 200_000)
     paid = owner.summary()
+    # Savings paid the debt: daily money is untouched and less is owed, so more is safe to spend.
+    assert safe(paid) == safe(saved) + 200_000
     assert paid["fresh_saving"]["amount"] == saved["fresh_saving"]["amount"] - 200_000 == start["fresh_saving"]["amount"]
     assert paid["spending"]["credit"]["paid_to_credit"] == saved["spending"]["credit"]["paid_to_credit"] + 200_000
     assert paid["spending"]["amount"] == start["spending"]["amount"]

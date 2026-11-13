@@ -18,7 +18,8 @@ from app.core.config import settings
 from app.i18n import format_money, language_for_user, region_for_user, t
 from app.routers.accounts import summarize_account_balances
 from app.services.credit_accounts import credit_owed, is_credit
-from app.services.credit_bills import load_schedules
+from app.services.account_roles import DANA_INVESTASI, HARIAN, INVESTASI, TABUNGAN
+from app.services.credit_bills import load_schedules, next_due_summary
 from app.services.credit_figures import count_credit_bill_plans, credit_bill_plan_targets, credit_spending
 from app.services.kakeibo import UNCLASSIFIED
 from app.services.observed_insights import comparison_windows, period_comparison
@@ -385,8 +386,80 @@ def _comparison(
     }
 
 
-def _safe_to_spend(basis: str, expected: ExpectedSalary, remaining: int, today: date) -> dict[str, Any]:
-    over_by = -remaining if remaining < 0 else None
+LIQUID_TYPES = frozenset({"cash", "bank", "ewallet", "wallet"})
+NOT_DAILY_ROLES = frozenset({TABUNGAN, DANA_INVESTASI, INVESTASI})
+
+
+def _is_daily_money(account: dict[str, Any]) -> bool:
+    """A cash, bank or wallet account whose role is "Uang harian" (count-safe-amount-from-daily-money D2)."""
+    return account.get("type") in LIQUID_TYPES and not account.get("instrument_type") and account.get("role") == HARIAN
+
+
+def _plan_sources(cur, user_id: str, lines: list[dict[str, Any]]) -> dict[str, str | None]:
+    rule_ids = sorted({str(line["rule_id"]) for line in lines if line.get("kind") == "plan" and line.get("rule_id")})
+    if not rule_ids:
+        return {}
+    cur.execute(
+        "SELECT id, source_account_id FROM recurring_rules WHERE user_id = %s AND id = ANY(%s::uuid[])",
+        (user_id, rule_ids),
+    )
+    return {str(row["id"]): str(row["source_account_id"]) if row["source_account_id"] else None for row in cur.fetchall()}
+
+
+def _parent_name(account: dict[str, Any], accounts: list[dict[str, Any]]) -> str | None:
+    parent_id = account.get("parent_id")
+    parent = next((row for row in accounts if str(row["id"]) == str(parent_id)), None) if parent_id else None
+    return parent["name"] if parent else None
+
+
+def _safe_amount(cur, user_id: str, accounts: list[dict[str, Any]], scheduled_lines: list[dict[str, Any]],
+                 today: date) -> dict[str, Any]:
+    """Aman dipakai from what the owner holds (D1 to D5): daily money less everything owed on credit less the
+    plans and set-asides paid from daily money. Every account counts its own balance once, as in net worth."""
+    daily = sorted(
+        ({"account_id": str(account["id"]), "name": account["name"], "parent_name": _parent_name(account, accounts),
+          "amount": int(account.get("own_balance", account["balance"]))}
+         for account in accounts if _is_daily_money(account)),
+        key=lambda line: (-line["amount"], line["name"]),
+    )
+    credit_accounts = [account for account in accounts if is_credit(account)]
+    credit_ids = [str(account["id"]) for account in credit_accounts]
+    schedules = load_schedules(cur, user_id, today, credit_ids) if credit_ids else {}
+    credit = sorted(
+        ({"account_id": str(account["id"]), "name": account["name"],
+          "amount": credit_owed(int(account.get("own_balance", account["balance"]))),
+          "next_due": next_due_summary(schedules[str(account["id"])]) if str(account["id"]) in schedules else None}
+         for account in credit_accounts),
+        key=lambda line: (-line["amount"], line["name"]),
+    )
+    roles = {str(account["id"]): account.get("role") for account in accounts}
+    sources = _plan_sources(cur, user_id, scheduled_lines)
+    counted_lines = []
+    for line in scheduled_lines:
+        source_role = roles.get(sources.get(str(line.get("rule_id")))) if line.get("kind") == "plan" else None
+        if line.get("credit_account_id"):
+            # Its debt is already subtracted in full through credit owed (D3, D4).
+            reason, counted = "in_credit_owed", 0
+        elif source_role in NOT_DAILY_ROLES:
+            reason, counted = "paid_from_savings", 0
+        else:
+            reason, counted = None, int(line["amount"])
+        counted_lines.append({**line, "safe_amount": counted, "not_counted_reason": reason})
+    daily_total = sum(line["amount"] for line in daily)
+    credit_total = sum(line["amount"] for line in credit)
+    scheduled_total = sum(line["safe_amount"] for line in counted_lines)
+    left = daily_total - credit_total - scheduled_total
+    return {
+        "amount": max(0, left),
+        "short_by": -left if left < 0 else 0,
+        "daily_money": {"total": daily_total, "accounts": daily},
+        "credit_owed": {"total": credit_total, "accounts": credit},
+        "scheduled": {"total": scheduled_total, "lines": counted_lines},
+    }
+
+
+def _safe_to_spend(basis: str, expected: ExpectedSalary, left: int, today: date) -> dict[str, Any]:
+    over_by = -left if left < 0 else None
     unavailable = {"status": "unavailable", "per_day": None, "days_left": None,
                    "rounding": SAFE_TO_SPEND_ROUNDING, "over_by": over_by}
     if basis != "cycle":
@@ -397,7 +470,7 @@ def _safe_to_spend(basis: str, expected: ExpectedSalary, remaining: int, today: 
     days_left = (expected.date - today).days
     if expected.status == "overdue" or days_left < 1:
         return {**unavailable, "reason": "salary_overdue", "detail": None}
-    per_day = max(0, remaining) // days_left // SAFE_TO_SPEND_ROUNDING * SAFE_TO_SPEND_ROUNDING
+    per_day = max(0, left) // days_left // SAFE_TO_SPEND_ROUNDING * SAFE_TO_SPEND_ROUNDING
     return {
         "status": "available", "reason": None, "detail": None, "per_day": per_day, "days_left": days_left,
         "rounding": SAFE_TO_SPEND_ROUNDING, "over_by": over_by,
@@ -452,6 +525,7 @@ def build_cycle_summary(
             plan_lines = count_credit_bill_plans(plan_lines, credit_plan_targets, schedules)
         spending_on_credit = credit_spending(cur, user_id, start, end, offsets)
         scheduled_lines = plan_lines + _goal_lines(cur, user_id, accounts, start, end, start_date, today)
+        safe = _safe_amount(cur, user_id, accounts, scheduled_lines, today)
         net_worth = net_worth_breakdown(cur, user_id, accounts, language)
         comparison = _comparison(cur, user_id, kakeibo_breakdown, (start, end, window_label), previous)
 
@@ -464,15 +538,6 @@ def build_cycle_summary(
     if tabungan["total"] != fresh_saving["amount"]:
         raise RuntimeError("Savings change does not match the saving bucket of Keluar")
     scheduled_total = sum(line["amount"] for line in scheduled_lines)
-    remaining_lines = [
-        {"key": "masuk", "label": t(language, "labels.summary.income"), "label_source": SYSTEM_LABEL,
-         "amount": masuk["total"]},
-        {"key": "keluar", "label": t(language, "labels.summary.out"), "label_source": SYSTEM_LABEL,
-         "amount": -keluar["total"]},
-        {"key": "scheduled", "label": t(language, "labels.summary.scheduled"), "label_source": SYSTEM_LABEL,
-         "amount": -scheduled_total},
-    ]
-    remaining = sum(line["amount"] for line in remaining_lines)
 
     if basis == "cycle":
         label = t(language, "periods.cycle_since", start=short_local_date(language, start_date))
@@ -512,8 +577,9 @@ def build_cycle_summary(
             "window_basis": window_basis,
             "lines": scheduled_lines,
         },
-        "remaining": {"total": remaining, "lines": remaining_lines},
-        "safe_to_spend": _safe_to_spend(basis, expected, remaining, today),
+        "safe_amount": {**safe, "scheduled": {**safe["scheduled"], "window_end": window_end.isoformat(),
+                                             "window_basis": window_basis}},
+        "safe_to_spend": _safe_to_spend(basis, expected, safe["amount"] - safe["short_by"], today),
         "net_worth": net_worth,
         "comparison": comparison,
     }

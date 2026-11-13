@@ -48,15 +48,12 @@ def test_spending_and_saving_add_up_to_keluar(owner):
     assert [line["key"] for line in saving["lines"]] == ["saving"]
 
 
-def test_remaining_identity_is_unchanged(owner):
+def test_spending_and_saving_add_up_to_keluar(owner):
     owner.category("tabung", "Tabungan Contoh", pillar="saving")
     owner.expense(80_000, "makan")
     owner.expense(50_000, "tabung")
     data = owner.summary()
-    assert data["remaining"]["total"] == (
-        data["masuk"]["total"] - data["spending"]["amount"] - data["fresh_saving"]["amount"] - data["scheduled"]["total"]
-    )
-    assert data["remaining"]["total"] == data["masuk"]["total"] - data["keluar"]["total"] - data["scheduled"]["total"]
+    assert data["spending"]["amount"] + data["fresh_saving"]["amount"] == data["keluar"]["total"]
 
 
 def test_net_fresh_saving_through_a_movement_is_saving(owner):
