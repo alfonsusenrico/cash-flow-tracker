@@ -1,6 +1,6 @@
 # Verification: open-beranda-figures
 
-Date: 2026-11-13 · Branch `feat/beranda-figure-details` · Base `origin/main` `61f2602` · Code under test: the commit that adds this note's Terjadwal section (see below).
+Date: 2026-11-13 · Branch `feat/beranda-figure-details` · Base `origin/main` `61f2602` · Code under test `3655b76`.
 Defaults accepted by the owner on 2026-11-13 ("ok do it").
 
 ## What changed
