@@ -900,17 +900,21 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
 }
 @media (max-width: 1023px) {
   .legend { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .legend.has-five > .fig-block:last-child { grid-column: 1 / -1; }
 }
 /* Owner decision 13: four columns need 150 px each for the longest caption ("termasuk setoran · 23 Nov"), so a
    reading column under 672 px (1200 to 1383 px wide, beside the panel) shows two, and no caption wraps. */
 @container hero (max-width: 671px) {
   .legend { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* Two columns leave "Tagihan kredit" alone on its row; the whole row keeps its caption on one line. */
+  .legend.has-five > .fig-block:last-child { grid-column: 1 / -1; }
 }
 @media (max-width: 767px) {
   .stack > * + * { margin-top: var(--sp-32); }
   .panel { padding: var(--sp-16); }
   .legend { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-16); }
   .legend .is-phone-hide { display: none; }
+  .legend.has-five > .fig-block:last-child { grid-column: 1 / -1; }
   /* The phone's 44 px target for Rincian, without growing its 32 px label row. */
   .hero .hero-top .ws-btn-sm { min-height: 44px; margin: -6px 0; }
   .row { min-height: 64px; padding-top: var(--sp-8); padding-bottom: var(--sp-8); }

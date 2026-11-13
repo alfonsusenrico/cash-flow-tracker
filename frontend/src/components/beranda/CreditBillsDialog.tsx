@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { CreditOverview } from "@/components/accounts/CreditBills";
 import type { AccountItem } from "@/components/accounts/types";
-import { RowAmount, RowStatus, rowMeta, rowPhoneLine, rowTitle, useRowLabels, type RowLine } from "@/components/transactions/rows";
+import { KindAmount, RowAmount, RowStatus, jakartaDay, rowMeta, rowPhoneLine, rowTitle, useRowLabels, type RowLine } from "@/components/transactions/rows";
 import { ListRow } from "@/components/workspace/lists";
 import { ErrorState } from "@/components/workspace/primitives";
 import { ShellDialog } from "@/components/workspace/ShellDialog";
@@ -97,7 +97,52 @@ function CreditAccountSection({
     enabled: wantsRows,
   });
   const rows = [...(rowsQuery.data?.transactions ?? [])].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+  // Opening debt has no transaction of its own, so it is listed from its bill item (an "opening" item).
+  const opening = (overview?.bills ?? []).flatMap((bill) => bill.items).filter((item) => item.kind === "opening" && item.left_to_pay > 0);
   const failed = overviewQuery.isError || rowsQuery.isError;
+  const loading = !overview || (wantsRows && !rowsQuery.data);
+  // Opening debt and the account's rows in one list by Jakarta day, oldest first; opening debt leads its day.
+  const entries = [
+    ...opening.map((item) => ({
+      day: item.date,
+      order: 0,
+      node: (
+        <li key={`opening-${item.date}-${item.due_date}`}>
+          <ListRow
+            time={format.shortDate(item.date)}
+            timeIsDate
+            title={t("opening")}
+            meta={t("openingDue", { date: format.shortDate(item.due_date) })}
+            phoneMeta={t("openingDue", { date: format.shortDate(item.due_date) })}
+            amount={<KindAmount kind="credit" amount={item.left_to_pay} money={money} />}
+          />
+        </li>
+      ),
+    })),
+    ...rows.map((row) => {
+      const meta = rowMeta(row, labels, format, true);
+      const phone = rowPhoneLine(row, labels, format, true);
+      const day = format.shortDateAt(row.date);
+      return {
+        day: jakartaDay(row.date),
+        order: 1,
+        node: (
+          <li key={row.id}>
+            <ListRow
+              onClick={() => onSelect(row)}
+              time={day}
+              timeIsDate
+              title={rowTitle(row, labels)}
+              meta={meta.text ? <Line {...meta} /> : undefined}
+              phoneMeta={<>{day} · <Line {...phone} /></>}
+              status={<RowStatus row={row} labels={labels} />}
+              amount={<RowAmount row={row} money={money} />}
+            />
+          </li>
+        ),
+      };
+    }),
+  ].sort((a, b) => a.day.localeCompare(b.day) || a.order - b.order);
   const retry = () => {
     if (overviewQuery.isError) overviewQuery.refetch();
     if (rowsQuery.isError) rowsQuery.refetch();
@@ -115,34 +160,17 @@ function CreditAccountSection({
         {limitLine && <p className={account.over_limit ? "t-meta c-out" : "t-meta"}>{limitLine}</p>}
         {next && <p className="t-meta">{t("nextBill", { date: format.shortDate(next.due_date), amount: money(next.left_to_pay) })}</p>}
       </div>
+      {!failed && overview?.due_dates_unavailable && owed > 0 && <p className="t-meta c-warning">{t("noDueDayLine")}</p>}
       {failed ? (
         <ErrorState message={t("rowsFailed", { account: account.name })} onRetry={retry} />
-      ) : overview && !wantsRows ? (
-        <p className="t-body muted">{t("nothingRunning")}</p>
-      ) : rowsQuery.data ? (
-        <ul className="list">
-          {rows.map((row) => {
-            const meta = rowMeta(row, labels, format, true);
-            const phone = rowPhoneLine(row, labels, format, true);
-            const day = format.shortDateAt(row.date);
-            return (
-              <li key={row.id}>
-                <ListRow
-                  onClick={() => onSelect(row)}
-                  time={day}
-                  timeIsDate
-                  title={rowTitle(row, labels)}
-                  meta={meta.text ? <Line {...meta} /> : undefined}
-                  phoneMeta={<>{day} · <Line {...phone} /></>}
-                  status={<RowStatus row={row} labels={labels} />}
-                  amount={<RowAmount row={row} money={money} />}
-                />
-              </li>
-            );
-          })}
-        </ul>
-      ) : (
+      ) : loading ? (
         <p className="t-meta" aria-busy="true">…</p>
+      ) : entries.length === 0 ? (
+        <p className="t-body muted">{wantsRows ? t("noRows") : t("nothingRunning")}</p>
+      ) : (
+        <ul className="list">
+          {entries.map((entry) => entry.node)}
+        </ul>
       )}
       <div className="list-foot">
         <Link href={`/ledger?account=${encodeURIComponent(account.id)}`} className="ws-btn">

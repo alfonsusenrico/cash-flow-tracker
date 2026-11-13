@@ -283,7 +283,11 @@
       "allInLedger": "See all in Transactions",
       "rowsFailed": "The transactions of {account} could not be loaded.",
       "accountsFailed": "Credit accounts could not be loaded.",
-      "close": "Close"
+      "close": "Close",
+      "noDueDayLine": "The due day is not set, so its bills cannot be worked out yet. Set it in Accounts & Pockets.",
+      "noRows": "No transactions on this account yet.",
+      "opening": "Opening balance",
+      "openingDue": "opening debt · due {date}"
     }
   },
   "review": {

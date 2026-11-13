@@ -1038,6 +1038,34 @@ describe("Tagihan kredit (open-beranda-figures)", () => {
     await waitFor(() => expect(rowTexts(kredivoSection)[0]).toContain("cicilan homegym"));
   });
 
+  it("lists opening debt from its bill, and says when a due day is missing", async () => {
+    const opening = { ...item("2026-11-01", 400_000), kind: "opening", due_date: "2026-11-20" };
+    creditOverviews.kredivo = overview([{ due_date: "2026-11-20", statement_date: "2026-11-01", amount: 400_000, paid: 0, left_to_pay: 400_000, status: "upcoming",
+      settled_on: null, items: [opening] }]);
+    const nodue = { ...kredivo, id: "akulaku", name: "Akulaku", credit_owed: 90_000, balance: -90_000, payment_day: null, next_due: null };
+    accounts = [kredivo, nodue];
+    creditOverviews.akulaku = { ...overview([]), due_dates_unavailable: true };
+    creditRows.kredivo = [
+      { ...purchase("k2", "2026-11-05", "cicilan homegym", 120_000), account_id: "kredivo", account_name: "Kredivo" },
+      { ...purchase("k1", "2026-10-28", "beli sepatu", 80_000), account_id: "kredivo", account_name: "Kredivo" },
+    ];
+    const { hero } = await beranda();
+    vi.useRealTimers();
+    const user = userEvent.setup();
+    await user.click(await within(hero).findByRole("button", { name: /Tagihan kredit/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Tagihan kredit" });
+    const [kredivoSection, akulaku] = [...dialog.querySelectorAll<HTMLElement>("section.credit-running")];
+    await waitFor(() => expect(rowTexts(kredivoSection)).toHaveLength(3));
+    expect(rowTexts(kredivoSection)[0]).toContain("beli sepatu");
+    expect(rowTexts(kredivoSection)[1]).toContain("Saldo awal");
+    expect(rowTexts(kredivoSection)[1]).toContain("utang awal · jatuh tempo 20 Nov");
+    expect(rowTexts(kredivoSection)[1]).toContain("−Rp 400.000");
+    expect(rowTexts(kredivoSection)[2]).toContain("cicilan homegym");
+    expect(within(akulaku).getByText(/Tanggal jatuh tempo belum diisi/)).toBeInTheDocument();
+    expect(await within(akulaku).findByText("Belum ada transaksi di rekening ini.")).toBeInTheDocument();
+    expect(vi.mocked(api.get)).toHaveBeenCalledWith("/transactions?account_id=akulaku&limit=200");
+  });
+
   it("reads nothing owed", async () => {
     accounts = [{ ...spaylater, balance: 0, credit_owed: 0, next_due: null }];
     const { hero } = await beranda();

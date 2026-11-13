@@ -283,7 +283,11 @@
       "allInLedger": "Lihat semua di Transaksi",
       "rowsFailed": "Transaksi {account} belum bisa dimuat.",
       "accountsFailed": "Rekening kredit belum bisa dimuat.",
-      "close": "Tutup"
+      "close": "Tutup",
+      "noDueDayLine": "Tanggal jatuh tempo belum diisi, jadi tagihannya belum bisa dihitung. Isi di Rekening & Kantong.",
+      "noRows": "Belum ada transaksi di rekening ini.",
+      "opening": "Saldo awal",
+      "openingDue": "utang awal · jatuh tempo {date}"
     }
   },
   "review": {
