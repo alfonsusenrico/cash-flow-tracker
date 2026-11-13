@@ -7,6 +7,7 @@
     "savedInvested": "Saved & invested",
     "scheduled": "Scheduled",
     "bills": "Bills",
+    "creditBills": "Credit bills",
     "plans": "Plans",
     "netWorth": "Net worth",
     "safetyNet": "Safety net",
@@ -265,7 +266,25 @@
     "chooseInReview": "Choose in Review",
     "creditBill": "{account} bill",
     "creditMark": "Credit",
-    "creditWhen": "{when} · Credit"
+    "creditWhen": "{when} · Credit",
+    "openInLedger": "Open in Transactions",
+    "openInGoals": "Open in Goals & Bills",
+    "creditBills": {
+      "caption": "due {date} · {amount}",
+      "nothingOwed": "nothing owed",
+      "noDueDay": "due day not set",
+      "open": "Open the credit bill details",
+      "meta": "Already counted in Spending when bought",
+      "owed": "Owes {amount}",
+      "limitLeft": "Limit left {amount}",
+      "overLimit": "Over the limit",
+      "nextBill": "Next bill due {date} · {amount}",
+      "nothingRunning": "No running bills",
+      "allInLedger": "See all in Transactions",
+      "rowsFailed": "The transactions of {account} could not be loaded.",
+      "accountsFailed": "Credit accounts could not be loaded.",
+      "close": "Close"
+    }
   },
   "review": {
     "page": {

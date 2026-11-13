@@ -175,6 +175,9 @@ let plans: (typeof plan)[] = [plan];
 let overview: unknown = { kpis: { runway_status: "unknown", coverage_months: null, runway_months: null, runway_days: null, emergency_fund_balance: 0,
   monthly_primary_expense: null, essential_cost: { method: "unknown" } } };
 let activityRows: unknown[] = recent;
+let accounts: unknown[] = [];
+let creditOverviews: Record<string, unknown> = {};
+let creditRows: Record<string, unknown[] | Error> = {};
 
 function mockApi() {
   vi.mocked(api.get).mockImplementation(async (path: string) => {
@@ -192,10 +195,18 @@ function mockApi() {
     }
     if (path === "/recurring") return { rules: plans };
     if (path === "/recurring/pending") return { rules: [], recent_auto_links: [] };
+    const accountRows = /^\/transactions\?account_id=([^&]+)/.exec(path);
+    if (accountRows) {
+      const rows = creditRows[accountRows[1]];
+      if (rows instanceof Error) throw rows;
+      return { transactions: rows ?? [] };
+    }
     if (path.startsWith("/transactions?")) return { transactions: activityRows };
+    const overviewPath = /^\/credit\/accounts\/([^/?]+)$/.exec(path);
+    if (overviewPath) return creditOverviews[overviewPath[1]];
     const detail = /^\/transactions\/([^/?]+)$/.exec(path);
     if (detail) return { transaction: { ...recent.find((row) => row.id === detail[1]), waiting: false, origin: null } };
-    if (path === "/accounts") return { accounts: [] };
+    if (path === "/accounts") return { accounts };
     throw new Error(`Unexpected GET ${path}`);
   });
 }
@@ -236,6 +247,9 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(NOW);
   summary = previewSummary();
+  accounts = [];
+  creditOverviews = {};
+  creditRows = {};
   reviewQueue = queue;
   plans = [plan];
   overview = { kpis: { runway_status: "unknown", coverage_months: null, runway_months: null, runway_days: null, emergency_fund_balance: 0,
@@ -913,5 +927,131 @@ describe("Beranda in English (add-language-system)", () => {
     const { container } = await englishBeranda();
     vi.useRealTimers();
     expect((await axe(container)).violations).toHaveLength(0);
+  });
+});
+
+describe("Beranda figures open their detail (open-beranda-figures)", () => {
+  it("links Masuk, Pengeluaran and Ditabung & investasi to Transaksi for the cycle, and Terjadwal to the bills", async () => {
+    const { hero } = await beranda();
+    const links = within(hero).getAllByRole("link");
+    expect(links.map((link) => link.getAttribute("href"))).toEqual([
+      "/ledger?period=cycle&type=income",
+      "/ledger?period=cycle&type=expense",
+      "/ledger?period=cycle&type=saving",
+      "/goals#tg-bills",
+    ]);
+    expect(links[1]).toHaveAccessibleName(/^Pengeluaran .* Buka di Transaksi$/);
+    expect(links[3]).toHaveAccessibleName(/Buka di Target & Tagihan$/);
+    expect(within(hero).queryByRole("button", { name: /Tagihan kredit/ })).not.toBeInTheDocument();
+  });
+
+  it("uses the month when Beranda reads a calendar month", async () => {
+    const base = previewSummary();
+    summary = { ...base, period: { ...base.period, basis: "month" } };
+    const { hero } = await beranda();
+    expect(within(hero).getAllByRole("link").map((link) => link.getAttribute("href")).slice(0, 3)).toEqual([
+      "/ledger?period=month&type=income",
+      "/ledger?period=month&type=expense",
+      "/ledger?period=month&type=saving",
+    ]);
+  });
+});
+
+describe("Tagihan kredit (open-beranda-figures)", () => {
+  const spaylater = {
+    id: "spay", name: "Spaylater", type: "credit", balance: -3_046_014, credit_owed: 3_046_014, credit_limit: 5_000_000, limit_left: 1_953_986,
+    over_limit: false, payment_day: 11, statement_day: 1, is_archived: false, created_at: "2026-11-01T00:00:00Z",
+    next_due: { due_date: "2026-12-11", amount: 3_046_014, left_to_pay: 3_046_014, status: "open" },
+  };
+  const kredivo = {
+    id: "kredivo", name: "Kredivo", type: "credit", balance: -2_200_000, credit_owed: 2_200_000, credit_limit: null, limit_left: null,
+    over_limit: false, payment_day: 20, statement_day: null, is_archived: false, created_at: "2026-01-01T00:00:00Z",
+    next_due: { due_date: "2026-11-20", amount: 400_000, left_to_pay: 400_000, status: "upcoming" },
+  };
+  const purchase = (id: string, day: string, notes: string, amount: number) => ({
+    id, date: `${day}T05:00:00Z`, type: "expense", amount, notes, merchant: null, account_id: "spay", account_name: "Spaylater",
+    account_parent_name: null, category_name: "Makanan & Minuman", category_system_key: null, kakeibo_type: "need", review_status: "reviewed",
+    credit: { role: "purchase", account_name: "Spaylater", installment_count: 1, installments_settled: 0, next_due_date: "2026-12-11", settled_on: null },
+  });
+  const item = (day: string, left: number) => ({ kind: "purchase", transaction_id: null, date: day, due_date: "2026-12-11", installment: { number: 1, count: 1 },
+    amount: left, left_to_pay: left, settled_on: null, days_to_settle: null, settled_on_time: null });
+  const overview = (bills: unknown[]) => ({ due_dates_unavailable: false, next_due: null, bills, totals: { spent_on_credit: 0, paid_to_credit: 0, items_settled: 0, items_settled_on_time: 0 } });
+
+  beforeEach(() => {
+    accounts = [{ id: "bca", name: "BCA", type: "bank", balance: 500_000, is_archived: false, created_at: "2026-01-01T00:00:00Z" }, kredivo, spaylater];
+    creditOverviews = {
+      spay: overview([{ due_date: "2026-12-11", statement_date: "2026-12-01", amount: 3_046_014, paid: 0, left_to_pay: 3_046_014, status: "open", settled_on: null,
+        items: [item("2026-11-04", 487_410), item("2026-11-11", 47_619)] }]),
+      kredivo: overview([]),
+    };
+    creditRows = {
+      spay: [purchase("p2", "2026-11-11", "beli pedigree", 47_619), purchase("p1", "2026-11-04", "makan haidilao", 487_410)],
+    };
+  });
+
+  it("sums what the credit accounts owe with the nearest bill, beside the other figures", async () => {
+    const { hero } = await beranda();
+    const figure = await within(hero).findByRole("button", { name: /Tagihan kredit/ });
+    expect(figure).toHaveTextContent("Rp 5.246.014");
+    expect(figure).toHaveTextContent("jatuh tempo 20 Nov · Rp 400.000");
+    expect(figure).toHaveAttribute("aria-haspopup", "dialog");
+    expect(hero.querySelector(".legend")).toHaveClass("has-five");
+    expect(within(hero).getByRole("img", { name: /Pengeluaran/ })).toBeInTheDocument();
+  });
+
+  it("opens one section per account, most owed first, with its rows from the oldest unpaid purchase, oldest first", async () => {
+    const { hero } = await beranda();
+    vi.useRealTimers();
+    const user = userEvent.setup();
+    await user.click(await within(hero).findByRole("button", { name: /Tagihan kredit/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Tagihan kredit" });
+    expect(within(dialog).getByText("Sudah dihitung di Pengeluaran saat belanja")).toBeInTheDocument();
+    const sections = [...dialog.querySelectorAll<HTMLElement>("section.credit-running")];
+    expect(sections.map((section) => section.getAttribute("aria-labelledby") && within(section).getByRole("heading", { level: 3 }).textContent)).toEqual(["Spaylater", "Kredivo"]);
+    expect(sections[0]).toHaveAccessibleName("Spaylater");
+    const spay = sections[0];
+    expect(within(spay).getByText("Utang Rp 3.046.014")).toBeInTheDocument();
+    expect(within(spay).getByText("Sisa limit Rp 1.953.986")).toBeInTheDocument();
+    await waitFor(() => expect(rowTexts(spay)).toHaveLength(2));
+    expect(rowTexts(spay)[0]).toContain("makan haidilao");
+    expect(rowTexts(spay)[1]).toContain("beli pedigree");
+    expect(vi.mocked(api.get)).toHaveBeenCalledWith("/transactions?account_id=spay&limit=200&from_date=2026-11-04T00%3A00%3A00%2B07%3A00");
+    expect(within(sections[1]).getByText("Tidak ada tagihan berjalan")).toBeInTheDocument();
+    expect(within(sections[1]).getByRole("link", { name: "Lihat semua di Transaksi" })).toHaveAttribute("href", "/ledger?account=kredivo");
+    expect((await axe(dialog)).violations).toHaveLength(0);
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(within(hero).getByRole("button", { name: /Tagihan kredit/ })).toHaveFocus());
+  });
+
+  it("keeps the other sections usable when one account's rows fail", async () => {
+    creditRows = { spay: new Error("down") };
+    creditOverviews.kredivo = overview([{ due_date: "2026-11-20", statement_date: "2026-11-01", amount: 400_000, paid: 0, left_to_pay: 400_000, status: "upcoming",
+      settled_on: null, items: [item("2026-10-20", 400_000)] }]);
+    creditRows.kredivo = [{ ...purchase("k1", "2026-10-20", "cicilan homegym", 400_000), account_id: "kredivo", account_name: "Kredivo" }];
+    const { hero } = await beranda();
+    vi.useRealTimers();
+    const user = userEvent.setup();
+    await user.click(await within(hero).findByRole("button", { name: /Tagihan kredit/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Tagihan kredit" });
+    const [spay, kredivoSection] = [...dialog.querySelectorAll<HTMLElement>("section.credit-running")];
+    expect(await within(spay).findByRole("alert")).toHaveTextContent("Transaksi Spaylater belum bisa dimuat.");
+    await waitFor(() => expect(rowTexts(kredivoSection)[0]).toContain("cicilan homegym"));
+  });
+
+  it("reads nothing owed", async () => {
+    accounts = [{ ...spaylater, balance: 0, credit_owed: 0, next_due: null }];
+    const { hero } = await beranda();
+    const figure = await within(hero).findByRole("button", { name: /Tagihan kredit/ });
+    expect(figure).toHaveTextContent("Rp 0");
+    expect(figure).toHaveTextContent("tidak ada tagihan");
+  });
+
+  it("hides the owed amount and the bill amount with Sembunyikan saldo", async () => {
+    display.hidden = true;
+    const { hero } = await beranda();
+    const figure = await within(hero).findByRole("button", { name: /Tagihan kredit/ });
+    expect(figure).not.toHaveTextContent(/5\.246\.014|400\.000/);
+    expect(within(figure).getByRole("img", { name: "Disembunyikan" })).toBeInTheDocument();
+    expect(figure).toHaveTextContent("jatuh tempo 20 Nov · Rp ••••••");
   });
 });

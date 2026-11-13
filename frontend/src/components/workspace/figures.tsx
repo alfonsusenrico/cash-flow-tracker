@@ -1,6 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useAppCtx } from "@/components/layout/AppLayout";
 import { useFormat } from "@/lib/format";
@@ -75,6 +76,10 @@ export function FigureBlock({
   phoneHidden = false,
   bar = true,
   className,
+  href,
+  onOpen,
+  openRef,
+  action,
 }: {
   label: string;
   /** The colour token of the bar above the label; without one the slot stays empty so labels align. */
@@ -87,17 +92,40 @@ export function FigureBlock({
   bar?: boolean;
   /** Classes of the figure itself, such as its kind's colour. */
   className?: string;
+  /** The whole block links here, such as Transaksi filtered to the figure (open-beranda-figures D1). */
+  href?: string;
+  /** The whole block is a button opening a dialog instead (open-beranda-figures D3). */
+  onOpen?: () => void;
+  openRef?: Ref<HTMLButtonElement>;
+  /** Read after the figure by a screen reader: where the link goes or what the button opens. */
+  action?: string;
 }) {
-  return (
-    <div className={cn("fig-block", phoneHidden && "is-phone-hide")}>
-      <div className="fb-label">
+  const interactive = Boolean(href || onOpen);
+  // A button holds phrasing content only, so an interactive block uses spans shown as blocks.
+  const Line = interactive ? "span" : "p";
+  const content = (
+    <>
+      <span className="fb-label">
         {bar && <span className="sw-bar" style={mark ? { background: mark } : undefined} aria-hidden="true" />}
         <span className="t-meta">{label}</span>
-      </div>
-      <p className={cn("t-fig", className)}>{figure}</p>
-      {caption && <p className="t-meta">{caption}</p>}
-    </div>
+      </span>
+      <Line className={cn("t-fig", className)}>{figure}</Line>
+      {caption && <Line className="t-meta">{caption}</Line>}
+      {action && <span className="sr-only">{action}</span>}
+    </>
   );
+  const classes = cn("fig-block", interactive && "fig-open", phoneHidden && "is-phone-hide");
+  if (href) {
+    return <Link href={href} className={classes}>{content}</Link>;
+  }
+  if (onOpen) {
+    return (
+      <button ref={openRef} type="button" className={classes} aria-haspopup="dialog" onClick={onOpen}>
+        {content}
+      </button>
+    );
+  }
+  return <div className={classes}>{content}</div>;
 }
 
 export interface SplitSegment {

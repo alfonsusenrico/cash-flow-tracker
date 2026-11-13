@@ -1,12 +1,17 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import type { AccountsResponse } from "@/components/accounts/types";
 import { ExplanationDialog } from "@/components/workspace/ExplanationDialog";
 import { FigureBlock, HeroFigure, SplitBar } from "@/components/workspace/figures";
 import { MaskedMoney, useMoney } from "@/components/workspace/money";
+import { api } from "@/lib/api";
 import type { Words } from "@/lib/i18n/types";
+import { queryKeys } from "@/lib/queryKeys";
+import { CreditBillsDialog, creditAccountsOf, creditFigure } from "./CreditBillsDialog";
 import { type Money, periodBasis, safeAmountRincian, unavailableReason } from "./explanations";
-import type { CycleSummary } from "./types";
+import type { ActivityRow, CycleSummary } from "./types";
 import { useWords } from "./words";
 
 /** The hero's one line (D3): the days to the expected salary, by how much the period is over, or why not known. */
@@ -38,14 +43,38 @@ export function legendCaptions(summary: CycleSummary, { t, format }: Words) {
 
 /**
  * "Aman dipakai sampai gajian" (D3 to D5): the page's one 44 px figure with its line and "Rincian", the split bar
- * and the four supporting figures. Every figure is a server field; the client only orders and formats them.
+ * and the supporting figures, each opening its detail, with "Tagihan kredit" for an owner with credit accounts
+ * (open-beranda-figures). Every figure is a server field; the client only orders and formats them.
  */
-export function BerandaHero({ summary }: { summary: CycleSummary }) {
+/** Where each supporting figure leads (open-beranda-figures D2): Transaksi with Beranda's period, or the bills. */
+export function figureLinks(summary: CycleSummary): Record<"masuk" | "spending" | "saving" | "scheduled", string> {
+  const period = summary.period.basis === "cycle" ? "cycle" : "month";
+  const ledger = (type: string) => `/ledger?${new URLSearchParams({ period, type }).toString()}`;
+  return { masuk: ledger("income"), spending: ledger("expense"), saving: ledger("saving"), scheduled: "/goals#tg-bills" };
+}
+
+/** "jatuh tempo 20 Nov · Rp 400.000", or why no bill is named (D3). */
+function creditCaption(figure: ReturnType<typeof creditFigure>, money: Money, { t, format }: Words): string {
+  if (figure.nearest) return t("home.creditBills.caption", { date: format.shortDate(figure.nearest.due_date), amount: money(figure.nearest.left_to_pay) });
+  return figure.noDueDay ? t("home.creditBills.noDueDay") : t("home.creditBills.nothingOwed");
+}
+
+export function BerandaHero({ summary, onSelectRow }: { summary: CycleSummary; onSelectRow: (row: ActivityRow) => void }) {
   const words = useWords();
   const { t } = words;
   const money: Money = useMoney();
   const [open, setOpen] = useState(false);
   const opener = useRef<HTMLButtonElement>(null);
+  const [creditOpen, setCreditOpen] = useState(false);
+  const creditOpener = useRef<HTMLButtonElement>(null);
+  const accountsQuery = useQuery<AccountsResponse>({ queryKey: queryKeys.accounts, queryFn: () => api.get("/accounts") });
+  const creditAccounts = creditAccountsOf(accountsQuery.data?.accounts ?? []);
+  const credit = creditFigure(creditAccounts);
+  const links = figureLinks(summary);
+  const closeCredit = () => {
+    setCreditOpen(false);
+    creditOpener.current?.focus();
+  };
   const { masuk, spending, fresh_saving: saving, scheduled, remaining } = summary;
   const free = Math.max(0, remaining.total);
   const captions = legendCaptions(summary, words);
@@ -88,18 +117,43 @@ export function BerandaHero({ summary }: { summary: CycleSummary }) {
         total={masuk.total}
         segments={segments}
       />
-      <div className="legend">
-        <FigureBlock label={t("terms.income")} figure={<MaskedMoney text={money(masuk.total)} />} caption={captions.masuk} phoneHidden />
-        <FigureBlock label={t("terms.spending")} mark="var(--out-solid)" figure={<MaskedMoney text={money(spending.amount)} />} caption={captions.spending} />
+      <div className={creditAccounts.length > 0 ? "legend has-five" : "legend"}>
+        <FigureBlock label={t("terms.income")} figure={<MaskedMoney text={money(masuk.total)} />} caption={captions.masuk} phoneHidden
+          href={links.masuk} action={t("home.openInLedger")} />
+        <FigureBlock label={t("terms.spending")} mark="var(--out-solid)" figure={<MaskedMoney text={money(spending.amount)} />} caption={captions.spending}
+          href={links.spending} action={t("home.openInLedger")} />
         <FigureBlock
           label={t("terms.savedInvested")}
           mark="var(--inv-solid)"
           figure={<MaskedMoney text={money(Math.abs(saving.amount))} />}
           caption={captions.saving}
+          href={links.saving}
+          action={t("home.openInLedger")}
         />
-        <FigureBlock label={t("terms.scheduled")} mark="var(--warn-solid)" figure={<MaskedMoney text={money(scheduled.total)} />} caption={captions.scheduled} phoneHidden />
+        <FigureBlock label={t("terms.scheduled")} mark="var(--warn-solid)" figure={<MaskedMoney text={money(scheduled.total)} />} caption={captions.scheduled} phoneHidden
+          href={links.scheduled} action={t("home.openInGoals")} />
+        {creditAccounts.length > 0 && (
+          <FigureBlock
+            label={t("terms.creditBills")}
+            mark="var(--credit-fg)"
+            figure={<MaskedMoney text={money(credit.owed)} />}
+            caption={creditCaption(credit, money, words)}
+            onOpen={() => setCreditOpen(true)}
+            openRef={creditOpener}
+            action={t("home.creditBills.open")}
+          />
+        )}
       </div>
       <ExplanationDialog open={open} onClose={close} data={open ? safeAmountRincian(summary, money, words) : null} />
+      <CreditBillsDialog
+        open={creditOpen}
+        onClose={closeCredit}
+        accounts={creditAccounts}
+        failed={accountsQuery.isError}
+        onRetry={() => accountsQuery.refetch()}
+        money={money}
+        onSelect={onSelectRow}
+      />
     </HeroFigure>
   );
 }

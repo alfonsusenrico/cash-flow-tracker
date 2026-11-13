@@ -7,6 +7,7 @@
     "savedInvested": "Ditabung & investasi",
     "scheduled": "Terjadwal",
     "bills": "Tagihan",
+    "creditBills": "Tagihan kredit",
     "plans": "Rencana",
     "netWorth": "Kekayaan bersih",
     "safetyNet": "Ketahanan Dana",
@@ -265,7 +266,25 @@
     "chooseInReview": "Perlu dipilih di Tinjau",
     "creditBill": "Tagihan {account}",
     "creditMark": "Kredit",
-    "creditWhen": "{when} · Kredit"
+    "creditWhen": "{when} · Kredit",
+    "openInLedger": "Buka di Transaksi",
+    "openInGoals": "Buka di Target & Tagihan",
+    "creditBills": {
+      "caption": "jatuh tempo {date} · {amount}",
+      "nothingOwed": "tidak ada tagihan",
+      "noDueDay": "tanggal jatuh tempo belum diisi",
+      "open": "Buka rincian tagihan kredit",
+      "meta": "Sudah dihitung di Pengeluaran saat belanja",
+      "owed": "Utang {amount}",
+      "limitLeft": "Sisa limit {amount}",
+      "overLimit": "Melewati limit",
+      "nextBill": "Tagihan berikutnya jatuh tempo {date} · {amount}",
+      "nothingRunning": "Tidak ada tagihan berjalan",
+      "allInLedger": "Lihat semua di Transaksi",
+      "rowsFailed": "Transaksi {account} belum bisa dimuat.",
+      "accountsFailed": "Rekening kredit belum bisa dimuat.",
+      "close": "Tutup"
+    }
   },
   "review": {
     "page": {
