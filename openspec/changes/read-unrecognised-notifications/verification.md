@@ -18,12 +18,12 @@ Tested on 2026-11-13. Server: branch `feat/read-unrecognised-notifications` on b
 
 | Check | Result |
 | --- | --- |
-| Backend, full suite (Postgres 16, Flyway V1→V56) | 2317 passed |
-| `tests/test_notification_model_reading.py` | 20 passed (production sequence included) |
+| Backend, full suite (Postgres 16, Flyway V1→V56) | 2321 passed |
+| `tests/test_notification_model_reading.py` | 24 passed (production sequence included) |
 | Frontend `npm test` (vitest, whole suite) | 1109 passed |
 | Frontend `type-check`, `lint` | passed |
 | Companion `testDebugUnitTest` | 596 tests, 0 failures, 6 skipped (existing) |
-| Companion `lintDebug` | 0 errors, 49 warnings (warnings do not fail CI) |
+| Companion `lintDebug`, `assembleDebug`, `compileDebugAndroidTestKotlin` | lint 0 errors, 49 warnings (warnings do not fail CI); build and instrumented-test compile pass |
 | `git diff --check` | clean |
 | `openspec validate --all --strict` | 85 passed, 0 failed |
 
@@ -44,6 +44,11 @@ All scenarios are tested on synthetic data in `backend/tests/test_notification_m
 - **A hand-entered move is confirmed:** `test_a_hand_entered_move_is_confirmed_not_duplicated`.
 - **Several hand-entered moves match:** `test_several_hand_entered_moves_ask_then_follow_the_answer`.
 - **Outside 48 hours or already reported:** `test_hand_entered_moves_outside_the_window_or_already_reported_are_not_confirmed`.
+- **Owner names an account at another bank:**
+  - `test_the_source_question_offers_every_owned_account`: options are pockets, BCA and GoPay; not the target, the pocket-only Jago parent, or the investment account.
+  - `test_money_from_another_bank_completes_on_it_and_its_notification_attaches_later`
+  - `test_money_from_another_bank_links_the_leg_already_recorded`
+  - `test_several_possible_legs_on_the_other_bank_wait_in_review`
 - **Production sequence:** `test_the_production_sequence_resolves_once_each`. Result: one mapping question ("Spaylater") followed by a confirmation, three more confirmations, one source question, and four movements in total.
 - **Benchmark scoring:** `tests/test_notification_benchmark.py` scores the six new `unread-*` cases and `unsettled` offline. The unnamed-source move is scored as `needs_confirmation`.
 - **Companion:** `pocketQuestionPreselectsTheSuggestionButWaitsForTheOwner`, in light and dark themes.
@@ -77,9 +82,13 @@ All scenarios are tested on synthetic data in `backend/tests/test_notification_m
 | `unsettled` ("Transfer Rp50.000 ke BCA") | 3/3 `needs_review`. |
 | `unread-jago-income` ("Rp150.000 sudah masuk ke Jajan Pocket kamu.", expected income) | 3/3 read as a move into Jajan with no named source (confidence 0.94). Nothing is recorded: the source question is asked, and the model's suggestion (Jajan, the target itself) is dropped. This question has no "not a pocket move" answer, so a misread income waits in the question; see the open point below. |
 
-## Open point for the owner
+## Owner decision on sources outside Jago (2026-11-13)
 
-A model-read move whose source question has no right answer, because the money came from outside, cannot be turned into income from the companion today.
+**Decision:** the source question lists all of the owner's own accounts, not a fixed "outside Jago" answer. Money from another person is not given its own answer; the owner asked not to shape the app around their own cases.
+
+**Changes after the benchmark:**
+- source options, recording from another institution, and the companion wording;
+- prompt, reading acceptance and benchmark cases are unchanged, so the benchmark still applies.
 
 ## Not yet verified
 

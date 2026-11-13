@@ -238,6 +238,54 @@ def confirm_hand_entered_move(cur, event: dict, facts: NotificationFacts, *, sou
     return True
 
 
+def record_arrival_from(
+    cur, event: dict, facts: NotificationFacts, context: dict, *, source: dict, target: dict, provenance: Provenance,
+) -> int:
+    """Money the owner says came from an account at another institution (read-unrecognised-notifications D5).
+
+    Only the arrival is observed here, so it is recorded as the inbound leg and completed on the named account
+    the way Tinjau completes a one-sided transfer: an unlinked matching leg already there is linked, otherwise
+    the outbound leg is created and that account's own notification attaches to it later. Several possible legs
+    leave the arrival waiting in Tinjau for the owner to choose.
+    """
+    from fastapi import HTTPException
+
+    from app.services.movement_pairing import complete_movement
+
+    user_id, event_id = str(event["user_id"]), str(event["id"])
+    accounts = context["accounts"]
+    _expense_category, income_category = movement_categories(context)
+    lock_owned_accounts(cur, user_id, [str(source["id"]), str(target["id"])])
+    lock_application_categories(cur, user_id, {income_category: "income"})
+    note = movement_note(cur, user_id, str(target["id"]))
+    record_key = f"notification:{event_id}"
+    cur.execute(
+        """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, idempotency_key,
+               source, review_status, classified_by, classification_confidence)
+           VALUES (%s, %s, %s, 'income', %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+        (user_id, str(target["id"]), income_category, facts.amount, note, facts.timestamp, record_key,
+         *provenance.columns()),
+    )
+    tx_id = str(cur.fetchone()["id"])
+    signature = {"source_account_id": str(source["id"]), "target_account_id": str(target["id"]),
+                 "currency": "IDR", "transfer": True, "source": "owner_source"}
+    try:
+        with cur.connection.transaction():
+            result = complete_movement(cur, user_id, tx_id, counterpart_account_id=str(source["id"]), role="source")
+    except HTTPException:
+        cur.execute("UPDATE transactions SET review_status = 'needs_review' WHERE user_id = %s AND id = %s",
+                    (user_id, tx_id))
+        snapshot = committed_snapshot(key=record_key, kind="income", description=note, amount=facts.amount,
+                                      source=None, target=account_label(target, accounts))
+        save_recorded(cur, event, tx_id, snapshot, signature, role="inbound")
+        cur.execute("UPDATE notification_events SET error_code = 'ambiguous_movement' WHERE id = %s", (event_id,))
+        return 1
+    snapshot = committed_snapshot(key=record_key, kind="internal_movement", description=note, amount=facts.amount,
+                                  source=account_label(source, accounts), target=account_label(target, accounts))
+    save_recorded(cur, event, tx_id, snapshot, signature, movement_id=result["movement_id"], role="inbound")
+    return 1 + int(bool(result.get("created_transaction_id")))
+
+
 def deterministic_interpretation(facts: NotificationFacts, context: dict) -> Interpretation:
     if facts.needs_reading:
         raise EvidenceError("settlement_unproven")
@@ -455,6 +503,8 @@ def apply_interpretation(
                 cur, event, facts, source_id=facts.confirmed_source_account_id):
             return 0
         source, target = resolved["source"], resolved["target"]
+        if unnamed_source_move(facts) and root_account_id(accounts, str(source["id"])) != root_account_id(accounts, str(target["id"])):
+            return record_arrival_from(cur, event, facts, context, source=source, target=target, provenance=provenance)
         exp_category, inc_category = resolved["expense_category"], resolved["income_category"]
         locked = lock_owned_accounts(cur, user_id, [str(source["id"]), str(target["id"])])
         lock_application_categories(cur, user_id, {exp_category: "expense", inc_category: "income"})

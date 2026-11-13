@@ -305,3 +305,81 @@ def test_the_production_sequence_resolves_once_each(client, notification_owner, 
         outcomes.append("question" if outcome["status"] == "needs_confirmation" else outcome["status"])
     assert outcomes == ["mapping", "recorded", "recorded", "recorded", "recorded", "question"]
     assert len(movements(owner)) == 4
+
+
+def leg(owner, account, amount, when, *, category="internal_out"):
+    """An unlinked outbound leg already on the books, as another bank's notification would leave it."""
+    from app.db.pool import db_conn
+
+    with db_conn() as conn:
+        conn.execute(
+            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date)
+               VALUES (%s, %s, %s, 'expense', %s, 'Transfer', %s)""",
+            (owner["user_id"], account, owner[category], amount, when))
+        conn.commit()
+
+
+def bca_debit(owner, amount="47,619.00", *, posted):
+    return {"device_id": "synthetic-device", "package_name": "com.bca.mybca.omni.android", "title": "Financial Diary",
+            "body_text": f"You spent IDR {amount} at Account Transfer.", "payload_hash": uuid4().hex,
+            "post_time": posted.isoformat(), "source_version": "2.4.1"}
+
+
+def bca_reading(owner):
+    return Interpretation.model_validate_json(json.dumps({
+        "outcome": "record", "direction": "expense", "description": "Transfer", "merchant": None,
+        "account_id": owner["bca"], "source_account_id": None, "target_account_id": None,
+        "category_id": owner["expense"], "kakeibo": "need", "amount_evidence": "IDR 47,619.00",
+        "direction_evidence": "You spent", "source_evidence": "", "target_evidence": "",
+        "candidate_transaction_id": None, "confidence": 0.9, "review_reason": "none",
+    }))
+
+
+def test_the_source_question_offers_every_owned_account(client, notification_owner, pockets):
+    owner = notification_owner
+    result = ingest(client, added())["results"][0]
+    process(client, result, provider_for(reading(target=pockets["Bayar Kredit"])))
+    options = client.get(f"/api/ingest/notifications/{result['event_id']}/source-pockets").json()["result"]["options"]
+    ids = {row["id"] for row in options}
+    assert {owner["bca"], owner["gopay"], owner["main"], pockets["Tabungan"]} <= ids
+    assert pockets["Bayar Kredit"] not in ids and owner["jago"] not in ids and owner["stockbit"] not in ids
+    labels = {row["id"]: row["label"] for row in options}
+    assert labels[owner["bca"]] == "BCA Harian" and labels[pockets["Tabungan"]] == "Bank Jago · Tabungan"
+
+
+def test_money_from_another_bank_completes_on_it_and_its_notification_attaches_later(client, notification_owner, pockets):
+    owner = notification_owner
+    result = ingest(client, added())["results"][0]
+    asked = process(client, result, provider_for(reading(target=pockets["Bayar Kredit"])))
+    assert answer_source(client, asked, owner["bca"]).status_code == 200
+    recorded = process(client, asked, provider_for(reading(target=pockets["Bayar Kredit"])))
+    assert recorded["status"] == "recorded" and recorded["type"] == "internal_movement"
+    assert recorded["source"] == "BCA Harian"
+    assert [(str(row["source"]), str(row["target"]), row["amount"]) for row in movements(owner)] == [
+        (owner["bca"], pockets["Bayar Kredit"], 47619)]
+    later = ingest(client, bca_debit(owner, posted=POSTED + timedelta(minutes=2)))["results"][0]
+    attached = process(client, later, provider_for(bca_reading(owner)))
+    assert attached["status"] == "recorded"
+    assert count_transactions(owner) == 2 and len(movements(owner)) == 1
+
+
+def test_money_from_another_bank_links_the_leg_already_recorded(client, notification_owner, pockets):
+    owner = notification_owner
+    leg(owner, owner["bca"], 47619, POSTED - timedelta(minutes=3))
+    result = ingest(client, added())["results"][0]
+    asked = process(client, result, provider_for(reading(target=pockets["Bayar Kredit"])))
+    assert answer_source(client, asked, owner["bca"]).status_code == 200
+    assert process(client, asked, provider_for(reading(target=pockets["Bayar Kredit"])))["status"] == "recorded"
+    assert count_transactions(owner) == 2 and len(movements(owner)) == 1
+
+
+def test_several_possible_legs_on_the_other_bank_wait_in_review(client, notification_owner, pockets):
+    owner = notification_owner
+    leg(owner, owner["bca"], 47619, POSTED - timedelta(minutes=3))
+    leg(owner, owner["bca"], 47619, POSTED - timedelta(hours=5))
+    result = ingest(client, added())["results"][0]
+    asked = process(client, result, provider_for(reading(target=pockets["Bayar Kredit"])))
+    assert answer_source(client, asked, owner["bca"]).status_code == 200
+    waiting = process(client, asked, provider_for(reading(target=pockets["Bayar Kredit"])))
+    assert waiting["status"] == "recorded" and waiting["type"] == "income"
+    assert count_transactions(owner) == 3 and movements(owner) == []

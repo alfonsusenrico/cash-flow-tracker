@@ -11,6 +11,7 @@ Expected Result: the reported failure is reproduced locally.
 - [x] 2.3 Prompt guidance in both languages and a prompt version bump; reading acceptance and storage; stored reading applied in `collect_facts`; retry clears it. Evidence: database tests with a fake provider for "An unsure reading goes to review", "The model judges unrecognised wording as noise", "Source answer reuses the reading" and "Retry reads afresh".
 - [x] 2.4 Source question for a model-read move: target left out, `suggested_account_id`, answer becomes the source, deterministic resume. Evidence: database tests for "Added into a locked pocket asks for the source", "Owner answers the source of the move" and "Unanswered or stale answer never debits the main pocket".
 - [x] 2.5 Hand-entered move confirmation. Evidence: database tests for both scenarios of "Hand-Entered Moves Confirmed by an Unnamed-Source Notification", plus a move already referenced and one outside 48 hours.
+- [x] 2.5a Source options cover every owned account; a source at another institution is completed on it. Evidence: database tests for "Owner names an account at another bank": a later BCA notification attaches, an existing BCA leg links, and several candidates wait in review.
 - [x] 2.6 The production sequence on synthetic data: five "added into" events, four hand-entered moves, the old "Spaylater" name. Result: four confirmations, one mapping question and one source question. Evidence: one database test with a fake provider.
 - [x] 2.7 Full backend suite. Evidence: `verification.md`.
 

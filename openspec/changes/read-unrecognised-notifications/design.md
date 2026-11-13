@@ -79,10 +79,20 @@ Rejected: dropping "Locked" in code. It is one more fixed rule, and the mapping 
 
 ### 5. Source question for a model-read move
 
-`requires_source_pocket` is also true for candidate Jago facts with direction `internal_movement` and a reading with `source_named = false`. The question is reused unchanged except for two things:
+`requires_source_pocket` is also true for candidate Jago facts with direction `internal_movement` and a reading with `source_named = false`. The question is reused, with these differences:
 
-- options leave out the target account;
-- the question and the options response carry `suggested_account_id`, kept only if it is an eligible option.
+- the options are every owned liquid account that holds its own balance, at any institution, except the target. An account that only groups pockets is left out. Money into a pocket may come from another pocket or from another bank or wallet, so the list is not limited to Jago;
+- the question and the options response carry `suggested_account_id`, kept only if it is an option.
+
+Recording depends on where the answered source is:
+
+- **Same institution as the target:** one bilateral movement, as today.
+- **Another institution:** the arrival is recorded as the inbound leg and completed on that account with Tinjau's completion (`complete_movement`).
+  - A single unlinked matching leg in the movement category is linked.
+  - Without one, the outbound leg is created with the completion key, so that account's own notification attaches to it later.
+  - Several candidates leave the arrival in review (`ambiguous_movement`) for the owner to choose.
+
+Rejected: a fixed "from outside Jago" answer. The owner asked for no answers shaped around one person's habits. Listing the owner's own accounts covers any user's banks and wallets.
 
 The answer becomes the move's source in `deterministic_interpretation`, which now uses `confirmed_source_account_id` for a move. After the answer, the event is processed in deterministic mode from the stored reading, so no new model call is made. No answer, a stale answer or an invalid answer never falls back to the main pocket.
 

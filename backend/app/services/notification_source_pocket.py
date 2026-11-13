@@ -78,12 +78,28 @@ def move_target_id(cur, user_id: str, facts) -> str | None:
         return None
 
 
+def owned_move_sources(cur, user_id: str, target_id: str) -> list[dict]:
+    """Every account money can come from for a move into the target: the owner's own liquid accounts that hold
+    a balance themselves (no account with pockets), the target excepted, whichever institution they are at."""
+    cur.execute(
+        """SELECT a.id, a.name, a.type, a.parent_id, a.instrument_type FROM accounts a
+           WHERE a.user_id = %s AND a.is_archived = FALSE AND a.id <> %s
+             AND a.type = ANY(%s) AND a.instrument_type IS NULL
+             AND NOT EXISTS (SELECT 1 FROM accounts c WHERE c.user_id = a.user_id AND c.parent_id = a.id
+                             AND c.is_archived = FALSE)
+           ORDER BY a.parent_id NULLS FIRST, a.name, a.id""",
+        (user_id, target_id, sorted(MAPPABLE_ACCOUNT_TYPES)),
+    )
+    return cur.fetchall()
+
+
 def eligible_move_sources(cur, user_id: str, facts) -> tuple[dict, list[dict], str | None]:
-    """Eligible source pockets; a move's own target is never one of them."""
+    """Eligible sources: Jago pockets for an unnamed outbound transfer; for a move with an unnamed source, every
+    owned account except the target, because the money may come from another bank or wallet."""
     parent, options = eligible_sources(cur, user_id)
     target_id = move_target_id(cur, user_id, facts) if unnamed_source_move(facts) else None
     if target_id:
-        options = [row for row in options if str(row["id"]) != target_id]
+        options = owned_move_sources(cur, user_id, target_id)
     return parent, options, target_id
 
 
@@ -174,10 +190,13 @@ def source_options(cur, event: dict) -> dict:
         raise api_error(409, ErrorCode.SOURCE_POCKET_UNCONFIGURED) from None
     if str(parent["id"]) != question["jago_account"]["id"]:
         raise api_error(409, ErrorCode.STALE_CONFIRMATION)
-    options = [row for row in options if str(row["id"]) != question.get("excluded_account_id")]
+    if question.get("excluded_account_id"):
+        options = owned_move_sources(cur, str(event["user_id"]), question["excluded_account_id"])
+    cur.execute("SELECT id, name FROM accounts WHERE user_id = %s", (event["user_id"],))
+    names = {str(row["id"]): row["name"] for row in cur.fetchall()}
     result = {"event_id": str(event["id"]), "question_id": question["question_id"],
               "options": [{"id": str(row["id"]), "label": sanitize_text(
-                  f"{parent['name']} · {row['name']}" if row.get("parent_id") else row["name"]
+                  f"{names[str(row['parent_id'])]} · {row['name']}" if row.get("parent_id") else row["name"]
               )[:300]} for row in options]}
     if question.get("suggested_account_id") in {option["id"] for option in result["options"]}:
         result["suggested_account_id"] = question["suggested_account_id"]

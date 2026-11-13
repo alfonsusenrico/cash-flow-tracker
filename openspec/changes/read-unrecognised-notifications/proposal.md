@@ -15,7 +15,8 @@ The owner asked not to keep adding fixed wording and name rules, since Jago word
 - A notification the fixed rules do not recognise, but which quotes one Rupiah amount from a supported app, is read by the model instead of being parked or dropped. The model decides whether money already moved, which way, and which pockets the text names, quoting the words it relied on.
 - A confident reading continues through the normal checks. An unsure one goes to Tinjau without a ledger row.
 - Pocket names the model quotes go through the existing account mapping, which already learns names such as "Bayar Kredit Locked" and asks once when unsure. No new name lists.
-- When a Jago move names no source pocket, the companion asks "Dari kantong mana?" with the model's likely pocket preselected. The owner confirms with one tap or picks another. The source is never recorded without the owner.
+- When a Jago move names no source pocket, the companion asks "Dari rekening atau kantong mana?" and lists all of the owner's own accounts and pockets, at any bank or wallet. The model's likely source is preselected; the owner confirms with one tap or picks another. The source is never recorded without the owner.
+- A source at another bank or wallet becomes one move, completed on that account the way Tinjau completes a one-sided transfer, so that account's own notification never debits it twice.
 - A move the owner already entered by hand is confirmed instead of recorded twice.
 - After deploy, "Coba Proses Ulang" on the five stuck events resolves them: four confirm the owner's entries, the 5 Nov one first asks to map "Spaylater", and the Rp47.619 one asks for its source.
 
@@ -24,9 +25,9 @@ The owner asked not to keep adding fixed wording and name rules, since Jago word
 - Evidence: an unrecognised notification that is not noise and quotes one amount becomes a candidate marked for model reading, rather than `settlement_unproven`. This applies only when the model is available.
 - Model reading: prompt guidance in both languages for unrecognised wording. The backend accepts a reading only with verbatim amount and activity quotes and enough confidence. The reading is stored on the event, so later steps such as the source answer, mapping confirmation and the record itself use the same facts without asking the model again.
 - Parser: the Jago "into … Pocket" rule requires a move verb, so it no longer guesses the main pocket for other wording.
-- Source question: also used for a model-read Jago move with no named source. It carries the model's suggested pocket and leaves out the target.
+- Source question: also used for a model-read Jago move with no named source. It offers every owned account except the target and carries the model's suggestion. A source at another institution is completed with the existing movement completion.
 - Hand-entered moves: a unique matching move is confirmed, before asking and after the answer.
-- Companion (separate repository): preselect and mark the suggested pocket.
+- Companion (separate repository): preselect and mark the suggestion; neutral wording ("Dari rekening atau kantong mana?", "Konfirmasi sumber dana") since the options are no longer only pockets.
 - Benchmark: synthetic cases for unrecognised wording, including the "added into" shape and noise that must stay ignored.
 
 ## Non-goals
