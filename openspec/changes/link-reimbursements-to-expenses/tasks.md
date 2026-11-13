@@ -1,8 +1,8 @@
 ## 1. Data and server
 
-- [x] 1.1 `V55__reimbursement_links.sql`. Evidence: Flyway V1→V55 on Postgres 16; a test that the table, keys and cascades exist.
+- [x] 1.1 `V55__reimbursement_links.sql`. Evidence: Flyway V1→V55 on Postgres 16; the cascades are exercised by the delete tests in 1.2.
 - [x] 1.2 Allocation and reallocation in `reimbursements`. Evidence: database tests for oldest-first allocation, two reimbursements on one expense, never below zero, edits and deletes on either side.
-- [x] 1.3 `load_spending_offsets` applies linked amounts by expense period, category and pillar, then the capped category fallback. Evidence: tests for the scenarios "Repaid in the next cycle" and "Only the expense it repaid" read through the cycle summary, the ledger summary and the monthly report.
+- [x] 1.3 `load_spending_offsets` applies linked amounts by expense period, category and pillar, then the capped category fallback. Evidence: tests for the scenarios "Repaid in the next cycle" and "Only the expense it repaid" read through `load_spending_offsets`, the one function the cycle summary, the ledger summary, analytics and the monthly report share; the existing reimbursement tests of those pages still pass.
 - [x] 1.4 `PUT`/`DELETE /api/transactions/{id}/reimburses`, the rest as income, validation, and links in `GET /api/transactions/{id}`. Evidence: API tests for each scenario of "Reimbursements Linked to Expenses" and "The Rest of a Linked Reimbursement", including another owner's rows and the balance unchanged.
 - [x] 1.5 Full backend suite. Evidence: `verification.md`.
 
