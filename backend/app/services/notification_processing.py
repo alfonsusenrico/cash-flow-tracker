@@ -106,6 +106,20 @@ def compact_result(cur, event: dict) -> dict:
                         language, _region = account_language(cur, str(event["user_id"]))
                         result["habit"] = {"label": habit_label(language, transaction["category_name"]),
                                            "basis": basis_text(language, basis["agreeing"], basis["support"])}
+        pocket_basis = (event.get("interpretation") or {}).get("pocket_habit")
+        if pocket_basis and event.get("transaction_id"):
+            # The pocket came from the owner's agreeing choices; shown so a wrong one is easy to spot.
+            cur.execute(
+                """SELECT a.name FROM transactions t JOIN accounts a ON a.id = t.account_id AND a.user_id = t.user_id
+                   WHERE t.user_id = %s AND t.id = %s""", (event["user_id"], event["transaction_id"]))
+            account = cur.fetchone()
+            if account:
+                language, _region = account_language(cur, str(event["user_id"]))
+                result["pocket_habit"] = {
+                    "label": t(language, "labels.pocketHabit.recorded", pocket=account["name"]),
+                    "basis": t(language, "reasons.pocketHabit.basis", agreeing=pocket_basis["agreeing"],
+                               support=pocket_basis["support"]),
+                }
     elif event.get("error_code"):
         result["error_code"] = event["error_code"]
     if status == "needs_confirmation":

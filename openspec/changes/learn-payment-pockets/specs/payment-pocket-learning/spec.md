@@ -17,11 +17,11 @@ An expense notification for an account with pockets that names no pocket SHALL b
 - **THEN** it SHALL be `needs_review` and no pocket SHALL be assumed
 
 ### Requirement: Pocket Choices Are the Owner's Own Labels
-The system SHALL record a pocket choice for each owner answer to such a question and for each owner edit that moves a notification-recorded expense to another pocket of the same account. A correction SHALL weigh twice an answer, and the latest choice of a transaction SHALL replace its earlier ones. Automatic records, model output and defaults SHALL never be evidence.
+The system SHALL count as pocket choices the owner's answers to such questions, the accounts they chose when resolving an event by hand, and every notification-recorded expense they moved to another account (a correction). A correction SHALL weigh twice an answer, and an event SHALL count once, its correction before its answer. Automatic records, model output and defaults SHALL never be evidence.
 
 #### Scenario: A web correction teaches
 - **WHEN** the owner moves a fuel payment recorded from a notification from "Main Pocket" to "Transportasi" on the web
-- **THEN** one correction choice for that merchant key and "Transportasi" SHALL be stored
+- **THEN** it SHALL count as one correction choice of "Transportasi" for that merchant key
 
 #### Scenario: An answer then a correction of the same payment
 - **WHEN** the owner answers "Main Pocket" and later moves the same payment to "Transportasi"
@@ -62,11 +62,11 @@ The key SHALL be the institution with the first word of the merchant or recipien
 - **THEN** both SHALL use the key of the text signature `jago|expense|payment`
 
 ### Requirement: Learning From Earlier Corrections
-At launch the system SHALL store, as correction choices, notification-recorded expenses that now sit on a different pocket of the same account than they were first recorded on. Uncorrected payments SHALL NOT be evidence.
+From the first deploy, notification-recorded expenses that now sit on another account than they were recorded on SHALL count as correction choices, without a migration. Uncorrected payments SHALL NOT be evidence.
 
 #### Scenario: Earlier fuel corrections count
 - **WHEN** two earlier fuel payments were recorded on "Main Pocket" and the owner moved both to "Transportasi"
-- **THEN** after the backfill the next fuel payment SHALL be recorded on "Transportasi"
+- **THEN** the next fuel payment SHALL be recorded on "Transportasi"
 
 ### Requirement: The Same Learning for Every Unnamed Source
 Unnamed transfers and money added into a pocket with no named source SHALL use the same choices, rule and suggestion, keyed by recipient and by target pocket.

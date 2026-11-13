@@ -60,6 +60,17 @@ def test_missing_source_is_not_an_endpoint(package):
 
 @pytest.mark.parametrize("text", [
     "You've paid Rp125.000 to Kedai Awan.",
+    "You've paid Rp45.000 using your debit card.",
+    "You have paid Rp 150.000 to SPBU 54.602.45 HR M.",
+])
+def test_every_jago_payment_without_a_pocket_triggers(text):
+    payload = notification(text)
+    payload["post_time"] = datetime.fromisoformat(payload["post_time"])
+    assert requires_source_pocket(collect_facts(payload))
+
+
+@pytest.mark.parametrize("text", [
+    "You've paid Rp125.000 to Kedai Awan using your Dana Darurat Pocket.",
     "You've moved Rp125.000 out of your Dana Darurat Pocket.",
     "Andra has sent Rp125.000 to you.",
     "You've transferred Rp125.000 to Andra using your Dana Darurat Pocket.",

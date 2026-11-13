@@ -65,6 +65,12 @@ class HabitLabelUiTest(private val dark: Boolean, private val fontScale: Float) 
             .performScrollTo().assertIsDisplayed()
     }
 
+    @Test fun detailSaysThePocketCameFromEarlierChoices() {
+        detail(UiFixtures.pocketHabit())
+        compose.onNodeWithText("Kantong dari kebiasaan: Transportasi · 2 dari 2 pilihan sebelumnya")
+            .performScrollTo().assertIsDisplayed()
+    }
+
     @Test fun detailOfAnOrdinaryRowHasNoHabitLine() {
         detail(ordinary)
         compose.onNodeWithText("Yang dicatat tracker").assertExists()

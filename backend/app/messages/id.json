@@ -360,6 +360,9 @@
     "habit": {
       "basis": "{agreeing} dari {support} jawaban sebelumnya"
     },
+    "pocketHabit": {
+      "basis": "{agreeing} dari {support} pilihan sebelumnya"
+    },
     "history": {
       "merchant": "Sama dengan pilihan Anda untuk {merchant}",
       "similar": "Sama dengan pilihan Anda untuk notifikasi bank serupa",
@@ -524,6 +527,9 @@
     "habit": {
       "recorded": "Dicatat dari kebiasaan: {category}",
       "recorded_bare": "Dicatat dari kebiasaan"
+    },
+    "pocketHabit": {
+      "recorded": "Kantong dari kebiasaan: {pocket}"
     }
   },
   "notes": {

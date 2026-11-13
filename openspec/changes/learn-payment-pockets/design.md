@@ -44,29 +44,21 @@ Holding means the payment is missing from balances and Aman dipakai until it is 
 
 Rejected: record on the default pocket and flag. It shows a wrong pocket balance in the meantime, which is the assumption the owner rejected.
 
-### 3. Evidence: the owner's pocket choices
+### 3. Evidence: the owner's pocket choices, read from what the ledger holds
 
-A new append-only table `pocket_choices`, one row per owner choice:
+Choices are read from records that already exist, so there is no new table and nothing to backfill:
 
-| Column | Meaning |
-| --- | --- |
-| `user_id` | the owner |
-| `transaction_id` | the payment |
-| `event_id` | the notification |
-| `parent_account_id` | the account with pockets |
-| `pocket_account_id` | the chosen pocket |
-| `institution` | the bank |
-| `pocket_key` | the learning key (decision 4) |
-| `kind` | `answer` or `correction` |
-| `created_at` | when the choice was made |
+| Record | Choice | Weight |
+| --- | --- | --- |
+| An answer to the source-pocket question (`notification_source_pocket_answers`) | the answered pocket | 1 |
+| A Tinjau resolution where the owner picked the account (`interpretation.source = manual`) | that account | 1 |
+| A notification-recorded payment whose transaction now sits on another account than recorded (`interpretation.account_id`) | the current account | 2 (correction) |
 
-Rows come from:
-- source-question answers for these payments;
-- edits that move a notification-recorded expense to another pocket of the same parent.
+Each event counts once, a correction before an answer. The newest come first, ordered by the latest of the answer and the transaction's last update. A payment never moved is not evidence. Automatic records, model output and defaults never count.
 
-The latest row per transaction counts, so a later correction replaces an earlier answer. Automatic records, model output and defaults are never evidence.
-
-Rejected: adding columns to `classification_feedback`. Its rows are classification labels keyed by account, while pocket choice is keyed above the account. Mixing them would change habit queries.
+Rejected:
+- **A `pocket_choices` table written on answers and edits, plus a backfill.** Older events lack the stored merchant key, so the backfill would need Python over every event anyway. Reading the existing records gives the same evidence, counts web corrections without a hook in the edit path, and cannot drift from the ledger.
+- **Adding columns to `classification_feedback`.** Its rows are classification labels keyed by account.
 
 ### 4. Learning key: the merchant's first word
 
@@ -117,7 +109,7 @@ Rejected:
 
 ### 5a. Learning from history at launch
 
-Notification-recorded expenses that now sit on a different pocket of the same account than they were first recorded on are earlier owner corrections. A one-time backfill stores them as `correction` choices, so learning starts from what the owner already fixed. Payments never corrected are not evidence, because the default pocket may simply have gone unnoticed.
+Because evidence is read from existing records (decision 3), the owner's earlier corrections count from the first deploy, with no migration.
 
 ### 6. Suggestion when asking
 
@@ -135,9 +127,9 @@ The duplicate-arrival rule that lets a named report replace a default-pocket one
 
 ## Data, API and failure behaviour
 
-- **Migration:** V57 `pocket_choices` with an append-only trigger, as `classification_feedback` has.
+- **Migration:** none. The kill switch is the new setting `POCKET_LEARNING_AUTO_RECORD_ENABLED`.
 - **API:** additive (`pocket_habit` in results). Same question shape.
-- **Rollback:** revert the code. The table is ignored by older code.
+- **Rollback:** revert the code. Nothing persistent was added.
 - A missing or archived learned pocket is not used: the payment is asked.
 
 ## Risks

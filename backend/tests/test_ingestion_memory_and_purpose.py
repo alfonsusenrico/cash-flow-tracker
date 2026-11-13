@@ -25,7 +25,7 @@ BCA = "com.bca.mybca.omni.android"
 GROCERIES = "You spent IDR 187,500.00 at Groceries."
 SHOPPING = "You spent IDR 45,000.00 at Shopping."
 MASKED_INCOMING = "You received IDR 57,000.00 from ***AB ****CD *E at Account Transfer category."
-KEDAI = "You've paid Rp125.000 to Kedai Awan"
+KEDAI = "You've paid Rp125.000 to Kedai Awan using your Kantong Utama Pocket"
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -291,7 +291,7 @@ def test_memory_hit_records_without_calling_the_model(client, owner, monkeypatch
     client.patch(f"/api/transactions/{row['id']}", json={"category_id": owner["jajan"], "kakeibo_type": "want",
                                                           "merchant": "Kedai Awan", "notes": "Ngopi di Kedai Awan"})
     enable_ai(monkeypatch)
-    second = ingest(client, notification("You've paid Rp40.000 to Kedai Awan", seconds=40))["results"][0]
+    second = ingest(client, notification("You've paid Rp40.000 to Kedai Awan using your Kantong Utama Pocket", seconds=40))["results"][0]
     provider = AsyncMock()
     run_claim(provider)
     assert provider.interpret.await_count == 0
@@ -363,7 +363,7 @@ def test_similar_history_prefers_owner_confirmed_same_merchant_rows(client, owne
     from app.services.notification_context import load_context
     from app.services.notification_evidence import collect_facts
     corrected = ingest(client, notification(KEDAI, seconds=1))["results"][0]
-    other = ingest(client, notification("You've paid Rp90.000 to Kedai Awan", seconds=50))["results"][0]
+    other = ingest(client, notification("You've paid Rp90.000 to Kedai Awan using your Kantong Utama Pocket", seconds=50))["results"][0]
     ingest(client, bca(SHOPPING, seconds=2))
     with db_conn() as conn:
         for _ in range(25):
@@ -374,7 +374,7 @@ def test_similar_history_prefers_owner_confirmed_same_merchant_rows(client, owne
         conn.commit()
     corrected_row = tx_for(corrected["event_id"])
     client.patch(f"/api/transactions/{corrected_row['id']}", json={"category_id": owner["jajan"], "notes": "Ngopi"})
-    payload = notification("You've paid Rp100.000 to Kedai Awan", seconds=59)
+    payload = notification("You've paid Rp100.000 to Kedai Awan using your Kantong Utama Pocket", seconds=59)
     payload["post_time"] = datetime.fromisoformat(payload["post_time"]) + timedelta(days=2)
     with db_conn() as conn:
         context = load_context(conn.cursor(), owner["user_id"], collect_facts(payload))

@@ -22,7 +22,7 @@ SOURCE_POCKET_MIN_VERSION = (1, 6, 0)
 
 def eligible_sources(cur, user_id: str) -> tuple[dict, list[dict]]:
     cur.execute(
-        """SELECT id, name, type, parent_id, instrument_type FROM accounts
+        """SELECT id, name, type, parent_id, instrument_type, default_pocket_id FROM accounts
            WHERE user_id = %s AND is_archived = FALSE ORDER BY name, id""",
         (user_id,),
     )
@@ -53,8 +53,8 @@ def evidence_revision(facts) -> str:
     return hashlib.sha256(json.dumps(meaning, ensure_ascii=False).encode()).hexdigest()
 
 
-def move_target_id(cur, user_id: str, facts) -> str | None:
-    """The registered pocket a model-read move goes into, or None while its name still needs mapping."""
+def jago_accounts(cur, user_id: str) -> list[dict]:
+    """Active accounts with their learned notification names, as pocket resolution expects them."""
     cur.execute(
         """SELECT id, name, type, parent_id, default_pocket_id, instrument_type FROM accounts
            WHERE user_id = %s AND is_archived = FALSE ORDER BY name, id""",
@@ -71,11 +71,22 @@ def move_target_id(cur, user_id: str, facts) -> str | None:
             {"key": alias_key(alias["institution"], alias["name_normalized"])})
     for account in accounts:
         account["learned_notification_names"] = learned.get(str(account["id"]), [])
+    return accounts
+
+
+def resolve_move_target(accounts: list[dict], facts) -> str | None:
+    """The registered pocket a model-read move goes into, or None while its name still needs mapping."""
+    if not unnamed_source_move(facts):
+        return None
     try:
         parent = institution_parent(accounts, "jago")
         return str(pocket_endpoint(facts.parsed.target_pocket, parent, accounts, institution="jago")["id"])
     except EvidenceError:
         return None
+
+
+def move_target_id(cur, user_id: str, facts) -> str | None:
+    return resolve_move_target(jago_accounts(cur, user_id), facts)
 
 
 def owned_move_sources(cur, user_id: str, target_id: str) -> list[dict]:
@@ -103,8 +114,16 @@ def eligible_move_sources(cur, user_id: str, facts) -> tuple[dict, list[dict], s
     return parent, options, target_id
 
 
+def learned_decision(cur, event: dict, facts, options: list[dict], target_id: str | None):
+    from app.core.config import settings
+    from app.services.pocket_learning import learned_pocket
+
+    return learned_pocket(cur, event, facts, eligible={str(row["id"]) for row in options}, target_id=target_id,
+                          auto_enabled=settings.pocket_learning_auto_record_enabled)
+
+
 def resolved_facts(cur, event: dict, facts):
-    if not requires_source_pocket(facts):
+    if not requires_source_pocket(facts) or facts.confirmed_source_account_id:
         return facts
     decision = event.get("source_pocket_resolution") or {}
     parent, options, target_id = eligible_move_sources(cur, str(event["user_id"]), facts)
@@ -112,10 +131,16 @@ def resolved_facts(cur, event: dict, facts):
         # The target's name is mapped first; recording still refuses a move without a confirmed source.
         return facts
     account_id = decision.get("account_id")
+    basis = None
     if (decision.get("jago_account_id") != str(parent["id"])
             or decision.get("evidence_revision") != evidence_revision(facts)
             or account_id not in {str(row["id"]) for row in options}):
-        raise EvidenceError("source_pocket_confirmation_required")
+        # No valid answer: only the owner's agreeing earlier choices may decide (learn-payment-pockets D5).
+        learned = learned_decision(cur, event, facts, options, target_id)
+        if not learned.auto:
+            raise EvidenceError("source_pocket_confirmation_required")
+        account_id = learned.account_id
+        basis = {"agreeing": learned.agreeing, "support": learned.support}
     # Hold references stable until application commits; account mutation cannot race the choice.
     cur.execute(
         """SELECT id FROM accounts WHERE user_id = %s AND id = ANY(%s::uuid[])
@@ -127,7 +152,17 @@ def resolved_facts(cur, event: dict, facts):
     locked_parent, locked_options, _target = eligible_move_sources(cur, str(event["user_id"]), facts)
     if str(locked_parent["id"]) != str(parent["id"]) or account_id not in {str(row["id"]) for row in locked_options}:
         raise EvidenceError("source_pocket_confirmation_required")
-    return replace(facts, confirmed_source_account_id=account_id)
+    return replace(facts, confirmed_source_account_id=account_id, pocket_basis=basis)
+
+
+def default_pocket_id(parent: dict, options: list[dict]) -> str | None:
+    """Only a preselection: the configured default pocket, else the pocket named like the main one."""
+    from app.services.notification_resolution import normalize_name
+
+    if parent.get("default_pocket_id"):
+        return str(parent["default_pocket_id"])
+    main = [row for row in options if normalize_name(row["name"]) == "utama"]
+    return str(main[0]["id"]) if len(main) == 1 else None
 
 
 def source_pocket_gate(cur, event: dict, facts) -> bool:
@@ -161,9 +196,14 @@ def source_pocket_gate(cur, event: dict, facts) -> bool:
                 cur.execute("SELECT name FROM accounts WHERE user_id = %s AND id = %s", (event["user_id"], target_id))
                 destination = cur.fetchone()["name"]
                 question["excluded_account_id"] = target_id
-                suggested = (facts.model_reading or {}).get("suggested_source_account_id")
-                if suggested in {str(row["id"]) for row in options}:
-                    question["suggested_account_id"] = suggested
+            # The owner's own favourite first, then the model's guess for a move, then the default pocket.
+            option_ids = {str(row["id"]) for row in options}
+            candidates = [learned_decision(cur, event, facts, options, target_id).account_id,
+                          (facts.model_reading or {}).get("suggested_source_account_id") if target_id else None,
+                          None if target_id else default_pocket_id(parent, options)]
+            suggested = next((candidate for candidate in candidates if candidate in option_ids), None)
+            if suggested:
+                question["suggested_account_id"] = suggested
             question["destination_label"] = sanitize_text(destination)[:150] or None
             persist_question(cur, event, question)
             state = "needs_confirmation"

@@ -18,7 +18,7 @@ The design must work for any user and merchant. It must not be shaped around thi
 ## What Changes
 
 - **Server:** the unnamed-pocket outflow path asks or uses a learned pocket, replacing the default-pocket fallback. Pocket choices are stored as owner labels, and the learned decision follows the habit thresholds.
-- **Web edits:** changing the account of a notification-recorded payment to another pocket of the same account records a pocket correction.
+- **Web edits:** moving a notification-recorded payment to another pocket counts as a correction, read from the ledger itself.
 - **Companion:** shows "Kantong dari kebiasaan" with its basis on a learned record. The question and preselection already exist.
 - **Settings:** a kill switch for learned recording, like the habit one.
 
@@ -37,11 +37,11 @@ The design must work for any user and merchant. It must not be shaped around thi
 
 ## Impact
 
-- **Migration:** a `pocket_choices` table (append-only owner labels).
-- **Backend:** `notification_resolution.py` (observed endpoint), `notification_source_pocket.py`, `notification_application.py`, the transaction edit path, a new `pocket_learning.py` service, settings, and tests.
+- **Migration:** none. Choices are read from existing answers, Tinjau resolutions and moved payments.
+- **Backend:** `notification_evidence.py`, `notification_source_pocket.py`, `notification_application.py`, `notification_processing.py`, a new `pocket_learning.py` service, settings, messages, and tests.
 - **Companion:** the recorded-detail basis line.
 - **Effect on the owner:** more questions at first, one per new merchant, until choices agree. A payment waiting for an answer is not yet in the ledger, so Aman dipakai does not include it until then.
 
 ## Approval
 
-Planned 2026-11-13 at the owner's request; waiting for the owner's approval of the decisions in `design.md`.
+Planned 2026-11-13 at the owner's request. Approved 2026-11-14 ("ok") with the rule chosen from the owner's data.

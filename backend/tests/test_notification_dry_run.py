@@ -58,7 +58,8 @@ def test_model_abstention_is_never_reported_as_a_record(outcome, reason):
 
 def test_dry_run_rejects_owned_but_wrong_institution_account():
     from evaluation.notification_cases import fixture_id
-    case, facts, context, proposal = interpreted_case("jago-coffee", account_id=fixture_id(1))
+    # A payment naming its pocket, so the only doubt is the model's account (unnamed pockets are asked first).
+    case, facts, context, proposal = interpreted_case("jago-electricity", account_id=fixture_id(1))
     provider = AsyncMock()
     provider.interpret.return_value = proposal
     with patch("app.services.notification_dry_run.context_for", return_value=(facts, context)):
@@ -114,7 +115,7 @@ def test_invalid_provider_output_requires_review_instead_of_success():
 def payload():
     return {
         "device_id": "synthetic-device", "package_name": "com.jago.digitalbanking",
-        "body_text": "You've paid Rp125.000 to Kedai Awan",
+        "body_text": "You've paid Rp125.000 to Kedai Awan using your Kantong Utama Pocket",
         "post_time": "2026-09-28T10:00:27Z", "payload_hash": "synthetic-payload",
     }
 

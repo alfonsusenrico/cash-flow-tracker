@@ -108,6 +108,8 @@ class NotificationFacts:
     needs_reading: bool = False
     # Direction and pocket names come from the event's stored model reading.
     model_reading: dict | None = None
+    # The owner's learned choices decided the pocket: {"agreeing": n, "support": m} (learn-payment-pockets D7).
+    pocket_basis: dict | None = None
 
 
 def source_pocket_evidence(facts: NotificationFacts) -> str | None:
@@ -124,10 +126,11 @@ def source_pocket_evidence(facts: NotificationFacts) -> str | None:
 def requires_source_pocket(facts: NotificationFacts) -> bool:
     if unnamed_source_move(facts) and facts.amount and facts.amount > 0:
         return True
+    # Any outgoing Jago payment that names no pocket: the pocket is the owner's answer or their learned
+    # choice, never an assumed default (learn-payment-pockets D1).
     return bool(
         facts.status == "candidate" and facts.institution == "jago"
         and facts.direction == "expense" and facts.amount and facts.amount > 0
-        and re.search(r"\bYou(?:'ve|\s+have)\s+(?:transferred|sent)\s+(?:Rp|IDR)", facts.text, re.I)
         and not source_pocket_evidence(facts)
     )
 
