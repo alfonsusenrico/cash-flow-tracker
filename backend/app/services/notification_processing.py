@@ -26,6 +26,7 @@ from app.services.notification_mapping import (
     supports_confirmation,
 )
 from app.services.openai_notification_provider import ProviderError, configuration_error
+from app.services.notification_reading import model_reading
 from app.services.plan_occurrences import request_plan_linking
 from app.services.prompt_language import NOTIFICATION_INTERPRETATION, prompt_for_version, select_prompt
 from app.services.notification_sender import (
@@ -231,6 +232,9 @@ def accept_event(payload: dict, user_id: str) -> tuple[dict, bool, int]:
             error_code = facts.error_code
             if facts.status == "needs_review":
                 status = "needs_review"
+            elif facts.needs_reading and mode != "ai":
+                # Without the model, wording the rules do not recognise stays unproven (read-unrecognised-notifications D1).
+                status, error_code = "needs_review", "settlement_unproven"
             elif mode == "ai" and configuration_error(settings):
                 status = "failed"
                 error_code = configuration_error(settings)
@@ -340,7 +344,7 @@ def read_context(event: dict) -> tuple:
 
 def memory_applies(context: dict) -> bool:
     """An owner memory hit or a learned habit records without the model; unresolved account names still need it."""
-    if (context.get("facts") or {}).get("unresolved_names"):
+    if (context.get("facts") or {}).get("unresolved_names") or (context.get("facts") or {}).get("needs_reading"):
         return False
     return bool(context.get("_owner_memory_hit")) or habit_applies(context)
 
@@ -381,6 +385,37 @@ def apply_mapped_proposal(conn, cur, event: dict, facts, context: dict, proposal
         raise EvidenceError(context["facts"]["mapping_error"])
 
 
+def read_wording(cur, event: dict, facts, proposal, provider_error: str | None):
+    """Accept and store the model's reading of unrecognised wording; facts read from it, or None when settled here.
+
+    An ignored answer ignores the event; an unproven or unsure one leaves it in review without a ledger row.
+    """
+    if event["processing_mode"] != "ai" or proposal is None:
+        set_outcome(cur, str(event["id"]), "needs_review",
+                    "settlement_unproven" if event["processing_mode"] != "ai" else provider_error or "wording_unconfirmed")
+        return None
+    context = load_context(cur, str(event["user_id"]), facts, history_limit=settings.notification_ai_history_limit)
+    if proposal.outcome == "ignored":
+        apply_interpretation(cur, event, facts, proposal, context)
+        return None
+    try:
+        reading = model_reading(proposal, facts, context, event.get("prompt_version"),
+                                threshold=settings.notification_review_confidence_threshold)
+    except EvidenceError as exc:
+        set_outcome(cur, str(event["id"]), "needs_review", exc.code)
+        return None
+    cur.execute(
+        "UPDATE notification_events SET model_reading = %s, updated_at = NOW() WHERE user_id = %s AND id = %s",
+        (Jsonb(reading), event["user_id"], event["id"]),
+    )
+    event["model_reading"] = reading
+    read = collect_facts(source_event(event))
+    if read.status != "candidate" or read.needs_reading:
+        set_outcome(cur, str(event["id"]), "needs_review", read.error_code or "wording_unconfirmed")
+        return None
+    return read
+
+
 def apply_claim(event: dict, proposal, provider_error: str | None = None) -> bool:
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -395,6 +430,11 @@ def apply_claim(event: dict, proposal, provider_error: str | None = None) -> boo
             if not owned:
                 return False
             facts = collect_facts(source_event(owned))
+            if facts.needs_reading:
+                facts = read_wording(cur, owned, facts, proposal, provider_error)
+                if facts is None:
+                    conn.commit()
+                    return True
             if source_pocket_gate(cur, owned, facts):
                 conn.commit()
                 return True
@@ -624,7 +664,8 @@ def confirm_source_pocket(event_id: str, user_id: str, answer: dict) -> dict:
             facts = collect_facts(source_event(event))
             if accept_source_answer(cur, event, facts, answer):
                 mode = event["processing_mode"]
-                if mode == "ai" and configuration_error(settings):
+                if mode == "ai" and (configuration_error(settings) or facts.model_reading):
+                    # A model-read move resumes from its stored reading (read-unrecognised-notifications D5).
                     mode = "deterministic"
                 cur.execute(
                     """UPDATE notification_events SET processing_state = 'queued', processing_mode = %s,

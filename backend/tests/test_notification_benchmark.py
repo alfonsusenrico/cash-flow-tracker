@@ -36,7 +36,8 @@ def correct_proposal(case):
         "kakeibo": expected.get("kakeibo") if record else None,
         "amount_evidence": facts.amount_quotes[0] if record else "",
         "direction_evidence": context["notification"][:400] if record else "",
-        "source_evidence": "", "target_evidence": "",
+        "source_evidence": expected.get("source_evidence", "") if record else "",
+        "target_evidence": expected.get("target_evidence", "") if record else "",
         "candidate_transaction_id": expected.get("candidate_transaction_id") if record else None,
         "confidence": 0.9, "review_reason": "none" if record else "uncertain_facts",
     }))
@@ -51,7 +52,7 @@ def test_synthetic_expected_interpretations_and_trusted_scoring(case):
     assert row["schema"] and row["facts"] and row["references"]
     assert row["classification"] and row["movement"] and row["abstention"]
     assert not row["unsafe_validated_write"]
-    assert row["validated_outcome"] == case.expected["outcome"]
+    assert row["validated_outcome"] == case.expected.get("validated_outcome", case.expected["outcome"])
 
 
 def test_provider_failures_are_counted_and_never_omitted():
@@ -207,7 +208,7 @@ def test_english_evaluation_sends_the_en_rendering_offline():
     report = asyncio.run(evaluate_model(provider, ENGLISH_MODEL_CASES, repeats=1, interval=0))
     assert report["requests_attempted"] == len(ENGLISH_MODEL_CASES)
     prompts = {call.kwargs["prompt"].version for call in provider.interpret.await_args_list}
-    assert prompts == {load_prompt("notification_interpretation", "en").version} == {"notification-interpretation-12-en"}
+    assert prompts == {load_prompt("notification_interpretation", "en").version} == {"notification-interpretation-13-en"}
 
 
 @pytest.mark.parametrize("partition", ["development", "held_out"])

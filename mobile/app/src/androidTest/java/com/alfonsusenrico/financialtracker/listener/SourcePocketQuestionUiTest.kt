@@ -41,10 +41,10 @@ class SourcePocketQuestionUiTest(private val darkTheme: Boolean) {
                 } }
             }
         }
-        compose.onNodeWithText("Konfirmasi kantong").performScrollTo().assertIsNotEnabled()
+        compose.onNodeWithText("Konfirmasi sumber dana").performScrollTo().assertIsNotEnabled()
         compose.onNodeWithText("Bank Jago · Kantong Utama").performScrollTo().assertIsNotSelected()
         compose.onNodeWithText("Bank Jago · Dana Darurat").performScrollTo().performClick().assertIsSelected()
-        compose.onNodeWithText("Konfirmasi kantong").performScrollTo().performClick()
+        compose.onNodeWithText("Konfirmasi sumber dana").performScrollTo().performClick()
         assertEquals(listOf("emergency"), answers)
     }
 
@@ -53,7 +53,7 @@ class SourcePocketQuestionUiTest(private val darkTheme: Boolean) {
             SourcePocketQuestionControls(question, options, "queued", "emergency", false, true, {}, { fail("Duplicate") })
         } }
         compose.onNodeWithText("Pilihan menunggu koneksi; belum dicatat.").assertIsDisplayed()
-        compose.onNodeWithText("Konfirmasi kantong").assertDoesNotExist()
+        compose.onNodeWithText("Konfirmasi sumber dana").assertDoesNotExist()
         compose.onNodeWithText("Tercatat").assertDoesNotExist()
     }
 
@@ -64,8 +64,8 @@ class SourcePocketQuestionUiTest(private val darkTheme: Boolean) {
                 { refreshed = true }, { fail("Stale option") })
         } }
         compose.onNodeWithText("Bank Jago · Kantong Utama").assertDoesNotExist()
-        compose.onNodeWithText("Konfirmasi kantong").assertIsNotEnabled()
-        compose.onNodeWithText("Segarkan kantong").performClick()
+        compose.onNodeWithText("Konfirmasi sumber dana").assertIsNotEnabled()
+        compose.onNodeWithText("Segarkan pilihan").performClick()
         assertTrue(refreshed)
     }
 }

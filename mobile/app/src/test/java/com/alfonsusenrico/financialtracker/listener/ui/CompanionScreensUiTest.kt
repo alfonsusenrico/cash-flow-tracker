@@ -329,12 +329,24 @@ class CompanionScreensUiTest(private val dark: Boolean) {
         val options = SourcePocketOptionState(pocket.id, UiFixtures.uuid(905),
             listOf(AccountChoice(UiFixtures.uuid(715), "Bank Jago · Kantong Utama"), AccountChoice(UiFixtures.uuid(725), "Bank Jago · Dana Contoh")))
         val log = tanya(pocket, pocket = options)
-        compose.onNode(hasText("Dari kantong mana?") and heading).assertExists()
-        compose.onNodeWithText("Konfirmasi kantong").performScrollTo().assertIsNotEnabled()
+        compose.onNode(hasText("Dari rekening atau kantong mana?") and heading).assertExists()
+        compose.onNodeWithText("Konfirmasi sumber dana").performScrollTo().assertIsNotEnabled()
         compose.onNodeWithText("Bank Jago · Dana Contoh").performScrollTo().performClick().assertIsSelected()
-        compose.onNodeWithText("Konfirmasi kantong").performScrollTo().assertIsEnabled().performClick()
-        compose.onNodeWithText("Segarkan kantong").performScrollTo().performClick()
+        compose.onNodeWithText("Konfirmasi sumber dana").performScrollTo().assertIsEnabled().performClick()
+        compose.onNodeWithText("Segarkan pilihan").performScrollTo().performClick()
         assertEquals(listOf("pocket:${pocket.id}:${UiFixtures.uuid(725)}", "refresh:${pocket.id}"), log)
+    }
+
+    @Test fun pocketQuestionPreselectsTheSuggestionButWaitsForTheOwner() {
+        val pocket = UiFixtures.pocket(suggested = UiFixtures.uuid(725))
+        val options = SourcePocketOptionState(pocket.id, UiFixtures.uuid(905),
+            listOf(AccountChoice(UiFixtures.uuid(715), "Bank Jago · Kantong Utama"), AccountChoice(UiFixtures.uuid(725), "Bank Jago · Dana Contoh")))
+        val log = tanya(pocket, pocket = options)
+        compose.onNodeWithText("Bank Jago · Dana Contoh").performScrollTo().assertIsSelected()
+        compose.onNodeWithText("Disarankan").assertExists()
+        assertEquals(emptyList<String>(), log)
+        compose.onNodeWithText("Konfirmasi sumber dana").performScrollTo().assertIsEnabled().performClick()
+        assertEquals(listOf("pocket:${pocket.id}:${UiFixtures.uuid(725)}"), log)
     }
 
     @Test fun mappingQuestionConfirmsTheProposedAccount() {

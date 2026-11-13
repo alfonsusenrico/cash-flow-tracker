@@ -23,7 +23,9 @@ from app.services.movement_pairing import (
     refresh_duplicate_results, same_arrival,
 )
 from app.services.notification_context import CANDIDATE_LIMIT, discover_candidates, sanitize_text
-from app.services.notification_evidence import EvidenceError, NotificationFacts, parse_idr_amount
+from app.services.notification_evidence import (
+    EvidenceError, NotificationFacts, parse_idr_amount, unnamed_source_move,
+)
 from app.services.notification_interpretation import (
     DETERMINISTIC_SOURCES, Interpretation, record_shape_error, validate_interpretation,
 )
@@ -41,6 +43,9 @@ from app.services.provenance import (
 
 # A second notification may confirm a movement role only when it arrives this close to it.
 ROLE_CONFIRMATION_WINDOW_SECONDS = 30
+# The owner often enters a pocket top-up at the purchase it pays for, hours before Jago reports the move
+# (read-unrecognised-notifications D6: up to 14 hours observed).
+HAND_ENTERED_MOVE_WINDOW = timedelta(hours=48)
 
 # myBCA "Financial Diary" uses a fixed English category taxonomy; map it to the
 # category names this app seeds so deterministic processing can resolve them.
@@ -145,13 +150,145 @@ def backend_interpretation(payload: dict, *, allow_uncategorized: bool) -> Inter
 
 def classify_without_model(facts: NotificationFacts, context: dict, *, fallback: bool = False) -> tuple[Interpretation, str]:
     """Owner memory first, then the deterministic path; returns the interpretation and its source."""
+    if facts.needs_reading:
+        # Only an accepted model reading proves wording the rules do not recognise (design D1).
+        raise EvidenceError("settlement_unproven")
     proposal = memory_interpretation(facts, context)
     if proposal is not None:
         return proposal, "memory"
     return deterministic_interpretation(facts, context), "deterministic_fallback" if fallback else "deterministic"
 
 
+def move_source(facts: NotificationFacts, parent: dict, accounts: list[dict]) -> dict:
+    """A move's source: the named pocket, or for an unnamed one only the owner's answer, never the main pocket."""
+    if unnamed_source_move(facts):
+        chosen = next((row for row in accounts if str(row["id"]) == facts.confirmed_source_account_id), None)
+        if not facts.confirmed_source_account_id or not chosen:
+            raise EvidenceError("source_pocket_confirmation_required")
+        return chosen
+    return pocket_endpoint(facts.parsed.source_pocket, parent, accounts, institution="jago")
+
+
+def hand_entered_moves(cur, user_id: str, facts: NotificationFacts, target_id: str, source_id: str | None) -> list[dict]:
+    """The owner's own movements this unnamed-source notification may report (design D6).
+
+    Inbound leg on the target with the same amount near the notification, not written from a notification,
+    and not yet confirmed by one; with a source, its outbound leg must be on that pocket.
+    """
+    cur.execute(
+        """SELECT t.id, t.movement_id FROM transactions t
+           WHERE t.user_id = %s AND t.account_id = %s AND t.type = 'income' AND t.amount = %s
+             AND t.movement_id IS NOT NULL
+             AND (t.idempotency_key IS NULL OR t.idempotency_key NOT LIKE 'notification:%%')
+             AND t.date BETWEEN %s AND %s
+             AND (%s::uuid IS NULL OR EXISTS (
+                 SELECT 1 FROM transactions o WHERE o.user_id = t.user_id AND o.movement_id = t.movement_id
+                   AND o.type = 'expense' AND o.account_id = %s::uuid))
+             AND NOT EXISTS (
+                 SELECT 1 FROM notification_events e
+                 WHERE e.user_id = t.user_id AND (e.movement_id = t.movement_id OR e.transaction_id IN (
+                     SELECT l.id FROM transactions l WHERE l.user_id = t.user_id AND l.movement_id = t.movement_id)))
+           ORDER BY abs(extract(epoch FROM t.date - %s)), t.id
+           LIMIT 3
+           FOR UPDATE OF t""",
+        (user_id, target_id, facts.amount, facts.timestamp - HAND_ENTERED_MOVE_WINDOW,
+         facts.timestamp + HAND_ENTERED_MOVE_WINDOW, source_id, source_id, facts.timestamp),
+    )
+    return cur.fetchall()
+
+
+def confirm_hand_entered_move(cur, event: dict, facts: NotificationFacts, *, source_id: str | None) -> bool:
+    """Record the event as the inbound report of the owner's own move when exactly one matches.
+
+    Before the source answer several matches leave the decision to the answer; after it they are ambiguous.
+    """
+    from app.services.notification_source_pocket import move_target_id
+
+    user_id = str(event["user_id"])
+    target_id = move_target_id(cur, user_id, facts)
+    if target_id is None:
+        return False
+    matches = hand_entered_moves(cur, user_id, facts, target_id, source_id)
+    if len(matches) > 1 and source_id is not None:
+        raise EvidenceError("ambiguous_existing_movement")
+    if len(matches) != 1:
+        return False
+    leg = matches[0]
+    cur.execute(
+        "SELECT type, account_id, amount, notes FROM transactions WHERE user_id = %s AND movement_id = %s",
+        (user_id, leg["movement_id"]),
+    )
+    legs = {row["type"]: row for row in cur.fetchall()}
+    cur.execute("SELECT id, name, parent_id FROM accounts WHERE user_id = %s", (user_id,))
+    accounts = cur.fetchall()
+    by_id = {str(account["id"]): account for account in accounts}
+    snapshot = committed_snapshot(
+        key=f"notification:{event['id']}", kind="internal_movement",
+        description=legs["expense"]["notes"] or t(account_language(cur, user_id)[0], "notes.movement"),
+        amount=int(legs["expense"]["amount"]),
+        source=account_label(by_id[str(legs["expense"]["account_id"])], accounts),
+        target=account_label(by_id[str(legs["income"]["account_id"])], accounts),
+    )
+    signature = {"source_account_id": str(legs["expense"]["account_id"]), "target_account_id": target_id,
+                 "currency": "IDR", "transfer": True, "source": "hand_entered"}
+    save_recorded(cur, event, str(leg["id"]), snapshot, signature, movement_id=str(leg["movement_id"]),
+                  provenance="role_confirmation", role="inbound")
+    cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s", (user_id, event["id"]))
+    event.update(cur.fetchone())
+    return True
+
+
+def record_arrival_from(
+    cur, event: dict, facts: NotificationFacts, context: dict, *, source: dict, target: dict, provenance: Provenance,
+) -> int:
+    """Money the owner says came from an account at another institution (read-unrecognised-notifications D5).
+
+    Only the arrival is observed here, so it is recorded as the inbound leg and completed on the named account
+    the way Tinjau completes a one-sided transfer: an unlinked matching leg already there is linked, otherwise
+    the outbound leg is created and that account's own notification attaches to it later. Several possible legs
+    leave the arrival waiting in Tinjau for the owner to choose.
+    """
+    from fastapi import HTTPException
+
+    from app.services.movement_pairing import complete_movement
+
+    user_id, event_id = str(event["user_id"]), str(event["id"])
+    accounts = context["accounts"]
+    _expense_category, income_category = movement_categories(context)
+    lock_owned_accounts(cur, user_id, [str(source["id"]), str(target["id"])])
+    lock_application_categories(cur, user_id, {income_category: "income"})
+    note = movement_note(cur, user_id, str(target["id"]))
+    record_key = f"notification:{event_id}"
+    cur.execute(
+        """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, idempotency_key,
+               source, review_status, classified_by, classification_confidence)
+           VALUES (%s, %s, %s, 'income', %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+        (user_id, str(target["id"]), income_category, facts.amount, note, facts.timestamp, record_key,
+         *provenance.columns()),
+    )
+    tx_id = str(cur.fetchone()["id"])
+    signature = {"source_account_id": str(source["id"]), "target_account_id": str(target["id"]),
+                 "currency": "IDR", "transfer": True, "source": "owner_source"}
+    try:
+        with cur.connection.transaction():
+            result = complete_movement(cur, user_id, tx_id, counterpart_account_id=str(source["id"]), role="source")
+    except HTTPException:
+        cur.execute("UPDATE transactions SET review_status = 'needs_review' WHERE user_id = %s AND id = %s",
+                    (user_id, tx_id))
+        snapshot = committed_snapshot(key=record_key, kind="income", description=note, amount=facts.amount,
+                                      source=None, target=account_label(target, accounts))
+        save_recorded(cur, event, tx_id, snapshot, signature, role="inbound")
+        cur.execute("UPDATE notification_events SET error_code = 'ambiguous_movement' WHERE id = %s", (event_id,))
+        return 1
+    snapshot = committed_snapshot(key=record_key, kind="internal_movement", description=note, amount=facts.amount,
+                                  source=account_label(source, accounts), target=account_label(target, accounts))
+    save_recorded(cur, event, tx_id, snapshot, signature, movement_id=result["movement_id"], role="inbound")
+    return 1 + int(bool(result.get("created_transaction_id")))
+
+
 def deterministic_interpretation(facts: NotificationFacts, context: dict) -> Interpretation:
+    if facts.needs_reading:
+        raise EvidenceError("settlement_unproven")
     if facts.status != "candidate" or not facts.direction or not facts.amount:
         raise EvidenceError(facts.error_code or "direction_unproven")
     accounts = context["accounts"]
@@ -162,7 +299,7 @@ def deterministic_interpretation(facts: NotificationFacts, context: dict) -> Int
         if facts.institution != "jago":
             raise EvidenceError("incomplete_movement")
         parent = institution_parent(accounts, "jago")
-        source = pocket_endpoint(facts.parsed.source_pocket, parent, accounts, institution="jago")
+        source = move_source(facts, parent, accounts)
         target = pocket_endpoint(facts.parsed.target_pocket, parent, accounts, institution="jago")
         if str(source["id"]) == str(target["id"]):
             raise EvidenceError("same_movement_endpoint")
@@ -297,7 +434,7 @@ def resolve_record(
         if facts.institution != "jago":
             raise EvidenceError("incomplete_movement")
         parent = institution_parent(accounts, "jago")
-        source = pocket_endpoint(facts.parsed.source_pocket, parent, accounts, institution="jago")
+        source = move_source(facts, parent, accounts)
         target = pocket_endpoint(facts.parsed.target_pocket, parent, accounts, institution="jago")
         if str(source["id"]) != str(proposal.source_account_id) or str(target["id"]) != str(proposal.target_account_id):
             raise EvidenceError("conflicting_movement_endpoints")
@@ -362,7 +499,12 @@ def apply_interpretation(
     key = f"notification:{event_id}"
     resolved = resolve_record(facts, proposal, context, allow_uncategorized=allow_uncategorized)
     if proposal.direction == "internal_movement":
+        if unnamed_source_move(facts) and confirm_hand_entered_move(
+                cur, event, facts, source_id=facts.confirmed_source_account_id):
+            return 0
         source, target = resolved["source"], resolved["target"]
+        if unnamed_source_move(facts) and root_account_id(accounts, str(source["id"])) != root_account_id(accounts, str(target["id"])):
+            return record_arrival_from(cur, event, facts, context, source=source, target=target, provenance=provenance)
         exp_category, inc_category = resolved["expense_category"], resolved["income_category"]
         locked = lock_owned_accounts(cur, user_id, [str(source["id"]), str(target["id"])])
         lock_application_categories(cur, user_id, {exp_category: "expense", inc_category: "income"})

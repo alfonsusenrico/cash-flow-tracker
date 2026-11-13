@@ -97,7 +97,7 @@ object UiFixtures {
         )
     )
 
-    fun pocket(id: Long = 5) = row(
+    fun pocket(id: Long = 5, suggested: String? = null) = row(
         id, "Jago", "Kamu sudah transfer Rp75.000 ke CONTOH.", at(today, 8, 55),
         app = "Bank Jago", packageName = "com.jago.digitalbanking", status = "needs_confirmation", result = mapOf(
             "event_id" to uuid(5), "status" to "needs_confirmation",
@@ -105,7 +105,7 @@ object UiFixtures {
                 "type" to "source_pocket", "question_id" to uuid(905), "institution" to "jago",
                 "jago_account" to mapOf("id" to uuid(705), "label" to "Bank Jago"),
                 "amount" to 75_000, "currency" to "IDR", "destination_label" to "Contoh"
-            )
+            ) + (suggested?.let { mapOf("suggested_account_id" to it) } ?: emptyMap())
         ),
         pocketOptions = mapOf(
             "event_id" to uuid(5), "question_id" to uuid(905),

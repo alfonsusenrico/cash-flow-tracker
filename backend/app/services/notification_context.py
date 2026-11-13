@@ -126,6 +126,7 @@ def load_context(cur, user_id: str, facts: NotificationFacts, *, history_limit: 
         "notification": sanitize_text(facts.text, identity),
         "self_identity_detected": names_owner(facts.text, identity),
         "facts": {"institution": facts.institution, "direction": facts.direction,
+                  "needs_reading": facts.needs_reading,
                   "amount_quotes": facts.amount_quotes, "timestamp": facts.timestamp.isoformat(),
                   "external_counterparty": is_external_counterparty(
                       facts.parsed.counterparty, facts.parsed.category_hint, identity),
@@ -139,6 +140,9 @@ def load_context(cur, user_id: str, facts: NotificationFacts, *, history_limit: 
         },
         "candidates": sanitized_candidates, "incomplete": incomplete,
     }
+    if facts.needs_reading:
+        # Where the owner's money usually moves, so the model can suggest an unnamed source pocket.
+        context["recent_movements"] = recent_movements(cur, user_id)
     fit_context_budget(context)
     # Internal fields stay out of the model input (the provider drops underscore-prefixed keys).
     context["_classification_key"] = key
@@ -192,6 +196,24 @@ def similar_history(cur, user_id: str, facts: NotificationFacts, key: dict | Non
              "owner_confirmed": bool(row["owner_confirmed"])} for row in cur.fetchall()]
 
 
+RECENT_MOVEMENT_LIMIT = 30
+
+
+def recent_movements(cur, user_id: str) -> list[dict]:
+    """The owner's latest movements between their own accounts: source, target, amount and date only."""
+    cur.execute(
+        """SELECT o.account_id AS source_account_id, i.account_id AS target_account_id, o.amount, o.date
+           FROM transactions o
+           JOIN transactions i ON i.user_id = o.user_id AND i.movement_id = o.movement_id AND i.type = 'income'
+           WHERE o.user_id = %s AND o.type = 'expense' AND o.movement_id IS NOT NULL
+             AND o.date > NOW() - INTERVAL '90 days'
+           ORDER BY o.date DESC, o.id LIMIT %s""",
+        (user_id, RECENT_MOVEMENT_LIMIT),
+    )
+    return [{"source_account_id": str(row["source_account_id"]), "target_account_id": str(row["target_account_id"]),
+             "amount": row["amount"], "date": row["date"].isoformat()} for row in cur.fetchall()]
+
+
 def context_size(context: dict) -> int:
     public = {key: value for key, value in context.items() if not key.startswith("_")}
     return len(json.dumps(public, default=str, ensure_ascii=False).encode("utf-8"))
@@ -199,8 +221,8 @@ def context_size(context: dict) -> int:
 
 def fit_context_budget(context: dict) -> None:
     """Drop the least similar history, then the last memory entries, until the input fits."""
-    for field in ("similar_history", "memory"):
-        while context[field] and context_size(context) > CONTEXT_BYTE_LIMIT:
+    for field in ("similar_history", "memory", "recent_movements"):
+        while context.get(field) and context_size(context) > CONTEXT_BYTE_LIMIT:
             context[field].pop()
 
 

@@ -50,7 +50,7 @@ object SourcePocketConfirmationNotifier {
             .setSmallIcon(R.drawable.ic_notification)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_notification).setContentTitle("Konfirmasi kantong diperlukan").build())
+                .setSmallIcon(R.drawable.ic_notification).setContentTitle("Konfirmasi sumber dana diperlukan").build())
             .setContentIntent(open(context, event, question, row))
             .setOnlyAlertOnce(true)
             .setAutoCancel(false)
@@ -62,11 +62,11 @@ object SourcePocketConfirmationNotifier {
         val event = item.eventId!!
         val amount = NumberFormat.getIntegerInstance(Locale("id", "ID")).format(question.amount)
         val text = "Rp $amount" + question.destinationLabel?.let { " ke $it" }.orEmpty()
-        val action = NotificationCompat.Action.Builder(0, "Pilih kantong", open(context, event, question.questionId, row.id))
+        val action = NotificationCompat.Action.Builder(0, "Pilih sumber dana", open(context, event, question.questionId, row.id))
         if (Build.VERSION.SDK_INT >= 31) action.setAuthenticationRequired(true)
         return try {
             manager.notify(tag(event), id(event), builder(context, event, row.id, question.questionId)
-                .setContentTitle("Pilih kantong Jago").setContentText(text)
+                .setContentTitle("Pilih sumber dana").setContentText(text)
                 .addAction(action.build()).build())
             true
         } catch (_: RuntimeException) {
@@ -78,7 +78,7 @@ object SourcePocketConfirmationNotifier {
         val manager = manager(context) ?: return
         try {
             manager.notify(tag(eventId), id(eventId), builder(context, eventId, rowId)
-                .setContentTitle("Konfirmasi kantong Jago").setContentText(message).build())
+                .setContentTitle("Konfirmasi sumber dana").setContentText(message).build())
         } catch (_: RuntimeException) {
             // The durable inbox state remains available when Android cannot post an alert.
         }

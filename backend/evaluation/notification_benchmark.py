@@ -21,8 +21,9 @@ from evaluation.notification_cases import (
     ENGLISH_FIXTURE_VERSION, FIXTURE_VERSION, SyntheticCase, english_output_cases, synthetic_cases,
 )
 from app.services.notification_context import sanitize_text
-from app.services.notification_evidence import EvidenceError, collect_facts
+from app.services.notification_evidence import EvidenceError, collect_facts, unnamed_source_move
 from app.services.notification_interpretation import Interpretation, record_shape_error, validate_interpretation
+from app.services.notification_reading import model_reading
 from app.services.notification_resolution import (
     endpoint_context, institution_parent, observed_endpoint, pocket_endpoint, signatures_compatible, transfer_signature,
 )
@@ -65,8 +66,11 @@ def benchmark_input(case: SyntheticCase) -> tuple:
     context["notification"] = sanitize_text(facts.text, "Mira Langit")
     context["self_identity_detected"] = "Mira Langit" in facts.text
     context["facts"] = {"institution": facts.institution, "direction": facts.direction,
+                        "needs_reading": facts.needs_reading,
                         "amount_quotes": facts.amount_quotes, "timestamp": facts.timestamp.isoformat(),
                         **endpoint_context(facts, context["accounts"])}
+    if not facts.needs_reading:
+        context.pop("recent_movements", None)
     return facts, context
 
 
@@ -170,6 +174,17 @@ def trusted_decision(case: SyntheticCase, interpretation) -> dict:
         return {"outcome": "ignored"}
     if facts.status != "candidate" or facts.institution == "stockbit":
         return {"outcome": "needs_review"}
+    if facts.needs_reading:
+        # As in production: accept the reading, then decide from the facts it proves (read-unrecognised-notifications D2).
+        if interpretation.outcome != "record":
+            return {"outcome": interpretation.outcome}
+        reading = model_reading(interpretation, facts, context, None, threshold=review_confidence_threshold())
+        facts = collect_facts({**case.event, "model_reading": reading})
+        if unnamed_source_move(facts):
+            # The owner names the source; the model's choice is only the preselected suggestion.
+            return {"outcome": "needs_confirmation", "suggested_source_account_id": reading["suggested_source_account_id"]}
+        context = {**context, "facts": {**context["facts"], "direction": facts.direction, "needs_reading": False,
+                                        **endpoint_context(facts, context["accounts"])}}
     validate_interpretation(interpretation, facts, context)
     if interpretation.outcome != "record":
         return {"outcome": interpretation.outcome}
@@ -197,6 +212,11 @@ def trusted_decision(case: SyntheticCase, interpretation) -> dict:
     }
     decision["candidate_transaction_id"] = next(iter(candidates)) if len(candidates) == 1 else None
     return decision
+
+
+def review_confidence_threshold() -> float:
+    """Same default and variable as the backend review threshold (app.core.config)."""
+    return float(os.getenv("NOTIFICATION_REVIEW_CONFIDENCE_THRESHOLD", "0.8"))
 
 
 def pairing_window_seconds() -> int:

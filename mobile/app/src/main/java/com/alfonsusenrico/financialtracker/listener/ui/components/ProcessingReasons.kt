@@ -52,6 +52,7 @@ object ProcessingReasons {
         put("ambiguous_amount", "Notifikasi memuat lebih dari satu nominal (misalnya biaya dan total). Isi nominal yang benar lalu catat manual.")
         put("missing_amount", "Notifikasi tidak memuat nominal. Isi nominal lalu catat manual bila ini transaksi.")
         put("settlement_unproven", "Notifikasi belum menyatakan transaksi berhasil. Catat manual hanya jika transaksi sudah terjadi.")
+        put("wording_unconfirmed", "Isi notifikasi belum bisa dibaca dengan pasti. Catat manual hanya jika transaksi sudah terjadi.")
         put("unsupported_currency", "Mata uang selain Rupiah belum didukung. Catat manual dalam Rupiah bila perlu.")
         put("unsafe_instructions", "Notifikasi berisi teks mencurigakan sehingga tidak diproses otomatis. Periksa lalu catat manual bila benar.")
         put("conflicting_mobile_amount", "Nominal yang dibaca aplikasi berbeda dengan server. Periksa nominal lalu catat manual.")

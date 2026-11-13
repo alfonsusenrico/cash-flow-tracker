@@ -90,6 +90,9 @@ def validate_interpretation(
                            else interpretation.account_id)
         if str(proposed_source) != facts.confirmed_source_account_id:
             raise EvidenceError("conflicting_source_pocket")
+    if facts.needs_reading:
+        # Unrecognised wording records only from the event's accepted, stored reading.
+        raise EvidenceError("settlement_unproven")
     if facts.status != "candidate" or facts.amount is None or not facts.direction:
         raise EvidenceError(facts.error_code or "direction_unproven")
     if interpretation.direction != facts.direction:

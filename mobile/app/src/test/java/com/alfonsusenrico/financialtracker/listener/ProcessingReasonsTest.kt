@@ -16,7 +16,7 @@ class ProcessingReasonsTest {
     // openai_notification_provider) plus the companion's own completion codes.
     private val documentedCodes = listOf(
         "message_too_large", "unsafe_instructions", "timestamp_timezone_required", "unsupported_currency",
-        "ambiguous_amount", "missing_amount", "settlement_unproven", "conflicting_mobile_amount",
+        "ambiguous_amount", "missing_amount", "settlement_unproven", "wording_unconfirmed", "conflicting_mobile_amount",
         "conflicting_mobile_direction", "direction_unproven", "invalid_amount", "fractional_amount",
         "uncertain_institution_mapping", "invalid_default_pocket", "ambiguous_main_pocket", "main_pocket_unconfigured",
         "uncertain_pocket_mapping", "uncertain_category_mapping", "movement_category_missing", "same_movement_endpoint",

@@ -35,7 +35,10 @@ data class SourcePocketOptionState(
     val error: String? = null
 )
 
-/** "Dari kantong mana?": every eligible pocket, none preselected; the owner picks one, then confirms. */
+/**
+ * "Dari rekening atau kantong mana?": every eligible account or pocket; the server's suggestion, when it sends one, is preselected
+ * and marked, and nothing is sent until the owner confirms.
+ */
 @Composable
 fun SourcePocketQuestionControls(
     question: ConfirmationQuestion,
@@ -48,7 +51,8 @@ fun SourcePocketQuestionControls(
     onAnswer: (String) -> Unit
 ) {
     val colors = CompanionTheme.colors
-    var selected by rememberSaveable(question.questionId, repliedAccountId) { mutableStateOf(repliedAccountId) }
+    val suggested = question.suggestedAccountId
+    var selected by rememberSaveable(question.questionId, repliedAccountId) { mutableStateOf(repliedAccountId ?: suggested) }
     val pending = replyState != null && replyState !in setOf("invalid", "stale")
     val choices = options.options.takeIf { options.questionId == question.questionId }.orEmpty()
     val eligible = choices.any { it.id == selected }
@@ -61,15 +65,15 @@ fun SourcePocketQuestionControls(
             )
         }
         if (!pending) {
-            if (options.loading) Text("Memuat kantong…", style = CompanionType.small, color = colors.text2)
+            if (options.loading) Text("Memuat pilihan…", style = CompanionType.small, color = colors.text2)
             options.error?.let { Text(it, style = CompanionType.small, color = colors.text2) }
             if (!options.loading && choices.isEmpty() && options.error == null) {
-                Text("Belum ada kantong yang dapat dipilih. Segarkan atau periksa rekening Jago.", style = CompanionType.small, color = colors.text2)
+                Text("Belum ada rekening atau kantong yang dapat dipilih. Segarkan pilihan.", style = CompanionType.small, color = colors.text2)
             }
             Column(Modifier.fillMaxWidth().selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 choices.forEach { choice ->
                     AnswerOption(
-                        label = choice.label.orEmpty(), detail = null,
+                        label = choice.label.orEmpty(), detail = if (choice.id == suggested) "Disarankan" else null,
                         look = if (selected == choice.id) OptionLook.SELECTED else OptionLook.PLAIN,
                         enabled = enabled, onClick = { selected = choice.id },
                         modifier = Modifier.fillMaxWidth(), selected = selected == choice.id
@@ -77,11 +81,11 @@ fun SourcePocketQuestionControls(
                 }
             }
             CompanionButton(
-                "Konfirmasi kantong", { selected?.takeIf { eligible }?.let(onAnswer) }, Modifier.fillMaxWidth(),
+                "Konfirmasi sumber dana", { selected?.takeIf { eligible }?.let(onAnswer) }, Modifier.fillMaxWidth(),
                 enabled = eligible && enabled && (!options.loading || options.cached)
             )
             CompanionButton(
-                "Segarkan kantong", onRefresh, Modifier.fillMaxWidth(), ButtonKind.GHOST, Icons.Rounded.Refresh,
+                "Segarkan pilihan", onRefresh, Modifier.fillMaxWidth(), ButtonKind.GHOST, Icons.Rounded.Refresh,
                 enabled = enabled && !options.loading
             )
         }

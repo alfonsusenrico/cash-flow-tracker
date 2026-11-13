@@ -18,7 +18,9 @@ def test_synthetic_fact_expectations(case):
     facts = collect_facts(case.event)
     assert facts.status == case.expected["facts_status"]
     assert facts.amount == case.expected["amount"]
-    assert facts.direction == case.expected["direction"]
+    # Unrecognised wording leaves the direction to the model's reading.
+    assert facts.needs_reading == bool(case.expected.get("needs_reading"))
+    assert facts.direction == (None if facts.needs_reading else case.expected["direction"])
     assert facts.timestamp == case.event["post_time"]
 
 
@@ -53,7 +55,7 @@ def test_arrival_sequence_is_versioned_and_read_one_notification_at_a_time():
     from evaluation.notification_cases import FIXTURE_VERSION
 
     sequence = [case for case in synthetic_cases() if case.expected.get("sequence")]
-    assert FIXTURE_VERSION == "synthetic-notifications-5"
+    assert FIXTURE_VERSION == "synthetic-notifications-6"
     assert [case.name for case in sequence] == [
         "sequence-gopay-credit", "sequence-jago-credit", "sequence-mybca-debit", "sequence-jago-hop",
         "sequence-unrelated-credit",
@@ -69,7 +71,7 @@ def test_english_output_cases_repeat_every_case_with_english_descriptions():
 
     indonesian = synthetic_cases()
     english = english_output_cases()
-    assert ENGLISH_FIXTURE_VERSION == "synthetic-notifications-5-en"
+    assert ENGLISH_FIXTURE_VERSION == "synthetic-notifications-6-en"
     assert [case.name for case in english] == [case.name for case in indonesian]
     assert [case.partition for case in english] == [case.partition for case in indonesian]
     for source, case in zip(indonesian, english):

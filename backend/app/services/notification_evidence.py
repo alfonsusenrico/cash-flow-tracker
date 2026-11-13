@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -103,6 +104,10 @@ class NotificationFacts:
     parsed: ParsedNotification
     confirmed_source_account_id: str | None = None
     ignore_reason: str | None = None
+    # The fixed rules could not prove settlement or direction; only an accepted model reading can.
+    needs_reading: bool = False
+    # Direction and pocket names come from the event's stored model reading.
+    model_reading: dict | None = None
 
 
 def source_pocket_evidence(facts: NotificationFacts) -> str | None:
@@ -117,11 +122,51 @@ def source_pocket_evidence(facts: NotificationFacts) -> str | None:
 
 
 def requires_source_pocket(facts: NotificationFacts) -> bool:
+    if unnamed_source_move(facts) and facts.amount and facts.amount > 0:
+        return True
     return bool(
         facts.status == "candidate" and facts.institution == "jago"
         and facts.direction == "expense" and facts.amount and facts.amount > 0
         and re.search(r"\bYou(?:'ve|\s+have)\s+(?:transferred|sent)\s+(?:Rp|IDR)", facts.text, re.I)
         and not source_pocket_evidence(facts)
+    )
+
+
+def text_fingerprint(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def stored_reading(event: dict[str, Any], text: str) -> dict | None:
+    """The event's accepted model reading, when it was made for exactly this text."""
+    reading = event.get("model_reading")
+    if not isinstance(reading, dict) or reading.get("text_hash") != text_fingerprint(text):
+        return None
+    if reading.get("direction") not in {"expense", "income", "internal_movement"}:
+        return None
+    return reading
+
+
+def read_parsed(parsed: ParsedNotification, reading: dict) -> ParsedNotification:
+    """Parsed facts with the reading's direction; a move takes its pocket names from the reading.
+
+    An expense or income keeps the parser's names: its quotes may name a merchant or sender, not a pocket,
+    so its account resolves as for recognised wording.
+    """
+    direction = reading["direction"]
+    parsed = replace(
+        parsed, is_financial=True,
+        direction={"expense": "out", "income": "in", "internal_movement": "internal"}[direction],
+    )
+    if direction == "internal_movement":
+        parsed = replace(parsed, source_pocket=reading.get("source_name"), target_pocket=reading.get("target_name"))
+    return parsed
+
+
+def unnamed_source_move(facts: NotificationFacts) -> bool:
+    """A model-read Jago move whose text names no source pocket; only the owner can name it."""
+    return bool(
+        facts.status == "candidate" and facts.institution == "jago" and facts.direction == "internal_movement"
+        and facts.model_reading is not None and not facts.model_reading.get("source_named")
     )
 
 
@@ -239,8 +284,18 @@ def collect_facts(event: dict[str, Any]) -> NotificationFacts:
     ):
         # Promotions and amount-less confirmations of an earlier transfer carry no ledger fact.
         status, error, ignore_reason = "ignored", None, "no_amount"
-    elif status != "ignored" and error == "settlement_unproven" and not direction:
-        status, error, ignore_reason = "ignored", None, "settlement_unproven"
+    needs_reading = False
+    reading = None
+    if status != "ignored" and (error == "settlement_unproven" or (error is None and not direction)):
+        # Wording the rules do not recognise is read by the model rather than parked or dropped
+        # (read-unrecognised-notifications D1); a stored reading supplies what the rules could not prove.
+        error = None
+        reading = stored_reading(event, text)
+        if reading:
+            direction = reading["direction"]
+            parsed = read_parsed(parsed, reading)
+        else:
+            needs_reading = True
     amount = next(iter(amounts)) if len(amounts) == 1 else None
     expected_fact = parsed.amount if institution == "stockbit" and parsed.investment_action else amount
     if status != "ignored" and expected_fact is not None and event.get("expected_amount") is not None:
@@ -260,4 +315,5 @@ def collect_facts(event: dict[str, Any]) -> NotificationFacts:
         amount=amount, currency="IDR", timestamp=timestamp, direction=direction,
         amount_quotes=tuple(dict.fromkeys(amounts.get(amount, []))), parsed=parsed,
         ignore_reason=ignore_reason,
+        needs_reading=needs_reading, model_reading=reading,
     )
