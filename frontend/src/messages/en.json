@@ -7,6 +7,7 @@
     "savedInvested": "Saved & invested",
     "scheduled": "Scheduled",
     "bills": "Bills",
+    "creditBills": "Credit bills",
     "plans": "Plans",
     "netWorth": "Net worth",
     "safetyNet": "Safety net",
@@ -219,8 +220,6 @@
     "captionSinceMonth": "since 1 {month}",
     "captionSavingsUp": "Savings went up",
     "captionSavingsDown": "Savings went down",
-    "captionBillsUntil": "bills until {date}",
-    "captionWithDeposits": "with deposits · {date}",
     "splitName": "{period, select, cycle {Money this cycle} other {Money this month}}, out of {income} income",
     "splitEmpty": "{period, select, cycle {Money this cycle} other {Money this month}}: no income yet",
     "loadError": "Home figures could not be loaded",
@@ -265,7 +264,28 @@
     "chooseInReview": "Choose in Review",
     "creditBill": "{account} bill",
     "creditMark": "Credit",
-    "creditWhen": "{when} · Credit"
+    "creditWhen": "{when} · Credit",
+    "openInLedger": "Open in Transactions",
+    "creditBills": {
+      "caption": "due {date}",
+      "nothingOwed": "nothing owed",
+      "noDueDay": "due day not set",
+      "open": "Open the credit bill details",
+      "meta": "Already counted in Spending when bought",
+      "owed": "Owes {amount}",
+      "limitLeft": "Limit left {amount}",
+      "overLimit": "Over the limit",
+      "nextBill": "Next bill due {date} · {amount}",
+      "nothingRunning": "No running bills",
+      "allInLedger": "See all in Transactions",
+      "rowsFailed": "The transactions of {account} could not be loaded.",
+      "accountsFailed": "Credit accounts could not be loaded.",
+      "close": "Close",
+      "noDueDayLine": "The due day is not set, so its bills cannot be worked out yet. Set it in Accounts & Pockets.",
+      "noRows": "No transactions on this account yet.",
+      "opening": "Opening balance",
+      "openingDue": "opening debt · due {date}"
+    }
   },
   "review": {
     "page": {

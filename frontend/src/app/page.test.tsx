@@ -175,6 +175,9 @@ let plans: (typeof plan)[] = [plan];
 let overview: unknown = { kpis: { runway_status: "unknown", coverage_months: null, runway_months: null, runway_days: null, emergency_fund_balance: 0,
   monthly_primary_expense: null, essential_cost: { method: "unknown" } } };
 let activityRows: unknown[] = recent;
+let accounts: unknown[] = [];
+let creditOverviews: Record<string, unknown> = {};
+let creditRows: Record<string, unknown[] | Error> = {};
 
 function mockApi() {
   vi.mocked(api.get).mockImplementation(async (path: string) => {
@@ -192,10 +195,18 @@ function mockApi() {
     }
     if (path === "/recurring") return { rules: plans };
     if (path === "/recurring/pending") return { rules: [], recent_auto_links: [] };
+    const accountRows = /^\/transactions\?account_id=([^&]+)/.exec(path);
+    if (accountRows) {
+      const rows = creditRows[accountRows[1]];
+      if (rows instanceof Error) throw rows;
+      return { transactions: rows ?? [] };
+    }
     if (path.startsWith("/transactions?")) return { transactions: activityRows };
+    const overviewPath = /^\/credit\/accounts\/([^/?]+)$/.exec(path);
+    if (overviewPath) return creditOverviews[overviewPath[1]];
     const detail = /^\/transactions\/([^/?]+)$/.exec(path);
     if (detail) return { transaction: { ...recent.find((row) => row.id === detail[1]), waiting: false, origin: null } };
-    if (path === "/accounts") return { accounts: [] };
+    if (path === "/accounts") return { accounts };
     throw new Error(`Unexpected GET ${path}`);
   });
 }
@@ -236,6 +247,9 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(NOW);
   summary = previewSummary();
+  accounts = [];
+  creditOverviews = {};
+  creditRows = {};
   reviewQueue = queue;
   plans = [plan];
   overview = { kpis: { runway_status: "unknown", coverage_months: null, runway_months: null, runway_days: null, emergency_fund_balance: 0,
@@ -276,7 +290,7 @@ describe("Beranda period", () => {
 });
 
 describe("Beranda hero", () => {
-  it("shows the safe amount once at 44 px with its line, the split bar and four supporting figures, each a server field", async () => {
+  it("shows the safe amount once at 44 px with its line, the split bar and three supporting figures, each a server field", async () => {
     const { hero } = await beranda();
     expect(hero.querySelector(".t-hero")).toHaveTextContent("Rp 4.922.000");
     expect(hero.querySelector(".hero-sub")).toHaveTextContent(/^23 hari lagi sampai gajian 25 Nov$/);
@@ -284,9 +298,9 @@ describe("Beranda hero", () => {
     expect(figureOf(hero, "Masuk")).toHaveTextContent("MasukRp 9.800.000Gaji 25 Okt");
     expect(figureOf(hero, "Pengeluaran")).toHaveTextContent("PengeluaranRp 2.364.500sejak gaji 25 Okt");
     expect(figureOf(hero, "Ditabung & investasi")).toHaveTextContent("Ditabung & investasiRp 800.000Tabungan bertambah");
-    expect(figureOf(hero, "Terjadwal")).toHaveTextContent("TerjadwalRp 1.713.500termasuk setoran · 24 Nov");
+    // Terjadwal is part of the split bar and the Rincian, not a supporting figure (open-beranda-figures, owner 2026-11-13).
+    expect(figureOf(hero, "Terjadwal")).toBeUndefined();
     expect(figureOf(hero, "Masuk")).toHaveClass("is-phone-hide");
-    expect(figureOf(hero, "Terjadwal")).toHaveClass("is-phone-hide");
     expect(within(hero).getByRole("img")).toHaveAccessibleName(
       "Uang siklus ini dari Rp 9.800.000 masuk: Pengeluaran 24%, Ditabung & investasi 8%, Terjadwal 17%, Aman dipakai 50%",
     );
@@ -301,13 +315,6 @@ describe("Beranda hero", () => {
     expect(rincian[0]).toHaveAttribute("aria-haspopup", "dialog");
     expect(document.querySelector(".ws-xn")).toBeNull();
     expect(screen.queryByRole("button", { name: /lihat rincian/ })).not.toBeInTheDocument();
-  });
-
-  it("says only 'tagihan' when no goal set-aside is scheduled", async () => {
-    const base = previewSummary();
-    summary = { ...base, scheduled: { ...base.scheduled, lines: base.scheduled.lines.filter((line) => line.kind === "plan") } };
-    const { hero } = await beranda();
-    expect(figureOf(hero, "Terjadwal")).toHaveTextContent("tagihan sampai 24 Nov");
   });
 
   const unavailable = (detail: "irregular_receipts" | "no_salary_source", reason: "no_expected_salary" = "no_expected_salary") => {
@@ -757,11 +764,12 @@ describe("Beranda composition, loading and failure", () => {
     const { container, hero } = await beranda();
     await waitFor(() => expect(rowTexts(region("Aktivitas terbaru"))).toHaveLength(3));
     const figures = [...document.querySelectorAll(".t-hero, .t-fig, .t-amt")];
-    expect(figures.length).toBeGreaterThan(15);
+    expect(figures.length).toBeGreaterThan(14);
     for (const figure of figures) {
       expect(figure.querySelector('[role="img"][aria-label="Disembunyikan"]') ?? figure.closest('[role="img"][aria-label="Disembunyikan"]') ?? figure).toHaveTextContent("Rp ••••••");
     }
-    expect(within(hero).getAllByRole("img", { name: "Disembunyikan" }).length).toBe(5);
+    // The hero figure and its three supporting figures.
+    expect(within(hero).getAllByRole("img", { name: "Disembunyikan" }).length).toBe(4);
     expect(within(hero).getByRole("img", { name: /^Uang siklus ini/ })).toHaveAccessibleName(/^Uang siklus ini dari Rp •••••• masuk: Pengeluaran 24%/);
     for (const row of [...document.querySelectorAll(".row")]) expect(row.querySelector(".r-amt")?.textContent ?? "").not.toMatch(/\d/);
     expect((await axe(container)).violations).toHaveLength(0);
@@ -799,7 +807,7 @@ describe("Beranda in English (add-language-system)", () => {
     expect(figureOf(hero, "Income")).toHaveTextContent("IncomeRp 9.800.000Salary 25 Oct");
     expect(figureOf(hero, "Spending")).toHaveTextContent("SpendingRp 2.364.500since salary on 25 Oct");
     expect(figureOf(hero, "Saved & invested")).toHaveTextContent("Saved & investedRp 800.000Savings went up");
-    expect(figureOf(hero, "Scheduled")).toHaveTextContent("ScheduledRp 1.713.500with deposits · 24 Nov");
+    expect(figureOf(hero, "Scheduled")).toBeUndefined();
     expect(within(hero).getByRole("img")).toHaveAccessibleName(
       "Money this cycle, out of Rp 9.800.000 income: Spending 24%, Saved & invested 8%, Scheduled 17%, Safe to spend 50%",
     );
@@ -887,7 +895,7 @@ describe("Beranda in English (add-language-system)", () => {
     indonesian.unmount();
     await englishBeranda();
     expect(money(figures())).toEqual(idFigures);
-    expect(idFigures.length).toBeGreaterThan(15);
+    expect(idFigures.length).toBeGreaterThan(14);
   });
 
   it("changes number and date style with the region, never the words", async () => {
@@ -913,5 +921,157 @@ describe("Beranda in English (add-language-system)", () => {
     const { container } = await englishBeranda();
     vi.useRealTimers();
     expect((await axe(container)).violations).toHaveLength(0);
+  });
+});
+
+describe("Beranda figures open their detail (open-beranda-figures)", () => {
+  it("links Masuk, Pengeluaran and Ditabung & investasi to Transaksi for the cycle", async () => {
+    const { hero } = await beranda();
+    const links = within(hero).getAllByRole("link");
+    expect(links.map((link) => link.getAttribute("href"))).toEqual([
+      "/ledger?period=cycle&type=income",
+      "/ledger?period=cycle&type=expense",
+      "/ledger?period=cycle&type=saving",
+    ]);
+    expect(links[1]).toHaveAccessibleName(/^Pengeluaran .* Buka di Transaksi$/);
+    expect(within(hero).queryByRole("button", { name: /Tagihan kredit/ })).not.toBeInTheDocument();
+  });
+
+  it("uses the month when Beranda reads a calendar month", async () => {
+    const base = previewSummary();
+    summary = { ...base, period: { ...base.period, basis: "month" } };
+    const { hero } = await beranda();
+    expect(within(hero).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
+      "/ledger?period=month&type=income",
+      "/ledger?period=month&type=expense",
+      "/ledger?period=month&type=saving",
+    ]);
+  });
+});
+
+describe("Tagihan kredit (open-beranda-figures)", () => {
+  const spaylater = {
+    id: "spay", name: "Spaylater", type: "credit", balance: -3_046_014, credit_owed: 3_046_014, credit_limit: 5_000_000, limit_left: 1_953_986,
+    over_limit: false, payment_day: 11, statement_day: 1, is_archived: false, created_at: "2026-11-01T00:00:00Z",
+    next_due: { due_date: "2026-12-11", amount: 3_046_014, left_to_pay: 3_046_014, status: "open" },
+  };
+  const kredivo = {
+    id: "kredivo", name: "Kredivo", type: "credit", balance: -2_200_000, credit_owed: 2_200_000, credit_limit: null, limit_left: null,
+    over_limit: false, payment_day: 20, statement_day: null, is_archived: false, created_at: "2026-01-01T00:00:00Z",
+    next_due: { due_date: "2026-11-20", amount: 400_000, left_to_pay: 400_000, status: "upcoming" },
+  };
+  const purchase = (id: string, day: string, notes: string, amount: number) => ({
+    id, date: `${day}T05:00:00Z`, type: "expense", amount, notes, merchant: null, account_id: "spay", account_name: "Spaylater",
+    account_parent_name: null, category_name: "Makanan & Minuman", category_system_key: null, kakeibo_type: "need", review_status: "reviewed",
+    credit: { role: "purchase", account_name: "Spaylater", installment_count: 1, installments_settled: 0, next_due_date: "2026-12-11", settled_on: null },
+  });
+  const item = (day: string, left: number) => ({ kind: "purchase", transaction_id: null, date: day, due_date: "2026-12-11", installment: { number: 1, count: 1 },
+    amount: left, left_to_pay: left, settled_on: null, days_to_settle: null, settled_on_time: null });
+  const overview = (bills: unknown[]) => ({ due_dates_unavailable: false, next_due: null, bills, totals: { spent_on_credit: 0, paid_to_credit: 0, items_settled: 0, items_settled_on_time: 0 } });
+
+  beforeEach(() => {
+    accounts = [{ id: "bca", name: "BCA", type: "bank", balance: 500_000, is_archived: false, created_at: "2026-01-01T00:00:00Z" }, kredivo, spaylater];
+    creditOverviews = {
+      spay: overview([{ due_date: "2026-12-11", statement_date: "2026-12-01", amount: 3_046_014, paid: 0, left_to_pay: 3_046_014, status: "open", settled_on: null,
+        items: [item("2026-11-04", 487_410), item("2026-11-11", 47_619)] }]),
+      kredivo: overview([]),
+    };
+    creditRows = {
+      spay: [purchase("p2", "2026-11-11", "beli pedigree", 47_619), purchase("p1", "2026-11-04", "makan haidilao", 487_410)],
+    };
+  });
+
+  it("sums what the credit accounts owe with the nearest bill, beside the other figures", async () => {
+    const { hero } = await beranda();
+    const figure = await within(hero).findByRole("button", { name: /Tagihan kredit/ });
+    expect(figure).toHaveTextContent("Rp 5.246.014");
+    expect(figure).toHaveTextContent("Rp 5.246.014jatuh tempo 20 Nov");
+    expect(figure).toHaveAttribute("aria-haspopup", "dialog");
+    expect(hero.querySelector(".legend")).toHaveClass("has-credit");
+    expect(within(hero).getByRole("img", { name: /Pengeluaran/ })).toBeInTheDocument();
+  });
+
+  it("opens one section per account, most owed first, with its rows from the oldest unpaid purchase, oldest first", async () => {
+    const { hero } = await beranda();
+    vi.useRealTimers();
+    const user = userEvent.setup();
+    await user.click(await within(hero).findByRole("button", { name: /Tagihan kredit/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Tagihan kredit" });
+    expect(within(dialog).getByText("Sudah dihitung di Pengeluaran saat belanja")).toBeInTheDocument();
+    const sections = [...dialog.querySelectorAll<HTMLElement>("section.credit-running")];
+    expect(sections.map((section) => section.getAttribute("aria-labelledby") && within(section).getByRole("heading", { level: 3 }).textContent)).toEqual(["Spaylater", "Kredivo"]);
+    expect(sections[0]).toHaveAccessibleName("Spaylater");
+    const spay = sections[0];
+    expect(within(spay).getByText("Utang Rp 3.046.014")).toBeInTheDocument();
+    expect(within(spay).getByText("Sisa limit Rp 1.953.986")).toBeInTheDocument();
+    await waitFor(() => expect(rowTexts(spay)).toHaveLength(2));
+    expect(rowTexts(spay)[0]).toContain("makan haidilao");
+    expect(rowTexts(spay)[1]).toContain("beli pedigree");
+    expect(vi.mocked(api.get)).toHaveBeenCalledWith("/transactions?account_id=spay&limit=200&from_date=2026-11-04T00%3A00%3A00%2B07%3A00");
+    expect(within(sections[1]).getByText("Tidak ada tagihan berjalan")).toBeInTheDocument();
+    expect(within(sections[1]).getByRole("link", { name: "Lihat semua di Transaksi" })).toHaveAttribute("href", "/ledger?account=kredivo");
+    expect((await axe(dialog)).violations).toHaveLength(0);
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(within(hero).getByRole("button", { name: /Tagihan kredit/ })).toHaveFocus());
+  });
+
+  it("keeps the other sections usable when one account's rows fail", async () => {
+    creditRows = { spay: new Error("down") };
+    creditOverviews.kredivo = overview([{ due_date: "2026-11-20", statement_date: "2026-11-01", amount: 400_000, paid: 0, left_to_pay: 400_000, status: "upcoming",
+      settled_on: null, items: [item("2026-10-20", 400_000)] }]);
+    creditRows.kredivo = [{ ...purchase("k1", "2026-10-20", "cicilan homegym", 400_000), account_id: "kredivo", account_name: "Kredivo" }];
+    const { hero } = await beranda();
+    vi.useRealTimers();
+    const user = userEvent.setup();
+    await user.click(await within(hero).findByRole("button", { name: /Tagihan kredit/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Tagihan kredit" });
+    const [spay, kredivoSection] = [...dialog.querySelectorAll<HTMLElement>("section.credit-running")];
+    expect(await within(spay).findByRole("alert")).toHaveTextContent("Transaksi Spaylater belum bisa dimuat.");
+    await waitFor(() => expect(rowTexts(kredivoSection)[0]).toContain("cicilan homegym"));
+  });
+
+  it("lists opening debt from its bill, and says when a due day is missing", async () => {
+    const opening = { ...item("2026-11-01", 400_000), kind: "opening", due_date: "2026-11-20" };
+    creditOverviews.kredivo = overview([{ due_date: "2026-11-20", statement_date: "2026-11-01", amount: 400_000, paid: 0, left_to_pay: 400_000, status: "upcoming",
+      settled_on: null, items: [opening] }]);
+    const nodue = { ...kredivo, id: "akulaku", name: "Akulaku", credit_owed: 90_000, balance: -90_000, payment_day: null, next_due: null };
+    accounts = [kredivo, nodue];
+    creditOverviews.akulaku = { ...overview([]), due_dates_unavailable: true };
+    creditRows.kredivo = [
+      { ...purchase("k2", "2026-11-05", "cicilan homegym", 120_000), account_id: "kredivo", account_name: "Kredivo" },
+      { ...purchase("k1", "2026-10-28", "beli sepatu", 80_000), account_id: "kredivo", account_name: "Kredivo" },
+    ];
+    const { hero } = await beranda();
+    vi.useRealTimers();
+    const user = userEvent.setup();
+    await user.click(await within(hero).findByRole("button", { name: /Tagihan kredit/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Tagihan kredit" });
+    const [kredivoSection, akulaku] = [...dialog.querySelectorAll<HTMLElement>("section.credit-running")];
+    await waitFor(() => expect(rowTexts(kredivoSection)).toHaveLength(3));
+    expect(rowTexts(kredivoSection)[0]).toContain("beli sepatu");
+    expect(rowTexts(kredivoSection)[1]).toContain("Saldo awal");
+    expect(rowTexts(kredivoSection)[1]).toContain("utang awal · jatuh tempo 20 Nov");
+    expect(rowTexts(kredivoSection)[1]).toContain("−Rp 400.000");
+    expect(rowTexts(kredivoSection)[2]).toContain("cicilan homegym");
+    expect(within(akulaku).getByText(/Tanggal jatuh tempo belum diisi/)).toBeInTheDocument();
+    expect(await within(akulaku).findByText("Belum ada transaksi di rekening ini.")).toBeInTheDocument();
+    expect(vi.mocked(api.get)).toHaveBeenCalledWith("/transactions?account_id=akulaku&limit=200");
+  });
+
+  it("reads nothing owed", async () => {
+    accounts = [{ ...spaylater, balance: 0, credit_owed: 0, next_due: null }];
+    const { hero } = await beranda();
+    const figure = await within(hero).findByRole("button", { name: /Tagihan kredit/ });
+    expect(figure).toHaveTextContent("Rp 0");
+    expect(figure).toHaveTextContent("tidak ada tagihan");
+  });
+
+  it("hides the owed amount and the bill amount with Sembunyikan saldo", async () => {
+    display.hidden = true;
+    const { hero } = await beranda();
+    const figure = await within(hero).findByRole("button", { name: /Tagihan kredit/ });
+    expect(figure).not.toHaveTextContent(/5\.246\.014|400\.000/);
+    expect(within(figure).getByRole("img", { name: "Disembunyikan" })).toBeInTheDocument();
+    expect(figure).toHaveTextContent("jatuh tempo 20 Nov");
   });
 });

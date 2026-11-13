@@ -779,6 +779,14 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
 .fig-block .fb-label { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-4); }
 .legend { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-24); margin-top: var(--sp-16); }
 .legend .fb-label .t-meta { margin: 0; }
+/* A figure that opens its detail (D1, D3): the whole block is the target, its padding taken back by the margin
+   so the figures stay aligned with the static ones. */
+.fig-open {
+  display: block; margin: calc(-1 * var(--sp-8)); padding: var(--sp-8); border: 0; border-radius: var(--r-control);
+  background: none; color: inherit; font: inherit; text-align: left; text-decoration: none; cursor: pointer;
+}
+.fig-open > .t-fig, .fig-open > .t-meta { display: block; }
+.fig-open:hover { background: var(--surface-2); }
 
 /* Bars: the split bar's square segments 2 px apart, and the 2 px progress bar */
 .split { display: flex; gap: 2px; height: 8px; margin-top: var(--sp-24); }
@@ -898,6 +906,8 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
   .panel { padding: var(--sp-16); }
   .legend { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-16); }
   .legend .is-phone-hide { display: none; }
+  /* The phone hides Masuk, leaving "Tagihan kredit" alone on its row; the whole row keeps its caption on one line. */
+  .legend.has-credit > .fig-block:last-child { grid-column: 1 / -1; }
   /* The phone's 44 px target for Rincian, without growing its 32 px label row. */
   .hero .hero-top .ws-btn-sm { min-height: 44px; margin: -6px 0; }
   .row { min-height: 64px; padding-top: var(--sp-8); padding-bottom: var(--sp-8); }

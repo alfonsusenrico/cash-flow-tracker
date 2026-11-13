@@ -132,7 +132,7 @@ Under "Perlu tindakan" Beranda SHALL list the first three of what needs the owne
 - **THEN** the rows SHALL be the question, then the plan and the bill due today ordered by due date and then name, the bill reading "Tagihan SPayLater", "Jatuh tempo hari ini · Kredit" and Rp 434.000
 
 ### Requirement: Recent Activity on Beranda
-Under "Aktivitas terbaru" Beranda SHALL list up to eight transactions from today and yesterday that do not wait for an answer, newest first, under one heading per day. Each row SHALL show the time, the merchant or a movement's note or route, the account or route, the pillar, status or saving direction, and the amount with its sign and type colour, expenses in red, plus a link to all transactions. A row SHALL open the shared transaction dialog.
+Under "Aktivitas terbaru" Beranda SHALL list up to eight transactions from today and yesterday that do not wait for an answer, newest first, under one heading per day. Each row SHALL show the time, the title (the note, else the merchant, else the category) or a movement's note or route, the account or route, the pillar, status or saving direction, and the amount with its sign and type colour, expenses in red, plus a link to all transactions. A row SHALL open the shared transaction dialog.
 
 #### Scenario: Waiting row in the list
 - **WHEN** a row from today has an open question
@@ -202,11 +202,11 @@ Beranda SHALL show static placeholders of the final layout while loading. When t
 - **THEN** the API SHALL respond 401 and return no figures
 
 ### Requirement: Beranda Hero
-Beranda SHALL open with one hero, "Aman dipakai sampai gajian", as the page's only 44 px figure, followed by one line, a split bar of Pengeluaran, Ditabung & investasi, Terjadwal and Aman dipakai with the percentages in its accessible name, and Masuk, Pengeluaran, Ditabung & investasi and Terjadwal as supporting figures with one caption each. No other Beranda figure SHALL be 33 px or larger, and no hero or supporting figure SHALL be a button.
+Beranda SHALL open with one hero, "Aman dipakai sampai gajian", as the page's only 44 px figure, then one line, a split bar of Pengeluaran, Ditabung & investasi, Terjadwal and Aman dipakai named with their percentages, and the supporting figures Masuk, Pengeluaran and Ditabung & investasi, each one link with one caption. No other Beranda figure SHALL be 33 px or larger, and the hero figure SHALL NOT be a control.
 
 #### Scenario: Hero on a desktop
 - **WHEN** the owner opens Beranda at 1440 × 900
-- **THEN** the hero SHALL start at `y = 192`, the four supporting figures SHALL follow in one row in that order, and each of the five figures SHALL appear once on the page
+- **THEN** the hero SHALL start at `y = 192`, the supporting figures SHALL follow in one row in that order, and each figure SHALL appear once on the page
 
 #### Scenario: Figures add up to Masuk
 - **WHEN** the hero shows masuk Rp 9.800.000
@@ -220,11 +220,13 @@ Beranda SHALL open with one hero, "Aman dipakai sampai gajian", as the page's on
 - **WHEN** the period's net fresh saving is −Rp 500.000
 - **THEN** Ditabung & investasi SHALL show Rp 500.000 with the caption "Tabungan berkurang", and its segment SHALL take no width in the bar
 
+#### Scenario: Captions on one line
+- **WHEN** Beranda is shown from 1024 to 1440 px, also with a ten-digit amount
+- **THEN** every supporting-figure caption SHALL stay on one line
+
 #### Scenario: Terjadwal caption
 - **WHEN** the scheduled amount includes goal set-asides until 23 November
-- **THEN** the Terjadwal caption SHALL read "termasuk setoran · 23 Nov", and without set-asides "tagihan sampai 23 Nov"
-- **AND** every supporting-figure caption SHALL stay on one line from 1024 to 1440 px, also with a ten-digit amount
-
+- **THEN** Terjadwal SHALL show in the split bar and as "Terjadwal sampai 23 Nov" in the Rincian, and SHALL NOT appear as a supporting figure with a caption
 #### Scenario: No figure leaves its block
 - **WHEN** Beranda is shown at any width from 320 px, including 1024 to 1199 px with the full sidebar
 - **THEN** no hero, supporting or panel figure SHALL extend past its block or the page frame, and the page SHALL NOT scroll horizontally
@@ -288,3 +290,38 @@ The cycle summary SHALL return `spending.credit` with two figures. `spent_on_cre
 - **GIVEN** a credit account and a role-`tabungan` pocket
 - **WHEN** the owner moves Rp 200.000 from that pocket into the credit account
 - **THEN** `paid_to_credit` SHALL grow by Rp 200.000, and "Ditabung & investasi" SHALL fall by Rp 200.000, as for any money leaving savings
+
+### Requirement: Supporting Figures Open Their Detail
+Masuk, Pengeluaran and Ditabung & investasi SHALL link to Transaksi with Beranda's period (`period=cycle` in a salary cycle, else `period=month`) and `type` `income`, `expense` or `saving`. Each link's accessible name SHALL name the figure and where it goes.
+
+#### Scenario: Opening Pengeluaran
+- **WHEN** the owner selects Pengeluaran Rp 5.395.841 in a salary cycle
+- **THEN** Transaksi SHALL open at `/ledger?period=cycle&type=expense` and its Pengeluaran SHALL read Rp 5.395.841
+
+#### Scenario: Opening Ditabung & investasi
+- **WHEN** the owner selects Ditabung & investasi
+- **THEN** Transaksi SHALL open with `type=saving` for the same period and its hero SHALL show the same Ditabung & investasi
+
+#### Scenario: Keyboard
+- **WHEN** the owner tabs to a supporting figure and presses Enter
+- **THEN** it SHALL show a visible focus ring and open its target
+
+### Requirement: Credit Bills Figure
+When the owner has an active credit account, Beranda SHALL show "Tagihan kredit" ("Credit bills"): the sum of what the credit accounts owe, with the caption "jatuh tempo {date}" for the nearest unpaid bill across accounts. It SHALL take no part of the split bar and SHALL change no other figure, because credit purchases already count in Pengeluaran.
+
+#### Scenario: Two credit accounts
+- **GIVEN** Spaylater owes Rp 3.046.014 with a bill due 11 December and Kredivo owes Rp 2.200.000 with a bill due 20 November of Rp 400.000
+- **WHEN** the owner opens Beranda on 13 November
+- **THEN** "Tagihan kredit" SHALL read Rp 5.246.014 with "jatuh tempo 20 Nov", and Aman dipakai SHALL be unchanged
+
+#### Scenario: No credit account
+- **WHEN** the owner has no active credit account
+- **THEN** Beranda SHALL show no "Tagihan kredit"
+
+#### Scenario: Nothing owed
+- **WHEN** every credit account owes Rp 0
+- **THEN** the figure SHALL read Rp 0 with "tidak ada tagihan"
+
+#### Scenario: Hidden balances
+- **WHEN** "Sembunyikan saldo" is on
+- **THEN** the figure and its caption amount SHALL be hidden like every other amount

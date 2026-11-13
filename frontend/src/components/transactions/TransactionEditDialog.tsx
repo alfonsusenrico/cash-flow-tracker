@@ -13,6 +13,7 @@ import { isCreditAccountChoice } from "@/lib/accountOptions";
 import { useFormat } from "@/lib/format";
 import { canConvertExpenseToTopup } from "@/lib/investmentTopups";
 import { KAKEIBO_PILLARS, pillarOrUnclassified, type KakeiboPillar } from "@/lib/kakeibo";
+import { ownRowNote } from "@/lib/placeholderNotes";
 import { MERCHANT_MAX_LENGTH, categoryOffsetsSpending, offsetCategoryOptions } from "@/lib/provenance";
 import { queryKeys } from "@/lib/queryKeys";
 import { formatNumberWithDots, localDatetimeToISO, stripGrouping, toDatetimeLocal } from "@/lib/utils";
@@ -251,7 +252,7 @@ export function TransactionEditDialog({
   );
 
   return (
-    <ShellDialog open onClose={onClose} title={t("title")} meta={tx.merchant || tx.notes || undefined} width={600} closeLabel={t("close")} footer={footer}>
+    <ShellDialog open onClose={onClose} title={t("title")} meta={ownRowNote(tx.notes) || tx.merchant || tx.notes?.trim() || undefined} width={600} closeLabel={t("close")} footer={footer}>
       <form id={FORM_ID} className="form-stack" onSubmit={submit} noValidate>
         {error && <p ref={errorRef} tabIndex={-1} role="alert" className="form-alert">{error}</p>}
         <div className="field">

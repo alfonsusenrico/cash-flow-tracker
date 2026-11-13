@@ -7,7 +7,7 @@ import { MaskedMoney } from "@/components/workspace/money";
 import type { Format } from "@/lib/format";
 import type { Translate } from "@/lib/i18n/types";
 import { KAKEIBO_TERMS, kakeiboBucketInfo, type KakeiboBucket } from "@/lib/kakeibo";
-import { isPlaceholderNote } from "@/lib/placeholderNotes";
+import { isPlaceholderNote, ownRowNote } from "@/lib/placeholderNotes";
 import { isMovementCategory } from "@/lib/systemCategories";
 import type { RowFacts } from "./types";
 
@@ -182,7 +182,16 @@ export function rowTitle(row: RowFacts, labels: RowLabels): string {
     return movementNote(row) ?? (product ? labels.topupTitle(product) : labels.investmentTopUp);
   }
   if (kind === "movement") return movementNote(row) ?? routeText(movementRoute(row));
-  return row.merchant || row.notes || row.category_name || labels.undescribed;
+  // The owner's own words come first; the merchant then moves to the meta (open-beranda-figures D7).
+  return ownRowNote(row.notes) || row.merchant || row.notes?.trim() || row.category_name || labels.undescribed;
+}
+
+/** The merchant the meta leads with: only when the note is the title and does not already name it. */
+function metaMerchant(row: RowFacts): string | null {
+  const note = ownRowNote(row.notes);
+  const merchant = row.merchant?.trim();
+  if (!note || !merchant) return null;
+  return note.toLocaleLowerCase().includes(merchant.toLocaleLowerCase()) ? null : merchant;
 }
 
 /** Whether the title is the row's own words rather than its route: the route then goes to the meta. */
@@ -278,11 +287,12 @@ export function rowMeta(row: RowFacts, labels: RowLabels, format: Format, accoun
     if (isCreditPayment(row)) parts.push(labels.billPayment);
     return { text: parts.join(" · ") };
   }
+  const merchant = metaMerchant(row);
   const credit = creditPurchaseLine(row, labels, format);
-  if (credit) return { text: credit };
+  if (credit) return { text: [merchant, credit].filter(Boolean).join(" · ") };
   const account = accountLabel(row.account_name, row.account_parent_name) ?? "";
-  if (row.saving_flow === "paid_from_savings") return { text: [account, labels.paidFromSavings].filter(Boolean).join(" · ") };
-  return { text: account };
+  const extra = row.saving_flow === "paid_from_savings" ? labels.paidFromSavings : null;
+  return { text: [merchant, account, extra].filter(Boolean).join(" · ") };
 }
 
 /** The phone's second line after the time: the pillar, the income's category, or what the move was. */

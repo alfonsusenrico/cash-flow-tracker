@@ -218,7 +218,7 @@ export default function BerandaView() {
         <div className="stack">
           {loading && <HeroSkeleton />}
           {summaryQuery.isError && <SummaryError onRetry={() => summaryQuery.refetch()} />}
-          {summary && <BerandaHero summary={summary} />}
+          {summary && <BerandaHero summary={summary} onSelectRow={setSelectedTx} />}
           {todoLoading ? <RowsSkeleton /> : <TodoSection attention={queueQuery.data?.counts.attention ?? 0} items={items} error={queueQuery.isError} />}
           {activityQuery.isLoading ? (
             <RowsSkeleton />
