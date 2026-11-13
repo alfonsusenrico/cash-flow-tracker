@@ -109,7 +109,7 @@ class CompanionModelTest {
             UiFixtures.pocket(), UiFixtures.mapping(), UiFixtures.review(), UiFixtures.phone(), UiFixtures.ignored(), UiFixtures.unsent()
         ).map { RowPresentation.of(it).status.label }
         assertEquals(
-            listOf("Tercatat", "Pindah saldo", "Apa ini?", "Siapa pengirimnya?", "Dari kantong mana?", "Rekening yang mana?",
+            listOf("Tercatat", "Pindah saldo", "Apa ini?", "Siapa pengirimnya?", "Dari rekening atau kantong mana?", "Rekening yang mana?",
                 "Perlu cek", "Di ponsel", "Diabaikan", "Belum dikirim"),
             labels
         )

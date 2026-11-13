@@ -36,7 +36,7 @@ data class SourcePocketOptionState(
 )
 
 /**
- * "Dari kantong mana?": every eligible pocket; the server's suggestion, when it sends one, is preselected
+ * "Dari rekening atau kantong mana?": every eligible account or pocket; the server's suggestion, when it sends one, is preselected
  * and marked, and nothing is sent until the owner confirms.
  */
 @Composable
@@ -65,10 +65,10 @@ fun SourcePocketQuestionControls(
             )
         }
         if (!pending) {
-            if (options.loading) Text("Memuat kantong…", style = CompanionType.small, color = colors.text2)
+            if (options.loading) Text("Memuat pilihan…", style = CompanionType.small, color = colors.text2)
             options.error?.let { Text(it, style = CompanionType.small, color = colors.text2) }
             if (!options.loading && choices.isEmpty() && options.error == null) {
-                Text("Belum ada kantong yang dapat dipilih. Segarkan atau periksa rekening Jago.", style = CompanionType.small, color = colors.text2)
+                Text("Belum ada rekening atau kantong yang dapat dipilih. Segarkan pilihan.", style = CompanionType.small, color = colors.text2)
             }
             Column(Modifier.fillMaxWidth().selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 choices.forEach { choice ->
@@ -81,11 +81,11 @@ fun SourcePocketQuestionControls(
                 }
             }
             CompanionButton(
-                "Konfirmasi kantong", { selected?.takeIf { eligible }?.let(onAnswer) }, Modifier.fillMaxWidth(),
+                "Konfirmasi sumber dana", { selected?.takeIf { eligible }?.let(onAnswer) }, Modifier.fillMaxWidth(),
                 enabled = eligible && enabled && (!options.loading || options.cached)
             )
             CompanionButton(
-                "Segarkan kantong", onRefresh, Modifier.fillMaxWidth(), ButtonKind.GHOST, Icons.Rounded.Refresh,
+                "Segarkan pilihan", onRefresh, Modifier.fillMaxWidth(), ButtonKind.GHOST, Icons.Rounded.Refresh,
                 enabled = enabled && !options.loading
             )
         }

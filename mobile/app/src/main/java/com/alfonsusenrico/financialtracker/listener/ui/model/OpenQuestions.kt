@@ -14,7 +14,7 @@ import com.google.gson.Gson
 enum class QuestionKind(val title: String) {
     PURPOSE("Apa ini?"),
     SENDER("Siapa pengirimnya?"),
-    SOURCE_POCKET("Dari kantong mana?"),
+    SOURCE_POCKET("Dari rekening atau kantong mana?"),
     MAPPING("Rekening yang mana?")
 }
 
