@@ -3,7 +3,7 @@ import path from "node:path";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { testWords } from "@/lib/i18n/testing";
-import { PLACEHOLDER_NOTES, isPlaceholderNote } from "@/lib/placeholderNotes";
+import { GENERIC_ROW_NOTES, PLACEHOLDER_NOTES, isPlaceholderNote } from "@/lib/placeholderNotes";
 import {
   KindAmount, RowAmount, creditPurchaseLine, movementDirection, movementRoute, routeIncomplete, rowCategory, rowKind, rowLabelsFor,
   rowMeta, rowPhoneLine, rowStatus, rowTitle,
@@ -100,6 +100,38 @@ describe("transfer titles (owner feedback 2)", () => {
       const file = path.resolve(__dirname, `../../../../backend/app/messages/${language}.json`);
       const notes = JSON.parse(readFileSync(file, "utf8")).notes as Record<string, string>;
       for (const key of ["movement_default", "movement", "topup"]) expect(PLACEHOLDER_NOTES).toContain(notes[key]);
+    }
+  });
+
+  it("titles an expense by its note, then its merchant, then its category", () => {
+    const base = leg({ category_name: "Langganan", category_system_key: null, account_name: "Subscription", account_parent_name: "Jago" });
+    const both = { ...base, notes: "Top up saldo untuk development", merchant: "fal.ai" };
+    expect(rowTitle(both, labels)).toBe("Top up saldo untuk development");
+    expect(rowMeta(both, labels, id.format).text).toBe("fal.ai · Jago · Subscription");
+    const named = { ...base, notes: "Top up saldo FAL.AI untuk development", merchant: "fal.ai" };
+    expect(rowTitle(named, labels)).toBe("Top up saldo FAL.AI untuk development");
+    expect(rowMeta(named, labels, id.format).text).toBe("Jago · Subscription");
+    expect(rowTitle({ ...base, notes: null, merchant: "Kedai Awan" }, labels)).toBe("Kedai Awan");
+    expect(rowMeta({ ...base, notes: null, merchant: "Kedai Awan" }, labels, id.format).text).toBe("Jago · Subscription");
+    expect(rowTitle({ ...base, notes: "  ", merchant: null }, labels)).toBe("Langganan");
+  });
+
+  it("titles a row with only a generic notification note by its merchant", () => {
+    const base = leg({ category_name: "Belanja", category_system_key: null, account_name: "ATM", account_parent_name: "BCA" });
+    for (const note of GENERIC_ROW_NOTES) {
+      expect(rowTitle({ ...base, notes: note, merchant: "Toko Contoh" }, labels)).toBe("Toko Contoh");
+      expect(rowMeta({ ...base, notes: note, merchant: "Toko Contoh" }, labels, id.format).text).toBe("BCA · ATM");
+      expect(rowTitle({ ...base, notes: note, merchant: null }, labels)).toBe(note);
+    }
+  });
+
+  it("matches the generic notes the backend writes on a notification row", () => {
+    for (const language of ["id", "en"]) {
+      const file = path.resolve(__dirname, `../../../../backend/app/messages/${language}.json`);
+      const notes = JSON.parse(readFileSync(file, "utf8")).notes as Record<string, string>;
+      for (const key of ["transaction", "generic_expense", "generic_income", "generic_transfer_in", "generic_transfer_out", "sender"]) {
+        expect(GENERIC_ROW_NOTES).toContain(notes[key]);
+      }
     }
   });
 
