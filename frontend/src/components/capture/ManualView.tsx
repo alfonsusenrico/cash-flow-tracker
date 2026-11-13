@@ -472,6 +472,25 @@ export function ManualView({
     </div>
   );
 
+  // "Bayar nanti" is not stored: it is on exactly when the chosen account is a credit account (ease-credit-entry D2).
+  const offersPayLater = type === "expense" && creditAccounts.length > 0 && liquidAccounts.length > 0;
+  const choosePayment = (later: boolean) => {
+    const next = later ? creditAccountIds[0] : liquidAccountIds[0];
+    if (!next || later === accountIsCredit) return;
+    setSelectedAccount(next);
+    clearError("account");
+    // A debt is paid from cash; a credit purchase keeps no debt link (add-credit-accounts D7).
+    if (later) setDebtRows([]);
+  };
+  let accountOptions = (
+    <AccountSelectOptions labels={accountLabels} accounts={activeAccounts} formatBalance={formatBalance} allowParentSelection liquidOnly includeCredit={type === "expense"} />
+  );
+  if (offersPayLater && accountIsCredit) {
+    accountOptions = <AccountSelectOptions labels={accountLabels} accounts={activeAccounts} formatBalance={formatBalance} creditOnly />;
+  } else if (offersPayLater) {
+    accountOptions = <AccountSelectOptions labels={accountLabels} accounts={activeAccounts} formatBalance={formatBalance} allowParentSelection liquidOnly />;
+  }
+
   const accountField = (
     <div className="field">
       <label htmlFor={FIELD_ID.account}>{type === "expense" ? t("fields.payFrom") : t("fields.incomeTo")}</label>
@@ -479,10 +498,9 @@ export function ManualView({
         onChange={(event) => {
           setSelectedAccount(event.target.value);
           clearError("account");
-          // A debt is paid from cash; a credit purchase keeps no debt link (add-credit-accounts D7).
           if (isCreditId(event.target.value)) setDebtRows([]);
         }} className="field-control">
-        <AccountSelectOptions labels={accountLabels} accounts={activeAccounts} formatBalance={formatBalance} allowParentSelection liquidOnly includeCredit={type === "expense"} />
+        {accountOptions}
       </select>
       {errorLine("account")}
     </div>
@@ -525,6 +543,21 @@ export function ManualView({
 
       {type === "expense" && (
         <>
+          {offersPayLater && (
+            <div className="field">
+              <span className="flabel" id="capture-payment-label">{t("fields.whenToPay")}</span>
+              <RadioSegments
+                labelledBy="capture-payment-label"
+                className="capture-seg"
+                options={[
+                  { value: "now", label: t("fields.payNow"), disabled: mutation.isPending || isSuccess },
+                  { value: "later", label: t("fields.payLater"), disabled: mutation.isPending || isSuccess },
+                ]}
+                value={accountIsCredit ? "later" : "now"}
+                onChange={(value) => choosePayment(value === "later")}
+              />
+            </div>
+          )}
           {accountField}
           {creditAccount && (
             <CreditTermsFields
