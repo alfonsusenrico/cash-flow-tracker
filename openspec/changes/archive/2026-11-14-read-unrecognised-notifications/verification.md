@@ -93,3 +93,7 @@ All scenarios are tested on synthetic data in `backend/tests/test_notification_m
 ## Not yet verified
 
 - **Production behaviour after deploy (task 5.3).**
+
+## Acceptance
+
+The owner accepted the result on 2026-11-14 ("ok"). Task 5.3 (companion release and reprocessing the five events) follows the merge and deploy.
