@@ -187,7 +187,7 @@ def test_owner_date_edit_makes_the_time_the_owners(client, parking):
 
 
 def test_notification_rows_keep_their_post_time(client, notification_owner):
-    payload = notification("You've paid Rp125.000 to Parkir Kemarin Jam 2")
+    payload = notification("You've paid Rp125.000 to Parkir Kemarin Jam 2 using your Kantong Utama Pocket")
     result = ingest(client, payload)["results"][0]
     assert result["status"] == "recorded"
     row = query("SELECT date, time_basis, time_evidence FROM transactions WHERE id = %s",

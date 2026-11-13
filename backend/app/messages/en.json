@@ -360,6 +360,9 @@
     "habit": {
       "basis": "{agreeing} of {support} earlier answers"
     },
+    "pocketHabit": {
+      "basis": "{agreeing} of {support} earlier choices"
+    },
     "history": {
       "merchant": "Same as your choice for {merchant}",
       "similar": "Same as your choice for similar bank notifications",
@@ -528,6 +531,9 @@
     "habit": {
       "recorded": "Recorded from a habit: {category}",
       "recorded_bare": "Recorded from a habit"
+    },
+    "pocketHabit": {
+      "recorded": "Pocket from a habit: {pocket}"
     }
   },
   "notes": {

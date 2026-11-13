@@ -358,6 +358,7 @@ private fun RecordedCard(item: RowPresentation, abilities: RowAbilities, onFixLa
         } else {
             RecordedFacts(item)
             item.habit?.let { Note(it.detailLine(), StatusTone.MUTED, Icons.Outlined.History) }
+            recorded.pocketHabit?.shown()?.let { Note("${it.label} · ${it.basis}", StatusTone.MUTED, Icons.Outlined.History) }
         }
         if (abilities.canEditRecorded) {
             CompanionButton("Perbaiki label", onFixLabel, Modifier.fillMaxWidth(), ButtonKind.GHOST, Icons.Outlined.Edit)

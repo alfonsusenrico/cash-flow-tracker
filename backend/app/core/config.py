@@ -63,6 +63,7 @@ class Settings:
     pairing_configuration_error: str | None = None
     plan_auto_link_enabled: bool = True
     habit_auto_record_enabled: bool = True
+    pocket_learning_auto_record_enabled: bool = True
     topup_auto_record_enabled: bool = True
     background_jobs_enabled: bool = True
     # English model output for English accounts waits for the owner-approved held-out benchmark (localize-server-text D7).
@@ -223,6 +224,8 @@ def load_settings() -> Settings:
         plan_auto_link_enabled=os.getenv("PLAN_AUTO_LINK_ENABLED", "true").strip().lower() != "false",
         # Off only as a kill switch: habits then only order the suggestions and never record a payment.
         habit_auto_record_enabled=os.getenv("HABIT_AUTO_RECORD_ENABLED", "true").strip().lower() != "false",
+        # Off only as a kill switch: a learned paying pocket is then only preselected in the question.
+        pocket_learning_auto_record_enabled=os.getenv("POCKET_LEARNING_AUTO_RECORD_ENABLED", "true").strip().lower() != "false",
         # Off only as a kill switch: learned top-ups are then suggested in Tinjau and never recorded.
         topup_auto_record_enabled=os.getenv("TOPUP_AUTO_RECORD_ENABLED", "true").strip().lower() != "false",
         # Off only where a caller drives the jobs itself (the test suite); accepted events stay queued.

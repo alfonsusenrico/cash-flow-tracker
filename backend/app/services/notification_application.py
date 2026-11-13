@@ -520,6 +520,8 @@ def apply_interpretation(
                                       amount=facts.amount, source=account_label(source, accounts), target=account_label(target, accounts))
         signature = {"source_account_id": str(source["id"]), "target_account_id": str(target["id"]),
                      "currency": "IDR", "transfer": True, "source": source_name}
+        if facts.pocket_basis:
+            signature["pocket_habit"] = facts.pocket_basis
         save_recorded(cur, event, result["expense_transaction_id"], snapshot, signature, movement_id=result["movement_id"], provenance="complete_movement")
         return 2
     return record_observed_leg(
@@ -560,6 +562,9 @@ def record_observed_leg(
     account_id = str(observed["id"])
     signature = {**signature, "category_id": category_id, "kakeibo": kakeibo,
                  "account_basis": signature.get("account_basis") or account_basis(facts, accounts, account_id)}
+    if facts.pocket_basis:
+        # Recorded on the pocket the owner's agreeing choices name; shown as learned (learn-payment-pockets D7).
+        signature["pocket_habit"] = facts.pocket_basis
     if facts.parsed.rdn_deposit:
         signature["rdn_deposit"] = True
         signature["deposit_source"] = facts.institution
@@ -843,7 +848,9 @@ def apply_manual_resolution(
     category = next((row for row in context["categories"] if str(row["id"]) == category_id), None)
     if not category or category["kind"] != direction:
         raise EvidenceError("invalid_category_reference")
-    resolved_facts = replace(facts, status="candidate", error_code=None, amount=amount, direction=direction)
+    # The owner named the account, so it is the confirmed source of an unnamed Jago pocket as well.
+    resolved_facts = replace(facts, status="candidate", error_code=None, amount=amount, direction=direction,
+                             confirmed_source_account_id=account_id)
     try:
         signature = transfer_signature(resolved_facts, context, account_id)
     except EvidenceError:

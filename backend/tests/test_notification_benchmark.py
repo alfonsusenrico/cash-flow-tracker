@@ -18,6 +18,7 @@ from evaluation.notification_benchmark import (
     summarize,
 )
 from evaluation.notification_cases import fixture_id, synthetic_cases
+from app.services.notification_evidence import requires_source_pocket
 from app.services.notification_interpretation import Interpretation
 from app.services.openai_notification_provider import ProviderError
 
@@ -52,7 +53,10 @@ def test_synthetic_expected_interpretations_and_trusted_scoring(case):
     assert row["schema"] and row["facts"] and row["references"]
     assert row["classification"] and row["movement"] and row["abstention"]
     assert not row["unsafe_validated_write"]
-    assert row["validated_outcome"] == case.expected.get("validated_outcome", case.expected["outcome"])
+    facts, _ = benchmark_input(case)
+    held = case.expected["outcome"] == "record" and requires_source_pocket(facts)
+    expected = "needs_confirmation" if held else case.expected.get("validated_outcome", case.expected["outcome"])
+    assert row["validated_outcome"] == expected
 
 
 def test_provider_failures_are_counted_and_never_omitted():

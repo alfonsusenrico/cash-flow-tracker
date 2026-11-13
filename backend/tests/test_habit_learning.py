@@ -439,7 +439,7 @@ def test_question_rate_counts_each_recording_outcome(client, owner, monkeypatch)
     recorded = pay(client, 12_000, 4)                     # habit, then corrected
     row = tx_for(recorded["event_id"])
     assert client.patch(f"/api/transactions/{row['id']}", json={"category_id": owner["jajan"]}).status_code == 200
-    ingest(client, notification("You've paid Rp125.000 to Kedai Awan", seconds=40))  # deterministic rule
+    ingest(client, notification("You've paid Rp125.000 to Kedai Awan using your Kantong Utama Pocket", seconds=40))  # deterministic rule
     assert "question" in open_one
     with db_conn() as conn:
         with conn.cursor() as cur:

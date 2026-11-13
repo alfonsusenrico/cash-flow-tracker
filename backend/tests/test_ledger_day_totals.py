@@ -283,7 +283,7 @@ def test_statement_count_is_fixed(client, owner, monkeypatch):
 def test_detail_carries_waiting_local_day_and_origin(client, owner):
     from test_notification_processing_database import ingest, notification
     from test_text_capture import captured
-    event = ingest(client, notification("You've paid Rp42.000 to Kedai Contoh", seconds=5))["results"][0]
+    event = ingest(client, notification("You've paid Rp42.000 to Kedai Contoh using your Kantong Utama Pocket.", seconds=5))["results"][0]
     with db() as conn:
         noted = str(conn.execute("SELECT transaction_id FROM notification_events WHERE id = %s", (event["event_id"],)).fetchone()["transaction_id"])
     detail = client.get(f"/api/transactions/{noted}").json()["transaction"]

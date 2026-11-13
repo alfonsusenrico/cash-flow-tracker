@@ -21,7 +21,9 @@ from evaluation.notification_cases import (
     ENGLISH_FIXTURE_VERSION, FIXTURE_VERSION, SyntheticCase, english_output_cases, synthetic_cases,
 )
 from app.services.notification_context import sanitize_text
-from app.services.notification_evidence import EvidenceError, collect_facts, unnamed_source_move
+from app.services.notification_evidence import (
+    EvidenceError, collect_facts, requires_source_pocket, unnamed_source_move,
+)
 from app.services.notification_interpretation import Interpretation, record_shape_error, validate_interpretation
 from app.services.notification_reading import model_reading
 from app.services.notification_resolution import (
@@ -188,6 +190,9 @@ def trusted_decision(case: SyntheticCase, interpretation) -> dict:
     validate_interpretation(interpretation, facts, context)
     if interpretation.outcome != "record":
         return {"outcome": interpretation.outcome}
+    if requires_source_pocket(facts):
+        # A Jago payment naming no pocket: the owner's answer or learned choice decides it, never the model.
+        return {"outcome": "needs_confirmation"}
     decision = interpretation.model_dump(mode="json")
     decision["amount"] = facts.amount
     decision["timestamp"] = facts.timestamp.isoformat()

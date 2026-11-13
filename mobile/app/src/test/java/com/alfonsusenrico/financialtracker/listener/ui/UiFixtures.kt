@@ -79,6 +79,15 @@ object UiFixtures {
         )
     )
 
+    /** A Jago payment recorded on the pocket the owner's earlier choices agree on. */
+    fun pocketHabit(id: Long = 25) = row(
+        id, "Jago", "You have paid Rp 150.000 to SPBU Contoh.", at(today, 7, 30),
+        app = "Bank Jago", packageName = "com.jago.digitalbanking", status = "recorded",
+        result = recordedResult(id.toInt() + 10, "expense", "SPBU Contoh", 150_000, "Jago · Transportasi", "Transportasi") + mapOf(
+            "pocket_habit" to mapOf("label" to "Kantong dari kebiasaan: Transportasi", "basis" to "2 dari 2 pilihan sebelumnya")
+        )
+    )
+
     fun movement(id: Long = 3) = row(
         id, "Jago", "Rp500.000 dipindahkan dari Kantong Utama ke Dana Contoh.", at(today, 8),
         app = "Bank Jago", packageName = "com.jago.digitalbanking", status = "recorded",

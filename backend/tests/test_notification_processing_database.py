@@ -54,7 +54,7 @@ def notification_owner(client, monkeypatch):
         conn.commit()
 
 
-def notification(text="You've paid Rp125.000 to Kedai Awan", package="com.jago.digitalbanking", *, seconds=27, hash_value=None):
+def notification(text="You've paid Rp125.000 to Kedai Awan using your Kantong Utama Pocket.", package="com.jago.digitalbanking", *, seconds=27, hash_value=None):
     return {
         "device_id": "synthetic-device", "package_name": package, "body_text": text,
         "payload_hash": hash_value or uuid4().hex,
@@ -226,7 +226,7 @@ def test_recorded_result_seconds_reconciliation_and_redelivery(client, notificat
     assert str(UUID(result["transaction_id"])) == result["transaction_id"]
     assert response["created_transactions"] == 1
     assert client.get(f"/api/ingest/notifications/{result['event_id']}/result").json()["result"] == result
-    payload["body_text"] = "You've paid Rp999.000 to Other Merchant"
+    payload["body_text"] = "You've paid Rp999.000 to Other Merchant using your Kantong Utama Pocket"
     assert ingest(client, payload)["results"][0] == result
     assert count_transactions(owner) == 1
     with db_conn() as conn:
@@ -698,7 +698,7 @@ def test_outbound_request_minimizes_owned_context_and_preserves_exact_facts(clie
     owner = notification_owner
     with db_conn() as conn:
         conn.execute("INSERT INTO transactions (user_id, account_id, category_id, type, amount, date, notes, receipt_path) VALUES (%s, %s, %s, 'expense', 1, NOW(), 'token=fictional-sensitive-token account 987654321098765', '/private/fictional-receipt')", (owner["user_id"], owner["main"], owner["expense"]))
-    payload = notification("You've paid Rp125.000 to Kedai Awan. account 987654321098765 token=fictional-sensitive-token")
+    payload = notification("You've paid Rp125.000 to Kedai Awan using your Kantong Utama Pocket. account 987654321098765 token=fictional-sensitive-token")
     payload["raw_extras"] = {"secret": "fictional-extra-value"}
     event = ingest(client, payload)["results"][0]
 

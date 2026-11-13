@@ -131,7 +131,12 @@ data class IngestResultItem(
     val question: PurposeQuestion? = null,
 
     @SerializedName("habit")
-    val habit: RecordedHabit? = null
+    val habit: RecordedHabit? = null,
+
+    // Sent when the paying pocket came from the owner's agreeing earlier choices: "Kantong dari kebiasaan:
+    // <pocket>" with "<n> dari <m> pilihan sebelumnya". Older trackers omit it.
+    @SerializedName("pocket_habit")
+    val pocketHabit: RecordedHabit? = null
 )
 
 /**
