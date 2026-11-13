@@ -238,7 +238,7 @@ describe("catalogue copy register", () => {
     const BERANDA_STRINGS = [
       "Tidak ada yang perlu dijawab.", "Perlu dipilih di Tinjau", "Lihat transaksi ", "hari lagi sampai gajian",
       "Tanggal gaji berikutnya belum diketahui", "Gaji baru belum tercatat", "Sumber gaji belum diatur", "Siklus gaji belum ada",
-      "sudah lebih", "Tabungan bertambah", "Tabungan berkurang", "termasuk setoran", "Lebih dari uang masuk", "sejak gaji", "Buka Tinjau",
+      "sudah lebih", "Tabungan bertambah", "Tabungan berkurang", "Lebih dari uang masuk", "sejak gaji", "Buka Tinjau",
       "Belum ada transaksi hari ini dan kemarin.", "Daftar Tinjau belum bisa dimuat.", "Aktivitas belum bisa dimuat.",
       "Angka Beranda belum dapat dimuat", "Belum bisa dihitung", "Menunggu jawaban", "Jawab di Tinjau",
       "Masuk dikurangi Pengeluaran, Ditabung & investasi dan tagihan terjadwal sampai akhir",

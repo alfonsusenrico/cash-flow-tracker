@@ -31,13 +31,10 @@ export function legendCaptions(summary: CycleSummary, { t, format }: Words) {
   const start = format.shortDate(summary.period.start_date);
   const monthStart = t("home.captionSinceMonth", { month: format.monthName(summary.period.start_date) });
   const savingTotal = summary.tabungan ? summary.tabungan.total : summary.fresh_saving.amount;
-  const setAsides = summary.scheduled.lines.some((line) => line.kind === "goal" && line.amount > 0);
-  const windowEnd = format.shortDate(summary.scheduled.window_end);
   return {
     masuk: cycle ? t("home.captionSalary", { start }) : monthStart,
     spending: cycle ? t("home.captionSinceSalary", { start }) : monthStart,
     saving: savingTotal < 0 ? t("home.captionSavingsDown") : t("home.captionSavingsUp"),
-    scheduled: setAsides ? t("home.captionWithDeposits", { date: windowEnd }) : t("home.captionBillsUntil", { date: windowEnd }),
   };
 }
 
@@ -46,16 +43,16 @@ export function legendCaptions(summary: CycleSummary, { t, format }: Words) {
  * and the supporting figures, each opening its detail, with "Tagihan kredit" for an owner with credit accounts
  * (open-beranda-figures). Every figure is a server field; the client only orders and formats them.
  */
-/** Where each supporting figure leads (open-beranda-figures D2): Transaksi with Beranda's period, or the bills. */
-export function figureLinks(summary: CycleSummary): Record<"masuk" | "spending" | "saving" | "scheduled", string> {
+/** Where each supporting figure leads (open-beranda-figures D2): Transaksi with Beranda's period and its type. */
+export function figureLinks(summary: CycleSummary): Record<"masuk" | "spending" | "saving", string> {
   const period = summary.period.basis === "cycle" ? "cycle" : "month";
   const ledger = (type: string) => `/ledger?${new URLSearchParams({ period, type }).toString()}`;
-  return { masuk: ledger("income"), spending: ledger("expense"), saving: ledger("saving"), scheduled: "/goals#tg-bills" };
+  return { masuk: ledger("income"), spending: ledger("expense"), saving: ledger("saving") };
 }
 
-/** "jatuh tempo 20 Nov · Rp 400.000", or why no bill is named (D3). */
-function creditCaption(figure: ReturnType<typeof creditFigure>, money: Money, { t, format }: Words): string {
-  if (figure.nearest) return t("home.creditBills.caption", { date: format.shortDate(figure.nearest.due_date), amount: money(figure.nearest.left_to_pay) });
+/** "jatuh tempo 20 Nov", or why no bill is named (D3); the amount per bill is in the dialog, so the caption fits one line. */
+function creditCaption(figure: ReturnType<typeof creditFigure>, { t, format }: Words): string {
+  if (figure.nearest) return t("home.creditBills.caption", { date: format.shortDate(figure.nearest.due_date) });
   return figure.noDueDay ? t("home.creditBills.noDueDay") : t("home.creditBills.nothingOwed");
 }
 
@@ -117,7 +114,7 @@ export function BerandaHero({ summary, onSelectRow }: { summary: CycleSummary; o
         total={masuk.total}
         segments={segments}
       />
-      <div className={creditAccounts.length > 0 ? "legend has-five" : "legend"}>
+      <div className={creditAccounts.length > 0 ? "legend has-credit" : "legend"}>
         <FigureBlock label={t("terms.income")} figure={<MaskedMoney text={money(masuk.total)} />} caption={captions.masuk} phoneHidden
           href={links.masuk} action={t("home.openInLedger")} />
         <FigureBlock label={t("terms.spending")} mark="var(--out-solid)" figure={<MaskedMoney text={money(spending.amount)} />} caption={captions.spending}
@@ -130,14 +127,12 @@ export function BerandaHero({ summary, onSelectRow }: { summary: CycleSummary; o
           href={links.saving}
           action={t("home.openInLedger")}
         />
-        <FigureBlock label={t("terms.scheduled")} mark="var(--warn-solid)" figure={<MaskedMoney text={money(scheduled.total)} />} caption={captions.scheduled} phoneHidden
-          href={links.scheduled} action={t("home.openInGoals")} />
         {creditAccounts.length > 0 && (
           <FigureBlock
             label={t("terms.creditBills")}
             mark="var(--credit-fg)"
             figure={<MaskedMoney text={money(credit.owed)} />}
-            caption={creditCaption(credit, money, words)}
+            caption={creditCaption(credit, words)}
             onOpen={() => setCreditOpen(true)}
             openRef={creditOpener}
             action={t("home.creditBills.open")}

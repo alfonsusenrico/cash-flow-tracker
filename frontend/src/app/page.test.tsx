@@ -290,7 +290,7 @@ describe("Beranda period", () => {
 });
 
 describe("Beranda hero", () => {
-  it("shows the safe amount once at 44 px with its line, the split bar and four supporting figures, each a server field", async () => {
+  it("shows the safe amount once at 44 px with its line, the split bar and three supporting figures, each a server field", async () => {
     const { hero } = await beranda();
     expect(hero.querySelector(".t-hero")).toHaveTextContent("Rp 4.922.000");
     expect(hero.querySelector(".hero-sub")).toHaveTextContent(/^23 hari lagi sampai gajian 25 Nov$/);
@@ -298,9 +298,9 @@ describe("Beranda hero", () => {
     expect(figureOf(hero, "Masuk")).toHaveTextContent("MasukRp 9.800.000Gaji 25 Okt");
     expect(figureOf(hero, "Pengeluaran")).toHaveTextContent("PengeluaranRp 2.364.500sejak gaji 25 Okt");
     expect(figureOf(hero, "Ditabung & investasi")).toHaveTextContent("Ditabung & investasiRp 800.000Tabungan bertambah");
-    expect(figureOf(hero, "Terjadwal")).toHaveTextContent("TerjadwalRp 1.713.500termasuk setoran · 24 Nov");
+    // Terjadwal is part of the split bar and the Rincian, not a supporting figure (open-beranda-figures, owner 2026-11-13).
+    expect(figureOf(hero, "Terjadwal")).toBeUndefined();
     expect(figureOf(hero, "Masuk")).toHaveClass("is-phone-hide");
-    expect(figureOf(hero, "Terjadwal")).toHaveClass("is-phone-hide");
     expect(within(hero).getByRole("img")).toHaveAccessibleName(
       "Uang siklus ini dari Rp 9.800.000 masuk: Pengeluaran 24%, Ditabung & investasi 8%, Terjadwal 17%, Aman dipakai 50%",
     );
@@ -315,13 +315,6 @@ describe("Beranda hero", () => {
     expect(rincian[0]).toHaveAttribute("aria-haspopup", "dialog");
     expect(document.querySelector(".ws-xn")).toBeNull();
     expect(screen.queryByRole("button", { name: /lihat rincian/ })).not.toBeInTheDocument();
-  });
-
-  it("says only 'tagihan' when no goal set-aside is scheduled", async () => {
-    const base = previewSummary();
-    summary = { ...base, scheduled: { ...base.scheduled, lines: base.scheduled.lines.filter((line) => line.kind === "plan") } };
-    const { hero } = await beranda();
-    expect(figureOf(hero, "Terjadwal")).toHaveTextContent("tagihan sampai 24 Nov");
   });
 
   const unavailable = (detail: "irregular_receipts" | "no_salary_source", reason: "no_expected_salary" = "no_expected_salary") => {
@@ -771,11 +764,12 @@ describe("Beranda composition, loading and failure", () => {
     const { container, hero } = await beranda();
     await waitFor(() => expect(rowTexts(region("Aktivitas terbaru"))).toHaveLength(3));
     const figures = [...document.querySelectorAll(".t-hero, .t-fig, .t-amt")];
-    expect(figures.length).toBeGreaterThan(15);
+    expect(figures.length).toBeGreaterThan(14);
     for (const figure of figures) {
       expect(figure.querySelector('[role="img"][aria-label="Disembunyikan"]') ?? figure.closest('[role="img"][aria-label="Disembunyikan"]') ?? figure).toHaveTextContent("Rp ••••••");
     }
-    expect(within(hero).getAllByRole("img", { name: "Disembunyikan" }).length).toBe(5);
+    // The hero figure and its three supporting figures.
+    expect(within(hero).getAllByRole("img", { name: "Disembunyikan" }).length).toBe(4);
     expect(within(hero).getByRole("img", { name: /^Uang siklus ini/ })).toHaveAccessibleName(/^Uang siklus ini dari Rp •••••• masuk: Pengeluaran 24%/);
     for (const row of [...document.querySelectorAll(".row")]) expect(row.querySelector(".r-amt")?.textContent ?? "").not.toMatch(/\d/);
     expect((await axe(container)).violations).toHaveLength(0);
@@ -813,7 +807,7 @@ describe("Beranda in English (add-language-system)", () => {
     expect(figureOf(hero, "Income")).toHaveTextContent("IncomeRp 9.800.000Salary 25 Oct");
     expect(figureOf(hero, "Spending")).toHaveTextContent("SpendingRp 2.364.500since salary on 25 Oct");
     expect(figureOf(hero, "Saved & invested")).toHaveTextContent("Saved & investedRp 800.000Savings went up");
-    expect(figureOf(hero, "Scheduled")).toHaveTextContent("ScheduledRp 1.713.500with deposits · 24 Nov");
+    expect(figureOf(hero, "Scheduled")).toBeUndefined();
     expect(within(hero).getByRole("img")).toHaveAccessibleName(
       "Money this cycle, out of Rp 9.800.000 income: Spending 24%, Saved & invested 8%, Scheduled 17%, Safe to spend 50%",
     );
@@ -901,7 +895,7 @@ describe("Beranda in English (add-language-system)", () => {
     indonesian.unmount();
     await englishBeranda();
     expect(money(figures())).toEqual(idFigures);
-    expect(idFigures.length).toBeGreaterThan(15);
+    expect(idFigures.length).toBeGreaterThan(14);
   });
 
   it("changes number and date style with the region, never the words", async () => {
@@ -931,17 +925,15 @@ describe("Beranda in English (add-language-system)", () => {
 });
 
 describe("Beranda figures open their detail (open-beranda-figures)", () => {
-  it("links Masuk, Pengeluaran and Ditabung & investasi to Transaksi for the cycle, and Terjadwal to the bills", async () => {
+  it("links Masuk, Pengeluaran and Ditabung & investasi to Transaksi for the cycle", async () => {
     const { hero } = await beranda();
     const links = within(hero).getAllByRole("link");
     expect(links.map((link) => link.getAttribute("href"))).toEqual([
       "/ledger?period=cycle&type=income",
       "/ledger?period=cycle&type=expense",
       "/ledger?period=cycle&type=saving",
-      "/goals#tg-bills",
     ]);
     expect(links[1]).toHaveAccessibleName(/^Pengeluaran .* Buka di Transaksi$/);
-    expect(links[3]).toHaveAccessibleName(/Buka di Target & Tagihan$/);
     expect(within(hero).queryByRole("button", { name: /Tagihan kredit/ })).not.toBeInTheDocument();
   });
 
@@ -949,7 +941,7 @@ describe("Beranda figures open their detail (open-beranda-figures)", () => {
     const base = previewSummary();
     summary = { ...base, period: { ...base.period, basis: "month" } };
     const { hero } = await beranda();
-    expect(within(hero).getAllByRole("link").map((link) => link.getAttribute("href")).slice(0, 3)).toEqual([
+    expect(within(hero).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
       "/ledger?period=month&type=income",
       "/ledger?period=month&type=expense",
       "/ledger?period=month&type=saving",
@@ -993,9 +985,9 @@ describe("Tagihan kredit (open-beranda-figures)", () => {
     const { hero } = await beranda();
     const figure = await within(hero).findByRole("button", { name: /Tagihan kredit/ });
     expect(figure).toHaveTextContent("Rp 5.246.014");
-    expect(figure).toHaveTextContent("jatuh tempo 20 Nov · Rp 400.000");
+    expect(figure).toHaveTextContent("Rp 5.246.014jatuh tempo 20 Nov");
     expect(figure).toHaveAttribute("aria-haspopup", "dialog");
-    expect(hero.querySelector(".legend")).toHaveClass("has-five");
+    expect(hero.querySelector(".legend")).toHaveClass("has-credit");
     expect(within(hero).getByRole("img", { name: /Pengeluaran/ })).toBeInTheDocument();
   });
 
@@ -1080,6 +1072,6 @@ describe("Tagihan kredit (open-beranda-figures)", () => {
     const figure = await within(hero).findByRole("button", { name: /Tagihan kredit/ });
     expect(figure).not.toHaveTextContent(/5\.246\.014|400\.000/);
     expect(within(figure).getByRole("img", { name: "Disembunyikan" })).toBeInTheDocument();
-    expect(figure).toHaveTextContent("jatuh tempo 20 Nov · Rp ••••••");
+    expect(figure).toHaveTextContent("jatuh tempo 20 Nov");
   });
 });
