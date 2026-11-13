@@ -3,6 +3,7 @@ from uuid import uuid4
 
 from app.errors import ErrorCode, api_error
 from app.i18n import account_language, t
+from app.services.reimbursement_links import drop_invalid_links
 from app.services.ledger_mutations import (
     MOVEMENT_ACCOUNT_TYPES, ensure_generic_movement_accounts, lock_owned_accounts, movement_kakeibo,
 )
@@ -138,6 +139,8 @@ def link_transactions_as_movement(
         )
         record_owner_corrections(cur, user_id, before_classification)
     retire_automatic_memory(cur, user_id, [expense_id, income_id])
+    # A movement leg is neither a repaid expense nor a reimbursement (link-reimbursements-to-expenses D7).
+    drop_invalid_links(cur, user_id, [expense_id, income_id])
     return {
         "ok": True, "movement_id": movement_id,
         "expense_transaction_id": expense_id, "income_transaction_id": income_id,

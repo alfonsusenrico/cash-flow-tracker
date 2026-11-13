@@ -18,6 +18,7 @@ import { KAKEIBO_PILLARS, type KakeiboPillar, pillarOrNeed } from "@/lib/kakeibo
 import { movementFormSchema, type MovementIssueCode } from "@/lib/movementFormSchema";
 import { categoryOffsetsSpending, offsetCategoryOptions } from "@/lib/provenance";
 import { queryKeys } from "@/lib/queryKeys";
+import { NO_LINKS, ReimbursementLinksField, linksRequest } from "@/components/transactions/ReimbursementLinksField";
 import { formatNumberWithDots, localDatetimeToISO, stripGrouping, toDatetimeLocal } from "@/lib/utils";
 import { isExpression, parseAmountExpression } from "./amount";
 import { jakartaDate, jakartaToday } from "./creditTerms";
@@ -123,6 +124,8 @@ export function ManualView({
   const [targetId, setTargetId] = useState(initialTargetAccountId ?? "");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [offsetCategoryId, setOffsetCategoryId] = useState("");
+  // The expenses a new reimbursement repays (link-reimbursements-to-expenses D8).
+  const [links, setLinks] = useState(NO_LINKS);
   const [kakeiboType, setKakeiboType] = useState<KakeiboPillar>("need");
   const [hasKakeiboOverride, setHasKakeiboOverride] = useState(false);
   const [selectedGoalId, setSelectedGoalId] = useState("");
@@ -222,6 +225,7 @@ export function ManualView({
   const handleCategoryChange = (categoryId: string | null) => {
     setSelectedCategory(categoryId);
     setOffsetCategoryId("");
+    setLinks(NO_LINKS);
     const category = categories.find((item: any) => item.id === categoryId);
     if (type === "expense" && !hasKakeiboOverride) setKakeiboType(pillarOrNeed(category?.kakeibo_type));
   };
@@ -230,6 +234,7 @@ export function ManualView({
     setType(nextType);
     setSelectedCategory(null);
     setOffsetCategoryId("");
+    setLinks(NO_LINKS);
     setHasKakeiboOverride(false);
     setErr("");
     setFieldErrors({});
@@ -263,10 +268,19 @@ export function ManualView({
           ? { obligation_allocations: debtRows.map((row) => ({ obligation_id: row.obligation_id, amount: Number(stripGrouping(row.amount)) })) }
           : {}),
         notes: notes.trim() || null,
-        ...(offsetsSpending ? { offset_category_id: offsetCategoryId || null } : {}),
+        ...(offsetsSpending ? { offset_category_id: links.expenses.length > 0 ? null : offsetCategoryId || null } : {}),
         date: localDatetimeToISO(txDate) || new Date().toISOString(),
         ...(accountIsCredit ? { credit_terms: creditTermsRequest(credit) } : {}),
       });
+      const linking = offsetsSpending ? linksRequest(links) : null;
+      if (linking) {
+        try {
+          await api.put(`/transactions/${created.transaction_id}/reimburses`, linking);
+        } catch (linkError) {
+          // The row is saved; saying so keeps a second save from recording it twice.
+          showToast(words("transactions.edit.linksFailed", { error: linkError instanceof Error ? linkError.message : "" }));
+        }
+      }
       if (receipt) {
         try {
           await uploadTransactionReceipt(created.transaction_id, receipt);
@@ -652,6 +666,10 @@ export function ManualView({
             </select>
           </div>
           {offsetsSpending && (
+            <ReimbursementLinksField idPrefix="capture" value={links} onChange={setLinks}
+              incomeCategories={categories.filter((category: any) => category.kind === "income" && !category.offsets_spending && !category.is_archived && !category.system_key)} />
+          )}
+          {offsetsSpending && links.expenses.length === 0 && (
             <div className="field">
               <label htmlFor="capture-offset">{t("fields.offset")}</label>
               <select id="capture-offset" name="offset_category_id" value={offsetCategoryId} onChange={(event) => setOffsetCategoryId(event.target.value)}

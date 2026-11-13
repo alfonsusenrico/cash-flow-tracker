@@ -886,6 +886,12 @@
           "paid": "Lunas",
           "paid_late": "Lunas terlambat"
         }
+      },
+      "reimbursement": {
+        "repaidHeading": "Diganti <amount></amount>",
+        "repaysHeading": "Mengganti",
+        "notCounted": "Sisa, tidak dihitung",
+        "shareOf": "dari <amount></amount>"
       }
     },
     "delete": {
@@ -966,7 +972,8 @@
         "chooseReceipt": "Pilih bukti transaksi untuk diunggah ulang.",
         "termsFailed": "Perubahan tersimpan, tetapi cicilan belum tersimpan: {error}",
         "creditCountRange": "Pilih 2 sampai 36 cicilan."
-      }
+      },
+      "linksFailed": "Transaksi tersimpan, tapi pengeluaran yang diganti belum: {error}"
     },
     "accountOptions": {
       "creditGroup": "Kredit",
@@ -1044,6 +1051,25 @@
       "move": "Pindah ke transaksi berikutnya atau sebelumnya",
       "open": "Buka detail transaksi",
       "undo": "Urungkan tanda sudah dicek atau top up terakhir"
+    },
+    "reimbursementLinks": {
+      "label": "Mengganti transaksi (opsional)",
+      "hint": "Pilih pengeluaran yang diganti. Pengeluaran itu berkurang di periodenya sendiri, dan kategori yang dikurangi tidak dipakai lagi.",
+      "chosen": "Pengeluaran yang diganti",
+      "remove": "Hapus {title}",
+      "removeShort": "Hapus",
+      "search": "Cari pengeluaran 90 hari terakhir",
+      "results": "Pengeluaran 90 hari terakhir",
+      "add": "Tambah {title}",
+      "loadFailed": "Pengeluaran belum bisa dimuat.",
+      "noMatch": "Tidak ada pengeluaran yang cocok.",
+      "noRecent": "Belum ada pengeluaran 90 hari terakhir.",
+      "restLabel": "Sisanya",
+      "restNone": "Tidak dihitung",
+      "restIncome": "Dicatat sebagai uang masuk",
+      "restCategory": "Kategori uang masuk",
+      "restIncomeHint": "Sisa yang tidak terpakai oleh pengeluaran di atas dicatat sebagai pemasukan terpisah di rekening dan tanggal yang sama.",
+      "restNoneHint": "Sisa yang tidak terpakai oleh pengeluaran di atas tidak dihitung di mana pun."
     }
   },
   "breakdown": {
@@ -1804,7 +1830,10 @@
     "uncertain_mapping": "Rekening atau kategori tidak bisa dipastikan otomatis. Pilih rekening dan kategori lalu catat manual.",
     "unsafe_instructions": "Notifikasi berisi teks mencurigakan sehingga tidak diproses otomatis. Periksa lalu catat manual bila benar.",
     "unsupported_currency": "Mata uang selain Rupiah belum didukung. Catat manual dalam Rupiah bila perlu.",
-    "model_uncertain": "Penafsir otomatis tidak yakin dengan notifikasi ini. Coba ulang, atau pilih rekening dan kategori lalu catat manual."
+    "model_uncertain": "Penafsir otomatis tidak yakin dengan notifikasi ini. Coba ulang, atau pilih rekening dan kategori lalu catat manual.",
+    "reimbursement_link_count": "Pilih 1 sampai {limit} pengeluaran yang diganti.",
+    "reimbursement_link_invalid": "Pilih pengeluaran yang bukan pindah saldo dan masuk anggaran.",
+    "reimbursement_rest_category": "Pilih kategori pemasukan untuk sisanya."
   },
   "conversation": {
     "helpFactHome": "Beranda menunjukkan berapa yang aman dipakai sampai gajian."

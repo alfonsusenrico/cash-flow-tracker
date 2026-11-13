@@ -18,7 +18,7 @@ import type { UndoFields } from "@/lib/reviewUndo";
 import {
   RowAmount, accountLabel, bucketName, maskedTag, movementRoute, rowKind, rowTitle, savingFlowLabel, useRowLabels, type RowKind,
 } from "./rows";
-import type { CreditBlock, CreditSettledItem, LedgerRowDetail } from "./types";
+import type { CreditBlock, CreditSettledItem, LedgerRowDetail, ReimbursementLinkLine, ReimbursementLinks } from "./types";
 import { useRefreshTransactionViews } from "./useTransactionUndo";
 
 // The editors load when first used, so Beranda, which also opens this dialog, stays light.
@@ -261,6 +261,7 @@ export function TransactionDialog({
               </div>
             )}
             {row.credit?.role === "payment" && <PaymentSettlement credit={row.credit} onOpenRow={openRow} />}
+            {row.reimbursement && <ReimbursementView links={row.reimbursement} onOpenRow={openRow} />}
             <Facts row={row} kind={kind} onOpenFee={openRow} onMarkChecked={() => markChecked.mutate(row)} marking={markChecked.isPending} />
             {row.origin && (
               <figure className="raw">
@@ -517,6 +518,66 @@ function CreditFacts({ row }: { row: LedgerRowDetail }) {
         </Fact>
       )}
     </>
+  );
+}
+
+/**
+ * Both sides of a reimbursement link (link-reimbursements-to-expenses D8): on an expense "Diganti Rp X" with what
+ * repaid it, on a reimbursement what it repays and what no expense holds. Each row opens that transaction.
+ */
+function ReimbursementView({ links, onOpenRow }: { links: ReimbursementLinks; onOpenRow: (id: string) => void }) {
+  const t = useTranslations("transactions.detail.reimbursement");
+  const money = useMoney();
+  const repaidId = useId();
+  const repaysId = useId();
+  const unallocated = links.unallocated ?? 0;
+  return (
+    <>
+      {links.repaid_by.length > 0 && (
+        <section className="tx-settled" aria-labelledby={repaidId}>
+          <h3 id={repaidId} className="t-label">{t.rich("repaidHeading", { amount: maskedTag(money(links.repaid_total)) })}</h3>
+          <ul>{links.repaid_by.map((line) => <li key={line.transaction_id}><LinkRow line={line} onOpenRow={onOpenRow} /></li>)}</ul>
+        </section>
+      )}
+      {links.repays.length > 0 && (
+        <section className="tx-settled" aria-labelledby={repaysId}>
+          <h3 id={repaysId} className="t-label">{t("repaysHeading")}</h3>
+          <ul>
+            {links.repays.map((line) => <li key={line.transaction_id}><LinkRow line={line} onOpenRow={onOpenRow} /></li>)}
+            {unallocated > 0 && (
+              <li>
+                <div className="tx-settled-row is-static">
+                  <span className="tx-settled-main">{t("notCounted")}</span>
+                  <span className="tx-settled-amount"><MaskedMoney text={money(unallocated)} className="t-amt" /></span>
+                </div>
+              </li>
+            )}
+          </ul>
+        </section>
+      )}
+    </>
+  );
+}
+
+function LinkRow({ line, onOpenRow }: { line: ReimbursementLinkLine; onOpenRow: (id: string) => void }) {
+  const t = useTranslations("transactions.detail.reimbursement");
+  const money = useMoney();
+  const format = useFormat();
+  const labels = useRowLabels();
+  const title = line.notes?.trim() || line.merchant || labels.undescribed;
+  return (
+    <button type="button" className="tx-settled-row" onClick={() => onOpenRow(line.transaction_id)}>
+      <span className="tx-settled-main">
+        <span className="tx-settled-title">{title}</span>
+        <span className="tx-settled-meta">{format.shortDateAt(line.date)}</span>
+      </span>
+      <span className="tx-settled-amount">
+        <MaskedMoney text={money(line.amount)} className="t-amt" />
+        {line.expense_amount !== undefined && line.amount < line.expense_amount && (
+          <span className="tx-settled-meta">{t.rich("shareOf", { amount: maskedTag(money(line.expense_amount)) })}</span>
+        )}
+      </span>
+    </button>
   );
 }
 

@@ -207,3 +207,77 @@ describe("Ubah transaksi (D15)", () => {
     });
   });
 });
+
+describe("Mengganti transaksi (link-reimbursements-to-expenses)", () => {
+  const categories = [
+    { id: "patungan", name: "Patungan & Ganti Uang", kind: "income", offsets_spending: true },
+    { id: "lain", name: "Pendapatan Lain", kind: "income", offsets_spending: false },
+    { id: "belanja", name: "Belanja", kind: "expense", kakeibo_type: "need" },
+  ];
+  const coffee = { id: "coffee", type: "expense", amount: 25_500, notes: "beli kopi titipan mama", merchant: null, account_id: "jago", account_name: "Jago",
+    category_name: "Belanja", date: "2026-10-28T11:34:00.000Z" };
+  const search: string[] = [];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    search.length = 0;
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { accounts };
+      if (path === "/categories") return { categories };
+      if (path === "/goals") return { goals: [] };
+      if (path === "/obligations") return { obligations: [] };
+      if (path.startsWith("/transactions?")) {
+        search.push(path);
+        return { transactions: [coffee] };
+      }
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    vi.mocked(api.patch).mockResolvedValue({ ok: true });
+    vi.mocked(api.put).mockResolvedValue({ ok: true });
+    vi.mocked(api.del).mockResolvedValue({ ok: true });
+  });
+
+  const motherMoney = row({ id: "mama", type: "income", amount: 100_000, category_id: "patungan", notes: null });
+
+  it("links the coffee, records the rest as income, and leaves the category link out", async () => {
+    const user = userEvent.setup();
+    const onSaved = vi.fn();
+    renderDialog(motherMoney, { onSaved });
+    const dialog = await screen.findByRole("dialog", { name: "Ubah transaksi" });
+    const field = await within(dialog).findByRole("group", { name: "Mengganti transaksi (opsional)" });
+    await user.click(await within(field).findByRole("button", { name: "Tambah beli kopi titipan mama" }));
+    expect(within(field).getByRole("list", { name: "Pengeluaran yang diganti" })).toHaveTextContent("beli kopi titipan mama");
+    expect(within(dialog).queryByLabelText("Mengurangi pengeluaran")).not.toBeInTheDocument();
+    expect(search[0]).toMatch(/^\/transactions\?type=expense&from_date=\d{4}-\d{2}-\d{2}T00%3A00%3A00%2B07%3A00&limit=20$/);
+    await user.click(within(field).getByRole("radio", { name: "Dicatat sebagai uang masuk" }));
+    expect(within(field).getByRole("combobox", { name: "Kategori uang masuk" })).toHaveValue("lain");
+    expect((await axe(dialog)).violations).toHaveLength(0);
+    await user.click(within(dialog).getByRole("button", { name: "Simpan" }));
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith("/transactions/mama/reimburses", { expense_ids: ["coffee"], rest_category_id: "lain" }));
+    expect(vi.mocked(api.patch).mock.calls[0][1]).toMatchObject({ offset_category_id: null });
+    expect(onSaved).toHaveBeenCalled();
+  });
+
+  it("searches by text and unlinks when every expense is removed", async () => {
+    const user = userEvent.setup();
+    const linked = { ...motherMoney, reimbursement: { repays: [{ transaction_id: "coffee", amount: 25_500, expense_amount: 25_500, date: coffee.date,
+      notes: "beli kopi titipan mama", merchant: null }], unallocated: 74_500, repaid_by: [], repaid_total: 0 } } as LedgerRowDetail;
+    renderDialog(linked);
+    const dialog = await screen.findByRole("dialog", { name: "Ubah transaksi" });
+    const field = await within(dialog).findByRole("group", { name: "Mengganti transaksi (opsional)" });
+    await user.type(within(field).getByRole("searchbox", { name: "Cari pengeluaran 90 hari terakhir" }), "kopi");
+    await waitFor(() => expect(search.at(-1)).toContain("q=kopi"));
+    await user.click(within(field).getByRole("button", { name: "Hapus beli kopi titipan mama" }));
+    expect(within(dialog).getByLabelText("Mengurangi pengeluaran")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Simpan" }));
+    await waitFor(() => expect(api.del).toHaveBeenCalledWith("/transactions/mama/reimburses"));
+    expect(api.put).not.toHaveBeenCalled();
+  });
+
+  it("does not offer linking on an ordinary income", async () => {
+    renderDialog(row({ id: "gaji", type: "income", amount: 1_000_000, category_id: "lain" }));
+    const dialog = await screen.findByRole("dialog", { name: "Ubah transaksi" });
+    await waitFor(() => expect(within(dialog).getByRole("option", { name: "Pendapatan Lain" })).toBeInTheDocument());
+    expect(within(dialog).queryByRole("group", { name: "Mengganti transaksi (opsional)" })).not.toBeInTheDocument();
+  });
+});

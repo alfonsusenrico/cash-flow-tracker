@@ -17,7 +17,8 @@ import { ownRowNote } from "@/lib/placeholderNotes";
 import { MERCHANT_MAX_LENGTH, categoryOffsetsSpending, offsetCategoryOptions } from "@/lib/provenance";
 import { queryKeys } from "@/lib/queryKeys";
 import { formatNumberWithDots, localDatetimeToISO, stripGrouping, toDatetimeLocal } from "@/lib/utils";
-import { bucketName, useAccountOptionLabels } from "./rows";
+import { ReimbursementLinksField, linksRequest, linksValue } from "./ReimbursementLinksField";
+import { bucketName, useAccountOptionLabels, useRowLabels } from "./rows";
 import type { LedgerRowDetail } from "./types";
 
 type EditKind = "expense" | "income";
@@ -112,6 +113,11 @@ export function TransactionEditDialog({
 
   const offsetsSpending = kind === "income" && categoryOffsetsSpending(categories, categoryId);
   const offsetCategories = offsetCategoryOptions(categories);
+  const rowLabels = useRowLabels();
+  // The expenses this reimbursement repays (link-reimbursements-to-expenses D8); a link replaces the category link.
+  const [links, setLinks] = useState(() => linksValue(tx.reimbursement, rowLabels.undescribed));
+  const hadLinks = (tx.reimbursement?.repays.length ?? 0) > 0;
+  const restCategories = categories.filter((category: any) => category.kind === "income" && !category.offsets_spending && !category.is_archived && !category.system_key);
   const originalAmounts = Object.fromEntries((tx.obligation_allocations ?? []).map((item) => [item.obligation_id, item.amount]));
   const debtLinked = kind === "expense" && debtRows.some((row) => row.obligation_id);
   const creditIds = new Set(accounts.filter(isCreditAccountChoice).map((account) => String(account.id)));
@@ -159,9 +165,17 @@ export function TransactionEditDialog({
           : {}),
         kakeibo_type: kind === "expense" && pillar ? pillar : null,
         merchant: merchant.trim() || null,
-        ...(offsetsSpending ? { offset_category_id: offsetCategoryId || null } : {}),
+        ...(offsetsSpending ? { offset_category_id: links.expenses.length > 0 ? null : offsetCategoryId || null } : {}),
         date: isoDate,
       });
+      const linking = offsetsSpending ? linksRequest(links) : null;
+      try {
+        if (linking) await api.put(`/transactions/${tx.id}/reimburses`, linking);
+        // Leaving the reimbursement category drops the links on the server; only an emptied list unlinks here.
+        else if (hadLinks && offsetsSpending) await api.del(`/transactions/${tx.id}/reimburses`);
+      } catch (linkError) {
+        throw new Error(t("linksFailed", { error: linkError instanceof Error ? linkError.message : "" }));
+      }
       if (receipt) {
         try {
           await uploadTransactionReceipt(tx.id, receipt);
@@ -332,6 +346,9 @@ export function TransactionEditDialog({
             </>
           )}
           {offsetsSpending && (
+            <ReimbursementLinksField idPrefix="tx-edit" value={links} onChange={setLinks} incomeCategories={restCategories} />
+          )}
+          {offsetsSpending && links.expenses.length === 0 && (
             <div className="field full-row">
               <label htmlFor="tx-edit-offset">{t("offset")}</label>
               <select id="tx-edit-offset" value={offsetCategoryId} onChange={(event) => setOffsetCategoryId(event.target.value)} aria-describedby="tx-edit-offset-help" className="field-control">

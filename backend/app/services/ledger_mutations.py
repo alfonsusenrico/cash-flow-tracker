@@ -9,6 +9,7 @@ from app.errors import ErrorCode, api_error
 from app.services.account_roles import TABUNGAN
 from app.services.debt_allocations import load_allocation_rows, lock_debts, reverse_allocations
 from app.services.provenance import Provenance
+from app.services.reimbursement_links import links_touching, reallocate
 
 
 LIQUID_ACCOUNT_TYPES = {"cash", "bank", "ewallet", "wallet"}
@@ -257,10 +258,14 @@ def delete_transaction_rows(cur, user_id: str, transaction_id: str) -> dict[str,
                 (tx["amount"], tx["amount"], str(tx["obligation_id"]), user_id),
             )
 
+    # Reimbursements sharing an expense with this row are recomputed once it is gone (link-reimbursements D7).
+    linked_reimbursements, linked_expenses = links_touching(cur, user_id, transaction_id)
     cur.execute(
         "DELETE FROM transactions WHERE user_id = %s AND id = %s",
         (user_id, transaction_id),
     )
+    reallocate(cur, user_id, reimbursement_ids=linked_reimbursements - {transaction_id},
+               expense_ids=linked_expenses - {transaction_id})
     return tx
 
 

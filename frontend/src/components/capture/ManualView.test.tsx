@@ -10,7 +10,7 @@ import type { CaptureMode } from "./types";
 
 vi.mock("@/lib/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api")>()),
-  api: { get: vi.fn(), post: vi.fn() },
+  api: { get: vi.fn(), post: vi.fn(), put: vi.fn() },
   createMovement: vi.fn(),
   uploadTransactionReceipt: vi.fn(),
 }));
@@ -858,5 +858,38 @@ describe("Catat transaksi with credit accounts (H11)", () => {
     await user.type(amountField(), "470000");
     await user.click(submitButton("Pindahkan saldo"));
     expect(await screen.findByRole("alert")).toHaveTextContent("Salah satu sisi pindah saldo harus rekening bank, e-wallet, atau tunai.");
+  });
+});
+
+describe("Catat a reimbursement linked to its expense (link-reimbursements-to-expenses)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { accounts: [{ id: "bca", name: "BCA", type: "bank", balance: 100_000 }] };
+      if (path === "/categories") return { categories: [
+        { id: "patungan", name: "Patungan & Ganti Uang", kind: "income", offsets_spending: true },
+        { id: "lain", name: "Pendapatan Lain", kind: "income" },
+        { id: "fun", name: "Hiburan", kind: "expense", kakeibo_type: "want" },
+      ] };
+      if (path === "/goals") return { goals: [] };
+      if (path === "/obligations") return { obligations: [] };
+      if (path.startsWith("/transactions?")) return { transactions: [
+        { id: "main-bl", type: "expense", amount: 80_000, notes: "main BL", merchant: null, account_id: "bca", account_name: "BCA", date: "2026-11-02T11:53:00.000Z" },
+      ] };
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    vi.mocked(api.post).mockResolvedValue({ ok: true, transaction_id: "money-back" });
+    vi.mocked(api.put).mockResolvedValue({ ok: true });
+  });
+
+  it("records the reimbursement, then links it to the chosen expense with the rest not counted", async () => {
+    const { user } = renderCapture({ mode: "income" });
+    await user.type(amountField(), "40000");
+    await user.selectOptions(await screen.findByRole("combobox", { name: "Kategori pemasukan" }), "patungan");
+    const field = await screen.findByRole("group", { name: "Mengganti transaksi (opsional)" });
+    await user.click(await within(field).findByRole("button", { name: "Tambah main BL" }));
+    await user.click(submitButton("Simpan transaksi"));
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith("/transactions/money-back/reimburses", { expense_ids: ["main-bl"] }));
+    expect(vi.mocked(api.post).mock.calls[0][1]).toMatchObject({ category_id: "patungan", offset_category_id: null });
   });
 });
