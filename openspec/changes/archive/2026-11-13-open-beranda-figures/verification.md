@@ -48,7 +48,7 @@ in light and dark. 0 console errors, 0 serious or critical axe violations, 0 hor
   3.472.990 = `type=expense` spending; Ditabung & investasi 2.250.000 = `type=saving` saving_net.
 - The scenarios lived in a scratch copy of `scripts/verify/markas/`; they are not committed.
 
-Owner's answer: pending.
+Owner's answer on 2026-11-13: "ok". Accepted.
 
 ## Not verified
 
