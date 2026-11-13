@@ -44,8 +44,9 @@ def test_paying_from_savings(owner):
     assert data["tabungan"] == {"total": 2_000_000, "masuk": 3_000_000, "diambil": 0, "belanja": 1_000_000, "pilar_tabungan": 0}
     assert data["keluar"]["total"] == 3_000_000
     assert data["scheduled"]["total"] == 0
-    # Aman dipakai before Terjadwal: the cash still in daily accounts.
-    assert data["remaining"]["total"] == 7_000_000
+    # Aman dipakai is the cash still in daily accounts (the bank's opening Rp 20.000.000, plus the salary, less the
+    # move); the savings pocket that paid the repair is not daily money.
+    assert (data["safe_amount"]["daily_money"]["total"], data["safe_amount"]["amount"]) == (27_000_000, 27_000_000)
 
 
 def test_more_taken_out_than_saved_is_a_negative_change(owner):

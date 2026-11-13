@@ -492,10 +492,7 @@
       "liquid": "Available cash",
       "investment_cash": "Investment cash",
       "investments": "Investments",
-      "negative_balance": "Negative balance to match",
-      "income": "Income",
-      "out": "Money out",
-      "scheduled": "Scheduled"
+      "negative_balance": "Negative balance to match"
     },
     "dashboard": {
       "gross": "Recorded spending",

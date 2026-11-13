@@ -27,10 +27,11 @@ const DIRECTION_KEYS = new Set(["analysis.flowDetail.out", "analysis.flowDetail.
 const QUESTION_KEYS = new Set(["report.questions.spending"]);
 
 /**
- * "Aman dipakai sampai gajian" and the two phrases built on it are the hero figure's name as the owner approved it
- * (refine-workspace-layout OD96, apply-markas-beranda D3), so their "gajian" is allowed outside the conversation.
+ * The hero's line "{days} hari lagi sampai gajian" keeps the wording the owner approved for the safe amount
+ * (refine-workspace-layout OD96, apply-markas-beranda D3), so its "gajian" is allowed outside the conversation, as is
+ * the Rincian rule that names the same day (count-safe-amount-from-daily-money D7).
  */
-const APPROVED_ID_KEYS = new Set(["terms.safeToSpendUntilPayday", "home.breakdownButton", "home.daysUntilPayday"]);
+const APPROVED_ID_KEYS = new Set(["home.daysUntilPayday", "breakdown.safeRuleDaily"]);
 
 function messages(catalogue: Catalogue, prefix = ""): [string, string][] {
   return Object.entries(catalogue).flatMap(([key, value]) => {
@@ -238,10 +239,10 @@ describe("catalogue copy register", () => {
     const BERANDA_STRINGS = [
       "Tidak ada yang perlu dijawab.", "Perlu dipilih di Tinjau", "Lihat transaksi ", "hari lagi sampai gajian",
       "Tanggal gaji berikutnya belum diketahui", "Gaji baru belum tercatat", "Sumber gaji belum diatur", "Siklus gaji belum ada",
-      "sudah lebih", "Tabungan bertambah", "Tabungan berkurang", "Lebih dari uang masuk", "sejak gaji", "Buka Tinjau",
+      "Tabungan bertambah", "Tabungan berkurang", "sejak gaji", "Buka Tinjau",
       "Belum ada transaksi hari ini dan kemarin.", "Daftar Tinjau belum bisa dimuat.", "Aktivitas belum bisa dimuat.",
       "Angka Beranda belum dapat dimuat", "Belum bisa dihitung", "Menunggu jawaban", "Jawab di Tinjau",
-      "Masuk dikurangi Pengeluaran, Ditabung & investasi dan tagihan terjadwal sampai akhir",
+      "untuk tagihan kredit dan rencana", "Uang di kantong Uang harian, dikurangi semua utang kredit",
     ];
     expect(BERANDA_STRINGS.filter((label) => !values.includes(label))).toEqual([]);
   });

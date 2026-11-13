@@ -504,8 +504,7 @@ def test_cycle_summary_system_labels_follow_the_account(browser):
 
     english, indonesian = labels(browser("en")), labels(browser("id"))
     assert english and set(english) == set(indonesian)
-    assert english["masuk"] == "Income" and indonesian["masuk"] == "Masuk"
-    assert english["keluar"] == "Money out" and indonesian["keluar"] == "Keluar"
+    assert english["liquid"] == "Available cash" and indonesian["liquid"] == "Dana likuid"
 
 
 # --- Stored generated text (task 4.3) ------------------------------------------------------------------------

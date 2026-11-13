@@ -55,18 +55,18 @@ try {
     await browser.key(...TAB);
     order.push(await active());
   }
-  const expectedStart = ["Breakdown of safe to spend until payday", "Open Review · 4"];
+  const expectedStart = ["Safe to spend breakdown", "Open Review · 4"];
   record("tab order after the skip link follows the reading order", expectedStart.every((name, index) => order[index] === name), order.join(" › "));
 
   await open("/");
-  await browser.evaluate(`[...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Breakdown of safe to spend until payday").focus()`);
+  await browser.evaluate(`[...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Safe to spend breakdown").focus()`);
   await browser.key(...ENTER);
   await sleep(600);
   const dialog = await browser.evaluate(`(() => { const d = document.querySelector("dialog[open]"); return d ? d.querySelector("h2").textContent + " | focus inside: " + d.contains(document.activeElement) : null; })()`);
-  record("Breakdown opens the dialog with focus inside", /^Safe to spend until payday \| focus inside: true$/.test(dialog ?? ""), dialog);
+  record("Breakdown opens the dialog with focus inside", /^Safe to spend \| focus inside: true$/.test(dialog ?? ""), dialog);
   await browser.key(...ESC);
   await sleep(500);
-  record("Escape closes the Breakdown and returns focus to its button", (await active()) === "Breakdown of safe to spend until payday", await active());
+  record("Escape closes the Breakdown and returns focus to its button", (await active()) === "Safe to spend breakdown", await active());
 
   await open("/settings/tampilan");
   await browser.evaluate(`document.querySelector("input[name=interface-language]:checked").focus()`);

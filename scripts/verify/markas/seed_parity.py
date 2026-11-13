@@ -1189,7 +1189,8 @@ def compare_cycle(check: FigureCheck, data: dict[str, Any], shift: DayShift, cyc
                   "the app adds overdue plans and dated goals' monthly set-aside; data.js counts unpaid plans only")
     check.compare("cycle.scheduled (plans only)", stated["scheduled"], dig(cycle, "scheduled", "plans_total"),
                   f"{source} scheduled.plans_total")
-    check.compare("cycle.safeToSpend", stated["safeToSpend"], dig(cycle, "remaining", "total"), f"{source} remaining.total")
+    # data.js's safeToSpend is the salary view that count-safe-amount-from-daily-money replaced; the app's figure now
+    # reads balances (safe_amount), so the two are no longer the same quantity and are not compared.
     check.compare("cycle.safePerDay", stated["safePerDay"], dig(cycle, "safe_to_spend", "per_day"), f"{source} safe_to_spend.per_day",
                   "the app rounds down to Rp 1.000 per day")
     lines = {line["key"]: line["amount"] for line in dig(cycle, "keluar", "lines") or []}

@@ -294,7 +294,7 @@
   const header = first(".dlg-h", dialog);
   add("dialog header padding", `${style(header).paddingTop} ${style(header).paddingRight} ${style(header).paddingBottom}`, phone ? "16px 16px 12px" : "24px 24px 16px");
   const title = first(".dlg-t > :first-child", dialog);
-  add("dialog title", `${font(title)} ${title.textContent.trim()}`, `Manrope 20/28 600 ${say("Aman dipakai sampai gajian", "Safe to spend until payday")}`);
+  add("dialog title", `${font(title)} ${title.textContent.trim()}`, `Manrope 20/28 600 ${say("Aman dipakai", "Safe to spend")}`);
   const meta = first(".dlg-t .t-meta", dialog);
   add("dialog meta", meta ? `${font(meta)} ${meta.textContent.trim()}` : "none", `Inter 12/16 400 ${say("Rincian hitungan", "Calculation breakdown")}`);
   if (meta) add("dialog meta gap", px(box(meta).top - box(title).bottom), 4, 1);

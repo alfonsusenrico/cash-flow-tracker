@@ -167,14 +167,19 @@ class Owner:
 
 
 def assert_lines_add_up(data):
-    for figure in ("keluar", "masuk", "scheduled", "remaining", "net_worth"):
+    for figure in ("keluar", "masuk", "scheduled", "net_worth"):
         assert sum(line["amount"] for line in data[figure]["lines"]) == data[figure]["total"], figure
+    safe = data["safe_amount"]
+    assert sum(line["amount"] for line in safe["daily_money"]["accounts"]) == safe["daily_money"]["total"]
+    assert sum(line["amount"] for line in safe["credit_owed"]["accounts"]) == safe["credit_owed"]["total"]
+    assert sum(line["safe_amount"] for line in safe["scheduled"]["lines"]) == safe["scheduled"]["total"]
+    left = safe["daily_money"]["total"] - safe["credit_owed"]["total"] - safe["scheduled"]["total"]
+    assert (safe["amount"], safe["short_by"]) == (max(0, left), max(0, -left))
     waiting = data["waiting"]
     assert sum(line["amount"] for line in waiting["lines"]) == waiting["total"]
     assert waiting["in_keluar"] + waiting["not_in_keluar"] == waiting["total"]
     assert waiting["in_keluar"] == sum(line["amount"] for line in waiting["lines"] if line["in_keluar"])
     assert waiting["count"] == len(waiting["lines"])
-    assert data["remaining"]["total"] == data["masuk"]["total"] - data["keluar"]["total"] - data["scheduled"]["total"]
     net = data["net_worth"]
     assert net["total"] == (net["liquid"] + net["dana_investasi"] + net["investment"] - net["reconciliation_pending"] - net["debts"]
                             - net["credit_owed"])
@@ -190,11 +195,22 @@ def _numbers(data):
     yield data["masuk"]["total"]
     yield data["waiting"]["total"]
     yield data["scheduled"]["total"]
-    yield data["remaining"]["total"]
+    yield data["safe_amount"]["amount"]
+    yield data["safe_amount"]["short_by"]
     yield data["net_worth"]["total"]
-    for figure in ("keluar", "masuk", "scheduled", "remaining", "net_worth"):
+    for figure in ("keluar", "masuk", "scheduled", "net_worth"):
         for line in data[figure]["lines"]:
             yield line["amount"]
+
+
+def account_balance(owner, key: str) -> int:
+    rows = owner.session.get("/api/accounts").json()["accounts"]
+    flat = [row for account in rows for row in [account, *account.get("children", [])]]
+    return int(next(row for row in flat if row["id"] == owner[key])["own_balance"])
+
+
+def owner_daily_money(owner) -> int:
+    return owner.summary()["safe_amount"]["daily_money"]["total"]
 
 
 def keluar_lines(data):
@@ -402,13 +418,12 @@ def test_safe_to_spend_divides_by_the_days_before_the_expected_salary(owner):
     assert data["scheduled"]["window_start"] == latest.isoformat()
     assert data["scheduled"]["window_end"] == (expected - timedelta(days=1)).isoformat()
     assert data["scheduled"]["total"] == 600_000
-    remaining = SALARY - 3_164_500 - 600_000
-    assert data["remaining"]["total"] == remaining == 6_035_500
-    assert data["remaining"]["lines"] == [
-        {"key": "masuk", "label": "Masuk", "label_source": "system", "amount": SALARY},
-        {"key": "keluar", "label": "Keluar", "label_source": "system", "amount": -3_164_500},
-        {"key": "scheduled", "label": "Terjadwal", "label_source": "system", "amount": -600_000},
-    ]
+    safe = data["safe_amount"]
+    daily = account_balance(owner, "bank") + account_balance(owner, "wallet") + account_balance(owner, "pocket")
+    assert safe["daily_money"]["total"] == daily
+    assert (safe["credit_owed"]["total"], safe["scheduled"]["total"]) == (0, 600_000)
+    remaining = daily - 600_000
+    assert safe["amount"] == remaining and safe["short_by"] == 0
     days_left = (expected - today()).days
     assert data["safe_to_spend"] == {
         "status": "available", "reason": None, "detail": None, "days_left": days_left,
@@ -418,13 +433,16 @@ def test_safe_to_spend_divides_by_the_days_before_the_expected_salary(owner):
 
 def test_overspent_cycle_gives_zero_per_day_and_the_overrun(owner):
     owner.regular_salaries(today() - timedelta(days=5), amount=1_000_000)
-    owner.expense(1_300_000, "makan")
-    safe = owner.summary()["safe_to_spend"]
+    # Daily money falls short of what is owed: a planned bill larger than everything held.
+    owner.plan("sewa", "Sewa Contoh", owner_daily_money(owner) + 300_000, today() + timedelta(days=3))
+    data = owner.summary()
+    safe = data["safe_to_spend"]
     assert safe["status"] == "available"
     assert (safe["per_day"], safe["over_by"]) == (0, 300_000)
+    assert (data["safe_amount"]["amount"], data["safe_amount"]["short_by"]) == (0, 300_000)
 
 
-def test_unknown_salary_date_keeps_remaining_and_uses_a_30_day_schedule(owner):
+def test_unknown_salary_date_keeps_the_safe_amount_and_uses_a_30_day_schedule(owner):
     owner.salary(today() - timedelta(days=5), source=True)
     owner.expense(100_000, "makan")
     soon = owner.plan("listrik", "Listrik Contoh", 300_000, today() + timedelta(days=10))
@@ -436,7 +454,8 @@ def test_unknown_salary_date_keeps_remaining_and_uses_a_30_day_schedule(owner):
     assert data["safe_to_spend"]["status"] == "unavailable"
     assert (data["safe_to_spend"]["reason"], data["safe_to_spend"]["detail"]) == ("no_expected_salary", "too_few_receipts")
     assert data["safe_to_spend"]["per_day"] is None
-    assert data["remaining"]["total"] == SALARY - 100_000 - 300_000
+    assert data["safe_amount"]["scheduled"]["total"] == 300_000
+    assert data["safe_amount"]["amount"] == data["safe_amount"]["daily_money"]["total"] - 300_000
     scheduled = data["scheduled"]
     assert scheduled["window_basis"] == "next_30_days"
     assert scheduled["window_end"] == (today() + timedelta(days=30)).isoformat()
@@ -499,7 +518,8 @@ def test_linked_payment_leaves_terjadwal_as_it_enters_keluar(owner):
     after = owner.summary()
     assert after["keluar"]["total"] == before["keluar"]["total"] + 600_000
     assert after["scheduled"]["total"] == before["scheduled"]["total"] - 600_000
-    assert after["remaining"]["total"] == before["remaining"]["total"]
+    # The pocket pays it and the plan leaves Terjadwal: the safe amount counts it once.
+    assert after["safe_amount"]["amount"] == before["safe_amount"]["amount"]
 
 
 def test_funded_goal_set_aside_is_not_counted_twice(owner):
@@ -521,14 +541,14 @@ def test_funded_goal_set_aside_is_not_counted_twice(owner):
     laptop = goals[owner["laptop"]]
     assert (laptop["set_aside"], laptop["funded"], laptop["amount"]) == (300_000, 100_000, 200_000)
     assert data["scheduled"]["total"] == 400_000
-    # The funding itself is saving inside Keluar, so the remaining amount sees it once.
+    # The funding itself is saving inside Keluar, so the set-aside counts only its unfunded part.
     assert keluar_lines(data)["saving"] == 400_000
 
 
 # --- Reimbursements -------------------------------------------------------------------------------
 
 
-def test_reimbursement_raises_the_remaining_amount_by_the_offset(owner):
+def test_reimbursement_raises_the_safe_amount_by_the_money_received(owner):
     owner.salary(today() - timedelta(days=5))
     owner.expense(300_000, "jajan")
     before = owner.summary()
@@ -537,7 +557,7 @@ def test_reimbursement_raises_the_remaining_amount_by_the_offset(owner):
     after = owner.summary()
     assert after["masuk"]["total"] == before["masuk"]["total"]
     assert after["keluar"]["total"] == before["keluar"]["total"] - 200_000
-    assert after["remaining"]["total"] == before["remaining"]["total"] + 200_000
+    assert after["safe_amount"]["amount"] == before["safe_amount"]["amount"] + 200_000
     assert after["keluar"]["offsets_total"] == 200_000
     want = next(line for line in after["keluar"]["lines"] if line["key"] == "want")
     assert want["amount"] == 100_000 and "ganti uang Rp 200.000" in want["note"]
@@ -724,7 +744,7 @@ def test_bearer_key_reads_the_same_summary(owner):
     phone = TestClient(app, base_url="https://testserver", headers={"Authorization": f"Bearer {plain}"})
     by_key = owner.summary(phone)
     by_session = owner.summary()
-    for figure in ("keluar", "masuk", "waiting", "scheduled", "remaining", "net_worth", "safe_to_spend", "expected_salary"):
+    for figure in ("keluar", "masuk", "waiting", "scheduled", "safe_amount", "net_worth", "safe_to_spend", "expected_salary"):
         assert by_key[figure] == by_session[figure], figure
 
 
@@ -840,3 +860,95 @@ def test_statement_count_does_not_grow_with_rows_plans_or_goals(owner, monkeypat
     assert len([line for line in data["scheduled"]["lines"] if line["kind"] == "goal"]) == 4
     assert len([line for line in data["scheduled"]["lines"] if line["kind"] == "plan"]) == 5
     assert count_summary(owner, monkeypatch) == baseline
+
+
+# --- Aman dipakai from daily money (count-safe-amount-from-daily-money) ----------------------------------
+
+
+def _role(owner, key: str, role: str) -> None:
+    owner.db("UPDATE accounts SET role = %s WHERE id = %s", (role, owner[key]))
+
+
+def _credit(owner, key: str, name: str, owed: int) -> str:
+    account_id = owner.account(key, name, kind="credit", initial=-owed)
+    _role(owner, key, "utang")
+    return account_id
+
+
+def test_the_owners_13_november_figures(owner):
+    """Synthetic copy of the owner's case: money set aside for credit nets out against what is owed."""
+    owner.db("UPDATE accounts SET initial_balance = 0 WHERE user_id = %s", (owner.user_id,))
+    owner.account("makan", "Makan-Jalan", initial=715_609, parent="bank")
+    owner.account("bayar", "Bayar Kredit", initial=2_998_395, parent="bank")
+    owner.account("cash", "Cash", kind="cash", initial=706_330)
+    _credit(owner, "spay", "Spaylater", 3_046_014)
+    owner.account("tabungan", "Tabungan", initial=4_661_425, parent="bank")
+    _role(owner, "tabungan", "tabungan")
+    data = owner.summary()
+    safe = data["safe_amount"]
+    assert safe["daily_money"]["total"] == 715_609 + 2_998_395 + 706_330 == 4_420_334
+    assert safe["credit_owed"]["accounts"] == [{"account_id": owner["spay"], "name": "Spaylater", "amount": 3_046_014, "next_due": None}]
+    assert (safe["amount"], safe["short_by"]) == (1_374_320, 0)
+    assert [line["name"] for line in safe["daily_money"]["accounts"] if line["amount"]] == ["Bayar Kredit", "Makan-Jalan", "Cash"]
+    assert next(line for line in safe["daily_money"]["accounts"] if line["name"] == "Makan-Jalan")["parent_name"] == "Bank Contoh"
+
+
+def test_savings_investment_cash_and_investments_are_not_daily_money(owner):
+    before = owner.summary()["safe_amount"]["daily_money"]["total"]
+    owner.account("dana_darurat", "Dana Darurat", initial=4_531_291)
+    _role(owner, "dana_darurat", "tabungan")
+    owner.account("rdn", "RDN Contoh", initial=100_000)
+    _role(owner, "rdn", "dana_investasi")
+    owner.account("fund", "Reksa Dana Contoh", kind="investment", initial=25_000_000)
+    after = owner.summary()["safe_amount"]
+    assert after["daily_money"]["total"] == before
+    assert {line["name"] for line in after["daily_money"]["accounts"]}.isdisjoint({"Dana Darurat", "RDN Contoh", "Reksa Dana Contoh"})
+
+
+def test_a_pocket_below_zero_is_money_short(owner):
+    before = owner.summary()["safe_amount"]
+    owner.account("minus", "Main Pocket", initial=-189_667, parent="bank")
+    after = owner.summary()["safe_amount"]
+    assert after["daily_money"]["total"] == before["daily_money"]["total"] - 189_667
+    assert after["amount"] - after["short_by"] == before["amount"] - before["short_by"] - 189_667
+
+
+def test_money_from_before_the_salary_counts(owner):
+    owner.salary(today() - timedelta(days=3))
+    owner.tx("income", 300_000, category="lain", when=at_local(today() - timedelta(days=40)), notes="Sisa bulan lalu")
+    data = owner.summary()
+    # Masuk is this cycle's only; the safe amount reads what the pockets hold now.
+    assert data["masuk"]["total"] == SALARY
+    assert data["safe_amount"]["daily_money"]["total"] == 20_000_000 + SALARY + 300_000
+
+
+def test_plans_paid_from_savings_or_into_credit_do_not_count(owner):
+    owner.account("tabungan", "Tabungan Contoh", initial=1_000_000)
+    _role(owner, "tabungan", "tabungan")
+    _credit(owner, "spay", "SPayLater Contoh", 470_000)
+    due = today() + timedelta(days=5)
+    daily_plan = owner.plan("listrik", "Listrik Contoh", 300_000, due)
+    from_savings = owner.plan("asuransi", "Asuransi Contoh", 250_000, due)
+    owner.db("UPDATE recurring_rules SET source_account_id = %s WHERE id = %s", (owner["tabungan"], from_savings))
+    into_credit = owner.plan("bayar", "Bayar SPayLater", 470_000, due, kind="transfer")
+    owner.db("UPDATE recurring_rules SET target_account_id = %s WHERE id = %s", (owner["spay"], into_credit))
+    data = owner.summary()
+    lines = {line["rule_id"]: line for line in data["safe_amount"]["scheduled"]["lines"] if line["kind"] == "plan"}
+    assert (lines[daily_plan]["safe_amount"], lines[daily_plan]["not_counted_reason"]) == (300_000, None)
+    assert (lines[from_savings]["safe_amount"], lines[from_savings]["not_counted_reason"]) == (0, "paid_from_savings")
+    assert (lines[into_credit]["safe_amount"], lines[into_credit]["not_counted_reason"]) == (0, "in_credit_owed")
+    safe = data["safe_amount"]
+    assert safe["scheduled"]["total"] == 300_000
+    assert safe["amount"] == safe["daily_money"]["total"] - 470_000 - 300_000
+    # Target & Tagihan keeps its own reading of the same plans.
+    assert data["scheduled"]["total"] == 300_000 + 250_000 + lines[into_credit]["amount"]
+
+
+def test_short_of_what_is_owed(owner):
+    owner.db("UPDATE accounts SET initial_balance = 0 WHERE user_id = %s", (owner.user_id,))
+    owner.account("cash", "Cash", kind="cash", initial=1_000_000)
+    _credit(owner, "spay", "SPayLater Contoh", 1_200_000)
+    owner.plan("listrik", "Listrik Contoh", 100_000, today() + timedelta(days=3))
+    safe = owner.summary()["safe_amount"]
+    assert (safe["daily_money"]["total"], safe["credit_owed"]["total"], safe["scheduled"]["total"]) == (1_000_000, 1_200_000, 100_000)
+    assert (safe["amount"], safe["short_by"]) == (0, 300_000)

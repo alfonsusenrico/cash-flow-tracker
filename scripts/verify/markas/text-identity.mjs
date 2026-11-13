@@ -26,8 +26,8 @@ const READ = `(() => {
 
 const SCENES = [
   { name: "beranda", url: "/", steps: [] },
-  { name: "rincian", url: "/", steps: ["Rincian aman dipakai sampai gajian"] },
-  { name: "rincian-lines", url: "/", steps: ["Rincian aman dipakai sampai gajian", "^Masuk", "^Pengeluaran", "^Ditabung", "^Terjadwal", "^Menunggu jawaban"] },
+  { name: "rincian", url: "/", steps: ["Rincian aman dipakai"] },
+  { name: "rincian-lines", url: "/", steps: ["Rincian aman dipakai", "^Uang harian", "^Tagihan kredit", "^Terjadwal"] },
   { name: "notifikasi", url: "/", steps: ["^Notifikasi"] },
   { name: "akun", url: "/", steps: ["^Akun "] },
   { name: "bantuan", url: "/", keys: true },

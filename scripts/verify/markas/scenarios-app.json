@@ -18,7 +18,7 @@
   "beranda": true,
   "steps": [
    {
-    "click": "^(Rincian aman dipakai sampai gajian|Aman dipakai sampai gajian [−-]?Rp|Breakdown of safe to spend until payday|Safe to spend until payday [−-]?Rp)"
+    "click": "^(Rincian aman dipakai|Aman dipakai [−-]?Rp|Safe to spend breakdown|Safe to spend [−-]?Rp)"
    }
   ]
  },
@@ -28,7 +28,7 @@
   "beranda": true,
   "steps": [
    {
-    "click": "^(Rincian aman dipakai sampai gajian|Aman dipakai sampai gajian [−-]?Rp|Breakdown of safe to spend until payday|Safe to spend until payday [−-]?Rp)"
+    "click": "^(Rincian aman dipakai|Aman dipakai [−-]?Rp|Safe to spend breakdown|Safe to spend [−-]?Rp)"
    },
    {
     "click": "^(Pengeluaran|Spending)"
@@ -44,7 +44,7 @@
   "beranda": true,
   "steps": [
    {
-    "click": "^(Rincian aman dipakai sampai gajian|Aman dipakai sampai gajian [−-]?Rp|Breakdown of safe to spend until payday|Safe to spend until payday [−-]?Rp)"
+    "click": "^(Rincian aman dipakai|Aman dipakai [−-]?Rp|Safe to spend breakdown|Safe to spend [−-]?Rp)"
    }
   ]
  },
@@ -2020,7 +2020,7 @@
   "target": true,
   "steps": [
    {
-    "click": "^(Rincian aman dipakai sampai gajian|Aman dipakai sampai gajian [−-]?Rp|Breakdown of safe to spend until payday|Safe to spend until payday [−-]?Rp)"
+    "click": "^(Rincian aman dipakai|Aman dipakai [−-]?Rp|Safe to spend breakdown|Safe to spend [−-]?Rp)"
    },
    {
     "click": "^(Pengeluaran|Spending)"

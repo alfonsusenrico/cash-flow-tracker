@@ -1,8 +1,7 @@
-import type { ExplanationData, ExplanationLine } from "@/components/workspace/explanation";
+import type { ExplanationLine } from "@/components/workspace/explanation";
 import type { RincianData } from "@/components/workspace/ExplanationDialog";
-import { createFormat } from "@/lib/format";
 import type { Translate, Words } from "@/lib/i18n/types";
-import type { CycleSummary, ExpectedReason, SummaryLine, WaitingLine, WaitingSection } from "./types";
+import type { CycleSummary, ExpectedReason, SafeScheduledLine, SummaryLine } from "./types";
 import { bucketName } from "./words";
 
 /**
@@ -35,155 +34,11 @@ export function lineLabel(line: SummaryLine, t: Translate): string {
   return bucketName(t, line.key);
 }
 
-/** A server line's note from its codes; an older API without codes keeps its own note. */
-function lineNote(line: SummaryLine, { t, format }: Words): string | null {
-  if (!line.note_codes) return line.note ?? null;
-  // The server writes these amounts in rupiah whatever the display currency, so the note stays as it reads today.
-  const rupiah = createFormat({ language: format.language, region: format.region });
-  const notes = line.note_codes.map((note) =>
-    note.code === "includes_savings_moves"
-      ? t("breakdown.includesSavingsMoves")
-      : t("breakdown.reducedByReimbursementsNote", { amount: rupiah.money(note.params.amount ?? 0) }),
-  );
-  return notes.length ? notes.join(". ") : null;
-}
-
-function lineOf(line: SummaryLine, money: Money, words: Words, withHref = true): ExplanationLine {
-  return { label: lineLabel(line, words.t), note: lineNote(line, words), amount: money(line.amount), href: withHref ? line.href ?? null : null };
-}
-
-function ledgerPeriod(summary: CycleSummary): string {
-  return `/ledger?period=${summary.period.cycle_offset_basis}`;
-}
-
-const SECTION_KEYS = {
-  questions: "breakdown.sectionQuestions",
-  ambiguous: "breakdown.sectionAmbiguous",
-  awaiting: "breakdown.sectionAwaiting",
-  groups: "breakdown.sectionGroups",
-} as const satisfies Record<WaitingSection, string>;
-
-/**
- * The two credit lines after the buckets (add-credit-spending-flow D11, apply-markas-target D17): spending booked on
- * credit, already inside the buckets, and cash paid to credit bills, outside Pengeluaran by rule. Neither is added to
- * the total; each note names the accounts with their amounts, as stored.
- */
-function creditLines(summary: CycleSummary, money: Money, { t }: Words): ExplanationLine[] {
-  const credit = summary.spending.credit;
-  if (!credit) return [];
-  const creditAccounts = credit.lines;
-  const accounts = (pick: (line: (typeof creditAccounts)[number]) => number) =>
-    creditAccounts
-      .filter((line) => pick(line) > 0)
-      .map((line) => `${line.label} ${money(pick(line))}`)
-      .join(", ");
-  const lines: ExplanationLine[] = [];
-  if (credit.spent_on_credit > 0) {
-    const named = accounts((line) => line.spent_on_credit);
-    lines.push({
-      label: t("breakdown.spentOnCredit"),
-      note: named ? t("breakdown.creditNoteWithAccounts", { note: t("breakdown.spentOnCreditNote"), accounts: named }) : t("breakdown.spentOnCreditNote"),
-      amount: money(credit.spent_on_credit),
-    });
-  }
-  if (credit.paid_to_credit > 0) {
-    const named = accounts((line) => line.paid_to_credit);
-    lines.push({
-      label: t("breakdown.paidToCredit"),
-      note: named ? t("breakdown.creditNoteWithAccounts", { note: t("breakdown.paidToCreditNote"), accounts: named }) : t("breakdown.paidToCreditNote"),
-      amount: money(credit.paid_to_credit),
-    });
-  }
-  return lines;
-}
-
-export function spendingExplanation(summary: CycleSummary, money: Money, words: Words): ExplanationData {
-  const { t } = words;
-  const notes = [t("breakdown.spendingNote")];
-  if (summary.keluar.offsets_total > 0) notes.push(t("breakdown.reducedByReimbursements", { amount: money(summary.keluar.offsets_total) }));
-  if (summary.waiting.in_keluar > 0) notes.push(t("breakdown.waitingIncluded", { amount: money(summary.waiting.in_keluar) }));
-  return {
-    title: t("breakdown.spendingTitle", { period: periodBasis(summary) }),
-    rule: t("breakdown.spendingRule"),
-    lines: [...summary.spending.lines.map((line) => lineOf(line, money, words)), ...creditLines(summary, money, words)],
-    total: { label: t("breakdown.totalSpending"), amount: money(summary.spending.amount) },
-    notes,
-    link: { href: `${ledgerPeriod(summary)}&type=expense`, label: t("breakdown.viewSpending") },
-  };
-}
-
-export function savingExplanation(summary: CycleSummary, money: Money, words: Words): ExplanationData {
-  const { t } = words;
-  const parts = summary.tabungan;
-  const together = t("breakdown.togetherTotal", { spending: money(summary.spending.amount), total: money(summary.keluar.total) });
-  const link = { href: `${ledgerPeriod(summary)}&kakeibo=saving`, label: t("breakdown.viewSaved") };
-  if (parts) {
-    const lines: ExplanationLine[] = [
-      { label: t("breakdown.intoSavings"), amount: signed(parts.masuk, money) },
-      { label: t("breakdown.takenFromSavings"), amount: signed(-parts.diambil, money) },
-      { label: t("breakdown.spendingFromSavings"), note: t("breakdown.stillCountedAsSpending"), amount: signed(-parts.belanja, money) },
-    ];
-    if (parts.pilar_tabungan) lines.push({ label: t("breakdown.savingsPillarSpending"), amount: signed(parts.pilar_tabungan, money) });
-    return {
-      title: t("terms.savedInvested"),
-      rule: t("breakdown.savingsRule"),
-      lines,
-      total: { label: parts.total < 0 ? t("home.captionSavingsDown") : t("home.captionSavingsUp"), amount: money(Math.abs(parts.total)) },
-      notes: [together],
-      link,
-    };
-  }
-  return {
-    title: t("terms.savedInvested"),
-    rule: t("breakdown.savedRule"),
-    lines: summary.fresh_saving.lines.map((line) => lineOf(line, money, words)),
-    total: { label: t("breakdown.totalSaved"), amount: money(summary.fresh_saving.amount) },
-    notes: [together],
-    link,
-  };
-}
-
-export function masukExplanation(summary: CycleSummary, money: Money, words: Words): ExplanationData {
-  const { t } = words;
-  return {
-    title: t("breakdown.incomeTitle", { period: periodBasis(summary) }),
-    rule: t("breakdown.incomeRule"),
-    lines: summary.masuk.lines.map((line) => lineOf(line, money, words)),
-    total: { label: t("breakdown.totalIncome"), amount: money(summary.masuk.total) },
-    notes: [t("breakdown.incomeNote")],
-    link: { href: `${ledgerPeriod(summary)}&type=income`, label: t("breakdown.viewIncome") },
-  };
-}
-
-function scheduledDetailLines(summary: CycleSummary, money: Money, { t, format }: Words): ExplanationLine[] {
-  return summary.scheduled.lines.map((line) =>
-    line.kind === "plan"
-      ? {
-          label: t("breakdown.billLine", { label: line.label }),
-          note: line.overdue
-            ? t("breakdown.dueOnOverdue", { date: format.shortDate(line.due_date) })
-            : t("breakdown.dueOn", { date: format.shortDate(line.due_date) }),
-          amount: `−${money(line.amount)}`,
-        }
-      : {
-          label: t("breakdown.goalDepositLine", { label: line.label }),
-          note: t("breakdown.goalDepositNote", { amount: money(line.set_aside), funded: money(line.funded) }),
-          amount: `−${money(line.amount)}`,
-        },
-  );
-}
-
 function expectedBasisNote(summary: CycleSummary, { t, format }: Words): string | null {
   const expected = summary.expected_salary;
   if (!expected.date || expected.basis !== "regular_receipts") return null;
   const receipts = expected.receipt_dates.map(format.shortDate).join(", ");
   return t("breakdown.expectedBasis", { date: format.longDate(expected.date), receipts });
-}
-
-function waitingNote(summary: CycleSummary, money: Money, { t }: Words): string | null {
-  const { waiting } = summary;
-  if (!waiting.count) return null;
-  return t("breakdown.waitingNote", { count: waiting.count, total: money(waiting.total), included: money(waiting.in_keluar) });
 }
 
 const EXPECTED_REASONS = {
@@ -211,59 +66,14 @@ export function unavailableReason(summary: CycleSummary, { t, format }: Words): 
   };
 }
 
-export function scheduledExplanation(summary: CycleSummary, money: Money, words: Words): ExplanationData {
-  const { t, format } = words;
-  const { scheduled } = summary;
-  const window =
-    scheduled.window_basis === "expected_salary"
-      ? t("breakdown.windowExpectedSalary", { date: format.shortDate(scheduled.window_end) })
-      : t("breakdown.windowNext30Days", { date: format.shortDate(scheduled.window_end) });
-  return {
-    title: t("terms.scheduled"),
-    rule: t("breakdown.scheduledRule"),
-    lines: scheduledDetailLines(summary, money, words).map((line) => ({ ...line, amount: line.amount.replace("−", "") })),
-    total: { label: t("breakdown.totalScheduled"), amount: money(scheduled.total) },
-    notes: [window, t("breakdown.plansNote")],
-    link: { href: "/goals", label: t("breakdown.openGoals") },
-  };
-}
-
-/** Where a waiting row's amount already sits, in the words of the figures it is counted in. */
-function waitingPlace(line: WaitingLine, t: Translate): string {
-  if (!line.in_keluar) return t("breakdown.notCountedYet");
-  if (line.in_keluar_as === "saving") return t("breakdown.countedInSaved");
-  return t("breakdown.countedInSpendingAs", { pillar: bucketName(t, line.in_keluar_as ?? "unclassified") });
-}
-
-/** A waiting row's label: the stored text, or the fixed fallback from its key (D7). */
-function waitingLabel(line: WaitingLine, t: Translate): string {
-  if (line.label_source !== "system") return line.label;
-  return line.label_key === "uncategorized" ? t("terms.noCategory") : t("terms.noDescription");
-}
-
-function waitingDisclosure(summary: CycleSummary, money: Money, { t }: Words): RincianData["waiting"] {
-  const { waiting } = summary;
-  if (!waiting.count) return null;
-  return {
-    label: t("breakdown.waiting"),
-    amount: money(waiting.total),
-    lines: waiting.lines.map((line) => ({
-      label: waitingLabel(line, t),
-      note: t("breakdown.waitingLine", { section: t(SECTION_KEYS[line.section]), place: waitingPlace(line, t) }),
-      amount: money(line.amount),
-    })),
-    link: { href: "/review", label: t("breakdown.answerInReview") },
-  };
-}
-
 /** A capitalised sentence from a reason that is written to follow a colon. */
 function sentence(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-/** The note under the Rincian's total: the expected-salary basis, or why the period is over or the date unknown. */
+/** The note under the Rincian's total: the shortfall, else the expected-salary basis or why the date is unknown. */
 function basisNote(summary: CycleSummary, money: Money, words: Words): string | null {
-  if (summary.remaining.total < 0) return words.t("breakdown.overNote", { amount: money(-summary.remaining.total) });
+  if (summary.safe_amount.short_by > 0) return words.t("breakdown.shortNote", { amount: money(summary.safe_amount.short_by) });
   if (summary.safe_to_spend.status !== "available") return sentence(unavailableReason(summary, words).reason);
   return expectedBasisNote(summary, words);
 }
@@ -273,38 +83,79 @@ function cost(amount: number, money: Money): string {
   return amount > 0 ? `−${money(amount)}` : money(0);
 }
 
+/** Every daily-money pocket with its bank, largest first, as the server orders them (D2, D7). */
+function dailyMoneyParts(summary: CycleSummary, money: Money): ExplanationLine[] {
+  return summary.safe_amount.daily_money.accounts.map((account) => ({
+    label: account.parent_name ? `${account.parent_name} · ${account.name}` : account.name,
+    amount: balance(account.amount, money),
+  }));
+}
+
+/** Every credit account with what it owes and its next due date (D3, D7). */
+function creditParts(summary: CycleSummary, money: Money, { t, format }: Words): ExplanationLine[] {
+  return summary.safe_amount.credit_owed.accounts.map((account) => ({
+    label: account.name,
+    note: account.next_due ? t("breakdown.creditDue", { date: format.shortDate(account.next_due.due_date) }) : null,
+    amount: cost(account.amount, money),
+  }));
+}
+
+const NOT_COUNTED_KEYS = {
+  in_credit_owed: "breakdown.inCreditOwed",
+  paid_from_savings: "breakdown.paidFromSavings",
+} as const satisfies Record<NonNullable<SafeScheduledLine["not_counted_reason"]>, string>;
+
+/** Each plan and set-aside with what it takes from daily money; one counted elsewhere says where (D4). */
+function scheduledParts(summary: CycleSummary, money: Money, { t, format }: Words): ExplanationLine[] {
+  return summary.safe_amount.scheduled.lines.map((line) => {
+    const elsewhere = line.not_counted_reason ? t(NOT_COUNTED_KEYS[line.not_counted_reason]) : null;
+    if (line.kind === "goal") {
+      return {
+        label: t("breakdown.goalDepositLine", { label: line.label }),
+        note: t("breakdown.goalDepositNote", { amount: money(line.set_aside), funded: money(line.funded) }),
+        amount: cost(line.safe_amount, money),
+      };
+    }
+    const due = line.overdue
+      ? t("breakdown.dueOnOverdue", { date: format.shortDate(line.due_date) })
+      : t("breakdown.dueOn", { date: format.shortDate(line.due_date) });
+    return {
+      label: t("breakdown.billLine", { label: line.label }),
+      note: elsewhere ? `${due} · ${elsewhere}` : due,
+      amount: cost(line.safe_amount, money),
+    };
+  });
+}
+
 /**
- * The Rincian of "Aman dipakai sampai gajian" (apply-markas-beranda D5): Masuk less Pengeluaran, Ditabung &
- * investasi and Terjadwal, each opening the server lines behind it, the total, its notes and the waiting rows.
+ * The Rincian of "Aman dipakai" (count-safe-amount-from-daily-money D7): Uang harian less Tagihan kredit and
+ * Terjadwal, each opening the server lines behind it, then a shortfall if any and the total.
  */
 export function safeAmountRincian(summary: CycleSummary, money: Money, words: Words): RincianData {
   const { t, format } = words;
-  const { masuk, spending, fresh_saving: saving, scheduled, remaining } = summary;
-  const period = periodBasis(summary);
-  const savingLines = savingExplanation(summary, money, words);
-  const scheduledLines = scheduledExplanation(summary, money, words);
+  const safe = summary.safe_amount;
+  const window =
+    safe.scheduled.window_basis === "expected_salary"
+      ? t("breakdown.windowExpectedSalary", { date: format.shortDate(safe.scheduled.window_end) })
+      : t("breakdown.windowNext30Days", { date: format.shortDate(safe.scheduled.window_end) });
   return {
-    title: t("terms.safeToSpendUntilPayday"),
-    rule: t("breakdown.safeRule", { period }),
+    title: t("terms.safeToSpend"),
+    rule: t("breakdown.safeRuleDaily"),
     lines: [
-      { key: "masuk", label: t("terms.income"), amount: money(masuk.total), parts: masukExplanation(summary, money, words).lines },
-      { key: "spending", label: t("terms.spending"), amount: cost(spending.amount, money), parts: spendingExplanation(summary, money, words).lines },
-      saving.amount < 0
-        ? { key: "saving", label: t("home.captionSavingsDown"), amount: money(-saving.amount), parts: savingLines.lines }
-        : { key: "saving", label: t("terms.savedInvested"), amount: cost(saving.amount, money), parts: savingLines.lines },
+      { key: "daily", label: t("terms.everydayMoney"), amount: balance(safe.daily_money.total, money), parts: dailyMoneyParts(summary, money) },
+      { key: "credit", label: t("terms.creditBills"), amount: cost(safe.credit_owed.total, money), parts: creditParts(summary, money, words) },
       {
         key: "scheduled",
-        label: t("breakdown.scheduledUntil", { date: format.shortDate(scheduled.window_end) }),
-        amount: cost(scheduled.total, money),
-        parts: scheduledLines.lines,
-        partNotes: scheduledLines.notes?.slice(0, 1),
+        label: t("breakdown.scheduledUntil", { date: format.shortDate(safe.scheduled.window_end) }),
+        amount: cost(safe.scheduled.total, money),
+        parts: scheduledParts(summary, money, words),
+        partNotes: [window],
       },
     ],
-    // An over period ends in what it is over by, then the result Rp 0, so "Aman dipakai" is never negative.
-    over: remaining.total < 0 ? { label: t("breakdown.moreThanIncome"), amount: money(-remaining.total) } : null,
-    total: { label: t("terms.safeToSpend"), amount: money(Math.max(0, remaining.total)) },
-    notes: [basisNote(summary, money, words), waitingNote(summary, money, words)].filter((note): note is string => Boolean(note)),
-    waiting: waitingDisclosure(summary, money, words),
-    link: { href: ledgerPeriod(summary), label: t("breakdown.viewTransactions", { period }) },
+    // Short ends in what is missing, then the result Rp 0, so "Aman dipakai" is never negative.
+    over: safe.short_by > 0 ? { label: t("breakdown.short"), amount: money(safe.short_by) } : null,
+    total: { label: t("terms.safeToSpend"), amount: money(safe.amount) },
+    notes: [basisNote(summary, money, words)].filter((note): note is string => Boolean(note)),
+    link: { href: "/accounts", label: t("breakdown.openAccounts") },
   };
 }

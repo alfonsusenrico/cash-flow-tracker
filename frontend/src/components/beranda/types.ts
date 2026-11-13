@@ -63,6 +63,12 @@ export interface GoalLine {
   amount: number;
 }
 
+/** A scheduled line as the safe amount counts it: `safe_amount` is 0 with the reason when it is counted elsewhere. */
+export type SafeScheduledLine = (PlanLine | GoalLine) & {
+  safe_amount: number;
+  not_counted_reason: "in_credit_owed" | "paid_from_savings" | null;
+};
+
 export interface ComparisonFigure {
   current: number;
   previous: number | null;
@@ -121,7 +127,22 @@ export interface CycleSummary {
     window_basis: "expected_salary" | "next_30_days";
     lines: (PlanLine | GoalLine)[];
   };
-  remaining: { total: number; lines: SummaryLine[] };
+  /**
+   * Aman dipakai from what the owner holds (count-safe-amount-from-daily-money D1 to D5): daily money less
+   * everything owed on credit less the plans paid from daily money, never below 0; `short_by` holds a shortfall.
+   */
+  safe_amount: {
+    amount: number;
+    short_by: number;
+    daily_money: { total: number; accounts: { account_id: string; name: string; parent_name: string | null; amount: number }[] };
+    credit_owed: { total: number; accounts: { account_id: string; name: string; amount: number; next_due: { due_date: string; left_to_pay: number } | null }[] };
+    scheduled: {
+      total: number;
+      window_end: string;
+      window_basis: "expected_salary" | "next_30_days";
+      lines: SafeScheduledLine[];
+    };
+  };
   safe_to_spend: {
     status: "available" | "unavailable";
     reason: SafeReason | null;

@@ -488,10 +488,7 @@
       "liquid": "Dana likuid",
       "investment_cash": "Dana investasi",
       "investments": "Investasi",
-      "negative_balance": "Saldo minus perlu dicocokkan",
-      "income": "Masuk",
-      "out": "Keluar",
-      "scheduled": "Terjadwal"
+      "negative_balance": "Saldo minus perlu dicocokkan"
     },
     "dashboard": {
       "gross": "Belanja tercatat",
