@@ -52,34 +52,43 @@ Beranda SHALL state, in the Rincian of its hero, the count and total of the rows
 - **THEN** the "Perlu tindakan" header SHALL show "Buka Tinjau" with the attention count and no waiting amount
 
 ### Requirement: Safe-to-Spend Today
-Beranda's hero figure SHALL be "Aman dipakai sampai gajian": the remaining amount for the whole period (masuk less keluar less scheduled), never a per-day or per-week amount. Its line SHALL give the days left and the expected salary date in an open cycle with that date after today, and the reason otherwise. The API's `per_day` SHALL stay as defined for other consumers, unavailable with a reason otherwise.
+Beranda's hero figure SHALL be "Aman dipakai": the money in daily-money pockets, minus everything owed on credit accounts, minus the plans and set-asides paid from daily money before the next salary, never below Rp 0 and never a per-day or per-week amount. Its line SHALL give the days left and the expected salary date in an open cycle with that date after today, and the reason otherwise. The API's `per_day` SHALL divide this amount, unavailable with a reason otherwise.
 
 #### Scenario: Available
-- **GIVEN** masuk Rp 9.800.000, keluar Rp 3.164.500, scheduled Rp 1.713.500, today 2 November and an expected salary date of 25 November
+- **GIVEN** daily-money pockets holding Rp 4.420.334, Spaylater owing Rp 3.046.014, no plan due, today 13 November and an expected salary date of 30 November
 - **WHEN** the owner opens Beranda
-- **THEN** the hero SHALL read Rp 4.922.000 with the line "23 hari lagi sampai gajian 25 Nov", its Rincian SHALL list Masuk, Pengeluaran, Ditabung & investasi and Terjadwal, and no per-day amount SHALL be shown
+- **THEN** the hero SHALL read Rp 1.374.320 with the line "17 hari lagi sampai gajian 30 Nov", and no per-day amount SHALL be shown
 
 #### Scenario: Next salary date unknown
 - **GIVEN** an open cycle whose confirmed receipts do not form a regular pattern
 - **WHEN** the owner opens Beranda
-- **THEN** the hero SHALL still show the remaining amount with its Rincian lines and its line SHALL say "Tanggal gaji berikutnya belum diketahui" instead of a day count
+- **THEN** the hero SHALL still show the safe amount with its Rincian lines and its line SHALL say "Tanggal gaji berikutnya belum diketahui" instead of a day count
 
 #### Scenario: Salary is late
 - **GIVEN** the expected salary date was yesterday and no new receipt is confirmed
 - **WHEN** the owner opens Beranda
-- **THEN** the hero SHALL show the remaining amount and its line SHALL say that the salary has not been recorded yet, and no negative or zero day count SHALL be used
+- **THEN** the hero SHALL show the safe amount and its line SHALL say that the salary has not been recorded yet, and no negative or zero day count SHALL be used
 
 #### Scenario: Spent more than the remaining amount
-- **WHEN** keluar plus scheduled exceeds masuk by Rp 300.000 with 10 days left
-- **THEN** the hero SHALL show Rp 0 and its line SHALL say that the period is Rp 300.000 over, instead of showing a negative safe amount
+- **WHEN** credit owed plus scheduled exceeds daily money by Rp 300.000
+- **THEN** the hero SHALL show Rp 0 and its line SHALL say "Kurang Rp 300.000 untuk tagihan kredit dan rencana", instead of showing a negative safe amount
+
+#### Scenario: Money carried over and returned counts
+- **GIVEN** Rp 398.836 left in daily pockets from before the salary and Rp 300.000 returned by friends for last cycle's spending
+- **WHEN** the safe amount is computed
+- **THEN** both SHALL be part of daily money, because the figure reads balances, not the cycle's flows
+
+#### Scenario: Savings and investment cash are not daily money
+- **WHEN** the owner holds Rp 4.531.291 in a `tabungan` pocket and Rp 100.000 in an RDN (`dana_investasi`)
+- **THEN** neither SHALL count in daily money
 
 ### Requirement: Scheduled Amount
-"Terjadwal" SHALL be the unpaid occurrences of the owner's active non-income plans that are due or overdue up to the day before the expected salary date, plus the unfunded part of the current period's goal set-asides. Paid, linked or skipped occurrences SHALL NOT count, and a set-aside already moved into the goal's accounts this period SHALL NOT count again. A transfer plan into a credit account SHALL count only up to that account's opening debt left to pay.
+"Terjadwal" SHALL be the unpaid occurrences of active non-income plans due up to the day before the expected salary date, plus the unfunded part of this period's goal set-asides. Paid, linked or skipped occurrences, plans paid from savings or investment cash, and transfer plans into credit accounts SHALL NOT count.
 
 #### Scenario: Linked payment leaves Terjadwal
-- **GIVEN** a Rp 600.000 plan due on 5 November inside the window
+- **GIVEN** a Rp 600.000 plan from a daily pocket due on 5 November inside the window
 - **WHEN** its payment is linked to the plan
-- **THEN** "Terjadwal" SHALL fall by Rp 600.000 while "Keluar" rises by the payment, so the remaining amount does not count it twice
+- **THEN** "Terjadwal" SHALL fall by Rp 600.000 and the pocket's balance by the payment, so the safe amount does not count it twice
 
 #### Scenario: Goal set-aside already funded
 - **GIVEN** a goal with a Rp 600.000 set-aside for the period and Rp 400.000 already moved into its pocket this period
@@ -91,14 +100,19 @@ Beranda's hero figure SHALL be "Aman dipakai sampai gajian": the remaining amoun
 - **THEN** "Terjadwal" SHALL cover the next 30 days, and its explanation SHALL name that window
 
 #### Scenario: Credit-bill plan is not counted twice
-- **GIVEN** a Rp 470.000 SPayLater purchase this cycle, no opening debt, and a Rp 470.000 transfer plan Jago → SPayLater due in the window
-- **WHEN** the scheduled amount is computed
-- **THEN** the plan's line SHALL show `plan_amount` Rp 470.000, `amount` Rp 0 and `counted_elsewhere` Rp 470.000, and "Aman dipakai" SHALL be lower by Rp 470.000 only, through Pengeluaran
+- **GIVEN** SPayLater owing Rp 470.000 and a Rp 470.000 transfer plan Jago → SPayLater due in the window
+- **WHEN** the safe amount is computed
+- **THEN** the plan SHALL contribute Rp 0 to "Terjadwal" and be shown as already in "Tagihan kredit", and "Aman dipakai" SHALL be lower by Rp 470.000 only once
 
 #### Scenario: Credit-bill plan for opening debt
 - **GIVEN** Kredivo opened owing Rp 300.000 with nothing paid, and two Rp 200.000 transfer plan occurrences into Kredivo in the window
-- **WHEN** the scheduled amount is computed
-- **THEN** the two occurrences SHALL count Rp 200.000 and Rp 100.000 in due-date order, and the rest SHALL be marked as counted elsewhere
+- **WHEN** the safe amount is computed
+- **THEN** neither occurrence SHALL count in "Terjadwal", and the Rp 300.000 SHALL be subtracted once through "Tagihan kredit"
+
+#### Scenario: Plan paid from savings
+- **GIVEN** a Rp 250.000 insurance plan whose source is a `tabungan` pocket, due in the window
+- **WHEN** the safe amount is computed
+- **THEN** it SHALL NOT count in "Terjadwal"
 
 ### Requirement: Kerjakan Dulu
 Under "Perlu tindakan" Beranda SHALL list the first three of what needs the owner, ranked: open questions, plans and credit bills past their due date, those due today, awaiting transfers, ambiguous pairs, groups that need an answer, automatically linked plans to check, and plans and credit bills due within two days. Each row SHALL name the item, its kind and time and its amount where it has one, and the whole row SHALL be its one action.
@@ -182,11 +196,11 @@ Beranda SHALL show static placeholders of the final layout while loading. When t
 - **AND** "Perlu tindakan", "Aktivitas terbaru" and Ketahanan Dana SHALL still render, and Kekayaan bersih and Kakeibo SHALL be left out
 
 ### Requirement: Cycle Summary API
-`GET /api/dashboard/cycle-summary` SHALL return, for the authenticated owner only, the Beranda period, keluar, spending, fresh saving, masuk, waiting, scheduled, remaining, safe-to-spend and net-worth figures as integer rupiah, each with explanation lines that add up to it, plus status and reason codes for unavailable figures. It SHALL accept session or Bearer authentication.
+`GET /api/dashboard/cycle-summary` SHALL return, for the authenticated owner only, the Beranda period, keluar, spending, fresh saving, masuk, waiting, scheduled, the safe amount, safe-to-spend and net-worth figures as integer rupiah, each with lines that add up to it, plus status and reason codes for unavailable figures. It SHALL accept session or Bearer authentication.
 
 #### Scenario: Lines add up
 - **WHEN** the summary is returned
-- **THEN** for every figure that has lines, the lines SHALL add up exactly to the figure, `spending + fresh_saving` SHALL equal `keluar`, and `remaining` SHALL equal `masuk - keluar - scheduled`
+- **THEN** for every figure that has lines, the lines SHALL add up exactly to the figure, `spending + fresh_saving` SHALL equal `keluar`, and `safe_amount.amount` SHALL equal `max(0, daily_money.total - credit_owed.total - scheduled.total)` with `short_by` holding any shortfall
 
 #### Scenario: Unavailable figure
 - **WHEN** the expected salary date is unknown
@@ -202,23 +216,23 @@ Beranda SHALL show static placeholders of the final layout while loading. When t
 - **THEN** the API SHALL respond 401 and return no figures
 
 ### Requirement: Beranda Hero
-Beranda SHALL open with one hero, "Aman dipakai sampai gajian", as the page's only 44 px figure, then one line, a split bar of Pengeluaran, Ditabung & investasi, Terjadwal and Aman dipakai named with their percentages, and the supporting figures Masuk, Pengeluaran and Ditabung & investasi, each one link with one caption. No other Beranda figure SHALL be 33 px or larger, and the hero figure SHALL NOT be a control.
+Beranda SHALL open with one hero, "Aman dipakai", as the page's only 44 px figure, then one line, a split bar of daily money into Tagihan kredit, Terjadwal and Aman dipakai named with their shares, and the supporting figures Masuk, Pengeluaran and Ditabung & investasi, each one link with one caption. No other Beranda figure SHALL be 33 px or larger, and the hero figure SHALL NOT be a control.
 
 #### Scenario: Hero on a desktop
 - **WHEN** the owner opens Beranda at 1440 × 900
 - **THEN** the hero SHALL start at `y = 192`, the supporting figures SHALL follow in one row in that order, and each figure SHALL appear once on the page
 
 #### Scenario: Figures add up to Masuk
-- **WHEN** the hero shows masuk Rp 9.800.000
-- **THEN** Pengeluaran, Ditabung & investasi, Terjadwal and the hero figure SHALL add up to Rp 9.800.000, or the hero line SHALL say by how much the period is over
+- **WHEN** daily money is Rp 4.420.334
+- **THEN** Tagihan kredit, Terjadwal and the hero figure SHALL add up to Rp 4.420.334 in the split bar, or the hero line SHALL say how much is short
 
 #### Scenario: Screen reader
 - **WHEN** a screen reader reaches the split bar
-- **THEN** it SHALL read one image named with each segment and its percentage of masuk, and every supporting figure SHALL be read as text with its label and caption
+- **THEN** it SHALL read one image named "Uang harian Rp 4.420.334" with each segment and its share, and every supporting figure SHALL be read as text with its label and caption
 
 #### Scenario: Savings decrease
 - **WHEN** the period's net fresh saving is −Rp 500.000
-- **THEN** Ditabung & investasi SHALL show Rp 500.000 with the caption "Tabungan berkurang", and its segment SHALL take no width in the bar
+- **THEN** Ditabung & investasi SHALL show Rp 500.000 with the caption "Tabungan berkurang"
 
 #### Scenario: Captions on one line
 - **WHEN** Beranda is shown from 1024 to 1440 px, also with a ten-digit amount
@@ -227,28 +241,29 @@ Beranda SHALL open with one hero, "Aman dipakai sampai gajian", as the page's on
 #### Scenario: Terjadwal caption
 - **WHEN** the scheduled amount includes goal set-asides until 23 November
 - **THEN** Terjadwal SHALL show in the split bar and as "Terjadwal sampai 23 Nov" in the Rincian, and SHALL NOT appear as a supporting figure with a caption
+
 #### Scenario: No figure leaves its block
 - **WHEN** Beranda is shown at any width from 320 px, including 1024 to 1199 px with the full sidebar
 - **THEN** no hero, supporting or panel figure SHALL extend past its block or the page frame, and the page SHALL NOT scroll horizontally
 
 ### Requirement: Rincian of the Safe Amount
-The hero SHALL carry the page's only "Rincian" control. It SHALL open the calculation of the safe amount: the rule, the lines Masuk, Pengeluaran, Ditabung & investasi and Terjadwal with signed amounts, the total equal to the hero figure, and a link to the period's transactions. Each line that has server lines SHALL open them in place.
+The hero SHALL carry the page's only "Rincian" control. It SHALL open the calculation of the safe amount: the rule, then Uang harian, Tagihan kredit and Terjadwal with signed amounts, and the total equal to the hero figure. Each line SHALL open its parts in place.
 
 #### Scenario: Lines and total
-- **GIVEN** masuk Rp 9.518.400, Pengeluaran Rp 3.502.990, Ditabung & investasi Rp 2.750.000 and Terjadwal Rp 989.000 until 24 November
+- **GIVEN** daily money Rp 4.420.334, credit owed Rp 3.046.014 and Terjadwal Rp 0
 - **WHEN** the owner activates "Rincian"
-- **THEN** a dialog titled "Aman dipakai sampai gajian" SHALL list Rp 9.518.400, −Rp 3.502.990, −Rp 2.750.000 and "Terjadwal sampai 24 Nov" −Rp 989.000, and its total "Aman dipakai" SHALL be Rp 2.276.410, equal to the hero
+- **THEN** a dialog titled "Aman dipakai" SHALL list Uang harian Rp 4.420.334, Tagihan kredit −Rp 3.046.014 and Terjadwal −Rp 0, and its total "Aman dipakai" SHALL be Rp 1.374.320, equal to the hero
 
 #### Scenario: A line opens its parts
-- **WHEN** the owner opens the Pengeluaran, Ditabung & investasi or Terjadwal line in the dialog
-- **THEN** Pengeluaran SHALL show its five buckets, each linked to the ledger with its `kakeibo` filter for the period
-- **AND** Ditabung & investasi SHALL show what went into savings, what was taken out and what was spent from savings
+- **WHEN** the owner opens a line in the dialog
+- **THEN** Uang harian SHALL list every daily-money pocket with its parent and balance, largest first
+- **AND** Tagihan kredit SHALL list every credit account with what it owes and its next due date
 - **AND** Terjadwal SHALL show each bill with its due date and each goal set-aside with its monthly amount and what is already funded
 
 #### Scenario: Period over
-- **GIVEN** masuk Rp 9.518.400, Pengeluaran Rp 3.422.490, Ditabung & investasi Rp 2.250.000 and Terjadwal Rp 5.572.334
+- **GIVEN** daily money Rp 1.000.000, credit owed Rp 1.200.000 and Terjadwal Rp 100.000
 - **WHEN** the owner activates "Rincian"
-- **THEN** after the four lines the dialog SHALL read "Lebih dari uang masuk" Rp 1.726.424, then "Aman dipakai" Rp 0, equal to the hero
+- **THEN** after the three lines the dialog SHALL read "Kurang" Rp 300.000, then "Aman dipakai" Rp 0, equal to the hero
 - **AND** no negative "Aman dipakai" SHALL be shown
 
 #### Scenario: One Rincian per page
@@ -307,16 +322,16 @@ Masuk, Pengeluaran and Ditabung & investasi SHALL link to Transaksi with Beranda
 - **THEN** it SHALL show a visible focus ring and open its target
 
 ### Requirement: Credit Bills Figure
-When the owner has an active credit account, Beranda SHALL show "Tagihan kredit" ("Credit bills"): the sum of what the credit accounts owe, with the caption "jatuh tempo {date}" for the nearest unpaid bill across accounts. It SHALL take no part of the split bar and SHALL change no other figure, because credit purchases already count in Pengeluaran.
+When the owner has an active credit account, Beranda SHALL show "Tagihan kredit" ("Credit bills"): the sum of what the credit accounts owe, with the caption "jatuh tempo {date}" for the nearest unpaid bill across accounts. It SHALL equal the credit line subtracted in Aman dipakai, and its dialog SHALL say so.
 
 #### Scenario: Two credit accounts
 - **GIVEN** Spaylater owes Rp 3.046.014 with a bill due 11 December and Kredivo owes Rp 2.200.000 with a bill due 20 November of Rp 400.000
 - **WHEN** the owner opens Beranda on 13 November
-- **THEN** "Tagihan kredit" SHALL read Rp 5.246.014 with "jatuh tempo 20 Nov", and Aman dipakai SHALL be unchanged
+- **THEN** "Tagihan kredit" SHALL read Rp 5.246.014 with "jatuh tempo 20 Nov", the same amount Rincian subtracts, and its dialog SHALL read "Sudah dikurangi dari Aman dipakai"
 
 #### Scenario: No credit account
 - **WHEN** the owner has no active credit account
-- **THEN** Beranda SHALL show no "Tagihan kredit"
+- **THEN** Beranda SHALL show no "Tagihan kredit", and the safe amount SHALL subtract nothing for credit
 
 #### Scenario: Nothing owed
 - **WHEN** every credit account owes Rp 0

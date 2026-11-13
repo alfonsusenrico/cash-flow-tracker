@@ -8,11 +8,11 @@ Expected Result: the API returns the cash-based safe amount with its parts.
 ## 2. Beranda
 
 - [x] 2.1 Hero label, line and shortfall; split bar of daily money; Rincian with the three opening lines; the credit dialog's meta. Evidence: `page.test.tsx` for available, unknown and late salary, short, the bar's name, each Rincian line's parts, hidden balances, English, axe.
-- [ ] 2.2 Browser check on a production build with synthetic data at 1440, 1024 and 390 in light and dark, Rincian open. Evidence: results in `verification.md`, captures shown to the owner and the answer recorded.
+- [x] 2.2 Browser check on a production build with synthetic data at 1440, 1024 and 390 in light and dark, Rincian open. Evidence: results in `verification.md`, captures shown to the owner and the answer recorded.
 
 Expected Result: Beranda answers "how much can I still use safely".
 
 ## 3. Verify and deliver
 
 - [x] 3.1 Frontend type check, lint, tests and build as CI runs them; `openspec validate --all --strict`. Evidence: `verification.md`.
-- [ ] 3.2 After the owner accepts, archive the change, push `feat/cash-based-safe-amount`, open the PR and report its URL.
+- [x] 3.2 After the owner accepts, archive the change, push `feat/cash-based-safe-amount`, open the PR and report its URL.

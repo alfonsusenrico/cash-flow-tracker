@@ -323,18 +323,6 @@ Beranda's "Perlu tindakan" and the bell SHALL list overdue credit bills, then bi
 - **WHEN** a bill's `left_to_pay` is 0 or its status is `paid` or `paid_late`
 - **THEN** it SHALL appear neither in "Perlu tindakan" nor in the bell
 
-### Requirement: Credit Lines in the Pengeluaran Breakdown
-Beranda's Rincian of Pengeluaran SHALL show "Pengeluaran pakai kredit" as a part of Pengeluaran, and "Tagihan kredit dibayar" as cash out that is not counted again.
-
-#### Scenario: Credit lines
-- **GIVEN** the cycle summary's `spending.credit` with `spent_on_credit` 579000, `paid_to_credit` 470000 and one line per credit account
-- **WHEN** the owner opens "Rincian" on Beranda and opens the Pengeluaran line
-- **THEN** after the five buckets it SHALL list "Pengeluaran pakai kredit" Rp 579.000 noted "sudah termasuk di atas" and "Tagihan kredit dibayar" Rp 470.000 noted "uang keluar, tidak dihitung lagi", each note naming its accounts with their amounts, and the Pengeluaran total SHALL be unchanged
-
-#### Scenario: No credit use
-- **WHEN** `spending.credit` is absent or both amounts are 0
-- **THEN** the Pengeluaran line SHALL list the five buckets only
-
 ### Requirement: Paying With Credit
 When an expense's account is a credit account, Catat SHALL show "Bayar pakai kredit" ("Pay with credit") with "Sisa limit", a choice of "Sekali bayar · 3x · 6x · 12x · Lainnya" ("Pay in full · 3 · 6 · 12 · Other"), and the first due date. It SHALL send `credit_terms`.
 

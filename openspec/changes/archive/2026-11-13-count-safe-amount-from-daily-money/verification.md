@@ -44,7 +44,7 @@ Rp 4.420.334 − Rp 3.046.014 − Rp 0 = Rp 1.374.320.
   compares the prototype's salary-view `safeToSpend`; `beranda-keys.mjs` now recognises the native `<dialog>` the
   transaction dialog uses (its row check failed on that before this change).
 
-Owner's answer: pending.
+Owner's answer on 2026-11-13: "ok". Accepted.
 
 ## Not verified
 
