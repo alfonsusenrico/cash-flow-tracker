@@ -1,6 +1,6 @@
 # Verification: open-beranda-figures
 
-Date: 2026-11-13 · Branch `feat/beranda-figure-details` · Base `origin/main` `61f2602` · Code under test `0507224`.
+Date: 2026-11-13 · Branch `feat/beranda-figure-details` · Base `origin/main` `61f2602` · Code under test: the commit that adds this note's Terjadwal section (see below).
 Defaults accepted by the owner on 2026-11-13 ("ok do it").
 
 ## What changed
@@ -13,11 +13,19 @@ Defaults accepted by the owner on 2026-11-13 ("ok do it").
 - Dialog fixes after the first captures (`0507224`): opening debt listed from its bill item, in date order with the
   rows; an account without a due day says so; the credit figure takes a full row wherever the legend has two columns.
 
+## Terjadwal dropped as a figure (owner, 2026-11-13)
+
+After an audit of the figures against production (read-only: every Beranda figure and the Kakeibo pillars matched the
+owner's transactions to the rupiah, movements included), the owner chose to drop only Terjadwal as a supporting figure.
+It stays in the split bar and the Rincian. The legend is back to four columns; "Tagihan kredit" takes the slot, and its
+caption is "jatuh tempo {date}" so it fits one line in a four-column cell (the first build's "jatuh tempo 13 Nov · Rp
+434.000" wrapped at 1440).
+
 ## Automated checks
 
 | Check | Result |
 | --- | --- |
-| Frontend tests (`vitest run`) | 1106 passed (one run had a load timeout in `BudgetDialog.test.tsx`, which passed alone and in the next full run) |
+| Frontend tests (`vitest run`) | 1105 passed (an earlier run had a load timeout in `BudgetDialog.test.tsx`, which passed alone and in every later full run) |
 | Frontend lint, type check, build | passed |
 | `openspec validate --all --strict` | 85 passed |
 | Backend | not run: no backend file changed |
@@ -34,8 +42,8 @@ at V51, migrated to V54, then `seed_catat.py`: SPayLater, Kartu Kredit Contoh an
 24 captures: Beranda, the credit dialog, Transaksi · Masuk and Transaksi · Tabungan & investasi, at 1440, 1024 and 390
 in light and dark. 0 console errors, 0 serious or critical axe violations, 0 horizontal overflow.
 
-- Layout: five figures sit as 3 + 2 beside the panel at 1440 and 1024; at 390 the phone shows Pengeluaran and Ditabung
-  side by side and "Tagihan kredit" on its own row with its caption on one line.
+- Layout: Masuk, Pengeluaran, Ditabung & investasi and Tagihan kredit in one row at 1440 and 1024, each caption on one
+  line; at 390 the phone shows Pengeluaran and Ditabung side by side and "Tagihan kredit" on its own row.
 - Figure-to-Transaksi parity through the API for the cycle: Masuk 9.518.400 = `type=income` inflow; Pengeluaran
   3.472.990 = `type=expense` spending; Ditabung & investasi 2.250.000 = `type=saving` saving_net.
 - The scenarios lived in a scratch copy of `scripts/verify/markas/`; they are not committed.

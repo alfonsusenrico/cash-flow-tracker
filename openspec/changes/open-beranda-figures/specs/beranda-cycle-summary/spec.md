@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Beranda Hero
-Beranda SHALL open with one hero, "Aman dipakai sampai gajian", as the page's only 44 px figure, followed by one line, a split bar of Pengeluaran, Ditabung & investasi, Terjadwal and Aman dipakai with the percentages in its accessible name, and Masuk, Pengeluaran, Ditabung & investasi and Terjadwal as supporting figures with one caption each, followed by "Tagihan kredit" when the owner has an active credit account. No other Beranda figure SHALL be 33 px or larger. The hero figure SHALL NOT be a control; each supporting figure SHALL be one link to its detail, and "Tagihan kredit" one button that opens its dialog.
+Beranda SHALL open with one hero, "Aman dipakai sampai gajian", as the page's only 44 px figure, followed by one line, a split bar of Pengeluaran, Ditabung & investasi, Terjadwal and Aman dipakai with the percentages in its accessible name, and Masuk, Pengeluaran and Ditabung & investasi as supporting figures with one caption each, followed by "Tagihan kredit" when the owner has an active credit account. Terjadwal SHALL stay in the split bar and the Rincian and SHALL NOT be a supporting figure. No other Beranda figure SHALL be 33 px or larger. The hero figure SHALL NOT be a control; each supporting figure SHALL be one link to its detail, and "Tagihan kredit" one button that opens its dialog.
 
 #### Scenario: Hero on a desktop
 - **WHEN** the owner opens Beranda at 1440 × 900
@@ -19,11 +19,13 @@ Beranda SHALL open with one hero, "Aman dipakai sampai gajian", as the page's on
 - **WHEN** the period's net fresh saving is −Rp 500.000
 - **THEN** Ditabung & investasi SHALL show Rp 500.000 with the caption "Tabungan berkurang", and its segment SHALL take no width in the bar
 
+#### Scenario: Captions on one line
+- **WHEN** Beranda is shown from 1024 to 1440 px, also with a ten-digit amount
+- **THEN** every supporting-figure caption SHALL stay on one line
+
 #### Scenario: Terjadwal caption
 - **WHEN** the scheduled amount includes goal set-asides until 23 November
-- **THEN** the Terjadwal caption SHALL read "termasuk setoran · 23 Nov", and without set-asides "tagihan sampai 23 Nov"
-- **AND** every supporting-figure caption SHALL stay on one line from 1024 to 1440 px, also with a ten-digit amount, the figures wrapping to a second row where five do not fit
-
+- **THEN** Terjadwal SHALL show in the split bar and as "Terjadwal sampai 23 Nov" in the Rincian, and SHALL NOT appear as a supporting figure with a caption
 #### Scenario: No figure leaves its block
 - **WHEN** Beranda is shown at any width from 320 px, including 1024 to 1199 px with the full sidebar
 - **THEN** no hero, supporting or panel figure SHALL extend past its block or the page frame, and the page SHALL NOT scroll horizontally
@@ -69,7 +71,7 @@ Under "Aktivitas terbaru" Beranda SHALL list up to eight transactions from today
 ## ADDED Requirements
 
 ### Requirement: Supporting Figures Open Their Detail
-Masuk, Pengeluaran and Ditabung & investasi SHALL link to Transaksi with Beranda's period (`period=cycle` in a salary cycle, else `period=month`) and `type` `income`, `expense` or `saving`, and Terjadwal SHALL link to Target & Tagihan at its bills. Each link's accessible name SHALL name the figure and where it goes.
+Masuk, Pengeluaran and Ditabung & investasi SHALL link to Transaksi with Beranda's period (`period=cycle` in a salary cycle, else `period=month`) and `type` `income`, `expense` or `saving`. Each link's accessible name SHALL name the figure and where it goes.
 
 #### Scenario: Opening Pengeluaran
 - **WHEN** the owner selects Pengeluaran Rp 5.395.841 in a salary cycle
@@ -79,21 +81,17 @@ Masuk, Pengeluaran and Ditabung & investasi SHALL link to Transaksi with Beranda
 - **WHEN** the owner selects Ditabung & investasi
 - **THEN** Transaksi SHALL open with `type=saving` for the same period and its hero SHALL show the same Ditabung & investasi
 
-#### Scenario: Opening Terjadwal
-- **WHEN** the owner selects Terjadwal
-- **THEN** Target & Tagihan SHALL open at its bills section
-
 #### Scenario: Keyboard
 - **WHEN** the owner tabs to a supporting figure and presses Enter
 - **THEN** it SHALL show a visible focus ring and open its target
 
 ### Requirement: Credit Bills Figure
-When the owner has an active credit account, Beranda SHALL show "Tagihan kredit" ("Credit bills"): the sum of what the credit accounts owe, with the caption "jatuh tempo {date} · {left}" for the nearest unpaid bill across accounts. It SHALL take no part of the split bar and SHALL change no other figure, because credit purchases already count in Pengeluaran.
+When the owner has an active credit account, Beranda SHALL show "Tagihan kredit" ("Credit bills"): the sum of what the credit accounts owe, with the caption "jatuh tempo {date}" for the nearest unpaid bill across accounts. It SHALL take no part of the split bar and SHALL change no other figure, because credit purchases already count in Pengeluaran.
 
 #### Scenario: Two credit accounts
 - **GIVEN** Spaylater owes Rp 3.046.014 with a bill due 11 December and Kredivo owes Rp 2.200.000 with a bill due 20 November of Rp 400.000
 - **WHEN** the owner opens Beranda on 13 November
-- **THEN** "Tagihan kredit" SHALL read Rp 5.246.014 with "jatuh tempo 20 Nov · Rp 400.000", and Aman dipakai SHALL be unchanged
+- **THEN** "Tagihan kredit" SHALL read Rp 5.246.014 with "jatuh tempo 20 Nov", and Aman dipakai SHALL be unchanged
 
 #### Scenario: No credit account
 - **WHEN** the owner has no active credit account

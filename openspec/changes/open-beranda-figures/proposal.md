@@ -2,7 +2,7 @@
 
 On 2026-11-13 the owner asked for three things after reviewing Beranda:
 
-1. Beranda's supporting figures (Masuk, Pengeluaran, Ditabung & investasi, Terjadwal) should open the transactions behind them, already filtered.
+1. Beranda's supporting figures (Masuk, Pengeluaran, Ditabung & investasi) should open the transactions behind them, already filtered. After an audit of the figures against production on 2026-11-13, the owner dropped Terjadwal as a supporting figure ("do A"); it stays in the split bar and the Rincian.
 2. A new Beranda figure for ongoing credit bills. Credit accounts can be more than two, so selecting it should show a breakdown per account, each with its transactions, including the payments made.
 3. Transaction titles prefer the merchant over the note, so a row with the note "Top up saldo fal.ai untuk development" reads only "fal.ai". The note should be the title.
 
@@ -10,8 +10,8 @@ The owner accepted the proposed defaults on 2026-11-13 ("use the defaults" → "
 
 ## Expected Outcome
 
-- Each supporting figure is a link: Masuk, Pengeluaran and Ditabung & investasi open Transaksi with the same period and type; Terjadwal opens Target & Tagihan at its bills.
-- An owner with a credit account sees a fifth figure, "Tagihan kredit": the total owed on all credit accounts, with the nearest due date and what is left on it. Selecting it opens a centered dialog with one section per credit account, most owed first: owed, limit left and next bill, then the account's transactions from its oldest unpaid purchase to today, oldest first, purchases showing unpaid or paid and payments listed, with "Lihat semua di Transaksi".
+- Each supporting figure is a link: Masuk, Pengeluaran and Ditabung & investasi open Transaksi with the same period and type. Terjadwal is no longer a supporting figure; it stays in the split bar and the Rincian, where its bills are listed.
+- An owner with a credit account sees a fourth figure, "Tagihan kredit": the total owed on all credit accounts, with the nearest due date. Selecting it opens a centered dialog with one section per credit account, most owed first: owed, limit left and next bill, then the account's transactions from its oldest unpaid purchase to today, oldest first, purchases showing unpaid or paid and payments listed, with "Lihat semua di Transaksi".
 - A transaction's title is its note, then its merchant, then its category. When the note is the title, the merchant joins the meta line unless the note already names it.
 
 ## What Changes
