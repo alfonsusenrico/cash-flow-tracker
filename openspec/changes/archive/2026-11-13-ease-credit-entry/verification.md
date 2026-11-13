@@ -34,7 +34,7 @@ Captures of a production build (`next build`, `next start` behind a loopback pro
 1440 and 390, light and dark. 8 captures: 0 console errors, 0 serious or critical axe violations, 0 horizontal
 overflow. The two scenarios lived in a scratch copy of `scripts/verify/markas/`; they are not committed.
 
-Owner's answer: pending.
+Owner's answer on 2026-11-13: "ok". Accepted.
 
 ## Checks (task 3.1)
 
