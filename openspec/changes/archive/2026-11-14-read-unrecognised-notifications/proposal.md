@@ -27,7 +27,7 @@ The owner asked not to keep adding fixed wording and name rules, since Jago word
 - Parser: the Jago "into … Pocket" rule requires a move verb, so it no longer guesses the main pocket for other wording.
 - Source question: also used for a model-read Jago move with no named source. It offers every owned account except the target and carries the model's suggestion. A source at another institution is completed with the existing movement completion.
 - Hand-entered moves: a unique matching move is confirmed, before asking and after the answer.
-- Companion (separate repository): preselect and mark the suggestion; neutral wording ("Dari rekening atau kantong mana?", "Konfirmasi sumber dana") since the options are no longer only pockets.
+- Companion (`mobile/`): preselect and mark the suggestion; neutral wording ("Dari rekening atau kantong mana?", "Konfirmasi sumber dana") since the options are no longer only pockets.
 - Benchmark: synthetic cases for unrecognised wording, including the "added into" shape and noise that must stay ignored.
 
 ## Non-goals
@@ -47,5 +47,5 @@ The owner asked not to keep adding fixed wording and name rules, since Jago word
 - Backend: `notification_evidence.py`, `notification_parser.py`, `notification_processing.py`, `notification_application.py`, `notification_source_pocket.py`, `notification_interpretation.py`, both interpretation prompts, and the prompt version.
 - Migration `V56__notification_model_reading.sql`: a nullable `model_reading JSONB` on `notification_events`.
 - `evaluation/notification_cases.py` benchmark cases; backend tests.
-- Companion: source-pocket controls and their API model.
+- Companion (`mobile/`): source-pocket controls, their API model and wording.
 - Cost: one model call per unrecognised notification. Before production, a paid benchmark run is made with the owner's OK.

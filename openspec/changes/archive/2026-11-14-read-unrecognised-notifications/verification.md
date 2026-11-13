@@ -1,6 +1,6 @@
 # Verification: read-unrecognised-notifications
 
-Tested on 2026-11-13. Server: branch `feat/read-unrecognised-notifications` on base `bcdc425`, working tree as committed. Companion: branch `feat/suggested-source-pocket` on base `35dfbeb`.
+Tested on 2026-11-13. Server: branch `feat/read-unrecognised-notifications` on base `bcdc425`, working tree as committed. Companion: in this repository's `mobile/` on the same branch. It was first written against the archived sibling repository, then applied here.
 
 ## Diagnosis (production, read-only, owner-approved 2026-11-13)
 
@@ -22,8 +22,8 @@ Tested on 2026-11-13. Server: branch `feat/read-unrecognised-notifications` on b
 | `tests/test_notification_model_reading.py` | 24 passed (production sequence included) |
 | Frontend `npm test` (vitest, whole suite) | 1109 passed |
 | Frontend `type-check`, `lint` | passed |
-| Companion `testDebugUnitTest` | 596 tests, 0 failures, 6 skipped (existing) |
-| Companion `lintDebug`, `assembleDebug`, `compileDebugAndroidTestKotlin` | lint 0 errors, 49 warnings (warnings do not fail CI); build and instrumented-test compile pass |
+| Companion `testDebugUnitTest` (in `mobile/`) | 644 tests, 0 failures, 6 skipped (existing) |
+| Companion `lintDebug`, `assembleDebug`, `compileDebugAndroidTestKotlin` | lint 0 errors, 51 warnings (warnings do not fail CI); build and instrumented-test compile pass |
 | `git diff --check` | clean |
 | `openspec validate --all --strict` | 85 passed, 0 failed |
 

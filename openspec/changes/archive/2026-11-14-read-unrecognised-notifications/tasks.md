@@ -33,5 +33,5 @@ Expected Result: one tap confirms the suggested source.
 ## 5. Verify and deliver
 
 - [x] 5.1 `openspec validate --all --strict`, `git diff --check`. Evidence: `verification.md`.
-- [x] 5.2 After the owner accepts, archive, push both branches, open both PRs and report their URLs.
+- [x] 5.2 After the owner accepts, archive, push the branch, open the PR and report its URL.
 - [ ] 5.3 After merge and deploy, release the companion tag and verify the APK. The owner then installs it and taps "Coba Proses Ulang" on the five events. Evidence: a read-only production check that four confirm hand-entered moves, "Spaylater" asks for a mapping, the Rp47.619 event asks for its source, and nothing is doubled.
