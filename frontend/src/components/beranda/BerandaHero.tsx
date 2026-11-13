@@ -81,7 +81,8 @@ export function BerandaHero({ summary, onSelectRow }: { summary: CycleSummary; o
   // Daily money split into what is already committed and what is free (D6).
   const segments = [
     { key: "credit", label: t("terms.creditBills"), amount: safe.credit_owed.total, color: "var(--credit-fg)" },
-    { key: "scheduled", label: t("terms.scheduled"), amount: safe.scheduled.total, color: "var(--warn-solid)" },
+    // Sky, not the warning orange: beside the credit amber, orange fell under the OKLab floor (8 normal, 1.5 protan).
+    { key: "scheduled", label: t("terms.scheduled"), amount: safe.scheduled.total, color: "var(--tr-solid)" },
     { key: "safe", label: t("terms.safeToSpend"), amount: safe.amount, color: "var(--in-solid)" },
   ];
   return (
