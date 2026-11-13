@@ -337,6 +337,18 @@ class CompanionScreensUiTest(private val dark: Boolean) {
         assertEquals(listOf("pocket:${pocket.id}:${UiFixtures.uuid(725)}", "refresh:${pocket.id}"), log)
     }
 
+    @Test fun pocketQuestionPreselectsTheSuggestionButWaitsForTheOwner() {
+        val pocket = UiFixtures.pocket(suggested = UiFixtures.uuid(725))
+        val options = SourcePocketOptionState(pocket.id, UiFixtures.uuid(905),
+            listOf(AccountChoice(UiFixtures.uuid(715), "Bank Jago · Kantong Utama"), AccountChoice(UiFixtures.uuid(725), "Bank Jago · Dana Contoh")))
+        val log = tanya(pocket, pocket = options)
+        compose.onNodeWithText("Bank Jago · Dana Contoh").performScrollTo().assertIsSelected()
+        compose.onNodeWithText("Disarankan").assertExists()
+        assertEquals(emptyList<String>(), log)
+        compose.onNodeWithText("Konfirmasi kantong").performScrollTo().assertIsEnabled().performClick()
+        assertEquals(listOf("pocket:${pocket.id}:${UiFixtures.uuid(725)}"), log)
+    }
+
     @Test fun mappingQuestionConfirmsTheProposedAccount() {
         val mapping = UiFixtures.mapping()
         val log = tanya(mapping)

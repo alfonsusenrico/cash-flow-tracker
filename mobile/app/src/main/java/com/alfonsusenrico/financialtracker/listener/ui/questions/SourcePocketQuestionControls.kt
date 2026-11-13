@@ -35,7 +35,10 @@ data class SourcePocketOptionState(
     val error: String? = null
 )
 
-/** "Dari kantong mana?": every eligible pocket, none preselected; the owner picks one, then confirms. */
+/**
+ * "Dari kantong mana?": every eligible pocket; the server's suggestion, when it sends one, is preselected
+ * and marked, and nothing is sent until the owner confirms.
+ */
 @Composable
 fun SourcePocketQuestionControls(
     question: ConfirmationQuestion,
@@ -48,7 +51,8 @@ fun SourcePocketQuestionControls(
     onAnswer: (String) -> Unit
 ) {
     val colors = CompanionTheme.colors
-    var selected by rememberSaveable(question.questionId, repliedAccountId) { mutableStateOf(repliedAccountId) }
+    val suggested = question.suggestedAccountId
+    var selected by rememberSaveable(question.questionId, repliedAccountId) { mutableStateOf(repliedAccountId ?: suggested) }
     val pending = replyState != null && replyState !in setOf("invalid", "stale")
     val choices = options.options.takeIf { options.questionId == question.questionId }.orEmpty()
     val eligible = choices.any { it.id == selected }
@@ -69,7 +73,7 @@ fun SourcePocketQuestionControls(
             Column(Modifier.fillMaxWidth().selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 choices.forEach { choice ->
                     AnswerOption(
-                        label = choice.label.orEmpty(), detail = null,
+                        label = choice.label.orEmpty(), detail = if (choice.id == suggested) "Disarankan" else null,
                         look = if (selected == choice.id) OptionLook.SELECTED else OptionLook.PLAIN,
                         enabled = enabled, onClick = { selected = choice.id },
                         modifier = Modifier.fillMaxWidth(), selected = selected == choice.id

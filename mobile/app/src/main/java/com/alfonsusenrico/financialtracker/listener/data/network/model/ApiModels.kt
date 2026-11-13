@@ -192,7 +192,9 @@ data class ConfirmationQuestion(
     @SerializedName("amount") val amount: Long? = null,
     @SerializedName("currency") val currency: String? = null,
     @SerializedName("jago_account") val jagoAccount: AccountChoice? = null,
-    @SerializedName("destination_label") val destinationLabel: String? = null
+    @SerializedName("destination_label") val destinationLabel: String? = null,
+    // The server's likely source for a Jago move that names none; the owner still confirms it.
+    @SerializedName("suggested_account_id") val suggestedAccountId: String? = null
 )
 
 data class SourcePocketConfirmRequest(
