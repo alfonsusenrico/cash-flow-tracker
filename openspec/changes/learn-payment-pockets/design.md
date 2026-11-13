@@ -68,25 +68,56 @@ The latest row per transaction counts, so a later correction replaces an earlier
 
 Rejected: adding columns to `classification_feedback`. Its rows are classification labels keyed by account, while pocket choice is keyed above the account. Mixing them would change habit queries.
 
-### 4. Learning key
+### 4. Learning key: the merchant's first word
 
-- **Merchant named:** institution plus the merchant name, lower-cased, with digits and punctuation removed. "SPBU No ID 54 601 08" and "SPBU No ID 31 102 02" both become "spbu no id". Station or branch numbers would otherwise split one merchant into many.
-- **Merchant-less** (for example "You've paid Rp… using your debit card"): institution plus the habit text signature, such as `jago|expense|payment`.
-- **Unnamed transfers** ("You've transferred Rp… to X"): the recipient name in the same way.
+The key is the institution plus the first word of the merchant or recipient name, lower-cased and letters only. Payments that name no merchant (for example "You've paid Rp… using your debit card") use the institution plus the habit text signature (`jago|expense|payment`). The same keys serve:
 
-Rejected: an amount band. Which pocket pays depends on the merchant far more than the amount, and a correction re-learns quickly.
+- unnamed transfers ("You've transferred Rp… to X"), keyed by the recipient;
+- money added into a pocket with no named source, keyed by the target pocket.
 
-### 5. Confidence
+Evidence (production, read-only, 2026-11-14): the owner's 10 Jago payments that named no pocket, 28 Sep to 13 Nov.
 
-The habit thresholds are reused as defaults, and are settable:
-- at least 3 weighted support;
-- at least 90% of the weight on one pocket;
-- corrections weigh 2, answers 1;
-- only the latest 10 choices of the key count.
+| Key tested | Fuel stations | Verdict |
+| --- | --- | --- |
+| Full name without digits | "spbu hr m", "spbu no id mbl", "spbu ry mengn" (three keys for one habit) | rejected |
+| Category | "Tagihan & Utilitas" paid from Cicilan, Subscription and Main Pocket; "Makanan & Minuman" from four pockets | rejected |
+| First word | "spbu" 3/3 Transportasi; "kredivo" 2/2 Cicilan; debit-card signature 2/2 Subscription | chosen |
 
-Below that, the top pocket (if any) is only the preselection.
+A generic first word ("toko", "warung") may merge different merchants. If they go to different pockets, the rule keeps asking; if they always go to the same pocket, merging is harmless.
+
+### 5. Confidence: rule of succession
+
+The probability that the next payment of a key uses pocket P is (agreeing weight + 1) ÷ (total weight + 2), over the key's latest 10 choices, with corrections weighing 2. The payment is recorded on P when this is at least 0.75 (a setting); otherwise the top pocket is only the preselection.
+
+Small evidence must be unanimous, and more evidence tolerates a rare exception:
+
+| History | Result |
+| --- | --- |
+| 2 agreeing | learned (0.75) |
+| 3 agreeing, 1 different | asks (0.67) |
+| 5 agreeing, 1 different | learned (0.75) |
+| 2 corrections away from a learned pocket | asks again until the new habit settles |
+
+Replayed on the owner's 10 payments in order:
+
+| | Today (default pocket) | Habit rule (3 / 90%) | This rule |
+| --- | --- | --- | --- |
+| Wrong pocket recorded | 8 | 0 | 0 |
+| Questions | 0 | 10 | 9 |
+| Questions with the right pocket preselected | — | 3 | 3 |
+| Recorded automatically | — | 0 | 1 (correct) |
+
+The automatic one is the 13 Nov fuel payment the owner had to correct by hand.
 
 A kill switch `POCKET_LEARNING_AUTO_RECORD_ENABLED` (default on) turns learned recording into asking with the suggestion.
+
+Rejected:
+- **3 choices at 90% (the habit rule):** it never learned anything in seven weeks of the owner's data.
+- **"Last 2 agree, none of the last 5 differ":** one exception blocks learning for four more payments.
+
+### 5a. Learning from history at launch
+
+Notification-recorded expenses that now sit on a different pocket of the same account than they were first recorded on are earlier owner corrections. A one-time backfill stores them as `correction` choices, so learning starts from what the owner already fixed. Payments never corrected are not evidence, because the default pocket may simply have gone unnoticed.
 
 ### 6. Suggestion when asking
 
@@ -115,7 +146,7 @@ The duplicate-arrival rule that lets a named report replace a default-pocket one
 - **Held payments understate spending until answered.** The pending count in the companion and Tinjau shows them.
 - **Merchant-name normalisation may merge two merchants.** The worst case is a wrong learned pocket, which the owner corrects; the correction weighs double.
 
-## Open questions for the owner
+## Owner decisions (2026-11-14)
 
-- **Thresholds:** keep the habit defaults (3 / 90%), or require fewer for pockets, such as 2 agreeing with none disagreeing?
-- **Unnamed transfers:** include them in learning (decision 4), or keep asking every time?
+- **Scope:** learn wherever one target usually has one answer: paying pockets, transfer sources and sources of money added into a pocket.
+- **Rule:** chosen from the owner's real data rather than by preference.
