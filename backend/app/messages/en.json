@@ -300,7 +300,10 @@
     "uncertain_mapping": "The account or category could not be determined automatically. Choose them and record it manually.",
     "unsafe_instructions": "The notification holds suspicious text, so it was not processed automatically. Check it and record it manually if it is right.",
     "unsupported_currency": "Currencies other than rupiah are not supported yet. Record it manually in rupiah if needed.",
-    "model_uncertain": "The automatic interpreter is not sure about this notification. Retry, or choose the account and category and record it manually."
+    "model_uncertain": "The automatic interpreter is not sure about this notification. Retry, or choose the account and category and record it manually.",
+    "reimbursement_link_count": "Choose 1 to {limit} transactions this repays.",
+    "reimbursement_link_invalid": "Choose spending transactions that are not transfers and count in the budget.",
+    "reimbursement_rest_category": "Choose an income category for the rest."
   },
   "error_messages": {
     "product_not_found": "Product not found.",

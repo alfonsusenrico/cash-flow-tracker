@@ -52,6 +52,7 @@ from app.services.receipts import (
     remove_receipt_file,
     store_receipt,
 )
+from app.services.reimbursement_links import drop_invalid_links, link_details, remove_links, set_links
 from app.services.reimbursements import (
     category_offsets_spending,
     load_spending_offsets,
@@ -1219,6 +1220,7 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
             allocation_breakdowns = load_allocation_breakdowns(cur, [r])
             origin = load_origin(cur, user_id, tid, r.get("movement_id"))
             credit_block = load_credit_blocks(cur, user_id, [r], with_installments=True)[tid]
+            reimbursement = link_details(cur, user_id, tid, int(r["amount"]))
 
     return {
         "ok": True,
@@ -1259,6 +1261,7 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
             **provenance_fields(r),
             "credit": credit_block,
             "saving_flow": r["saving_flow"],
+            "reimbursement": reimbursement,
         },
     }
 
@@ -1607,6 +1610,8 @@ def update_transaction(
                         (new_amount, new_amount, new_obligation_id, user_id),
                     )
 
+            # A changed amount, date, type or category moves the reimbursement links it is part of (D7).
+            drop_invalid_links(cur, user_id, [tid])
             conn.commit()
 
     request_plan_linking(user_id)
@@ -1655,6 +1660,40 @@ def delete_transaction(transaction_id: UUID, current_user: dict = Depends(get_cu
     remove_receipt_file(tx.get("receipt_path"))
 
     return {"ok": True, "message": notice("transaction_deleted")}
+
+
+class ReimbursementLinksInput(BaseModel):
+    """The expenses a reimbursement repays, and the income category for the rest when it is income (D4)."""
+
+    expense_ids: list[UUID]
+    rest_category_id: UUID | None = None
+
+
+@router.put("/{transaction_id}/reimburses")
+def link_reimbursement(transaction_id: UUID, payload: ReimbursementLinksInput, current_user: dict = Depends(get_current_user)):
+    user_id = current_user["id"]
+    tid = str(transaction_id)
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            result = set_links(
+                cur, user_id, tid, [str(expense_id) for expense_id in payload.expense_ids],
+                str(payload.rest_category_id) if payload.rest_category_id else None,
+                owner_provenance("reviewed").columns(),
+            )
+            cur.execute("SELECT amount FROM transactions WHERE user_id = %s AND id = %s", (user_id, tid))
+            links = link_details(cur, user_id, tid, int(cur.fetchone()["amount"]))
+            conn.commit()
+    return {"ok": True, **result, "reimbursement": links}
+
+
+@router.delete("/{transaction_id}/reimburses")
+def unlink_reimbursement(transaction_id: UUID, current_user: dict = Depends(get_current_user)):
+    user_id = current_user["id"]
+    with db_conn() as conn:
+        with conn.cursor() as cur:
+            remove_links(cur, user_id, str(transaction_id))
+            conn.commit()
+    return {"ok": True}
 
 
 @router.post("/{transaction_id}/receipt")
