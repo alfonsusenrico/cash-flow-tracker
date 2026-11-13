@@ -296,6 +296,7 @@
     "message_too_large": "Isi notifikasi tidak cukup jelas untuk dicatat otomatis. Periksa nominal dan arah transaksi lalu catat manual.",
     "missing_amount": "Notifikasi tidak memuat nominal. Isi nominal lalu catat manual bila ini transaksi.",
     "settlement_unproven": "Notifikasi belum menyatakan transaksi berhasil. Catat manual hanya jika transaksi sudah terjadi.",
+    "wording_unconfirmed": "Isi notifikasi belum bisa dibaca dengan pasti. Catat manual hanya jika transaksi sudah terjadi.",
     "timestamp_timezone_required": "Isi notifikasi tidak cukup jelas untuk dicatat otomatis. Periksa nominal dan arah transaksi lalu catat manual.",
     "uncertain_mapping": "Rekening atau kategori tidak bisa dipastikan otomatis. Pilih rekening dan kategori lalu catat manual.",
     "unsafe_instructions": "Notifikasi berisi teks mencurigakan sehingga tidak diproses otomatis. Periksa lalu catat manual bila benar.",

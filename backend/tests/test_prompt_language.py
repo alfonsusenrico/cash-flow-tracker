@@ -66,13 +66,13 @@ def test_english_rendering_has_an_en_version_and_asks_for_english(name):
 
 def test_versions_are_the_ones_the_change_announced():
     assert {name: load_prompt(name, "en").version for name in NAMES} == {
-        NOTIFICATION_INTERPRETATION: "notification-interpretation-12-en",
+        NOTIFICATION_INTERPRETATION: "notification-interpretation-13-en",
         CAPTURE_NORMALIZATION: "capture-normalization-2-en",
         HISTORY_SUGGESTIONS: "history-suggestions-1-en",
         PURPOSE_NORMALIZATION: "purpose-normalization-1-en",
     }
     with pytest.raises(ValueError):
-        prompt_for_version("notification-interpretation-11")
+        prompt_for_version("notification-interpretation-12")
 
 
 @pytest.mark.parametrize("enabled,account,expected", [

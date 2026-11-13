@@ -267,6 +267,7 @@ class ErrorCode(StrEnum):
     SENDER_ANSWER_CONFLICT = "sender_answer_conflict"
     SESSION_REQUIRED = "session_required"
     SETTLEMENT_UNPROVEN = "settlement_unproven"
+    WORDING_UNCONFIRMED = "wording_unconfirmed"
     SOURCE_ACCOUNT_NOT_FOUND = "source_account_not_found"
     SOURCE_ACCOUNT_REQUIRED = "source_account_required"
     SOURCE_ANSWER_CONFLICT = "source_answer_conflict"

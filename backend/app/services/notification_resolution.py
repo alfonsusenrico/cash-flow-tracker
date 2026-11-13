@@ -312,7 +312,7 @@ def unresolved_context(failures: list[tuple[str, EvidenceError]], accounts: list
 
 
 def endpoint_context(facts: NotificationFacts, accounts: list[dict]) -> dict:
-    if facts.status != "candidate" or (facts.institution == "stockbit" and facts.parsed.investment_action):
+    if facts.status != "candidate" or facts.needs_reading or (facts.institution == "stockbit" and facts.parsed.investment_action):
         return {}
     if facts.direction == "internal_movement":
         if facts.institution != "jago":
@@ -323,13 +323,18 @@ def endpoint_context(facts: NotificationFacts, accounts: list[dict]) -> dict:
             return {"mapping_error": error.code}
         resolved, failures = {}, []
         for role, name in (("source", facts.parsed.source_pocket), ("target", facts.parsed.target_pocket)):
+            if role == "source" and requires_source_pocket(facts):
+                # An unnamed source is only ever the owner's answer, never the main pocket.
+                if facts.confirmed_source_account_id:
+                    resolved["source_account_id"] = facts.confirmed_source_account_id
+                continue
             try:
                 resolved[f"{role}_account_id"] = str(pocket_endpoint(name, parent, accounts, institution="jago")["id"])
             except EvidenceError as error:
                 failures.append((role, error))
         if failures:
             return unresolved_context(failures, accounts, resolved)
-        if resolved["source_account_id"] == resolved["target_account_id"]:
+        if resolved.get("source_account_id") == resolved["target_account_id"]:
             return {"mapping_error": "same_movement_endpoint"}
         return resolved
     try:

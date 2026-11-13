@@ -79,6 +79,10 @@ JAGO_OUT_POCKET_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# The single-pocket rules imply the main pocket for the unnamed end, which only a move says; other
+# verbs such as "added into" name no source and are left to the model (read-unrecognised-notifications D4).
+MOVE_VERB_PATTERN = re.compile(r"\b(?:moved|memindahkan|dipindahkan)\b", re.I)
+
 # 2c. Single-Pocket Inbound: "You've moved Rp500.000 into your Tabungan Pocket."
 JAGO_IN_POCKET_PATTERN = re.compile(
     r"(?:You(?:\x27ve|\s+have)\s+moved|Kamu(?:\s+telah)?\s+memindahkan\s+)?(?:Rp|IDR)?\s*(?P<amount>[\d\.,]+)(?:\s+has been moved|\s+telah dipindahkan)?\s+(?:into(?:\s+your)?|ke dalam|ke)\s+(?P<target>.+?)\s+(?:Pocket|Kantong)",
@@ -286,7 +290,7 @@ def parse_notification(
 
     # 2b. Single-Pocket Outbound ("out of your <Pocket> Pocket")
     m = JAGO_OUT_POCKET_PATTERN.search(raw_content)
-    if m:
+    if m and MOVE_VERB_PATTERN.search(raw_content):
         amt = _clean_amount(m.group("amount"))
         src = m.group("source").strip()
         return ParsedNotification(
@@ -307,7 +311,7 @@ def parse_notification(
 
     # 2c. Single-Pocket Inbound ("into your <Pocket> Pocket")
     m = JAGO_IN_POCKET_PATTERN.search(raw_content)
-    if m:
+    if m and MOVE_VERB_PATTERN.search(raw_content):
         amt = _clean_amount(m.group("amount"))
         tgt = m.group("target").strip()
         return ParsedNotification(

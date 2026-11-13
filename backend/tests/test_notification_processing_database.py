@@ -1464,13 +1464,13 @@ def test_ai_unexpected_pillar_is_recorded(client, notification_owner, monkeypatc
         ).fetchone()
     assert row["kakeibo_type"] == "unexpected"
     assert row["processing_state"] == "recorded"
-    assert row["prompt_version"] == PROMPT_VERSION == "notification-interpretation-12"
+    assert row["prompt_version"] == PROMPT_VERSION == "notification-interpretation-13"
 
 
 @pytest.mark.parametrize("enabled,language,version", [
-    (True, "en", "notification-interpretation-12-en"),
-    (False, "en", "notification-interpretation-12"),
-    (True, "id", "notification-interpretation-12"),
+    (True, "en", "notification-interpretation-13-en"),
+    (False, "en", "notification-interpretation-13"),
+    (True, "id", "notification-interpretation-13"),
 ])
 def test_claim_records_and_uses_the_rendering_for_the_account(
     client, notification_owner, monkeypatch, enabled, language, version,

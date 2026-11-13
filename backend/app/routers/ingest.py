@@ -192,7 +192,7 @@ def retry_notification(event_id: UUID, request: Request, current_user: dict = De
                 """UPDATE notification_events SET processing_state = 'queued', processing_mode = %s,
                    attempt_count = 0, processing_generation = processing_generation + 1,
                    next_attempt_at = NOW(), error_code = NULL, lease_token = NULL, lease_expires_at = NULL,
-                   source_version = %s
+                   source_version = %s, model_reading = NULL
                    WHERE user_id = %s AND id = %s RETURNING *""",
                 (mode, companion, current_user["id"], str(event_id)),
             )

@@ -1826,6 +1826,7 @@
     "message_too_large": "The notification is not clear enough to record automatically. Check the amount and direction, then record it manually.",
     "missing_amount": "The notification has no amount. Enter the amount and record it manually if this is a transaction.",
     "settlement_unproven": "The notification does not say the transaction succeeded. Record it manually only if it happened.",
+    "wording_unconfirmed": "The notification's wording could not be read with certainty. Record it manually only if it happened.",
     "timestamp_timezone_required": "The notification is not clear enough to record automatically. Check the amount and direction, then record it manually.",
     "uncertain_mapping": "The account or category could not be determined automatically. Choose them and record it manually.",
     "unsafe_instructions": "The notification holds suspicious text, so it was not processed automatically. Check it and record it manually if it is right.",
