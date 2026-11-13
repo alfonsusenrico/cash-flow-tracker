@@ -35,7 +35,7 @@ owner on 2026-11-13 ("ok then do it").
   and the rest choice, the expense's dialog and the reimbursement's dialog at 1440 and 390, light and dark. 12 captures:
   0 console errors, 0 serious or critical axe violations, 0 horizontal overflow.
 
-Owner's answer: pending.
+Owner's answer on 2026-11-13: "ok". Accepted.
 
 ## Not verified
 

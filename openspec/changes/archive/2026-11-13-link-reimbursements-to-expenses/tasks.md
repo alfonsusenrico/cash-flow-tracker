@@ -11,12 +11,12 @@ Expected Result: links change spending exactly where the expense is, and nothing
 ## 2. Web
 
 - [x] 2.1 `ExpensePicker` and "Mengganti transaksi" in the edit dialog and Catat, with the rest choice; "Diganti Rp X" in the transaction dialog; messages in both languages. Evidence: component and page tests, keyboard and axe.
-- [ ] 2.2 Browser check on a production build with synthetic data at 1440 and 390, light and dark: linking, the rest as income, the expense's dialog. Evidence: `verification.md`, captures shown to the owner and the answer recorded.
+- [x] 2.2 Browser check on a production build with synthetic data at 1440 and 390, light and dark: linking, the rest as income, the expense's dialog. Evidence: `verification.md`, captures shown to the owner and the answer recorded.
 
 Expected Result: the owner can link a reimbursement in a few taps and see it on both sides.
 
 ## 3. Verify and deliver
 
 - [x] 3.1 Frontend type check, lint, tests and build; `openspec validate --all --strict`. Evidence: `verification.md`.
-- [ ] 3.2 After the owner accepts, archive, push `feat/link-reimbursements-to-expenses`, open the PR and report its URL.
+- [x] 3.2 After the owner accepts, archive, push `feat/link-reimbursements-to-expenses`, open the PR and report its URL.
 - [ ] 3.3 After the owner merges and it is deployed: show the owner the exact relinks of their records (CG Fun, the Rp 100.000 from their mother, Mie Tore, main BL), apply them through the API with the owner's key once confirmed, verify read-only, delete the key file.
