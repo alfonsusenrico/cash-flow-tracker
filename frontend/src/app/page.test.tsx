@@ -113,11 +113,27 @@ function previewSummary(): CycleSummary {
       { kind: "goal", goal_id: "lombok", label: "Liburan Lombok", target_date: "2027-06-30", months_left: 8, set_aside: 600_000, funded: 0, amount: 600_000 },
       { kind: "goal", goal_id: "dd", label: "Dana Darurat", target_date: "2027-12-31", months_left: 14, set_aside: 118_500, funded: 0, amount: 118_500 },
     ] },
-    remaining: { total: 4_922_000, lines: [
-      { key: "masuk", label: "Masuk", amount: 9_800_000 },
-      { key: "keluar", label: "Keluar", amount: -3_164_500 },
-      { key: "scheduled", label: "Terjadwal", amount: -1_713_500 },
-    ] },
+    // Uang harian 8.035.500 − Tagihan kredit 1.400.000 − Terjadwal 1.713.500 = 4.922.000 (count-safe-amount-from-daily-money).
+    safe_amount: {
+      amount: 4_922_000, short_by: 0,
+      daily_money: { total: 8_035_500, accounts: [
+        { account_id: "bu", name: "Utama", parent_name: "Bank Utama", amount: 6_500_000 },
+        { account_id: "dw", name: "Dompet Digital", parent_name: null, amount: 1_200_000 },
+        { account_id: "cash", name: "Tunai", parent_name: null, amount: 335_500 },
+      ] },
+      credit_owed: { total: 1_400_000, accounts: [
+        { account_id: "spay", name: "SPayLater", amount: 1_400_000, next_due: { due_date: "2026-11-11", left_to_pay: 434_000 } },
+      ] },
+      scheduled: { total: 1_713_500, window_end: "2026-11-24", window_basis: "expected_salary", lines: [
+        { kind: "plan", rule_id: "streamio", label: "Streamio", due_date: "2026-11-03", overdue: false, amount: 65_000, safe_amount: 65_000, not_counted_reason: null },
+        { kind: "plan", rule_id: "laptop", label: "Cicilan Laptop", due_date: "2026-11-05", overdue: false, amount: 600_000, safe_amount: 600_000, not_counted_reason: null },
+        { kind: "plan", rule_id: "internet", label: "Internet Rumah", due_date: "2026-11-10", overdue: false, amount: 330_000, safe_amount: 330_000, not_counted_reason: null },
+        { kind: "goal", goal_id: "lombok", label: "Liburan Lombok", target_date: "2027-06-30", months_left: 8, set_aside: 600_000, funded: 0, amount: 600_000,
+          safe_amount: 600_000, not_counted_reason: null },
+        { kind: "goal", goal_id: "dd", label: "Dana Darurat", target_date: "2027-12-31", months_left: 14, set_aside: 118_500, funded: 0, amount: 118_500,
+          safe_amount: 118_500, not_counted_reason: null },
+      ] },
+    },
     safe_to_spend: { status: "available", reason: null, detail: null, per_day: 214_000, days_left: 23, rounding: 1000, over_by: null },
     net_worth: { total: 46_330_000, liquid: 21_480_000, investment: 27_250_000, debts: 2_400_000, lines: [
       { key: "liquid", label: "Dana likuid", amount: 21_480_000 },
@@ -226,7 +242,7 @@ function renderBeranda(language: "en" | "id" = "id") {
 /** Beranda once its figures and lists are in. */
 async function beranda() {
   const view = renderBeranda();
-  const hero = await screen.findByRole("region", { name: "Aman dipakai sampai gajian" });
+  const hero = await screen.findByRole("region", { name: "Aman dipakai" });
   await screen.findByRole("region", { name: "Aktivitas terbaru" });
   await screen.findByRole("region", { name: "Perlu tindakan" });
   return { ...view, hero };
@@ -239,8 +255,8 @@ const rowTexts = (scope: HTMLElement) => [...scope.querySelectorAll(".list > li 
 
 async function openRincian(hero: HTMLElement) {
   const user = userEvent.setup();
-  await user.click(within(hero).getByRole("button", { name: "Rincian aman dipakai sampai gajian" }));
-  return { user, dialog: await screen.findByRole("dialog", { name: "Aman dipakai sampai gajian" }) };
+  await user.click(within(hero).getByRole("button", { name: "Rincian aman dipakai" }));
+  return { user, dialog: await screen.findByRole("dialog", { name: "Aman dipakai" }) };
 }
 
 beforeEach(() => {
@@ -301,9 +317,11 @@ describe("Beranda hero", () => {
     // Terjadwal is part of the split bar and the Rincian, not a supporting figure (open-beranda-figures, owner 2026-11-13).
     expect(figureOf(hero, "Terjadwal")).toBeUndefined();
     expect(figureOf(hero, "Masuk")).toHaveClass("is-phone-hide");
+    // The bar splits daily money into what is committed and what is free (count-safe-amount-from-daily-money D6).
     expect(within(hero).getByRole("img")).toHaveAccessibleName(
-      "Uang siklus ini dari Rp 9.800.000 masuk: Pengeluaran 24%, Ditabung & investasi 8%, Terjadwal 17%, Aman dipakai 50%",
+      "Uang harian Rp 8.035.500: Tagihan kredit 17%, Terjadwal 21%, Aman dipakai 61%",
     );
+    expect(hero.querySelector(".hero-top .t-label")).toHaveTextContent(/^Aman dipakai$/);
     expect(document.querySelectorAll(".t-hero")).toHaveLength(1);
   });
 
@@ -311,7 +329,7 @@ describe("Beranda hero", () => {
     await beranda();
     const rincian = screen.getAllByRole("button").filter((button) => button.textContent === "Rincian");
     expect(rincian).toHaveLength(1);
-    expect(rincian[0]).toHaveAccessibleName("Rincian aman dipakai sampai gajian");
+    expect(rincian[0]).toHaveAccessibleName("Rincian aman dipakai");
     expect(rincian[0]).toHaveAttribute("aria-haspopup", "dialog");
     expect(document.querySelector(".ws-xn")).toBeNull();
     expect(screen.queryByRole("button", { name: /lihat rincian/ })).not.toBeInTheDocument();
@@ -339,37 +357,43 @@ describe("Beranda hero", () => {
     expect(hero.querySelector(".hero-sub")!.textContent).not.toMatch(/\d+ hari/);
   });
 
-  it("shows Rp 0 and by how much the period is over, never a negative safe amount", async () => {
+  it("shows Rp 0 and what is short, never a negative safe amount", async () => {
     const base = previewSummary();
-    summary = { ...base, remaining: { ...base.remaining, total: -300_000 }, safe_to_spend: { ...base.safe_to_spend, per_day: 0, over_by: 300_000 } };
+    summary = { ...base, safe_amount: { ...base.safe_amount, amount: 0, short_by: 300_000 }, safe_to_spend: { ...base.safe_to_spend, per_day: 0, over_by: 300_000 } };
     const { hero } = await beranda();
     expect(hero.querySelector(".t-hero")).toHaveTextContent(/^Rp 0$/);
-    expect(hero.querySelector(".hero-sub")).toHaveTextContent("Siklus ini sudah lebih Rp 300.000 dari uang masuk");
+    expect(hero.querySelector(".hero-sub")).toHaveTextContent("Kurang Rp 300.000 untuk tagihan kredit dan rencana");
     expect(hero).not.toHaveTextContent("−Rp 300.000");
     const { dialog } = await openRincian(hero);
-    expect(rowTexts(dialog).slice(4, 6)).toEqual(["Lebih dari uang masukRp 300.000", "Aman dipakaiRp 0"]);
+    expect(rowTexts(dialog).slice(3, 5)).toEqual(["KurangRp 300.000", "Aman dipakaiRp 0"]);
     expect(dialog.querySelector(".is-over")).toHaveClass("row");
     expect(dialog.querySelector(".is-total .t-fig")).toHaveTextContent(/^Rp 0$/);
     expect(dialog).not.toHaveTextContent(/Aman dipakai\s*−/);
-    expect(dialog).toHaveTextContent("Periode ini sudah lebih Rp 300.000 dari uang masuk, jadi belum ada yang aman dipakai.");
+    expect(dialog).toHaveTextContent("Uang harian kurang Rp 300.000 untuk tagihan kredit dan rencana.");
   });
 
-  it("lists the Rincian as today's calculation: Masuk less Pengeluaran, Ditabung and Terjadwal, and its total", async () => {
+  it("lists the Rincian as daily money less credit owed and Terjadwal, and its total", async () => {
     const { hero } = await beranda();
     const { dialog } = await openRincian(hero);
     expect(dialog).toHaveTextContent("Rincian hitungan");
-    expect(dialog).toHaveTextContent("Masuk dikurangi Pengeluaran, Ditabung & investasi dan tagihan terjadwal sampai akhir siklus.");
+    expect(dialog).toHaveTextContent("Uang di kantong Uang harian, dikurangi semua utang kredit dan rencana yang dibayar dari uang harian sebelum gajian.");
     expect(rowTexts(dialog)).toEqual([
-      "MasukRp 9.800.000", "Pengeluaran−Rp 2.364.500", "Ditabung & investasi−Rp 800.000", "Terjadwal sampai 24 Nov−Rp 1.713.500",
-      "Aman dipakaiRp 4.922.000", "Menunggu jawaban · Rp 581.000",
+      "Uang harianRp 8.035.500", "Tagihan kredit−Rp 1.400.000", "Terjadwal sampai 24 Nov−Rp 1.713.500", "Aman dipakaiRp 4.922.000",
     ]);
     expect(dialog).toHaveTextContent("Gaji berikutnya diperkirakan 25 November, dari gaji yang dikonfirmasi tanggal 25 Agu, 25 Sep, 25 Okt.");
-    expect(dialog).toHaveTextContent("4 hal (Rp 581.000) masih menunggu jawaban. Rp 357.000 di antaranya sudah termasuk.");
     expect(dialog.querySelector(".is-over")).toBeNull();
-    expect(within(dialog).getByRole("link", { name: "Lihat transaksi siklus ini" })).toHaveAttribute("href", "/ledger?period=cycle");
+    expect(within(dialog).getByRole("link", { name: "Lihat di Rekening & Kantong" })).toHaveAttribute("href", "/accounts");
   });
 
-  it("opens each line's server lines in place, and the waiting rows by section and bucket", async () => {
+  it("opens each line's parts in place: pockets, credit accounts, and plans with where they are counted", async () => {
+    const base = previewSummary();
+    const lines = base.safe_amount.scheduled.lines;
+    summary = { ...base, safe_amount: { ...base.safe_amount, scheduled: { ...base.safe_amount.scheduled, lines: [
+      ...lines,
+      { kind: "plan", rule_id: "spay", label: "Bayar SPayLater", due_date: "2026-11-11", overdue: false, amount: 0, plan_amount: 434_000,
+        counted_elsewhere: 434_000, credit_account_id: "spay", safe_amount: 0, not_counted_reason: "in_credit_owed" },
+      { kind: "plan", rule_id: "asuransi", label: "Asuransi", due_date: "2026-11-15", overdue: false, amount: 250_000, safe_amount: 0, not_counted_reason: "paid_from_savings" },
+    ] } } };
     const { hero } = await beranda();
     const { user, dialog } = await openRincian(hero);
     const parts = async (name: RegExp) => {
@@ -378,29 +402,20 @@ describe("Beranda hero", () => {
       expect(line).toHaveAttribute("aria-expanded", "true");
       return [...document.getElementById(line.getAttribute("aria-controls")!)!.querySelectorAll(".part")].map((part) => part.textContent);
     };
-    expect(await parts(/^Masuk/)).toEqual(["GajiRp 9.500.000", "RefundRp 300.000"]);
-    expect(await parts(/^Pengeluaran/)).toEqual([
-      "KebutuhanRp 1.420.000", "KeinginanRp 610.000", "BudayaRp 245.000", "Tak TerdugaRp 89.500", "Belum diklasifikasiRp 0",
-    ]);
-    expect(within(dialog).getByRole("link", { name: "Keinginan" })).toHaveAttribute("href", "/ledger?period=cycle&kakeibo=want");
-    expect(await parts(/^Ditabung/)).toEqual(["TabunganTermasuk uang yang dipindah ke kantong tabungan atau diinvestasikanRp 800.000"]);
+    expect(await parts(/^Uang harian/)).toEqual(["Bank Utama · UtamaRp 6.500.000", "Dompet DigitalRp 1.200.000", "TunaiRp 335.500"]);
+    expect(await parts(/^Tagihan kredit/)).toEqual(["SPayLaterjatuh tempo 11 Nov−Rp 1.400.000"]);
     expect(await parts(/^Terjadwal/)).toEqual([
-      "Tagihan: Streamiojatuh tempo 3 NovRp 65.000", "Tagihan: Cicilan Laptopjatuh tempo 5 NovRp 600.000",
-      "Tagihan: Internet Rumahjatuh tempo 10 NovRp 330.000",
-      "Setoran target: Liburan LombokRp 600.000 per bulan, sudah masuk Rp 0Rp 600.000",
-      "Setoran target: Dana DaruratRp 118.500 per bulan, sudah masuk Rp 0Rp 118.500",
+      "Tagihan: Streamiojatuh tempo 3 Nov−Rp 65.000", "Tagihan: Cicilan Laptopjatuh tempo 5 Nov−Rp 600.000",
+      "Tagihan: Internet Rumahjatuh tempo 10 Nov−Rp 330.000",
+      "Setoran target: Liburan LombokRp 600.000 per bulan, sudah masuk Rp 0−Rp 600.000",
+      "Setoran target: Dana DaruratRp 118.500 per bulan, sudah masuk Rp 0−Rp 118.500",
+      "Tagihan: Bayar SPayLaterjatuh tempo 11 Nov · sudah di Tagihan kreditRp 0",
+      "Tagihan: Asuransijatuh tempo 15 Nov · dibayar dari tabunganRp 0",
     ]);
     expect(dialog).toHaveTextContent("Sampai sehari sebelum perkiraan gaji berikutnya (24 Nov).");
-    expect(await parts(/^Menunggu jawaban/)).toEqual([
-      "QRIS 0812-xxxxBelum dikenali · sudah dihitung di Pengeluaran sebagai Belum diklasifikasiRp 45.000",
-      "RDN Contoh keluarPindah saldo belum lengkap · belum dihitungRp 112.000",
-      "RDN Contoh keluarPindah saldo belum lengkap · belum dihitungRp 112.000",
-      "Toko Serba AdaPerlu jawaban · sudah dihitung di Pengeluaran sebagai Belum diklasifikasiRp 312.000",
-    ]);
-    expect(within(dialog).getByRole("link", { name: "Jawab di Tinjau" })).toHaveAttribute("href", "/review");
   });
 
-  it("names a savings decrease in words, takes no bar width for it and opens what went in, came out and was spent", async () => {
+  it("names a savings decrease in words", async () => {
     const base = previewSummary();
     summary = {
       ...base,
@@ -410,15 +425,6 @@ describe("Beranda hero", () => {
     };
     const { hero } = await beranda();
     expect(figureOf(hero, "Ditabung & investasi")).toHaveTextContent("Ditabung & investasiRp 500.000Tabungan berkurang");
-    expect(hero.querySelector('.split [data-segment="saving"]')).toBeNull();
-    expect(within(hero).getByRole("img")).toHaveAccessibleName(/Ditabung & investasi 0%/);
-    const { user, dialog } = await openRincian(hero);
-    expect(rowTexts(dialog)[2]).toBe("Tabungan berkurangRp 500.000");
-    const line = within(dialog).getByRole("button", { name: /^Tabungan berkurang/ });
-    await user.click(line);
-    expect([...document.getElementById(line.getAttribute("aria-controls")!)!.querySelectorAll(".part")].map((part) => part.textContent)).toEqual([
-      "Masuk ke tabungan+Rp 300.000", "Diambil dari tabungan−Rp 600.000", "Pengeluaran dari tabungantetap dihitung sebagai pengeluaran−Rp 200.000",
-    ]);
   });
 });
 
@@ -745,12 +751,12 @@ describe("Beranda composition, loading and failure", () => {
     expect(await screen.findByRole("region", { name: "Aktivitas terbaru" })).toBeInTheDocument();
     expect(within(panel()).getByRole("link", { name: /^Ketahanan Dana/ })).toBeInTheDocument();
     expect(panel()).not.toHaveTextContent(/Kekayaan bersih|Kakeibo/);
-    expect(screen.queryByRole("region", { name: "Aman dipakai sampai gajian" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Aman dipakai" })).not.toBeInTheDocument();
     expect(document.body).not.toHaveTextContent("Rp 0");
     expect((await axe(document.body)).violations).toHaveLength(0);
     summary = previewSummary();
     await user.click(within(alert).getByRole("button", { name: "Coba lagi" }));
-    expect(await screen.findByRole("region", { name: "Aman dipakai sampai gajian" })).toHaveTextContent("Rp 4.922.000");
+    expect(await screen.findByRole("region", { name: "Aman dipakai" })).toHaveTextContent("Rp 4.922.000");
   });
 
   it("has no axe violations in the normal state", async () => {
@@ -770,11 +776,11 @@ describe("Beranda composition, loading and failure", () => {
     }
     // The hero figure and its three supporting figures.
     expect(within(hero).getAllByRole("img", { name: "Disembunyikan" }).length).toBe(4);
-    expect(within(hero).getByRole("img", { name: /^Uang siklus ini/ })).toHaveAccessibleName(/^Uang siklus ini dari Rp •••••• masuk: Pengeluaran 24%/);
+    expect(within(hero).getByRole("img", { name: /^Uang harian/ })).toHaveAccessibleName(/^Uang harian Rp ••••••: Tagihan kredit 17%/);
     for (const row of [...document.querySelectorAll(".row")]) expect(row.querySelector(".r-amt")?.textContent ?? "").not.toMatch(/\d/);
     expect((await axe(container)).violations).toHaveLength(0);
     const { dialog } = await openRincian(hero);
-    expect(within(dialog).getAllByRole("img", { name: "Disembunyikan" }).length).toBeGreaterThanOrEqual(6);
+    expect(within(dialog).getAllByRole("img", { name: "Disembunyikan" }).length).toBeGreaterThanOrEqual(4);
     expect((await axe(document.body)).violations).toHaveLength(0);
   });
 });
@@ -784,7 +790,7 @@ describe("Beranda in English (add-language-system)", () => {
 
   async function englishBeranda() {
     const view = renderBeranda("en");
-    const hero = await screen.findByRole("region", { name: "Safe to spend until payday" });
+    const hero = await screen.findByRole("region", { name: "Safe to spend" });
     await screen.findByRole("region", { name: "Recent activity" });
     await screen.findByRole("region", { name: "Needs action" });
     return { ...view, hero };
@@ -809,9 +815,9 @@ describe("Beranda in English (add-language-system)", () => {
     expect(figureOf(hero, "Saved & invested")).toHaveTextContent("Saved & investedRp 800.000Savings went up");
     expect(figureOf(hero, "Scheduled")).toBeUndefined();
     expect(within(hero).getByRole("img")).toHaveAccessibleName(
-      "Money this cycle, out of Rp 9.800.000 income: Spending 24%, Saved & invested 8%, Scheduled 17%, Safe to spend 50%",
+      "Everyday money Rp 8.035.500: Credit bills 17%, Scheduled 21%, Safe to spend 61%",
     );
-    const button = within(hero).getByRole("button", { name: "Breakdown of safe to spend until payday" });
+    const button = within(hero).getByRole("button", { name: "Safe to spend breakdown" });
     expect(button).toHaveTextContent(/^Breakdown$/);
   });
 
@@ -822,37 +828,32 @@ describe("Beranda in English (add-language-system)", () => {
     expect(hero.querySelector(".hero-sub")).toHaveTextContent(/^1 day until payday on 25 Nov$/);
   });
 
-  it("says by how much the period is over income", async () => {
+  it("says what is short in English", async () => {
     const base = previewSummary();
-    summary = { ...base, remaining: { ...base.remaining, total: -300_000 } };
+    summary = { ...base, safe_amount: { ...base.safe_amount, amount: 0, short_by: 300_000 } };
     const { hero } = await englishBeranda();
-    expect(hero.querySelector(".hero-sub")).toHaveTextContent("This cycle is Rp 300.000 over income");
+    expect(hero.querySelector(".hero-sub")).toHaveTextContent("Rp 300.000 short of credit bills and plans");
   });
 
-  it("lists the Breakdown in English: lines, notes from codes, user labels as stored", async () => {
+  it("lists the Breakdown in English, with names as stored", async () => {
     const { hero } = await englishBeranda();
     const user = userEvent.setup();
-    await user.click(within(hero).getByRole("button", { name: "Breakdown of safe to spend until payday" }));
-    const dialog = await screen.findByRole("dialog", { name: "Safe to spend until payday" });
+    await user.click(within(hero).getByRole("button", { name: "Safe to spend breakdown" }));
+    const dialog = await screen.findByRole("dialog", { name: "Safe to spend" });
     expect(dialog).toHaveTextContent("Calculation breakdown");
-    expect(dialog).toHaveTextContent("Income less Spending, Saved & invested and scheduled bills until the end of the cycle.");
-    expect(rowTexts(dialog).slice(0, 5)).toEqual([
-      "IncomeRp 9.800.000", "Spending−Rp 2.364.500", "Saved & invested−Rp 800.000", "Scheduled until 24 Nov−Rp 1.713.500", "Safe to spendRp 4.922.000",
+    expect(dialog).toHaveTextContent("Money in everyday pockets, less everything owed on credit and the plans paid from everyday money before payday.");
+    expect(rowTexts(dialog)).toEqual([
+      "Everyday moneyRp 8.035.500", "Credit bills−Rp 1.400.000", "Scheduled until 24 Nov−Rp 1.713.500", "Safe to spendRp 4.922.000",
     ]);
     expect(dialog).toHaveTextContent("Next salary expected on 25 November, based on salaries confirmed on 25 Aug, 25 Sep, 25 Oct.");
-    expect(dialog).toHaveTextContent("4 items (Rp 581.000) still waiting for an answer. Rp 357.000 of it is already included.");
-    await user.click(within(dialog).getByRole("button", { name: /^Income/ }));
-    expect(dialog).toHaveTextContent("Gaji");
-    await user.click(within(dialog).getByRole("button", { name: /^Saved & invested/ }));
-    expect(dialog).toHaveTextContent("Includes money moved to savings pockets or invested");
+    await user.click(within(dialog).getByRole("button", { name: /^Everyday money/ }));
+    expect(dialog).toHaveTextContent("Bank Utama · Utama");
+    await user.click(within(dialog).getByRole("button", { name: /^Credit bills/ }));
+    expect(dialog).toHaveTextContent("due 11 Nov");
     await user.click(within(dialog).getByRole("button", { name: /^Scheduled until/ }));
     expect(dialog).toHaveTextContent("Bill: Streamio");
     expect(dialog).toHaveTextContent("Goal deposit: Liburan Lombok");
-    expect(dialog).toHaveTextContent("Rp 600.000 a month, Rp 0 deposited so far");
-    await user.click(within(dialog).getByRole("button", { name: /^Waiting for an answer/ }));
-    expect(dialog).toHaveTextContent("Toko Serba Ada");
-    expect(dialog).toHaveTextContent("Needs an answer · already counted in Spending as No pillar yet");
-    expect(within(dialog).getByRole("link", { name: "View transactions this cycle" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("link", { name: "See in Accounts & Pockets" })).toHaveAttribute("href", "/accounts");
     expect(within(dialog).getByRole("button", { name: "Close breakdown" })).toBeInTheDocument();
   });
 
@@ -910,7 +911,7 @@ describe("Beranda in English (add-language-system)", () => {
       </QueryClientProvider>,
       { language: "en" },
     );
-    const hero = await screen.findByRole("region", { name: "Safe to spend until payday" });
+    const hero = await screen.findByRole("region", { name: "Safe to spend" });
     expect(hero.querySelector(".t-hero")).toHaveTextContent(/^Rp 4,922,000$/);
     expect(hero.querySelector(".hero-sub")).toHaveTextContent(/^23 days until payday on Nov 25$/);
     expect(figureOf(hero, "Spending")).toHaveTextContent("SpendingRp 2,364,500since salary on Oct 25");
@@ -988,7 +989,7 @@ describe("Tagihan kredit (open-beranda-figures)", () => {
     expect(figure).toHaveTextContent("Rp 5.246.014jatuh tempo 20 Nov");
     expect(figure).toHaveAttribute("aria-haspopup", "dialog");
     expect(hero.querySelector(".legend")).toHaveClass("has-credit");
-    expect(within(hero).getByRole("img", { name: /Pengeluaran/ })).toBeInTheDocument();
+    expect(within(hero).getByRole("img", { name: /Tagihan kredit/ })).toBeInTheDocument();
   });
 
   it("opens one section per account, most owed first, with its rows from the oldest unpaid purchase, oldest first", async () => {
@@ -997,7 +998,7 @@ describe("Tagihan kredit (open-beranda-figures)", () => {
     const user = userEvent.setup();
     await user.click(await within(hero).findByRole("button", { name: /Tagihan kredit/ }));
     const dialog = await screen.findByRole("dialog", { name: "Tagihan kredit" });
-    expect(within(dialog).getByText("Sudah dihitung di Pengeluaran saat belanja")).toBeInTheDocument();
+    expect(within(dialog).getByText("Sudah dikurangi dari Aman dipakai")).toBeInTheDocument();
     const sections = [...dialog.querySelectorAll<HTMLElement>("section.credit-running")];
     expect(sections.map((section) => section.getAttribute("aria-labelledby") && within(section).getByRole("heading", { level: 3 }).textContent)).toEqual(["Spaylater", "Kredivo"]);
     expect(sections[0]).toHaveAccessibleName("Spaylater");

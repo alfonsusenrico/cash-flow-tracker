@@ -10,15 +10,15 @@ import { api } from "@/lib/api";
 import type { Words } from "@/lib/i18n/types";
 import { queryKeys } from "@/lib/queryKeys";
 import { CreditBillsDialog, creditAccountsOf, creditFigure } from "./CreditBillsDialog";
-import { type Money, periodBasis, safeAmountRincian, unavailableReason } from "./explanations";
+import { type Money, safeAmountRincian, unavailableReason } from "./explanations";
 import type { ActivityRow, CycleSummary } from "./types";
 import { useWords } from "./words";
 
-/** The hero's one line (D3): the days to the expected salary, by how much the period is over, or why not known. */
+/** The hero's one line (D3, count-safe-amount-from-daily-money D6): the days to the expected salary, what is short, or why not known. */
 export function heroLine(summary: CycleSummary, money: Money, words: Words): string {
   const { t, format } = words;
-  const { safe_to_spend: safe, remaining, expected_salary: expected } = summary;
-  if (remaining.total < 0) return t("home.over", { period: periodBasis(summary), amount: money(-remaining.total) });
+  const { safe_to_spend: safe, safe_amount: amount, expected_salary: expected } = summary;
+  if (amount.short_by > 0) return t("home.short", { amount: money(amount.short_by) });
   if (safe.status === "available" && safe.days_left !== null && expected.date) {
     return t("home.daysUntilPayday", { days: safe.days_left, date: format.shortDate(expected.date) });
   }
@@ -72,25 +72,22 @@ export function BerandaHero({ summary, onSelectRow }: { summary: CycleSummary; o
     setCreditOpen(false);
     creditOpener.current?.focus();
   };
-  const { masuk, spending, fresh_saving: saving, scheduled, remaining } = summary;
-  const free = Math.max(0, remaining.total);
+  const { masuk, spending, fresh_saving: saving, safe_amount: safe } = summary;
   const captions = legendCaptions(summary, words);
-  const period = periodBasis(summary);
   const close = () => {
     setOpen(false);
     opener.current?.focus();
   };
+  // Daily money split into what is already committed and what is free (D6).
   const segments = [
-    { key: "spending", label: t("terms.spending"), amount: spending.amount, color: "var(--out-solid)" },
-    // A savings decrease takes no width in the bar; its caption names the direction in words.
-    { key: "saving", label: t("terms.savedInvested"), amount: Math.max(0, saving.amount), color: "var(--inv-solid)" },
-    { key: "scheduled", label: t("terms.scheduled"), amount: scheduled.total, color: "var(--warn-solid)" },
-    { key: "safe", label: t("terms.safeToSpend"), amount: free, color: "var(--in-solid)" },
+    { key: "credit", label: t("terms.creditBills"), amount: safe.credit_owed.total, color: "var(--credit-fg)" },
+    { key: "scheduled", label: t("terms.scheduled"), amount: safe.scheduled.total, color: "var(--warn-solid)" },
+    { key: "safe", label: t("terms.safeToSpend"), amount: safe.amount, color: "var(--in-solid)" },
   ];
   return (
     <HeroFigure
       id="beranda-safe"
-      label={t("terms.safeToSpendUntilPayday")}
+      label={t("terms.safeToSpend")}
       mark="var(--in-solid)"
       action={
         <button
@@ -105,13 +102,13 @@ export function BerandaHero({ summary, onSelectRow }: { summary: CycleSummary; o
           {t("terms.breakdown")}
         </button>
       }
-      figure={<MaskedMoney text={money(free)} />}
+      figure={<MaskedMoney text={money(safe.amount)} />}
       line={heroLine(summary, money, words)}
     >
       <SplitBar
-        label={t("home.splitName", { period, income: money(masuk.total) })}
-        emptyLabel={t("home.splitEmpty", { period })}
-        total={masuk.total}
+        label={t("home.splitDaily", { amount: money(safe.daily_money.total) })}
+        emptyLabel={t("home.splitDailyEmpty")}
+        total={safe.daily_money.total}
         segments={segments}
       />
       <div className={creditAccounts.length > 0 ? "legend has-credit" : "legend"}>
