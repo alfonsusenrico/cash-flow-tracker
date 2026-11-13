@@ -202,7 +202,7 @@ Beranda SHALL show static placeholders of the final layout while loading. When t
 - **THEN** the API SHALL respond 401 and return no figures
 
 ### Requirement: Beranda Hero
-Beranda SHALL open with one hero, "Aman dipakai sampai gajian", as the page's only 44 px figure, followed by one line, a split bar of Pengeluaran, Ditabung & investasi, Terjadwal and Aman dipakai with the percentages in its accessible name, and Masuk, Pengeluaran and Ditabung & investasi as supporting figures with one caption each, followed by "Tagihan kredit" when the owner has an active credit account. Terjadwal SHALL stay in the split bar and the Rincian and SHALL NOT be a supporting figure. No other Beranda figure SHALL be 33 px or larger. The hero figure SHALL NOT be a control; each supporting figure SHALL be one link to its detail, and "Tagihan kredit" one button that opens its dialog.
+Beranda SHALL open with one hero, "Aman dipakai sampai gajian", as the page's only 44 px figure, then one line, a split bar of Pengeluaran, Ditabung & investasi, Terjadwal and Aman dipakai named with their percentages, and the supporting figures Masuk, Pengeluaran and Ditabung & investasi, each one link with one caption. No other Beranda figure SHALL be 33 px or larger, and the hero figure SHALL NOT be a control.
 
 #### Scenario: Hero on a desktop
 - **WHEN** the owner opens Beranda at 1440 × 900
