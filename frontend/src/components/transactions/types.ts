@@ -133,8 +133,31 @@ export interface LedgerRow extends RowFacts, FeeLinkFields {
   is_reimbursement?: boolean;
 }
 
+/** One side of a reimbursement link (link-reimbursements-to-expenses D8). */
+export interface ReimbursementLinkLine {
+  transaction_id: string;
+  /** The part of the reimbursement allocated to the expense. */
+  amount: number;
+  date: string;
+  notes: string | null;
+  merchant: string | null;
+  /** On a reimbursement's own list: what the expense cost. */
+  expense_amount?: number;
+}
+
+export interface ReimbursementLinks {
+  /** On a reimbursement: the expenses it repays, oldest first; empty when it has none. */
+  repays: ReimbursementLinkLine[];
+  /** On a linked reimbursement: what no expense holds; null without links. */
+  unallocated: number | null;
+  /** On an expense: what repaid it. */
+  repaid_by: ReimbursementLinkLine[];
+  repaid_total: number;
+}
+
 /** The detail adds what only one row needs: its waiting state and the owner's own source text. */
 export interface LedgerRowDetail extends LedgerRow {
+  reimbursement?: ReimbursementLinks;
   waiting?: boolean;
   origin?: { kind: "notification"; app: string | null; title: string | null; text: string } | { kind: "capture"; text: string } | null;
 }

@@ -185,3 +185,55 @@ describe("What a payment paid (show-credit-status-and-payment-settlement)", () =
     expect(region).toHaveTextContent(/Rp\s?500\.000/);
   });
 });
+
+describe("Diganti and Mengganti (link-reimbursements-to-expenses)", () => {
+  const expense = {
+    id: "coffee", type: "expense", amount: 25_500, account_id: "jago", account_name: "Jago", category_id: "belanja", category_name: "Belanja",
+    notes: "beli kopi titipan mama", merchant: null, date: "2026-10-28T11:34:00.000Z", goal_id: null, goal_name: null, obligation_id: null,
+    obligation_name: null, receipt_path: null, created_at: "2026-10-28T11:34:00.000Z", review_status: "reviewed",
+    reimbursement: { repays: [], unallocated: null, repaid_total: 25_500,
+      repaid_by: [{ transaction_id: "mama", amount: 25_500, date: "2026-10-28T23:35:00.000Z", notes: "Dari ibu", merchant: null }] },
+  } as LedgerRowDetail;
+  const money = {
+    id: "mama", type: "income", amount: 100_000, account_id: "jago", account_name: "Jago", category_id: "patungan", category_name: "Patungan & Ganti Uang",
+    notes: "Dari ibu", merchant: null, date: "2026-10-28T23:35:00.000Z", goal_id: null, goal_name: null, obligation_id: null, obligation_name: null,
+    receipt_path: null, created_at: "2026-10-28T23:35:00.000Z", review_status: "reviewed",
+    reimbursement: { repays: [{ transaction_id: "coffee", amount: 25_500, expense_amount: 25_500, date: "2026-10-28T11:34:00.000Z",
+      notes: "beli kopi titipan mama", merchant: null }], unallocated: 74_500, repaid_by: [], repaid_total: 0 },
+  } as LedgerRowDetail;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    hideBalances = false;
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { accounts: [] };
+      if (path === "/transactions/coffee") return { transaction: expense };
+      if (path === "/transactions/mama") return { transaction: money };
+      throw new Error(`Unexpected GET ${path}`);
+    });
+  });
+
+  function open(id: string) {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    render(<QueryClientProvider client={queryClient}><TransactionDialog transactionId={id} onClose={vi.fn()} record={vi.fn()} /></QueryClientProvider>);
+  }
+
+  it("shows on the expense what repaid it, and opens that row", async () => {
+    const user = userEvent.setup();
+    open("coffee");
+    const dialog = await screen.findByRole("dialog", { name: "beli kopi titipan mama" });
+    const section = within(dialog).getByRole("region", { name: "Diganti Rp 25.500" });
+    expect(section).toHaveTextContent("Dari ibu");
+    expect((await axe(dialog)).violations).toHaveLength(0);
+    await user.click(within(section).getByRole("button", { name: /Dari ibu/ }));
+    expect(await screen.findByRole("dialog", { name: "Dari ibu" })).toBeInTheDocument();
+  });
+
+  it("shows on the reimbursement what it repays and the rest not counted", async () => {
+    open("mama");
+    const dialog = await screen.findByRole("dialog", { name: "Dari ibu" });
+    const section = within(dialog).getByRole("region", { name: "Mengganti" });
+    expect(section).toHaveTextContent("beli kopi titipan mama");
+    expect(section).toHaveTextContent("Sisa, tidak dihitungRp 74.500");
+  });
+});

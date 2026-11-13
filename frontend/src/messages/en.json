@@ -886,6 +886,12 @@
           "paid": "Paid",
           "paid_late": "Paid late"
         }
+      },
+      "reimbursement": {
+        "repaidHeading": "Repaid <amount></amount>",
+        "repaysHeading": "Repays",
+        "notCounted": "Rest, not counted",
+        "shareOf": "of <amount></amount>"
       }
     },
     "delete": {
@@ -966,7 +972,8 @@
         "chooseReceipt": "Choose a receipt to upload again.",
         "termsFailed": "The changes are saved, but the installments are not saved yet: {error}",
         "creditCountRange": "Choose 2 to 36 installments."
-      }
+      },
+      "linksFailed": "The transaction was saved, but what it repays was not: {error}"
     },
     "accountOptions": {
       "creditGroup": "Credit",
@@ -1044,6 +1051,25 @@
       "move": "Move to the next or previous transaction",
       "open": "Open transaction details",
       "undo": "Undo the last check or top-up"
+    },
+    "reimbursementLinks": {
+      "label": "Repays (optional)",
+      "hint": "Choose the transactions this repays. They go down in their own period, and the category to reduce is no longer used.",
+      "chosen": "Repaid transactions",
+      "remove": "Remove {title}",
+      "removeShort": "Remove",
+      "search": "Search transactions from the last 90 days",
+      "results": "Transactions from the last 90 days",
+      "add": "Add {title}",
+      "loadFailed": "Transactions could not be loaded.",
+      "noMatch": "No matching transactions.",
+      "noRecent": "No spending in the last 90 days.",
+      "restLabel": "The rest",
+      "restNone": "Not counted",
+      "restIncome": "Record as income",
+      "restCategory": "Income category",
+      "restIncomeHint": "What the transactions above do not use is recorded as a separate income on the same account and date.",
+      "restNoneHint": "What the transactions above do not use is not counted anywhere."
     }
   },
   "breakdown": {
@@ -1804,7 +1830,10 @@
     "uncertain_mapping": "The account or category could not be determined automatically. Choose them and record it manually.",
     "unsafe_instructions": "The notification holds suspicious text, so it was not processed automatically. Check it and record it manually if it is right.",
     "unsupported_currency": "Currencies other than rupiah are not supported yet. Record it manually in rupiah if needed.",
-    "model_uncertain": "The automatic interpreter is not sure about this notification. Retry, or choose the account and category and record it manually."
+    "model_uncertain": "The automatic interpreter is not sure about this notification. Retry, or choose the account and category and record it manually.",
+    "reimbursement_link_count": "Choose 1 to {limit} transactions this repays.",
+    "reimbursement_link_invalid": "Choose spending transactions that are not transfers and count in the budget.",
+    "reimbursement_rest_category": "Choose an income category for the rest."
   },
   "conversation": {
     "helpFactHome": "Home shows how much is safe to spend until payday."

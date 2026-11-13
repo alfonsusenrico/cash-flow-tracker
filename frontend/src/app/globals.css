@@ -1166,6 +1166,18 @@ button.tx-settled-row { cursor: pointer; transition: background-color var(--t-st
 button.tx-settled-row:hover { background: var(--surface); }
 button.tx-settled-row:active { background: var(--surface-2); }
 button.tx-settled-row:focus-visible { outline-offset: -2px; }
+/* "Mengganti transaksi" (link-reimbursements-to-expenses D8): chosen expenses, search results and the rest. */
+.reimburse-links { min-width: 0; margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: var(--sp-8); }
+.reimburse-chosen, .reimburse-options { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--r-control); }
+.reimburse-options { max-height: 240px; overflow-y: auto; }
+.reimburse-chosen > li + li, .reimburse-options > li + li { border-top: 1px solid var(--line); }
+.reimburse-row { display: flex; align-items: center; gap: var(--sp-12); width: 100%; min-height: 44px; padding: var(--sp-8) var(--sp-12); color: var(--text); text-align: left; }
+.reimburse-row.is-option { cursor: pointer; transition: background-color var(--t-state); }
+.reimburse-row.is-option:hover { background: var(--surface); }
+.reimburse-row.is-option:focus-visible { outline-offset: -2px; }
+.reimburse-main { display: flex; flex: 1; min-width: 0; flex-direction: column; }
+.reimburse-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reimburse-rest { display: flex; flex-direction: column; gap: var(--sp-8); }
 .tx-settled-row.is-static { padding-right: calc(var(--sp-12) + 16px + var(--sp-12)); }
 .tx-settled-row .chev { flex: none; color: var(--muted); }
 .tx-settled-main { flex: 1; min-width: 0; overflow-wrap: anywhere; }
