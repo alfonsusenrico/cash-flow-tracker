@@ -8,4 +8,4 @@ Expected Result: one "Saldo cocok" removes "Perlu dicocokkan".
 
 ## 2. Deliver
 
-- [ ] 2.1 After the owner accepts, archive, push, open the PR and report its URL.
+- [x] 2.1 After the owner accepts, archive, push, open the PR and report its URL.

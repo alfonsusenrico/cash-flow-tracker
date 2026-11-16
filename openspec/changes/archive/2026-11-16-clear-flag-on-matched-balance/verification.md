@@ -26,3 +26,7 @@ Tested on 2026-11-16, branch `fix/matched-balance-clears-flag` on base `9e5be43`
 | Next check starts at the match (unchanged) | `test_saldo_cocok_starts_the_next_window` |
 
 The web dialog already invalidates the accounts query after a match (`BalanceCheckDialog`), so no frontend change is needed. That was not checked in a browser.
+
+## Acceptance
+
+The owner accepted the result on 2026-11-16 ("ok").
