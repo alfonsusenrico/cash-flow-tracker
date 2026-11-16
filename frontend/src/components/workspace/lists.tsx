@@ -60,6 +60,10 @@ export interface ListRowProps {
   title: ReactNode;
   /** The owner's remark: beside the title on a desktop, on its own line under it on the phone. */
   note?: ReactNode;
+  /** The row's tags by name, shown with the note and given way like it (transaction-tags). */
+  tags?: ReactNode;
+  /** A screen-reader word before the tags, such as "Tag:", so the names are not read as part of the title. */
+  tagsLabel?: string;
   /** The meta line beside the title on a desktop and under it on the phone. */
   meta?: ReactNode;
   /** A different meta line for the phone's second line, such as "18.23 · Kebutuhan". */
@@ -93,7 +97,7 @@ export interface ListRowProps {
  * the row has two lines, the title and the meta, and only the amount stays beside them.
  */
 export function ListRow({
-  href, onClick, time, timeIsDate, icon, title, note, meta, phoneMeta, category, status, amount, chevron, selected, current, layout, rowKey, actions,
+  href, onClick, time, timeIsDate, icon, title, note, tags, tagsLabel, meta, phoneMeta, category, status, amount, chevron, selected, current, layout, rowKey, actions,
   selectable, pressHandlers,
 }: ListRowProps) {
   const content = (
@@ -106,10 +110,21 @@ export function ListRow({
       )}
       <span className="r-main">
         <span className="r-title">{title}</span>
-        {note && (
+        {(note || tags) && (
           <span className="r-note">
-            <Icon name="file-text" className="h-3 w-3" />
-            <span className="r-note-text">{note}</span>
+            {note && (
+              <span className="r-note-item">
+                <Icon name="file-text" className="h-3 w-3" />
+                <span className="r-note-text">{note}</span>
+              </span>
+            )}
+            {tags && (
+              <span className="r-note-item is-tags">
+                <Icon name="tag" className="h-3 w-3" />
+                {tagsLabel && <span className="sr-only">{tagsLabel} </span>}
+                <span className="r-note-text">{tags}</span>
+              </span>
+            )}
           </span>
         )}
         {meta && <span className={cn("r-meta", phoneMeta !== undefined && "dt-only")}>{meta}</span>}

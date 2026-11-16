@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { axe } from "vitest-axe";
-import { api, createMovement, uploadTransactionReceipt } from "@/lib/api";
+import { ApiError, api, createMovement, uploadTransactionReceipt } from "@/lib/api";
 import { ToastProvider } from "@/components/workspace/overlays";
 import CaptureDialog from "./CaptureDialog";
 import type { CaptureMode } from "./types";
@@ -895,5 +895,75 @@ describe("Catat a reimbursement linked to its expense (link-reimbursements-to-ex
     await user.click(submitButton("Simpan transaksi"));
     await waitFor(() => expect(api.put).toHaveBeenCalledWith("/transactions/money-back/reimburses", { expense_ids: ["main-bl"] }));
     expect(vi.mocked(api.post).mock.calls[0][1]).toMatchObject({ category_id: "patungan", offset_category_id: null });
+  });
+});
+
+describe("Catat with tags (transaction-tags D2)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { accounts: [
+        { id: "account-1", name: "BCA", type: "bank", balance: 100_000 },
+        { id: "account-2", name: "Cash", type: "cash", balance: 50_000 },
+      ] };
+      if (path === "/categories") return { categories: [{ id: "need-category", name: "Makan", kind: "expense", kakeibo_type: "need" }, { id: "income-category", name: "Gaji", kind: "income" }] };
+      if (path === "/goals") return { goals: [] };
+      if (path === "/obligations") return { obligations: [] };
+      if (path === "/tags?include_archived=0") return { ok: true, tags: [{ id: "tag-coach", name: "fellowship coach", archived: false, transaction_count: 4 }] };
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    vi.mocked(api.post).mockResolvedValue({ ok: true, transaction_id: "transaction-1" });
+  });
+
+  const tagField = () => screen.getByRole("combobox", { name: "Tag (opsional)" });
+
+  it("sends an existing tag by ID and a new one by name after Catatan", async () => {
+    const { user, onClose } = renderCapture();
+    await screen.findByRole("option", { name: "Makan" });
+    await user.type(amountField(), "45000");
+    await openDetails(user);
+    const fields = [...document.querySelectorAll<HTMLElement>(".capture-details input")].map((input) => input.id);
+    expect(fields.indexOf("capture-tags")).toBe(fields.indexOf("capture-note") + 1);
+    await user.type(tagField(), "fellow");
+    await user.keyboard("{Enter}");
+    await user.type(tagField(), "Malang trip");
+    await user.keyboard("{Enter}");
+    // Enter in the tag field picks; the form is sent only by the next Enter or the button.
+    expect(api.post).not.toHaveBeenCalled();
+    await user.click(submitButton("Simpan transaksi"));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/transactions", expect.objectContaining({
+      amount: 45_000, tag_ids: ["tag-coach"], new_tags: ["Malang trip"],
+    })));
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+  });
+
+  it("offers tags for income and none for a move", async () => {
+    const { user } = renderCapture({ mode: "income" });
+    await screen.findByRole("option", { name: "Gaji" });
+    await user.type(amountField(), "1000000");
+    await user.type(tagField(), "fellowship coach");
+    await user.keyboard("{Enter}");
+    await user.click(submitButton("Simpan transaksi"));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/transactions", expect.objectContaining({ type: "income", tag_ids: ["tag-coach"], new_tags: [] })));
+  });
+
+  it("has no tag field for a move", async () => {
+    renderCapture({ mode: "movement" });
+    await screen.findByRole("combobox", { name: "Dari rekening" });
+    expect(screen.queryByRole("combobox", { name: "Tag (opsional)" })).not.toBeInTheDocument();
+  });
+
+  it("shows a tag refusal under the tag field", async () => {
+    vi.mocked(api.post).mockRejectedValue(new ApiError(422, { code: "tag_name_invalid", message: "Nama tag harus 1–40 karakter." }));
+    const { user } = renderCapture();
+    await screen.findByRole("option", { name: "Makan" });
+    await user.type(amountField(), "1000");
+    await openDetails(user);
+    await user.type(tagField(), "acara");
+    await user.keyboard("{Enter}");
+    await user.click(submitButton("Simpan transaksi"));
+    expect(await screen.findByText("Nama tag harus 1–40 karakter.")).toHaveAttribute("id", "capture-tags-error");
+    expect(tagField()).toHaveAttribute("aria-invalid", "true");
+    expect(tagField()).toHaveAccessibleDescription(/Nama tag harus 1–40 karakter/);
   });
 });

@@ -224,7 +224,7 @@ def test_confident_model_records_new_merchant_as_ai(client, owner, monkeypatch):
     assert len(json.dumps(context, ensure_ascii=False).encode()) <= 30000
     stored = query("SELECT model, prompt_version, model_calls, classifier FROM text_captures WHERE id = %s",
                    (capture["id"],))[0]
-    assert dict(stored) == {"model": "gpt-5.6-luna", "prompt_version": "capture-normalization-2",
+    assert dict(stored) == {"model": "gpt-5.6-luna", "prompt_version": "capture-normalization-3",
                             "model_calls": 1, "classifier": "ok"}
     learned = memory(owner, "merchant:es teh manis")
     assert (learned["source"], str(learned["account_id"])) == ("ai", owner["cash"])
@@ -723,7 +723,7 @@ def test_capture_normalizer_uses_its_own_strict_schema_and_prompt():
     sent = {}
     output = {"merchant": None, "description": "Es teh manis", "type": "expense", "type_confidence": 0.9,
               "category_id": "00000000-0000-4000-8000-000000000101", "kakeibo": "want", "category_confidence": 0.9,
-              "account_id": None, "account_confidence": 0, "time": NO_TIME}
+              "account_id": None, "account_confidence": 0, "time": NO_TIME, "tags": []}
 
     def handler(request):
         sent.update(json.loads(request.content))
@@ -752,9 +752,9 @@ def test_capture_threshold_setting(monkeypatch):
 
 
 @pytest.mark.parametrize("enabled,language,version", [
-    (True, "en", "capture-normalization-2-en"),
-    (False, "en", "capture-normalization-2"),
-    (True, "id", "capture-normalization-2"),
+    (True, "en", "capture-normalization-3-en"),
+    (False, "en", "capture-normalization-3"),
+    (True, "id", "capture-normalization-3"),
 ])
 def test_english_output_is_asked_only_for_an_english_account_with_the_flag(
     client, owner, monkeypatch, enabled, language, version,

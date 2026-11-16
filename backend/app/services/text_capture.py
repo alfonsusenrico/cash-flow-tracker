@@ -42,6 +42,7 @@ from app.services.merchant_memory import (
 )
 from app.services.movement_linkage import ensure_internal_movement_categories, movement_name
 from app.services.provenance import capture_provenance, normalize_merchant
+from app.services.tags import row_tags_sql
 from app.services.transaction_text import text_fields
 
 logger = logging.getLogger(__name__)
@@ -167,7 +168,37 @@ def record_plan(cur, user_id: str, capture_id: str, draft: dict, plan: dict) -> 
         (user_id, account_id, classification["category_id"], plan["kind"], plan["amount"], name, tx_date, kakeibo,
          key, merchant, offset, *provenance.columns(), moment["basis"], moment["evidence"]),
     )
-    return {"transaction_ids": [str(cur.fetchone()["id"])], "movement_id": None}
+    transaction_id = str(cur.fetchone()["id"])
+    draft["tags_created"] = attach_capture_tags(cur, user_id, transaction_id, draft.get("tags") or [])
+    return {"transaction_ids": [transaction_id], "movement_id": None}
+
+
+def attach_capture_tags(cur, user_id: str, transaction_id: str, tags: list[dict]) -> list[str]:
+    """Attach the capture's checked tags, creating a new one the owner named; returns the IDs it created.
+
+    An existing tag archived or merged since the model read it is skipped rather than failing the capture.
+    """
+    from app.services.tags import TAG_LIMIT, clean_tag_name, set_transaction_tags, upsert_tag
+
+    tag_ids: list[str] = []
+    created: list[str] = []
+    for tag in tags[:TAG_LIMIT]:
+        if tag.get("tag_id"):
+            cur.execute("SELECT id FROM tags WHERE user_id = %s AND id = %s AND archived_at IS NULL",
+                        (user_id, tag["tag_id"]))
+            if cur.fetchone():
+                tag_ids.append(tag["tag_id"])
+            continue
+        display, normalized = clean_tag_name(tag["name"])
+        cur.execute("SELECT id FROM tags WHERE user_id = %s AND name_normalized = %s", (user_id, normalized))
+        existed = cur.fetchone()
+        tag_id = upsert_tag(cur, user_id, display, normalized)
+        if not existed:
+            created.append(tag_id)
+        tag_ids.append(tag_id)
+    if tag_ids:
+        set_transaction_tags(cur, user_id, transaction_id, sorted(set(tag_ids)))
+    return created
 
 
 def merchant_named(merchant: str | None, text: str) -> bool:
@@ -250,12 +281,12 @@ def transaction_view(cur, user_id: str, capture: dict) -> tuple[dict | None, dic
     if capture["status"] != "recorded" or not ids:
         return None, None
     cur.execute(
-        """SELECT t.id, t.type, t.amount, t.date, t.account_id, a.name AS account_name, p.name AS parent_name,
+        f"""SELECT t.id, t.type, t.amount, t.date, t.account_id, a.name AS account_name, p.name AS parent_name,
                   t.merchant, t.name, t.note, t.category_id, c.name AS category_name,
                   CASE WHEN t.movement_id IS NOT NULL THEN t.kakeibo_type
                        WHEN t.type = 'expense' THEN COALESCE(t.kakeibo_type, c.kakeibo_type) END AS kakeibo,
                   t.offset_category_id, t.source, t.review_status, t.classified_by, t.movement_id, t.movement_role,
-                  t.time_basis, t.time_evidence
+                  t.time_basis, t.time_evidence, {row_tags_sql("t")} AS tags
            FROM transactions t
            JOIN accounts a ON a.id = t.account_id AND a.user_id = t.user_id
            LEFT JOIN accounts p ON p.id = a.parent_id AND p.user_id = a.user_id
@@ -275,6 +306,7 @@ def transaction_view(cur, user_id: str, capture: dict) -> tuple[dict | None, dic
             "offset_category_id": str(row["offset_category_id"]) if row["offset_category_id"] else None,
             "source": row["source"], "review_status": row["review_status"], "classified_by": row["classified_by"],
             "time_basis": row["time_basis"], "time_evidence": row["time_evidence"],
+            "tags": row["tags"],
         }
 
     # The capture's transaction is the expense or income row, or the outbound leg of a movement.
@@ -341,7 +373,7 @@ def prepare_capture(user_id: str, request: dict) -> dict:
                 return {"existing": view}
             facts, accounts, aliases = capture_facts(cur, user_id, request)
             memory = memory_state(cur, user_id, facts)
-            needed = needs_model(facts, memory)
+            needed = needs_model(facts, memory, request["text"])
             context = model_context(cur, user_id, request, facts, memory, accounts, aliases) if needed else None
             prompt = select_prompt(CAPTURE_NORMALIZATION, account_language(cur, user_id)[0]) if needed else None
         conn.commit()
@@ -359,6 +391,8 @@ def store_capture(user_id: str, request: dict, model: dict | None, classifier: s
                 return view
             facts, _, _ = capture_facts(cur, user_id, request)
             memory = memory_state(cur, user_id, facts)
+            # Tags are kept even when the classification is not needed: the model was asked for them too.
+            model_tags = (model or {}).get("tags") or []
             if not needs_classification(facts, memory):
                 model = None
             if memory["hit"]:
@@ -367,7 +401,7 @@ def store_capture(user_id: str, request: dict, model: dict | None, classifier: s
                 "id": str(uuid4()), "client_capture_id": request["client_capture_id"], "text": request["text"],
                 "answers": [], "classifier": classifier,
                 "draft": {"facts": facts, "memory": memory, "model": model, "model_time": model_time, "owner": {},
-                          "client": {"question_types": request["question_types"]}},
+                          "client": {"question_types": request["question_types"]}, "tags": model_tags},
             }
             columns = advance(cur, user_id, capture)
             cur.execute(
@@ -603,6 +637,14 @@ def undo_capture(user_id: str, capture_id: str) -> dict:
             else:
                 delete_transaction_rows(cur, user_id, recorded[0]["id"])
             restore_memory(cur, user_id, capture["draft"].get("learned"))
+            # A tag this capture created goes with it, unless another transaction carries it by now.
+            created = capture["draft"].get("tags_created") or []
+            if created:
+                cur.execute(
+                    """DELETE FROM tags tag WHERE tag.user_id = %s AND tag.id = ANY(%s::uuid[])
+                       AND NOT EXISTS (SELECT 1 FROM transaction_tags link WHERE link.tag_id = tag.id)""",
+                    (user_id, created),
+                )
             cur.execute(
                 """UPDATE text_captures SET status = 'undone', undone_at = %s, transaction_id = NULL, updated_at = NOW()
                    WHERE user_id = %s AND id = %s RETURNING *""",

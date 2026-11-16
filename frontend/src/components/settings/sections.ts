@@ -1,5 +1,5 @@
 export type SettingsSectionSlug =
-  | "perangkat" | "kebiasaan" | "tampilan" | "profil" | "gaji" | "anggaran" | "pemetaan" | "pengirim" | "sesi-uji";
+  | "perangkat" | "kebiasaan" | "tampilan" | "profil" | "gaji" | "anggaran" | "tag" | "pemetaan" | "pengirim" | "sesi-uji";
 
 /** The rail's groups (apply-markas-pengaturan D2): PERANGKAT, TAMPILAN and AKUN. */
 export type SettingsGroup = "devices" | "appearance" | "account";
@@ -21,6 +21,8 @@ export const SETTINGS_SECTIONS: SettingsSectionEntry[] = [
   { slug: "profil", href: "/settings/profil", group: "account" },
   { slug: "gaji", href: "/settings/gaji", group: "account" },
   { slug: "anggaran", href: "/settings/anggaran", group: "account" },
+  // Tags the owner groups rows with (transaction-tags D5).
+  { slug: "tag", href: "/settings/tag", group: "account" },
   { slug: "pemetaan", href: "/settings/pemetaan", group: "account" },
   { slug: "pengirim", href: "/settings/pengirim", group: "account" },
   { slug: "sesi-uji", href: "/settings/sesi-uji", group: "account" },

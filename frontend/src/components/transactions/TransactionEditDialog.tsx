@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { AccountSelectOptions } from "@/components/ui/AccountSelectOptions";
 import { DebtAllocationEditor, allocationIssue, totalDebtPayments, type DebtAllocationValue } from "@/components/ui/DebtAllocationEditor";
@@ -16,9 +16,11 @@ import { KAKEIBO_PILLARS, pillarOrUnclassified, type KakeiboPillar } from "@/lib
 import { ownRowNote } from "@/lib/placeholderNotes";
 import { MERCHANT_MAX_LENGTH, categoryOffsetsSpending, offsetCategoryOptions } from "@/lib/provenance";
 import { queryKeys } from "@/lib/queryKeys";
+import { tagErrorCode, tagRequest, type TagChoice } from "@/lib/tags";
 import { formatNumberWithDots, localDatetimeToISO, stripGrouping, toDatetimeLocal } from "@/lib/utils";
 import { ReimbursementLinksField, linksRequest, linksValue } from "./ReimbursementLinksField";
 import { bucketName, useAccountOptionLabels, useRowLabels } from "./rows";
+import { TagPicker } from "./TagPicker";
 import type { LedgerRowDetail } from "./types";
 
 type EditKind = "expense" | "income";
@@ -91,6 +93,10 @@ export function TransactionEditDialog({
   const [receiptRetry, setReceiptRetry] = useState(false);
   const [name, setName] = useState(tx.name || "");
   const [note, setNote] = useState(tx.note || "");
+  // The whole tag set is sent on every save, so removing the last tag clears it (transaction-tags D2).
+  const [tags, setTags] = useState<TagChoice[]>(() => (tx.tags ?? []).map((tag) => ({ id: tag.id, name: tag.name })));
+  const [tagError, setTagError] = useState("");
+  const queryClient = useQueryClient();
   const [merchant, setMerchant] = useState(tx.merchant || "");
   const [offsetCategoryId, setOffsetCategoryId] = useState(tx.offset_category_id || "");
   const [accountId, setAccountId] = useState(tx.account_id);
@@ -167,6 +173,7 @@ export function TransactionEditDialog({
           : {}),
         kakeibo_type: kind === "expense" && pillar ? pillar : null,
         merchant: merchant.trim() || null,
+        ...tagRequest(tags),
         ...(offsetsSpending ? { offset_category_id: links.expenses.length > 0 ? null : offsetCategoryId || null } : {}),
         date: isoDate,
       });
@@ -195,8 +202,19 @@ export function TransactionEditDialog({
         }
       }
     },
-    onSuccess: onSaved,
-    onError: (failure: Error) => fail(failure.message || t("errors.saveFailed")),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.tags.all });
+      onSaved();
+    },
+    onError: (failure: Error) => {
+      if (tagErrorCode(failure)) {
+        setError("");
+        setTagError(failure.message);
+        window.setTimeout(() => document.getElementById("tx-edit-tags")?.focus(), 0);
+        return;
+      }
+      fail(failure.message || t("errors.saveFailed"));
+    },
   });
 
   const retryReceipt = useMutation({
@@ -423,6 +441,8 @@ export function TransactionEditDialog({
             <label htmlFor="tx-edit-note">{t("note")}</label>
             <input id="tx-edit-note" type="text" autoComplete="off" maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} placeholder={t("notePlaceholder")} className="field-control" />
           </div>
+          <TagPicker id="tx-edit-tags" className="full-row" label={terms("transactions.tags.label")} value={tags} error={tagError || undefined}
+            onChange={(next) => { setTags(next); setTagError(""); }} />
           <div className="field full-row">
             <label htmlFor="tx-edit-receipt">{t("receipt")}</label>
             <input id="tx-edit-receipt" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setReceipt(event.target.files?.[0] ?? null)}

@@ -5,6 +5,7 @@ the one question to ask next (design D1–D4).
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -225,10 +226,30 @@ def model_context(cur, user_id: str, request: dict, facts: dict, memory: dict, a
                              "account_id": str(row["account_id"]), "owner_confirmed": bool(row["owner_confirmed"])}
                             for row in similar_rows(cur, user_id, facts)],
     }
-    for field in ("similar_history", "memory"):
+    # The owner's tags reach the model only when the text may mark one, so ordinary captures send no more.
+    context["tags"] = active_tags(cur, user_id, identity) if has_tag_wording(request["text"]) else []
+    for field in ("similar_history", "memory", "tags"):
         while context[field] and context_bytes(context) > CAPTURE_CONTEXT_BYTE_LIMIT:
             context[field].pop()
     return context if context_bytes(context) <= CAPTURE_CONTEXT_BYTE_LIMIT else None
+
+
+# Most recently used first, so the cap keeps the tags the owner is likely to mean.
+CONTEXT_TAG_LIMIT = 200
+
+
+def active_tags(cur, user_id: str, identity: list[str]) -> list[dict]:
+    """The owner's active tags as `{id, name}`, most recently used first."""
+    cur.execute(
+        """SELECT tag.id, tag.name FROM tags tag
+           LEFT JOIN LATERAL (SELECT MAX(link.created_at) AS used_at FROM transaction_tags link
+                              WHERE link.tag_id = tag.id) used ON TRUE
+           WHERE tag.user_id = %s AND tag.archived_at IS NULL
+           ORDER BY used.used_at DESC NULLS LAST, tag.created_at DESC, tag.id
+           LIMIT %s""",
+        (user_id, CONTEXT_TAG_LIMIT),
+    )
+    return [{"id": str(row["id"]), "name": sanitize_text(row["name"], identity)[:40]} for row in cur.fetchall()]
 
 
 def model_unavailable(provider) -> str | None:
@@ -245,9 +266,20 @@ def needs_classification(facts: dict, memory: dict) -> bool:
     return kind in {"expense", "income"} and bool(facts["phrase"]) and memory["hit"] is None
 
 
-def needs_model(facts: dict, memory: dict) -> bool:
-    """The model is asked to classify, or to read a time phrase the parser flagged but could not place."""
-    return needs_classification(facts, memory) or (facts.get("time") or {}).get("status") == "unresolved"
+# Wording that may mark the entry with a tag: a label before a colon at the start, a hashtag, or the word "tag".
+# It only decides that the model reads the text; the model decides whether a tag is meant (transaction-tags D4).
+TAG_WORDING = re.compile(r"^\s*[^\d\s:][^:]{0,39}:\s|#\w|\btag\b", re.IGNORECASE)
+
+
+def has_tag_wording(text: str) -> bool:
+    return bool(TAG_WORDING.search(text or ""))
+
+
+def needs_model(facts: dict, memory: dict, text: str = "") -> bool:
+    """The model is asked to classify, to read a time phrase the parser flagged but could not place, or to read
+    the tags the text may mark."""
+    return (needs_classification(facts, memory) or (facts.get("time") or {}).get("status") == "unresolved"
+            or has_tag_wording(text))
 
 
 # --- Resolution and questions ----------------------------------------------------------------------

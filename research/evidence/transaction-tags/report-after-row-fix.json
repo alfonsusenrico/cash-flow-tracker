@@ -1,0 +1,742 @@
+{
+ "tg-transaksi-1440-light": {
+  "path": "/ledger",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 390,
+    "Manrope": 3
+   },
+   "sizes": {
+    "12px": 263,
+    "14px": 126,
+    "20px": 2,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 294,
+    "500": 43,
+    "600": 56
+   },
+   "textStylesInMain": 7,
+   "mainStyles": {
+    "Inter|12|400": 230,
+    "Inter|14|400": 51,
+    "Inter|14|600": 50,
+    "Inter|12|500": 15,
+    "Inter|14|500": 3,
+    "Inter|20|600": 2,
+    "Manrope|44|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 8.955.820\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ },
+ "tg-gabung-1440-light": {
+  "path": "/settings/tag",
+  "log": [
+   "clicked Gabungkan tag felowship coach ke tag lain",
+   "chosen",
+   "clicked Ya, gabungkan"
+  ],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 45,
+    "Manrope": 3
+   },
+   "sizes": {
+    "14px": 29,
+    "12px": 17,
+    "24px": 1,
+    "20px": 1
+   },
+   "weights": {
+    "400": 12,
+    "500": 32,
+    "600": 4
+   },
+   "textStylesInMain": 5,
+   "mainStyles": {
+    "Inter|12|400": 4,
+    "Inter|14|500": 4,
+    "Inter|14|400": 3,
+    "Manrope|20|600": 1,
+    "Inter|12|500": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ },
+ "tg-transaksi-1440-dark": {
+  "path": "/ledger",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 390,
+    "Manrope": 3
+   },
+   "sizes": {
+    "12px": 263,
+    "14px": 126,
+    "20px": 2,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 294,
+    "500": 43,
+    "600": 56
+   },
+   "textStylesInMain": 7,
+   "mainStyles": {
+    "Inter|12|400": 230,
+    "Inter|14|400": 51,
+    "Inter|14|600": 50,
+    "Inter|12|500": 15,
+    "Inter|14|500": 3,
+    "Inter|20|600": 2,
+    "Manrope|44|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 8.955.820\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ },
+ "tg-gabung-1440-dark": {
+  "path": "/settings/tag",
+  "log": [
+   "NOT FOUND",
+   "NOT FOUND",
+   "NOT FOUND"
+  ],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 45,
+    "Manrope": 3
+   },
+   "sizes": {
+    "14px": 29,
+    "12px": 17,
+    "24px": 1,
+    "20px": 1
+   },
+   "weights": {
+    "400": 12,
+    "500": 32,
+    "600": 4
+   },
+   "textStylesInMain": 5,
+   "mainStyles": {
+    "Inter|12|400": 4,
+    "Inter|14|500": 4,
+    "Inter|14|400": 3,
+    "Manrope|20|600": 1,
+    "Inter|12|500": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ },
+ "tg-transaksi-390-light": {
+  "path": "/ledger",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 217,
+    "Manrope": 3
+   },
+   "sizes": {
+    "14px": 113,
+    "12px": 103,
+    "20px": 2,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 138,
+    "500": 27,
+    "600": 55
+   },
+   "textStylesInMain": 7,
+   "mainStyles": {
+    "Inter|12|400": 81,
+    "Inter|14|400": 54,
+    "Inter|14|600": 50,
+    "Inter|12|500": 15,
+    "Inter|14|500": 7,
+    "Inter|20|600": 2,
+    "Manrope|44|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 8.955.820\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ },
+ "tg-gabung-390-light": {
+  "path": "/settings/tag",
+  "log": [
+   "NOT FOUND",
+   "NOT FOUND",
+   "NOT FOUND"
+  ],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 33,
+    "Manrope": 3
+   },
+   "sizes": {
+    "14px": 19,
+    "12px": 15,
+    "24px": 1,
+    "20px": 1
+   },
+   "weights": {
+    "400": 9,
+    "500": 24,
+    "600": 3
+   },
+   "textStylesInMain": 5,
+   "mainStyles": {
+    "Inter|12|400": 4,
+    "Inter|14|500": 4,
+    "Inter|14|400": 3,
+    "Manrope|20|600": 1,
+    "Inter|12|500": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ },
+ "tg-transaksi-390-dark": {
+  "path": "/ledger",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 217,
+    "Manrope": 3
+   },
+   "sizes": {
+    "14px": 113,
+    "12px": 103,
+    "20px": 2,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 138,
+    "500": 27,
+    "600": 55
+   },
+   "textStylesInMain": 7,
+   "mainStyles": {
+    "Inter|12|400": 81,
+    "Inter|14|400": 54,
+    "Inter|14|600": 50,
+    "Inter|12|500": 15,
+    "Inter|14|500": 7,
+    "Inter|20|600": 2,
+    "Manrope|44|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 8.955.820\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ },
+ "tg-gabung-390-dark": {
+  "path": "/settings/tag",
+  "log": [
+   "NOT FOUND",
+   "NOT FOUND",
+   "NOT FOUND"
+  ],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 33,
+    "Manrope": 3
+   },
+   "sizes": {
+    "14px": 19,
+    "12px": 15,
+    "24px": 1,
+    "20px": 1
+   },
+   "weights": {
+    "400": 9,
+    "500": 24,
+    "600": 3
+   },
+   "textStylesInMain": 5,
+   "mainStyles": {
+    "Inter|12|400": 4,
+    "Inter|14|500": 4,
+    "Inter|14|400": 3,
+    "Manrope|20|600": 1,
+    "Inter|12|500": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 0,
+    "examples": []
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ }
+}

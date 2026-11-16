@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { DayHeading, ListRow } from "@/components/workspace/lists";
 import type { Format } from "@/lib/format";
 import { previousDay, type DayGroup } from "@/lib/ledgerDays";
-import { RowAmount, RowStatus, maskedTag, rowCategory, rowMeta, rowNote, rowPhoneLine, rowTitle, type RowLabels, type RowLine } from "./rows";
+import { RowAmount, RowStatus, maskedTag, rowCategory, rowMeta, rowNote, rowPhoneLine, rowTags, rowTitle, type RowLabels, type RowLine } from "./rows";
 import type { LedgerRow } from "./types";
 
 const HOLD_MS = 600;
@@ -137,6 +137,8 @@ export function LedgerList({ groups, openRow, selection, loadMore, openId, accou
                     time={time}
                     title={title}
                     note={rowNote(row) ?? undefined}
+                    tags={rowTags(row) ?? undefined}
+                    tagsLabel={t("tags.rowLabel")}
                     meta={meta.text ? <Line {...meta} /> : undefined}
                     phoneMeta={
                       <>

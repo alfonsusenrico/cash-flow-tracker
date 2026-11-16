@@ -304,7 +304,12 @@
     "model_uncertain": "Penafsir otomatis tidak yakin dengan notifikasi ini. Coba ulang, atau pilih rekening dan kategori lalu catat manual.",
     "reimbursement_link_count": "Pilih 1 sampai {limit} pengeluaran yang diganti.",
     "reimbursement_link_invalid": "Pilih pengeluaran yang bukan pindah saldo dan masuk anggaran.",
-    "reimbursement_rest_category": "Pilih kategori pemasukan untuk sisanya."
+    "reimbursement_rest_category": "Pilih kategori pemasukan untuk sisanya.",
+    "tag_not_found": "Tag tidak ditemukan.",
+    "tag_limit": "Satu transaksi dapat memiliki paling banyak {limit} tag.",
+    "tag_name_invalid": "Nama tag harus terdiri dari 1 sampai {max_length} karakter.",
+    "tag_name_taken": "Tag dengan nama ini sudah ada.",
+    "tag_merge_same": "Tag tidak dapat digabungkan ke dirinya sendiri."
   },
   "error_messages": {
     "product_not_found": "Produk tidak ditemukan.",

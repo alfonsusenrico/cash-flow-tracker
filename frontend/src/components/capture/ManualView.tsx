@@ -19,6 +19,8 @@ import { movementFormSchema, type MovementIssueCode } from "@/lib/movementFormSc
 import { categoryOffsetsSpending, offsetCategoryOptions } from "@/lib/provenance";
 import { queryKeys } from "@/lib/queryKeys";
 import { NO_LINKS, ReimbursementLinksField, linksRequest } from "@/components/transactions/ReimbursementLinksField";
+import { TagPicker } from "@/components/transactions/TagPicker";
+import { tagRequest, type TagChoice } from "@/lib/tags";
 import { formatNumberWithDots, localDatetimeToISO, stripGrouping, toDatetimeLocal } from "@/lib/utils";
 import { isExpression, parseAmountExpression } from "./amount";
 import { jakartaDate, jakartaToday } from "./creditTerms";
@@ -28,7 +30,7 @@ import {
 import type { CaptureMode, FooterState } from "./types";
 
 type FieldKey =
-  | "amount" | "account" | "time" | "name" | "note" | "goal" | "debt" | "source" | "target" | "fee" | "count" | "firstDue";
+  | "amount" | "account" | "time" | "name" | "note" | "tags" | "goal" | "debt" | "source" | "target" | "fee" | "count" | "firstDue";
 type FieldErrors = Partial<Record<FieldKey, string>>;
 type Submission = { kind: "movement"; payload: CreateMovementPayload } | { kind: "transaction" };
 
@@ -55,6 +57,7 @@ const FIELD_ID: Record<FieldKey, string> = {
   time: "capture-date",
   name: "capture-name",
   note: "capture-note",
+  tags: "capture-tags",
   goal: "capture-goal",
   debt: "capture-debt-0",
   source: "capture-source",
@@ -65,7 +68,7 @@ const FIELD_ID: Record<FieldKey, string> = {
 };
 const SPLIT_ERROR = { positive: "errors.positive", total: "errors.total" } as const;
 /** Fields inside "Detail tambahan", which opens itself when one of them holds an error (D7). */
-const DETAIL_FIELDS = new Set<FieldKey>(["time", "name", "note", "goal", "debt"]);
+const DETAIL_FIELDS = new Set<FieldKey>(["time", "name", "note", "tags", "goal", "debt"]);
 
 function accountId(account: { id?: unknown; account_id?: unknown }): string {
   return String(account.id ?? account.account_id ?? "");
@@ -134,6 +137,8 @@ export function ManualView({
   // The transaction's name, and the owner's own remark (separate-transaction-name-and-note D3).
   const [name, setName] = useState("");
   const [note, setNote] = useState("");
+  // Existing tags and names to create on save (transaction-tags D2); a move takes none.
+  const [tags, setTags] = useState<TagChoice[]>([]);
   const [feeStr, setFeeStr] = useState("");
   const [receipt, setReceipt] = useState<File | null>(null);
   const [savedTransactionId, setSavedTransactionId] = useState<string | null>(null);
@@ -272,6 +277,7 @@ export function ManualView({
           : {}),
         name: name.trim() || null,
         note: note.trim() || null,
+        ...(tags.length > 0 ? tagRequest(tags) : {}),
         ...(offsetsSpending ? { offset_category_id: links.expenses.length > 0 ? null : offsetCategoryId || null } : {}),
         date: localDatetimeToISO(txDate) || new Date().toISOString(),
         ...(accountIsCredit ? { credit_terms: creditTermsRequest(credit) } : {}),
@@ -303,6 +309,8 @@ export function ManualView({
       for (const key of [queryKeys.pulse, queryKeys.accounts, queryKeys.insights, queryKeys.transactions.all, queryKeys.dashboard.all, queryKeys.goals, queryKeys.obligations]) {
         qc.invalidateQueries({ queryKey: key });
       }
+      // A new tag, or a count, changed: the pickers and Pengaturan list them.
+      if (result.kind === "transaction" && tags.length > 0) qc.invalidateQueries({ queryKey: queryKeys.tags.all });
       if (result.kind === "transaction" && result.transaction.over_limit) {
         // A purchase over the limit is saved; the owner is only told (add-credit-accounts D5).
         const name = creditAccounts.find((account: any) => accountId(account) === selectedAccount)?.name;
@@ -326,6 +334,7 @@ export function ManualView({
       if (code === "same_account") return fail("target", failure.message);
       if (code === "credit_terms_due_before_purchase") return fail("firstDue", failure.message);
       if (code === "credit_terms_count_range") return fail("count", failure.message);
+      if (code?.startsWith("tag_")) return fail("tags", failure.message);
       setErr(failure.message || (type === "movement" ? t("errors.moveFailed") : t("errors.saveFailed")));
       document.getElementById(type === "movement" ? FIELD_ID.source : FIELD_ID.account)?.focus();
     },
@@ -490,6 +499,11 @@ export function ManualView({
         onChange={(event) => { setNote(event.target.value); clearError("note"); }} className="field-control" />
       {errorLine("note")}
     </div>
+  );
+
+  const tagField = (
+    <TagPicker id={FIELD_ID.tags} label={words("transactions.tags.label")} value={tags} error={errorOf("tags")}
+      onChange={(next) => { setTags(next); clearError("tags"); }} />
   );
 
   const receiptField = (
@@ -665,6 +679,7 @@ export function ManualView({
               )}
               {nameField}
               {noteField}
+              {tagField}
               {receiptField}
             </div>
           </details>
@@ -699,6 +714,7 @@ export function ManualView({
           {timeField("time")}
           {nameField}
           {noteField}
+          {tagField}
           {receiptField}
         </>
       )}

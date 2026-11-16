@@ -212,7 +212,9 @@ def test_saldo_cocok_starts_the_next_window(client, owner):
 
     matched = client.post(f"/api/accounts/{owner['standalone']}/balance-matches", json={"actual_balance": 925_000})
     assert matched.status_code == 200, matched.text
-    recent = add_row(owner, "standalone", 40_000, category="movement_out", when=NOW + timedelta(minutes=1))
+    # After the match as recorded now, not after the module's NOW: a long suite run would place it before the match.
+    recent = add_row(owner, "standalone", 40_000, category="movement_out",
+                     when=datetime.now(timezone.utc) + timedelta(minutes=1))
 
     result = check(client, owner, "standalone", 885_000)
 

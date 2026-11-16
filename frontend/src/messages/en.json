@@ -685,6 +685,7 @@
       "waiting": "Needs an answer",
       "phone": "From phone",
       "typed": "Added in app",
+      "tag": "Tag: {name}",
       "duplicates": "Possible duplicates",
       "since": "since {date}",
       "until": "until {date}"
@@ -697,6 +698,7 @@
       "category": "Category",
       "allCategories": "All categories",
       "pillar": "Kakeibo pillar",
+      "tags": "Tags",
       "allPillars": "All pillars",
       "status": "Status",
       "statusAll": "All statuses",
@@ -810,6 +812,7 @@
       "merchant": "Merchant",
       "name": "Transaction name",
       "note": "Note",
+      "tags": "Tags",
       "none": "—",
       "from": "From",
       "to": "To",
@@ -1073,6 +1076,21 @@
       "restCategory": "Income category",
       "restIncomeHint": "What the transactions above do not use is recorded as a separate income on the same account and date.",
       "restNoneHint": "What the transactions above do not use is not counted anywhere."
+    },
+    "tags": {
+      "label": "Tags (optional)",
+      "placeholder": "Type a tag name",
+      "searchPlaceholder": "Find a tag",
+      "hint": "Pick an existing tag or create a new one. At most {limit} tags.",
+      "create": "Create tag “{name}”",
+      "chosen": "Chosen tags",
+      "remove": "Remove tag {name}",
+      "archived": "archived",
+      "noMatch": "No matching tags.",
+      "limit": "{limit} tags is the limit for one transaction. Remove a tag to add another.",
+      "added": "Tag {name} added.",
+      "removed": "Tag {name} removed.",
+      "rowLabel": "Tags:"
     }
   },
   "breakdown": {
@@ -1184,6 +1202,10 @@
       "anggaran": {
         "title": "Currency & budget",
         "description": "Currency, emergency fund and spending limit."
+      },
+      "tag": {
+        "title": "Tags",
+        "description": "Tags group transactions across categories, such as one event."
       },
       "pemetaan": {
         "title": "Notification mapping",
@@ -1461,6 +1483,34 @@
       "empty": "No sender names saved yet.",
       "loadFailed": "The sender list could not be loaded.",
       "loading": "Loading senders…"
+    },
+    "tags": {
+      "list": "Active tags",
+      "archivedList": "Archived",
+      "archivedHint": "An archived tag stays on its transactions and in the Transactions filter, but is not offered when recording.",
+      "count": "{count, plural, one {# transaction} other {# transactions}}",
+      "rename": "Rename tag {name}",
+      "nameLabel": "Tag name",
+      "nameHint": "Enter saves, Esc cancels.",
+      "saveName": "Save name",
+      "nameInvalid": "Enter a tag name of 1 to {max} characters.",
+      "merge": "Merge tag {name} into another tag",
+      "mergeVerb": "Merge",
+      "mergeInto": "Merge “{name}” into",
+      "mergeChoose": "Choose a tag",
+      "mergeChooseFirst": "Choose the tag to keep.",
+      "mergeResult": "{count, plural, one {# transaction moves} other {# transactions move}} to “{into}”, then the tag “{name}” is deleted.",
+      "mergeYes": "Yes, merge",
+      "merged": "Tag “{name}” merged into “{into}”.",
+      "archive": "Archive tag {name}",
+      "archiveVerb": "Archive",
+      "restore": "Restore tag {name}",
+      "restoreVerb": "Restore",
+      "empty": "No tags yet. Tags are created from Add transaction or Edit transaction.",
+      "loading": "Loading tags…",
+      "loadFailed": "The tag list could not be loaded.",
+      "saveFailed": "The tag could not be saved. Try again.",
+      "mergeFailed": "The tags could not be merged. Try again."
     },
     "testSession": {
       "duration": "Duration",
@@ -1837,7 +1887,12 @@
     "model_uncertain": "The automatic interpreter is not sure about this notification. Retry, or choose the account and category and record it manually.",
     "reimbursement_link_count": "Choose 1 to {limit} transactions this repays.",
     "reimbursement_link_invalid": "Choose spending transactions that are not transfers and count in the budget.",
-    "reimbursement_rest_category": "Choose an income category for the rest."
+    "reimbursement_rest_category": "Choose an income category for the rest.",
+    "tag_not_found": "Tag not found.",
+    "tag_limit": "A transaction can have at most {limit} tags.",
+    "tag_name_invalid": "A tag name must be 1 to {max_length} characters.",
+    "tag_name_taken": "A tag with this name already exists.",
+    "tag_merge_same": "A tag cannot be merged into itself."
   },
   "conversation": {
     "helpFactHome": "Home shows how much is safe to spend until payday."
@@ -3243,6 +3298,7 @@
     },
     "toast": {
       "recorded": "Recorded: {label}{when, select, none {} other {, {when}}}.",
+      "tags": "Tags",
       "undone": "Recording undone.",
       "undoFailed": "Could not undo."
     },

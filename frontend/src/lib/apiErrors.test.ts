@@ -59,6 +59,22 @@ describe("API error codes", () => {
     await expect(api.post("/recurring", {})).rejects.toMatchObject({ message });
   });
 
+  it("renders every tag code in both languages, with its limits (transaction-tags)", async () => {
+    for (const catalogue of [en, id]) {
+      for (const code of ["tag_not_found", "tag_limit", "tag_name_invalid", "tag_name_taken", "tag_merge_same"]) {
+        expect(Object.keys(catalogue.errors)).toContain(code);
+      }
+    }
+    configureApiMessages("en", en);
+    reject({ code: "tag_limit", params: { limit: 10 }, message: "Too many tags" }, 422);
+    await expect(api.patch("/transactions/x", {})).rejects.toMatchObject({ message: "A transaction can have at most 10 tags." });
+    configureApiMessages("id", id);
+    reject({ code: "tag_name_invalid", params: { max_length: 40 }, message: "Invalid" }, 422);
+    await expect(api.post("/tags", {})).rejects.toMatchObject({ message: "Nama tag harus 1–40 karakter." });
+    reject({ code: "tag_name_taken", params: {}, message: "Taken" }, 409);
+    await expect(api.patch("/tags/x", {})).rejects.toMatchObject({ status: 409, message: "Sudah ada tag dengan nama ini." });
+  });
+
   it("renders the insufficient-funds amounts for the account's region", async () => {
     configureApiMessages("en", en);
     configureApiRegion("US");

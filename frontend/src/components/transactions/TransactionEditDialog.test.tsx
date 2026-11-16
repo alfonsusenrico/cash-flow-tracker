@@ -281,3 +281,71 @@ describe("Mengganti transaksi (link-reimbursements-to-expenses)", () => {
     expect(within(dialog).queryByRole("group", { name: "Mengganti transaksi (opsional)" })).not.toBeInTheDocument();
   });
 });
+
+describe("Ubah transaksi with tags (transaction-tags D2)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.get).mockImplementation(async (path) => {
+      if (path === "/accounts") return { accounts };
+      if (path === "/categories") return { categories: [] };
+      if (path === "/goals") return { goals: [] };
+      if (path === "/obligations") return { obligations: [] };
+      if (path === "/tags?include_archived=0") {
+        return { ok: true, tags: [
+          { id: "tag-coach", name: "fellowship coach", archived: false, transaction_count: 4 },
+          { id: "tag-malang", name: "Malang trip", archived: false, transaction_count: 1 },
+        ] };
+      }
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    vi.mocked(api.patch).mockResolvedValue({ ok: true });
+  });
+
+  const tagged = () => row({ tags: [{ id: "tag-coach", name: "fellowship coach" }, { id: "tag-malang", name: "Malang trip" }] });
+
+  it("starts from the row's tags and sends the replaced set", async () => {
+    const user = userEvent.setup();
+    renderDialog(tagged());
+    const dialog = await screen.findByRole("dialog", { name: "Ubah transaksi" });
+    const chosen = within(dialog).getByRole("list", { name: "Tag terpilih" });
+    expect(within(chosen).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["fellowship coach", "Malang trip"]);
+    await user.click(within(dialog).getByRole("button", { name: "Hapus tag Malang trip" }));
+    await user.type(within(dialog).getByRole("combobox", { name: "Tag (opsional)" }), "Retret 2026");
+    await user.keyboard("{Enter}");
+    expect((await axe(dialog)).violations).toHaveLength(0);
+    await user.click(within(dialog).getByRole("button", { name: "Simpan" }));
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith("/transactions/tx-1", expect.objectContaining({
+      tag_ids: ["tag-coach"], new_tags: ["Retret 2026"],
+    })));
+  });
+
+  it("sends an empty set when every tag is removed, so the row loses them", async () => {
+    const user = userEvent.setup();
+    renderDialog(tagged());
+    const dialog = await screen.findByRole("dialog", { name: "Ubah transaksi" });
+    await user.click(within(dialog).getByRole("button", { name: "Hapus tag fellowship coach" }));
+    await user.click(within(dialog).getByRole("button", { name: "Hapus tag Malang trip" }));
+    await user.click(within(dialog).getByRole("button", { name: "Simpan" }));
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith("/transactions/tx-1", expect.objectContaining({ tag_ids: [], new_tags: [] })));
+  });
+
+  it("sends nothing when Jenis turns the row into a move", async () => {
+    const user = userEvent.setup();
+    const onPickPair = vi.fn();
+    renderDialog(tagged(), { onPickPair });
+    await user.click(await screen.findByRole("radio", { name: "Pindah saldo" }));
+    expect(onPickPair).toHaveBeenCalled();
+    expect(api.patch).not.toHaveBeenCalled();
+  });
+
+  it("shows a tag refusal at the tag field", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.patch).mockRejectedValue(Object.assign(new Error("Satu transaksi paling banyak 10 tag."), { detail: { code: "tag_limit" } }));
+    renderDialog(tagged());
+    const dialog = await screen.findByRole("dialog", { name: "Ubah transaksi" });
+    await user.click(within(dialog).getByRole("button", { name: "Simpan" }));
+    const field = within(dialog).getByRole("combobox", { name: "Tag (opsional)" });
+    await waitFor(() => expect(field).toHaveAccessibleDescription(/Satu transaksi paling banyak 10 tag/));
+    expect(field).toHaveAttribute("aria-invalid", "true");
+  });
+});

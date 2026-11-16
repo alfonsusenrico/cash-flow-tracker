@@ -237,3 +237,35 @@ describe("Diganti and Mengganti (link-reimbursements-to-expenses)", () => {
     expect(section).toHaveTextContent("Sisa, tidak dihitungRp 74.500");
   });
 });
+
+describe("Tags in the transaction detail (transaction-tags)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    hideBalances = false;
+  });
+
+  async function showPurchase(tags: { id: string; name: string }[]) {
+    serve({ ...purchase, id: "tagged-1", tags } as LedgerRowDetail);
+    render(dialogFor("tagged-1"));
+    return screen.findByRole("dialog", { name: "Kopi Senja" });
+  }
+
+  it("lists each tag as a link to the ledger filtered by it", async () => {
+    const dialog = await showPurchase([
+      { id: "aaaaaaaa-1111-4111-8111-111111111111", name: "fellowship coach" },
+      { id: "bbbbbbbb-2222-4222-8222-222222222222", name: "Malang trip" },
+    ]);
+    const fact = within(dialog).getByText("Tag").nextElementSibling as HTMLElement;
+    expect(fact).toHaveTextContent("fellowship coach, Malang trip");
+    expect(within(fact).getByRole("link", { name: "fellowship coach" })).toHaveAttribute("href", "/ledger?tag=aaaaaaaa-1111-4111-8111-111111111111");
+    expect(within(fact).getByRole("link", { name: "Malang trip" })).toHaveAttribute("href", "/ledger?tag=bbbbbbbb-2222-4222-8222-222222222222");
+    expect((await axe(dialog)).violations).toHaveLength(0);
+  });
+
+  it("says none, like the other facts, for a row without tags", async () => {
+    const dialog = await showPurchase([]);
+    const fact = within(dialog).getByText("Tag").nextElementSibling as HTMLElement;
+    expect(fact).toHaveTextContent("—");
+    expect(within(fact).queryByRole("link")).not.toBeInTheDocument();
+  });
+});

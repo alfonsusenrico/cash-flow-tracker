@@ -173,6 +173,11 @@ export function rowNote(row: RowFacts): string | null {
   return row.note?.trim() || null;
 }
 
+/** The row's tags by name, joined for the line beside the title; null when it has none. */
+export function rowTags(row: RowFacts): string | null {
+  return row.tags?.length ? row.tags.map((tag) => tag.name).join(", ") : null;
+}
+
 /** The product a top-up went into, by its own name; null when the list does not know it. */
 function topupProduct(row: RowFacts): string | null {
   if (row.is_consolidated_transfer || row.is_inferred_transfer) return row.target_account_name ?? null;

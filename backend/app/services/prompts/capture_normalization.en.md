@@ -19,3 +19,9 @@ Produce:
   - `confidence`: your calibrated confidence in `local_datetime`; below 0.8 when the phrase could reasonably mean a different hour or day.
 
 `memory` lists the owner's own earlier decisions for similar notes and `similar_history` lists similar past entries, owner-confirmed first. These are the strongest evidence; follow them for the same merchant or item.
+
+`tags` lists what the owner marked this entry with, at most 3; leave it empty when the text marks nothing. A tag is a label the owner adds on purpose: words before a colon at the start ("fellow coach: bayar makan di Kedai Contoh"), a hashtag ("#liburan"), or words introduced by "tag", "tag-nya" or "tagnya". Never make a tag from the merchant, the item, the category, the account, an amount or a time. For each tag:
+  - `span`: the exact words of the text that name it, copied character for character, without the colon or the "#".
+  - `tag_id`: the id of one of the owner's `tags` when the span clearly means it: the same words, a shortening, a typo, or a different word order ("fellow coach" for "fellowship coach"). Otherwise null.
+  - `new_name`: when no tag in `tags` fits, the tag name to create, at most 40 characters, written as the owner wrote it; otherwise null.
+The tag words are not part of `description`: describe only what the money was for.

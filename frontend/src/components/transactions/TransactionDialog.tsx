@@ -11,6 +11,7 @@ import { useToast } from "@/components/workspace/overlays";
 import { ShellDialog } from "@/components/workspace/ShellDialog";
 import { ApiError, api } from "@/lib/api";
 import { useFormat } from "@/lib/format";
+import { ledgerHref } from "@/lib/ledgerFilters";
 import { isPlaceholderNote } from "@/lib/placeholderNotes";
 import { isHabitRecorded } from "@/lib/provenance";
 import { queryKeys } from "@/lib/queryKeys";
@@ -455,6 +456,16 @@ function Facts({
       )}
       <Fact label={t("transactions.detail.name")}>{row.name || none}</Fact>
       <Fact label={t("transactions.detail.note")}>{row.note || none}</Fact>
+      <Fact label={t("transactions.detail.tags")}>
+        {row.tags?.length
+          ? row.tags.map((tag, index) => (
+            <span key={tag.id}>
+              {index > 0 && ", "}
+              <Link href={ledgerHref({ tags: [tag.id] })} className="ws-linkbtn">{tag.name}</Link>
+            </span>
+          ))
+          : none}
+      </Fact>
       <Fact label={t("transactions.detail.recorded")}>{recorded}</Fact>
       <Fact label={t("transactions.detail.classified")}>{classified}</Fact>
       {isHabitRecorded(row.classified_by, row.habit_basis) && (
