@@ -60,7 +60,7 @@ from app.services.reimbursements import (
     validate_offset_category,
 )
 from app.services.report_figures import possible_duplicate_sql, reportable_expense_sql, reportable_income_sql
-from app.services.report_windows import PERIOD_PATTERN, get_timeframe_window
+from app.services.report_windows import PERIOD_PATTERN, report_window
 from app.services.saving_flow import counts_as_saving_sql, credit_row_sql, row_saving_flow_sql, saving_flow_joins
 from app.services.system_categories import (
     INTERNAL_MOVEMENT, INVESTMENT, is_system_sql, non_reportable_sql, reportable_key_sql,
@@ -206,8 +206,9 @@ PROVENANCE_SELECT = """
 
 LIST_INCLUDES = ("daily_totals", "type_counts")
 
-# Movement legs of an investment top-up belong to the Investasi tab, never to Pindah saldo.
+# Movement legs of an investment top-up belong to the Investasi and Tabungan & investasi tabs, never to Pindah saldo.
 TOPUP_LEG_SQL = "EXISTS (SELECT 1 FROM investment_topups it WHERE it.id = t.movement_id AND it.user_id = t.user_id)"
+INVESTMENT_ROW_SQL = f"({TOPUP_LEG_SQL} OR {is_system_sql('c', INVESTMENT)})"
 TYPE_FILTER_SQL = {
     "transfer": f"(t.type = 'transfer' OR {non_reportable_sql('c')} OR c.is_excluded_from_budget = true)",
     "expense": f"t.type = 'expense' AND {reportable_key_sql('c')} AND COALESCE(c.is_excluded_from_budget, false) = false",
@@ -216,9 +217,10 @@ TYPE_FILTER_SQL = {
         f"((t.type = 'transfer' OR {is_system_sql('c', INTERNAL_MOVEMENT)} OR c.is_excluded_from_budget = true)"
         f" AND NOT {is_system_sql('c', INVESTMENT)} AND NOT {TOPUP_LEG_SQL})"
     ),
-    "investment": f"({TOPUP_LEG_SQL} OR {is_system_sql('c', INVESTMENT)})",
-    # Rows whose saving flow changes Beranda's "Ditabung & investasi" (apply-markas-transaksi D28).
-    "saving": counts_as_saving_sql("t", "c"),
+    "investment": INVESTMENT_ROW_SQL,
+    # Rows whose saving flow changes Beranda's "Ditabung & investasi" (apply-markas-transaksi D28), and every
+    # investment row, so a top-up funded from savings, which changes no figure, is still listed.
+    "saving": f"({counts_as_saving_sql('t', 'c')} OR {INVESTMENT_ROW_SQL})",
     "credit": credit_row_sql(),
 }
 TAB_KEYS = ("expense", "income", "movement", "investment", "saving", "credit")
@@ -352,8 +354,11 @@ def list_transactions(
     if uncategorized and category_id:
         raise api_error(422, ErrorCode.UNCATEGORIZED_WITH_CATEGORY)
     period_label = None
+    period_label_end = None
     if period:
-        from_date, to_date, _, _, period_label = get_timeframe_window(payday_day, period, cycle_offset=period_offset, user_id=user_id, language=language_for_user(current_user))
+        from_date, to_date, _, _, period_label, period_label_end = report_window(
+            payday_day, period, cycle_offset=period_offset, user_id=user_id, language=language_for_user(current_user),
+        )
     with db_conn() as conn:
         with conn.cursor() as cur:
             # The list, totals and type-count queries are short scans whose saving-flow subplans push the planner's
@@ -442,7 +447,9 @@ def list_transactions(
             flow_joins = saving_flow_joins("t") if type in FLOW_JOIN_TYPES else ""
 
             # Combined total count and cash flow summary query
-            cycle_start, cycle_end, _, _, cycle_label = get_timeframe_window(payday_day, "cycle", user_id=user_id, language=language_for_user(current_user))
+            cycle_start, cycle_end, _, _, cycle_label, cycle_label_end = report_window(
+                payday_day, "cycle", user_id=user_id, language=language_for_user(current_user),
+            )
 
             summary_query = f"""
                 SELECT
@@ -491,7 +498,9 @@ def list_transactions(
                 uncategorized, possible_duplicates, waiting, tag,
             )):
                 saving_net = ledger_saving_net(cur, user_id, from_date, to_date)
-            cumulative = {**cumulative, "saving_net": saving_net}
+            moved, cycle_moved = load_moved(cur, where_clause, params, flow_joins, cycle_start, cycle_end)
+            cumulative = {**cumulative, "moved": moved, "saving_net": saving_net}
+            cycle = {**cycle, "moved": cycle_moved}
 
             # Select page
             select_query = f"""
@@ -585,12 +594,16 @@ def list_transactions(
         "offset": offset,
         **extras,
         "summary": {
-            "cycle": {"start": cycle_start.isoformat(), "end": cycle_end.isoformat(), "label": cycle_label, **cycle},
+            "cycle": {
+                "start": cycle_start.isoformat(), "end": cycle_end.isoformat(), "label": cycle_label,
+                "label_end_date": cycle_label_end.isoformat() if cycle_label_end else None, **cycle,
+            },
             "cumulative": cumulative,
             "period": {
                 "basis": period,
                 "offset": period_offset if period else None,
                 "label": period_label,
+                "label_end_date": period_label_end.isoformat() if period_label_end else None,
                 "start": from_date.isoformat() if from_date else None,
                 "end": to_date.isoformat() if to_date else None,
                 **cumulative,
@@ -754,6 +767,36 @@ def load_daily_totals(
         }
         for row in cur.fetchall()
     ]
+
+
+def load_moved(
+    cur, where_clause: str, params: list[Any], flow_joins: str, cycle_start: datetime, cycle_end: datetime,
+) -> tuple[int, int]:
+    """The matching movements' total, over the filters and over the cycle window within them.
+
+    Each movement counts once by the day totals' rule (its largest matching leg on each local day), so over
+    all pages the total equals the sum of the days' `movements`.
+    """
+    cur.execute(
+        f"""
+        WITH matching AS (
+            SELECT t.amount, t.movement_id, t.date, (t.date AT TIME ZONE %s)::date AS day
+            {LIST_FROM_SQL}
+            {flow_joins}
+            WHERE {where_clause} AND t.movement_id IS NOT NULL
+        )
+        SELECT
+            (SELECT COALESCE(SUM(amount), 0) FROM (
+                SELECT MAX(amount) AS amount FROM matching GROUP BY day, movement_id
+            ) whole) AS moved,
+            (SELECT COALESCE(SUM(amount), 0) FROM (
+                SELECT MAX(amount) AS amount FROM matching WHERE date >= %s AND date <= %s GROUP BY day, movement_id
+            ) in_cycle) AS cycle_moved
+        """,
+        [settings.tz] + params + [cycle_start, cycle_end],
+    )
+    row = cur.fetchone()
+    return int(row["moved"]), int(row["cycle_moved"])
 
 
 def load_type_counts(cur, tab_where_clause: str, params: list[Any]) -> dict[str, int]:

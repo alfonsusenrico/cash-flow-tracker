@@ -27,13 +27,13 @@ from app.services.plan_occurrences import unpaid_plan_lines
 from app.services.reimbursements import load_spending_offsets
 from app.services.report_figures import reportable_income_sql
 from app.services.report_windows import (
+    cycle_range_label,
     get_previous_timeframe_window,
     get_timeframe_window,
     month_label,
-    short_local_date,
 )
-from app.services.salary_cycles import ExpectedSalary, expected_next_salary, resolve_cycle
-from app.services.salary_receipts import get_source, receipts
+from app.services.salary_cycles import ExpectedSalary, resolve_cycle, running_cycle_label_end
+from app.services.salary_receipts import expected_salary_for_cycle, receipts
 from app.services.waiting_rows import fetch_waiting_rows, waiting_summary
 
 SAFE_TO_SPEND_ROUNDING = 1000
@@ -72,21 +72,6 @@ def reimbursed_note(language: str, region: str, offset: int) -> str:
 def ledger_href(period: str, **filters: str) -> str:
     query = "&".join(f"{key}={value}" for key, value in {"period": period, **filters}.items())
     return f"/ledger?{query}"
-
-
-def expected_salary_for_cycle(conn, user_id: str, cycle_open: bool, receipt_rows: list[dict], now: datetime) -> ExpectedSalary:
-    if not cycle_open:
-        return ExpectedSalary("unknown", reason="no_cycle")
-    source = get_source(conn, user_id)
-    if source is None:
-        return ExpectedSalary("unknown", reason="no_salary_source")
-    # Same normalisation as the source matcher in salary candidates: collapsed whitespace, lower case.
-    wanted = " ".join(source["value"].split()).lower()
-    from_source = [
-        row["date"] for row in receipt_rows
-        if " ".join((row[source["field"]] or "").split()).lower() == wanted
-    ]
-    return expected_next_salary(from_source, tz_name=settings.tz, as_of=now)
 
 
 def _masuk(cur, user_id: str, start: datetime, end: datetime, period: str, language: str) -> dict[str, Any]:
@@ -539,8 +524,10 @@ def build_cycle_summary(
         raise RuntimeError("Savings change does not match the saving bucket of Keluar")
     scheduled_total = sum(line["amount"] for line in scheduled_lines)
 
+    label_end_date = None
     if basis == "cycle":
-        label = t(language, "periods.cycle_since", start=short_local_date(language, start_date))
+        label_end_date = running_cycle_label_end(start_date, today, expected=expected, payday_day=payday_day)
+        label = cycle_range_label(language, start_date, label_end_date)
     else:
         label = month_label(language, start_date.year, start_date.month)
     return {
@@ -550,6 +537,8 @@ def build_cycle_summary(
             "status": "open",
             "cycle_status": cycle.status,
             "start_date": start_date.isoformat(),
+            # The running cycle's estimated last day, for its label only; the period still runs to now.
+            "label_end_date": label_end_date.isoformat() if label_end_date else None,
             "today": today.isoformat(),
             "day_index": (today - start_date).days + 1,
             "label": label,

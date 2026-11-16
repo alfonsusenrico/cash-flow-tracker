@@ -6,13 +6,14 @@ from collections import Counter
 from dataclasses import dataclass
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.core.config import settings
 from app.db.pool import db_conn
 from app.services.report_figures import reportable_income_sql
+from app.services.salary_cycles import ExpectedSalary, expected_next_salary, running_cycle_label_end
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +123,31 @@ def receipts(conn: Any, user_id: str) -> list[dict[str, Any]]:
         )
         return [with_notes_alias(row) for row in cur.fetchall()
                 if row['confirmation_method'] == 'owner' or has_explicit_salary_marker(row['merchant'], row['name'])]
+
+
+def expected_salary_for_cycle(conn, user_id: str, cycle_open: bool, receipt_rows: list[dict], now: datetime) -> ExpectedSalary:
+    if not cycle_open:
+        return ExpectedSalary("unknown", reason="no_cycle")
+    source = get_source(conn, user_id)
+    if source is None:
+        return ExpectedSalary("unknown", reason="no_salary_source")
+    # Same normalisation as the source matcher in salary candidates: collapsed whitespace, lower case.
+    wanted = " ".join(source["value"].split()).lower()
+    from_source = [
+        row["date"] for row in receipt_rows
+        if " ".join((row[source["field"]] or "").split()).lower() == wanted
+    ]
+    return expected_next_salary(from_source, tz_name=settings.tz, as_of=now)
+
+
+def load_running_cycle_label_end(conn, user_id: str, cycle_start: date, now: datetime) -> date:
+    """The running cycle's estimated last day, from the owner's receipts and payday setting; a label only."""
+    expected = expected_salary_for_cycle(conn, user_id, True, receipts(conn, user_id), now)
+    with conn.cursor() as cur:
+        cur.execute("SELECT payday_day FROM users WHERE id = %s", (user_id,))
+        payday_day = cur.fetchone()["payday_day"]
+    today = now.astimezone(ZoneInfo(settings.tz)).date()
+    return running_cycle_label_end(cycle_start, today, expected=expected, payday_day=payday_day)
 
 
 def invalidated_detections(conn: Any, user_id: str) -> list[dict[str, Any]]:

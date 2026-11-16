@@ -44,7 +44,7 @@ def test_report_window_uses_actual_receipt_timestamps(monkeypatch):
     begin, finish, _, _, label = report_windows.get_timeframe_window(25, 'cycle', user_id='synthetic', language="id")
     assert begin == start
     assert finish == end - timedelta(microseconds=1)
-    assert 'Siklus' in label
+    assert ' – ' in label and 'Siklus' not in label
 
 
 def test_report_window_discloses_missing_cycle_and_offers_calendar(monkeypatch):

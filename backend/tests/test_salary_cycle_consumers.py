@@ -23,6 +23,7 @@ def test_unknown_cycle_is_disclosed_everywhere_without_an_allowance(client, owne
     assert "siklus gaji belum tersedia" in pulse["cycle_label"]
     assert overview["timeframe_label"] == pulse["cycle_label"]
     assert ledger["summary"]["period"]["label"] == pulse["cycle_label"]
+    assert ledger["summary"]["period"]["label_end_date"] is None and ledger["summary"]["cycle"]["label_end_date"] is None
     assert pulse["safe_to_spend_today"] is None and pulse["pace_status"] is None
     assert pulse["cycle_days_total"] is None and pulse["cycle_days_remaining"] is None
     assert overview["kpis"]["safe_to_spend_today"] is None
@@ -53,15 +54,16 @@ def test_consumers_share_the_receipt_boundary_across_local_midnight(client, owne
     assert ledger["summary"]["period"]["outflow"] == 30_000
     assert overview["kpis"]["total_inflow"] == 5_000_000
     assert pulse["cycle_label"] == overview["timeframe_label"] == ledger["summary"]["period"]["label"]
-    assert pulse["cycle_label"].endswith("berlanjut")
+    assert " – " in pulse["cycle_label"] and "sejak" not in pulse["cycle_label"]
+    assert ledger["summary"]["period"]["label_end_date"] == ledger["summary"]["cycle"]["label_end_date"]
     assert datetime.fromisoformat(ledger["summary"]["cycle"]["start"]) == receipt_at.astimezone(timezone.utc)
     assert previous["kpis"]["total_outflow"] == 70_000
     assert previous["kpis"]["total_inflow"] == 4_000_000
-    assert previous["timeframe_label"].startswith("Siklus ")
+    assert " – " in previous["timeframe_label"]
 
     # A revoked receipt removes the boundary; the window falls back to a labelled calendar month.
     assert client.delete(f"/api/salary/receipts/{salary}").json()["changed"] is True
-    assert client.get("/api/pulse").json()["cycle_label"].startswith("Siklus sejak")
+    assert " – " in client.get("/api/pulse").json()["cycle_label"]
     assert client.get("/api/salary/cycle").json()["start"] == previous_receipt.astimezone(timezone.utc).isoformat()
 
 

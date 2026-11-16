@@ -13,6 +13,7 @@ import { DATE_PATTERN, analysisHref, parseTab } from "@/components/analysis/url"
 import { PeriodStepper } from "@/components/ui/PeriodStepper";
 import { PageActions } from "@/components/workspace/context";
 import { Segmented } from "@/components/workspace/primitives";
+import { cycleLabelEnd } from "@/lib/monthlyReport";
 import { replaceSearch } from "@/lib/urlState";
 
 // The calendar and the map load with their tab, so Ringkasan's first load does not carry them.
@@ -65,7 +66,7 @@ function Analysis() {
         <PeriodStepper
           unit={basis === "month" ? "Bulan" : "Siklus"}
           label={viewed?.label ?? windowLabel}
-          period={viewed ? { start: viewed.start_date, end: viewed.complete ? viewed.end_date : null } : null}
+          period={viewed ? { start: viewed.start_date, end: cycleLabelEnd(viewed) } : null}
           offset={offset}
           onChange={setCycleOffset}
         />

@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { testWords } from "@/lib/i18n/testing";
 import { GENERIC_ROW_NOTES, PLACEHOLDER_NOTES, isPlaceholderNote } from "@/lib/placeholderNotes";
 import {
-  KindAmount, RowAmount, creditPurchaseLine, movementDirection, movementRoute, routeIncomplete, rowCategory, rowKind, rowLabelsFor,
+  KindAmount, RowAmount, RowStatus, creditPurchaseLine, movementDirection, movementRoute, routeIncomplete, rowCategory, rowKind, rowLabelsFor,
   rowMeta, rowNote, rowPhoneLine, rowStatus, rowTitle,
 } from "./rows";
 import type { RowFacts } from "./types";
@@ -165,14 +165,15 @@ describe("rowCategory (D11)", () => {
 });
 
 describe("the pillar column (owner feedback 3, D27)", () => {
-  it("names each saving direction and shows a dash for a move that changes nothing", () => {
-    expect(rowStatus({ ...outboundLeg, saving_flow: "saved" }, labels)).toEqual({ text: "Ditabung", bucket: null });
+  it("names each saving direction and Pindah saldo for a move that changes nothing", () => {
+    expect(rowStatus({ ...outboundLeg, saving_flow: "saved" }, labels)).toEqual({ text: "Ditabung", bucket: null, color: "var(--tr-solid)" });
     expect(rowStatus({ ...outboundLeg, saving_flow: "taken" }, labels).text).toBe("Diambil dari tabungan");
     expect(rowStatus({ ...outboundLeg, saving_flow: "invested" }, labels).text).toBe("Investasi");
     expect(rowStatus({ ...outboundLeg, saving_flow: "debt_payment" }, labels).text).toBe("Bayar utang");
-    expect(rowStatus({ ...outboundLeg, saving_flow: null }, labels).text).toBe("—");
-    expect(rowStatus(outboundLeg, labels).text).toBe("—");
+    expect(rowStatus({ ...outboundLeg, saving_flow: null }, labels).text).toBe("Pindah saldo");
+    expect(rowStatus(outboundLeg, labels).text).toBe("Pindah saldo");
     expect(rowStatus({ ...outboundLeg, saving_flow: "taken" }, english).text).toBe("Taken from savings");
+    expect(rowStatus(outboundLeg, english).text).toBe("Transfer");
   });
 
   it("never says Tidak dihitung, keeps Uang masuk for income and the pillar for spending", () => {
@@ -180,12 +181,44 @@ describe("the pillar column (owner feedback 3, D27)", () => {
     expect(rowStatus(income, labels).text).toBe("Uang masuk");
     expect(rowStatus(spend, labels)).toMatchObject({ text: "Keinginan", bucket: "want" });
     expect(rowStatus({ ...spend, kakeibo_type: null }, labels)).toMatchObject({ text: "Belum diklasifikasi", bucket: "unclassified" });
-    expect(rowStatus({ ...spend, review_status: "needs_review" }, labels)).toEqual({ text: "Menunggu jawaban", bucket: null, warning: true });
+    expect(rowStatus({ ...spend, review_status: "needs_review" }, labels)).toEqual({ text: "Menunggu jawaban", bucket: null, color: "var(--warn-solid)", warning: true });
     expect(Object.values(labels.flow)).not.toContain("Tidak dihitung");
   });
 
   it("names an expense paid from savings in its meta", () => {
     expect(rowMeta({ ...spend, saving_flow: "paid_from_savings" }, labels, id.format)).toEqual({ text: "Jago · Main Pocket · Dibayar dari tabungan" });
+  });
+});
+
+describe("a dot on every pillar cell (improve-ledger-readability D2)", () => {
+  const income = leg({ type: "income", category_name: "Gaji", category_system_key: null, review_status: "reviewed" });
+  const topup = (saving_flow: RowFacts["saving_flow"]) => ({ ...outboundLeg, investment_topup_id: "topup", saving_flow });
+  const cases: { name: string; row: RowFacts; text: string; color: string }[] = [
+    { name: "an expense in Budaya", row: { ...spend, kakeibo_type: "culture" }, text: "Budaya", color: "var(--k-culture)" },
+    { name: "an income", row: income, text: "Uang masuk", color: "var(--in-solid)" },
+    { name: "an ordinary move", row: outboundLeg, text: "Pindah saldo", color: "var(--tr-solid)" },
+    { name: "a move into savings", row: { ...outboundLeg, saving_flow: "saved" }, text: "Ditabung", color: "var(--tr-solid)" },
+    { name: "a top-up into a product", row: topup("invested"), text: "Investasi", color: "var(--inv-solid)" },
+    { name: "a top-up funded from savings", row: topup(null), text: "Pindah saldo", color: "var(--inv-solid)" },
+    { name: "a waiting row", row: { ...spend, review_status: "needs_review" }, text: "Menunggu jawaban", color: "var(--warn-solid)" },
+  ];
+
+  it.each(cases)("starts $name's cell with a hidden dot in its colour and keeps the word", ({ row, text, color }) => {
+    const { container } = render(<RowStatus row={row} labels={labels} />);
+    const dot = container.firstElementChild as HTMLElement;
+    expect(dot).toHaveClass("dot");
+    expect(dot).toHaveAttribute("aria-hidden", "true");
+    expect(dot).toHaveStyle({ background: color });
+    expect(dot.nextElementSibling).toHaveTextContent(text);
+    expect(container).not.toHaveTextContent("—");
+  });
+
+  it("marks the waiting word in the warning colour and keeps the unclassified ring", () => {
+    const waiting = render(<RowStatus row={{ ...spend, review_status: "needs_review" }} labels={labels} />);
+    expect(waiting.getByText("Menunggu jawaban")).toHaveClass("c-warning");
+    waiting.unmount();
+    const { container } = render(<RowStatus row={{ ...spend, kakeibo_type: null }} labels={labels} />);
+    expect(container.querySelector(".dot")).toHaveClass("is-unclassified");
   });
 });
 

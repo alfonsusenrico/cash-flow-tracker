@@ -1,0 +1,1387 @@
+{
+ "rl2-transaksi-1440-light": {
+  "path": "/ledger?period=cycle",
+  "log": [
+   "432"
+  ],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 397,
+    "Manrope": 3
+   },
+   "sizes": {
+    "12px": 270,
+    "14px": 126,
+    "20px": 2,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 301,
+    "500": 43,
+    "600": 56
+   },
+   "textStylesInMain": 7,
+   "mainStyles": {
+    "Inter|12|400": 238,
+    "Inter|14|400": 51,
+    "Inter|14|600": 50,
+    "Inter|12|500": 15,
+    "Inter|14|500": 3,
+    "Inter|20|600": 2,
+    "Manrope|44|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 3.502.990\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ },
+ "rl2-masuk-1440-light": {
+  "path": "/ledger?period=cycle&type=income",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 62,
+    "Manrope": 3
+   },
+   "sizes": {
+    "12px": 35,
+    "14px": 28,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 30,
+    "500": 29,
+    "600": 6
+   },
+   "textStylesInMain": 6,
+   "mainStyles": {
+    "Inter|12|400": 15,
+    "Inter|14|400": 3,
+    "Inter|12|500": 3,
+    "Inter|14|600": 2,
+    "Manrope|44|600": 1,
+    "Inter|14|500": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"+Rp 9.518.400\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ },
+ "rl2-tabungan-1440-light": {
+  "path": "/ledger?type=saving",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 82,
+    "Manrope": 3
+   },
+   "sizes": {
+    "12px": 47,
+    "14px": 36,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 47,
+    "500": 28,
+    "600": 10
+   },
+   "textStylesInMain": 6,
+   "mainStyles": {
+    "Inter|12|400": 27,
+    "Inter|14|400": 8,
+    "Inter|14|600": 6,
+    "Inter|12|500": 3,
+    "Manrope|44|600": 1,
+    "Inter|14|500": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 4.500.000\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ },
+ "rl2-transaksi-1440-dark": {
+  "path": "/ledger?period=cycle",
+  "log": [
+   "432"
+  ],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 397,
+    "Manrope": 3
+   },
+   "sizes": {
+    "12px": 270,
+    "14px": 126,
+    "20px": 2,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 301,
+    "500": 43,
+    "600": 56
+   },
+   "textStylesInMain": 7,
+   "mainStyles": {
+    "Inter|12|400": 238,
+    "Inter|14|400": 51,
+    "Inter|14|600": 50,
+    "Inter|12|500": 15,
+    "Inter|14|500": 3,
+    "Inter|20|600": 2,
+    "Manrope|44|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 3.502.990\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ },
+ "rl2-masuk-1440-dark": {
+  "path": "/ledger?period=cycle&type=income",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 62,
+    "Manrope": 3
+   },
+   "sizes": {
+    "12px": 35,
+    "14px": 28,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 30,
+    "500": 29,
+    "600": 6
+   },
+   "textStylesInMain": 6,
+   "mainStyles": {
+    "Inter|12|400": 15,
+    "Inter|14|400": 3,
+    "Inter|12|500": 3,
+    "Inter|14|600": 2,
+    "Manrope|44|600": 1,
+    "Inter|14|500": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"+Rp 9.518.400\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ },
+ "rl2-tabungan-1440-dark": {
+  "path": "/ledger?type=saving",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 82,
+    "Manrope": 3
+   },
+   "sizes": {
+    "12px": 47,
+    "14px": 36,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 47,
+    "500": 28,
+    "600": 10
+   },
+   "textStylesInMain": 6,
+   "mainStyles": {
+    "Inter|12|400": 27,
+    "Inter|14|400": 8,
+    "Inter|14|600": 6,
+    "Inter|12|500": 3,
+    "Manrope|44|600": 1,
+    "Inter|14|500": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 4.500.000\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ },
+ "rl2-transaksi-390-light": {
+  "path": "/ledger?period=cycle",
+  "log": [
+   "262"
+  ],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 218,
+    "Manrope": 3
+   },
+   "sizes": {
+    "14px": 114,
+    "12px": 103,
+    "20px": 2,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 138,
+    "500": 28,
+    "600": 55
+   },
+   "textStylesInMain": 7,
+   "mainStyles": {
+    "Inter|12|400": 81,
+    "Inter|14|400": 54,
+    "Inter|14|600": 50,
+    "Inter|12|500": 15,
+    "Inter|14|500": 7,
+    "Inter|20|600": 2,
+    "Manrope|44|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 3.502.990\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ },
+ "rl2-masuk-390-light": {
+  "path": "/ledger?period=cycle&type=income",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 32,
+    "Manrope": 3
+   },
+   "sizes": {
+    "12px": 17,
+    "14px": 16,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 16,
+    "500": 14,
+    "600": 5
+   },
+   "textStylesInMain": 6,
+   "mainStyles": {
+    "Inter|12|400": 7,
+    "Inter|14|400": 6,
+    "Inter|14|500": 5,
+    "Inter|12|500": 3,
+    "Inter|14|600": 2,
+    "Manrope|44|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"+Rp 9.518.400\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ },
+ "rl2-tabungan-390-light": {
+  "path": "/ledger?type=saving",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 42,
+    "Manrope": 3
+   },
+   "sizes": {
+    "14px": 24,
+    "12px": 19,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 23,
+    "500": 13,
+    "600": 9
+   },
+   "textStylesInMain": 6,
+   "mainStyles": {
+    "Inter|14|400": 11,
+    "Inter|12|400": 9,
+    "Inter|14|600": 6,
+    "Inter|14|500": 5,
+    "Inter|12|500": 3,
+    "Manrope|44|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 4.500.000\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ },
+ "rl2-transaksi-1280-dark": {
+  "path": "/ledger?period=cycle",
+  "log": [
+   "336"
+  ],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 396,
+    "Manrope": 3
+   },
+   "sizes": {
+    "12px": 269,
+    "14px": 126,
+    "20px": 2,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 300,
+    "500": 43,
+    "600": 56
+   },
+   "textStylesInMain": 7,
+   "mainStyles": {
+    "Inter|12|400": 237,
+    "Inter|14|400": 51,
+    "Inter|14|600": 50,
+    "Inter|12|500": 15,
+    "Inter|14|500": 3,
+    "Inter|20|600": 2,
+    "Manrope|44|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 3.502.990\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ },
+ "rl2-masuk-1280-dark": {
+  "path": "/ledger?period=cycle&type=income",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 62,
+    "Manrope": 3
+   },
+   "sizes": {
+    "12px": 35,
+    "14px": 28,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 30,
+    "500": 29,
+    "600": 6
+   },
+   "textStylesInMain": 6,
+   "mainStyles": {
+    "Inter|12|400": 15,
+    "Inter|14|400": 3,
+    "Inter|12|500": 3,
+    "Inter|14|600": 2,
+    "Manrope|44|600": 1,
+    "Inter|14|500": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"+Rp 9.518.400\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ },
+ "rl2-tabungan-1280-dark": {
+  "path": "/ledger?type=saving",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 82,
+    "Manrope": 3
+   },
+   "sizes": {
+    "12px": 47,
+    "14px": 36,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 47,
+    "500": 28,
+    "600": 10
+   },
+   "textStylesInMain": 6,
+   "mainStyles": {
+    "Inter|12|400": 27,
+    "Inter|14|400": 8,
+    "Inter|14|600": 6,
+    "Inter|12|500": 3,
+    "Manrope|44|600": 1,
+    "Inter|14|500": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 4.500.000\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ },
+ "rl2-transaksi-1024-light": {
+  "path": "/ledger?period=cycle",
+  "log": [
+   "312"
+  ],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 391,
+    "Manrope": 3
+   },
+   "sizes": {
+    "12px": 261,
+    "14px": 129,
+    "20px": 2,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 300,
+    "500": 38,
+    "600": 56
+   },
+   "textStylesInMain": 7,
+   "mainStyles": {
+    "Inter|12|400": 237,
+    "Inter|14|400": 57,
+    "Inter|14|600": 50,
+    "Inter|12|500": 15,
+    "Inter|14|500": 9,
+    "Inter|20|600": 2,
+    "Manrope|44|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 3.502.990\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ },
+ "rl2-masuk-1024-light": {
+  "path": "/ledger?period=cycle&type=income",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 57,
+    "Manrope": 3
+   },
+   "sizes": {
+    "14px": 31,
+    "12px": 27,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 30,
+    "500": 24,
+    "600": 6
+   },
+   "textStylesInMain": 6,
+   "mainStyles": {
+    "Inter|12|400": 15,
+    "Inter|14|400": 9,
+    "Inter|14|500": 7,
+    "Inter|12|500": 3,
+    "Inter|14|600": 2,
+    "Manrope|44|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"+Rp 9.518.400\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ },
+ "rl2-tabungan-1024-light": {
+  "path": "/ledger?type=saving",
+  "log": [],
+  "hasDialog": false,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 77,
+    "Manrope": 3
+   },
+   "sizes": {
+    "14px": 39,
+    "12px": 39,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 47,
+    "500": 23,
+    "600": 10
+   },
+   "textStylesInMain": 6,
+   "mainStyles": {
+    "Inter|12|400": 27,
+    "Inter|14|400": 14,
+    "Inter|14|500": 7,
+    "Inter|14|600": 6,
+    "Inter|12|500": 3,
+    "Manrope|44|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 4.500.000\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ }
+}

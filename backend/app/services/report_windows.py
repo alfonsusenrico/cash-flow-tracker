@@ -7,17 +7,31 @@ cover the same days. A window is a whole number of local days, returned as UTC b
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
+from typing import NamedTuple
 from zoneinfo import ZoneInfo
 
 from app.core.config import settings
+from app.db.pool import db_conn
 from app.i18n import t
 from app.services.salary_cycles import SalaryCycle, load_user_cycle
+from app.services.salary_receipts import load_running_cycle_label_end
 
 TIMEFRAMES: tuple[str, ...] = ("cycle", "30d", "90d", "month")
 TIMEFRAME_PATTERN = "^(" + "|".join(TIMEFRAMES) + ")$"
 PERIOD_PATTERN = "^(cycle|month)$"
 
 Window = tuple[datetime, datetime, date, date, str]
+
+
+class ReportWindow(NamedTuple):
+    start_utc: datetime
+    end_utc: datetime
+    start_date: date
+    end_date: date
+    label: str
+    # The last day a salary cycle's label names: a closed cycle's last day, the running cycle's estimate
+    # (salary-cycle labels); None for every other window. It never moves `end_utc`.
+    label_end_date: date | None
 
 
 def utc_bounds(start_date: date, end_date: date) -> tuple[datetime, datetime]:
@@ -29,7 +43,7 @@ def utc_bounds(start_date: date, end_date: date) -> tuple[datetime, datetime]:
 
 
 def short_local_date(language: str, day: date) -> str:
-    """ "25 Okt" / "25 Oct". Month names come from the catalogue, never from the host locale (D2)."""
+    """ "25 Okt" / "Oct 25". Month names come from the catalogue, never from the host locale (D2)."""
     return t(language, "periods.short_date", day=day.day, month=t(language, f"periods.month_short.{day.month}"))
 
 
@@ -65,7 +79,23 @@ def get_timeframe_window(
     cycle: SalaryCycle | None = None,
     language: str,
 ) -> Window:
-    """Returns (start_utc, end_utc, start_date, end_date, label), the label in `language` (the account's).
+    """Returns (start_utc, end_utc, start_date, end_date, label): `report_window` without the label's end."""
+    return report_window(
+        payday_day, timeframe, ref_date, cycle_offset, user_id=user_id, cycle=cycle, language=language,
+    )[:5]
+
+
+def report_window(
+    payday_day: int,
+    timeframe: str = "cycle",
+    ref_date: date | None = None,
+    cycle_offset: int = 0,
+    *,
+    user_id: str | None = None,
+    cycle: SalaryCycle | None = None,
+    language: str,
+) -> ReportWindow:
+    """The window's UTC bounds, local days and label, the label in `language` (the account's).
 
     `cycle_offset` steps whole payday cycles for `cycle` and whole calendar months for `month`; the
     rolling windows ignore it. A caller that already resolved the owner's cycle passes it as `cycle`,
@@ -94,15 +124,17 @@ def get_timeframe_window(
             start_date = start_utc.astimezone(tz).date()
             end_date = end_utc.astimezone(tz).date()
             if cycle.end_exclusive:
-                label = cycle_range_label(language, start_date, end_date)
+                label_end_date = end_date
             else:
-                label = t(language, "periods.cycle_ongoing", start=short_local_date(language, start_date))
-            return start_utc, end_utc, start_date, end_date, label
+                with db_conn() as conn:
+                    label_end_date = load_running_cycle_label_end(conn, user_id, start_date, now)
+            label = cycle_range_label(language, start_date, label_end_date)
+            return ReportWindow(start_utc, end_utc, start_date, end_date, label, label_end_date)
         start_date, end_date, fallback_month = month_window(target_date, cycle_offset, language=language)
         start_utc, end_utc = utc_bounds(start_date, end_date)
         end_utc = min(end_utc, now)
         key = "periods.month_cycle_review" if cycle.status == "needs_review" else "periods.month_cycle_unavailable"
-        return start_utc, end_utc, start_date, end_date, t(language, key, month=fallback_month)
+        return ReportWindow(start_utc, end_utc, start_date, end_date, t(language, key, month=fallback_month), None)
     else:  # Legacy in-process callers without a user still use the historical fixed-day helper.
         from app.routers.pulse import get_cycle_window
 
@@ -125,7 +157,7 @@ def get_timeframe_window(
     today = now.astimezone(tz).date()
     if start_date <= today <= end_date:
         end_utc = min(end_utc, now)
-    return start_utc, end_utc, start_date, end_date, label
+    return ReportWindow(start_utc, end_utc, start_date, end_date, label, None)
 
 
 def get_previous_timeframe_window(

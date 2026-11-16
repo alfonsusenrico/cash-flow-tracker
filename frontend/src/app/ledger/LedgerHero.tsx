@@ -20,6 +20,8 @@ export interface CashFlowMetrics {
   reimbursement_offset?: number;
   /** "Ditabung & investasi" for the window, only for the savings type without other row filters (D28). */
   saving_net?: number | null;
+  /** The matching movements, each counted once: "Pindah saldo"'s hero. Absent on an older API. */
+  moved?: number;
 }
 
 function signed(amount: number, money: (amount: number) => string): string {
@@ -28,9 +30,15 @@ function signed(amount: number, money: (amount: number) => string): string {
   return money(0);
 }
 
+function inflowText(inflow: number, money: (amount: number) => string): string {
+  return inflow > 0 ? `+${money(inflow)}` : money(inflow);
+}
+
 /**
- * Transaksi's hero (apply-markas-transaksi D4, D28, D30): "Pengeluaran" in 44 px with "Masuk" and "Bersih" beside it;
- * for "Tabungan & investasi" Beranda's "Ditabung & investasi" alone. While loading it shows skeleton figures only.
+ * Transaksi's hero (apply-markas-transaksi D4, D28, D30): "Pengeluaran" in 44 px with "Masuk" and "Bersih" beside it.
+ * Types whose rows are not spending show their own figure alone (improve-ledger-readability D4): "Masuk" the money in,
+ * "Pindah saldo" the amount moved, "Tabungan & investasi" Beranda's "Ditabung & investasi". While loading it shows
+ * skeleton figures only.
  */
 export function LedgerHero({
   figures,
@@ -48,7 +56,10 @@ export function LedgerHero({
 }) {
   const t = useTranslations();
   const saving = type === "saving";
-  const base = saving ? t("terms.savedInvested") : t("terms.spending");
+  const alone = saving || type === "income" || type === "movement";
+  const base = saving
+    ? t("terms.savedInvested")
+    : type === "income" ? t("terms.income") : type === "movement" ? t("terms.transfer") : t("terms.spending");
   const label = periodLabel?.kind === "all"
     ? t("transactions.hero.allTime", { label: base })
     : periodLabel?.kind === "range" ? t("transactions.hero.range", { label: base, range: periodLabel.range }) : base;
@@ -60,7 +71,7 @@ export function LedgerHero({
         label={label}
         busy={loading}
         figure={<span className="skel is-hero" style={{ width: 240 }} aria-hidden="true" />}
-        aside={saving ? undefined : (
+        aside={alone ? undefined : (
           <>
             <FigureBlock bar={false} label={t("terms.income")} figure={<span className="skel is-fig" aria-hidden="true" />} />
             <FigureBlock bar={false} label={t("transactions.hero.netLabel")} figure={<span className="skel is-fig" aria-hidden="true" />} />
@@ -82,6 +93,17 @@ export function LedgerHero({
     return <HeroFigure id="tx-hero" label={label} figure={figure} line={line} />;
   }
 
+  if (type === "income") {
+    return <HeroFigure id="tx-hero" label={label} figure={<MaskedMoney text={inflowText(figures.inflow, money)} className="c-income" />} />;
+  }
+
+  if (type === "movement") {
+    const figure = typeof figures.moved === "number"
+      ? <MaskedMoney text={money(figures.moved)} className="c-transfer" />
+      : <span className="is-words">{t("transactions.hero.unavailable")}</span>;
+    return <HeroFigure id="tx-hero" label={label} figure={figure} />;
+  }
+
   const offset = figures.reimbursement_offset ?? 0;
   const savedPart = figures.saving ?? 0;
   const amount = (value: number) => maskedTag(money(value));
@@ -99,7 +121,7 @@ export function LedgerHero({
       line={line}
       aside={
         <>
-          <FigureBlock bar={false} label={t("terms.income")} className="c-income" figure={<MaskedMoney text={figures.inflow > 0 ? `+${money(figures.inflow)}` : money(figures.inflow)} />} />
+          <FigureBlock bar={false} label={t("terms.income")} className="c-income" figure={<MaskedMoney text={inflowText(figures.inflow, money)} />} />
           <FigureBlock
             bar={false}
             label={t("transactions.hero.netLabel")}

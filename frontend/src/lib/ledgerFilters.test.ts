@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   listsLogicalMovements,
   DEFAULT_LEDGER_FILTERS,
+  LEDGER_TYPES,
   activeFilterCount,
+  isRetiredLedgerType,
   ledgerApiParams,
   ledgerFilterQuery,
   ledgerHref,
@@ -96,10 +98,21 @@ describe("ledger URL filters", () => {
 
   it("keeps one row per movement only without row filters", () => {
     const parse = (query: string) => parseLedgerFilters(new URLSearchParams(query));
-    expect(listsLogicalMovements(parse("period=cycle&type=investment"), "")).toBe(true);
+    expect(listsLogicalMovements(parse("period=cycle&type=saving"), "")).toBe(true);
     expect(listsLogicalMovements(parse("period=cycle"), "kopi")).toBe(false);
     expect(listsLogicalMovements(parse("type=expense"), "")).toBe(false);
     expect(listsLogicalMovements(parse("waiting=1"), "")).toBe(false);
+  });
+
+  it("reads an old Investasi link as Tabungan & investasi and writes it back as saving (improve-ledger-readability D3)", () => {
+    const filters = parseLedgerFilters(new URLSearchParams("period=cycle&type=investment"));
+    expect(filters.type).toBe("saving");
+    expect(ledgerFilterQuery(filters)).toBe("period=cycle&type=saving");
+    expect(ledgerApiParams(filters).get("type")).toBe("saving");
+    expect(LEDGER_TYPES).not.toContain("investment");
+    expect(isRetiredLedgerType("investment")).toBe(true);
+    expect(isRetiredLedgerType("saving")).toBe(false);
+    expect(isRetiredLedgerType(null)).toBe(false);
   });
 
   it("falls back to all for unknown tab and chip values", () => {

@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { useFormat } from "@/lib/format";
-import type { ReportPeriod, ReportPeriodList } from "@/lib/monthlyReport";
+import { todayLocal } from "@/lib/ledgerDays";
+import { cycleLabelEnd, type ReportPeriod, type ReportPeriodList } from "@/lib/monthlyReport";
 import { queryKeys } from "@/lib/queryKeys";
 import type { PeriodBasis } from "./types";
 
@@ -24,8 +25,9 @@ export function useAnalysisPeriods(basis: PeriodBasis, offset: number) {
 
 /**
  * The period's name as the stepper writes it: Indonesian keeps the server's label, English names the period from its
- * dates, so the hero and the stepper always say the same thing ("Cycle 25 Sep – 22 Oct", "Oct 2026"). A running cycle
- * has no end date yet and reads "since". Without a listed period the server's window label stands in.
+ * dates, so the hero and the stepper always say the same thing ("25 Sep – 22 Oct", "Oct 2026"). A running cycle
+ * ends on its estimated last day, or today without one (improve-ledger-readability D5). Without a listed period the
+ * server's window label stands in.
  */
 export function usePeriodName(basis: PeriodBasis, period: ReportPeriod | null, fallback: string | null): string | null {
   const t = useTranslations("common.period");
@@ -34,7 +36,5 @@ export function usePeriodName(basis: PeriodBasis, period: ReportPeriod | null, f
   if (!period) return fallback;
   if (locale === "id") return period.label;
   if (basis === "month") return format.shortMonthYear(period.start_date);
-  return period.complete
-    ? t("cycleRange", { start: format.shortDate(period.start_date), end: format.shortDate(period.end_date) })
-    : t("cycleSince", { start: format.shortDate(period.start_date) });
+  return t("cycleRange", { start: format.shortDate(period.start_date), end: format.shortDate(cycleLabelEnd(period) ?? todayLocal()) });
 }

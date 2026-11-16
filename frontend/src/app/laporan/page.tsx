@@ -21,6 +21,7 @@ import {
   type MonthlyReportResponse,
   type ReportBasis,
   type ReportPeriodList,
+  cycleLabelEnd,
   reportQuery,
 } from "@/lib/monthlyReport";
 import { queryKeys } from "@/lib/queryKeys";
@@ -107,7 +108,7 @@ function ReportView() {
           unit={basis === "cycle" ? "Siklus" : "Bulan"}
           monthStyle="long"
           label={shown?.label ?? null}
-          period={shown ? { start: shown.start_date, end: shown.complete ? shown.end_date : null } : null}
+          period={shown ? { start: shown.start_date, end: cycleLabelEnd(shown) } : null}
           offset={-position}
           minOffset={-(ordered.length - 1)}
           // Without `start` the API opens the latest closed period, so the running one needs its date.

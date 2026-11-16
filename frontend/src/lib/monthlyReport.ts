@@ -12,12 +12,22 @@ export interface ReportPeriod {
   end: string;
   start_date: string;
   end_date: string;
+  /**
+   * The last day a cycle's label names: a finished cycle's last day, the running cycle's estimated last day; null for
+   * a month. Only for the label: the window still runs to now (improve-ledger-readability D5). Absent on an older API.
+   */
+  label_end_date?: string | null;
   days: number;
   complete: boolean;
   tracking_started_inside: boolean;
   first_recorded_date: string | null;
   url: string;
   has_reflection?: boolean;
+}
+
+/** The last day a cycle's label names: a finished cycle's last day, else the running cycle's estimate; null when unknown. */
+export function cycleLabelEnd(period: Pick<ReportPeriod, "complete" | "end_date" | "label_end_date">): string | null {
+  return period.complete ? period.end_date : period.label_end_date ?? null;
 }
 
 export interface ReportPeriodList {

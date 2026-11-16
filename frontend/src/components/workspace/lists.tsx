@@ -77,8 +77,14 @@ export interface ListRowProps {
   selected?: boolean;
   /** The item shown beside the list (Tinjau): `aria-current="true"` with the selection bar. */
   current?: boolean;
-  /** Title over meta at every width, padding 12 and 64 px high (apply-markas-tinjau D6). */
-  layout?: "stacked";
+  /**
+   * "stacked": title over meta at every width, padding 12 and 64 px high (apply-markas-tinjau D6).
+   * "title-line": from 768 px the title has the whole first line and the meta, the note and the tags share a muted
+   * second line under it, separated by " · "; a row without them stays one line, and the phone keeps its own two
+   * lines (improve-ledger-readability D1, Transaksi's rows). The category and the pillar share one cell, the pillar
+   * under the category, so the name gets their width (owner, 2026-11-16).
+   */
+  layout?: "stacked" | "title-line";
   /** `data-row`, which focus returns to when the item's sheet or dialog closes. */
   rowKey?: string;
   /** Controls at the end of a plain row, such as Tinjau's "Terima" and "Tolak" for one suggestion. */
@@ -100,6 +106,31 @@ export function ListRow({
   href, onClick, time, timeIsDate, icon, title, note, tags, tagsLabel, meta, phoneMeta, category, status, amount, chevron, selected, current, layout, rowKey, actions,
   selectable, pressHandlers,
 }: ListRowProps) {
+  const titleLine = layout === "title-line";
+  const separator = <span className="r-sep" aria-hidden="true"> · </span>;
+  const noteItem = note && (
+    <span className="r-note-item">
+      <Icon name="file-text" className="h-3 w-3" />
+      <span className="r-note-text">{note}</span>
+    </span>
+  );
+  const tagsItem = tags && (
+    <span className="r-note-item is-tags">
+      <Icon name="tag" className="h-3 w-3" />
+      {tagsLabel && <span className="sr-only">{tagsLabel} </span>}
+      <span className="r-note-text">{tags}</span>
+    </span>
+  );
+  const extras = (noteItem || tagsItem) && (
+    <span className="r-note">
+      {noteItem}
+      {titleLine && noteItem && tagsItem && separator}
+      {tagsItem}
+    </span>
+  );
+  const metaLine = meta && <span className={cn("r-meta", phoneMeta !== undefined && "dt-only")}>{meta}</span>;
+  const subLine = titleLine && (metaLine || extras);
+  const layoutClass = layout === "stacked" ? "is-stacked" : subLine ? "is-title-line" : undefined;
   const content = (
     <>
       {time !== undefined && <span className={cn("r-time", timeIsDate && "is-date")}>{time}</span>}
@@ -110,28 +141,31 @@ export function ListRow({
       )}
       <span className="r-main">
         <span className="r-title">{title}</span>
-        {(note || tags) && (
-          <span className="r-note">
-            {note && (
-              <span className="r-note-item">
-                <Icon name="file-text" className="h-3 w-3" />
-                <span className="r-note-text">{note}</span>
-              </span>
-            )}
-            {tags && (
-              <span className="r-note-item is-tags">
-                <Icon name="tag" className="h-3 w-3" />
-                {tagsLabel && <span className="sr-only">{tagsLabel} </span>}
-                <span className="r-note-text">{tags}</span>
-              </span>
-            )}
+        {subLine ? (
+          <span className="r-sub">
+            {metaLine}
+            {metaLine && extras && separator}
+            {extras}
           </span>
+        ) : (
+          <>
+            {extras}
+            {metaLine}
+          </>
         )}
-        {meta && <span className={cn("r-meta", phoneMeta !== undefined && "dt-only")}>{meta}</span>}
         {phoneMeta !== undefined && <span className="r-meta ph-only">{phoneMeta}</span>}
       </span>
-      {category !== undefined && <span className="r-cat">{category}</span>}
-      {status !== undefined && <span className="r-pillar">{status}</span>}
+      {titleLine && (category !== undefined || status !== undefined) ? (
+        <span className="r-class">
+          {category !== undefined && <span className="r-cat">{category}</span>}
+          {status !== undefined && <span className="r-pillar">{status}</span>}
+        </span>
+      ) : (
+        <>
+          {category !== undefined && <span className="r-cat">{category}</span>}
+          {status !== undefined && <span className="r-pillar">{status}</span>}
+        </>
+      )}
       {amount !== undefined && <span className="r-amt">{amount}</span>}
       {chevron && (
         <span className="chev">
@@ -143,7 +177,7 @@ export function ListRow({
   if (selectable) {
     return (
       <label
-        className={cn("row", "ws-select-row", "is-selectable", layout === "stacked" && "is-stacked")}
+        className={cn("row", "ws-select-row", "is-selectable", layoutClass)}
         data-row={rowKey}
         data-selected={selectable.checked ? "" : undefined}
         aria-disabled={selectable.disabled || undefined}
@@ -163,13 +197,13 @@ export function ListRow({
   }
   if (!href && !onClick) {
     return (
-      <div className={cn("row", "is-plain", layout === "stacked" && "is-stacked")}>
+      <div className={cn("row", "is-plain", layoutClass)}>
         {content}
         {actions && <span className="r-actions">{actions}</span>}
       </div>
     );
   }
-  const className = cn("row", "ws-select-row", layout === "stacked" && "is-stacked");
+  const className = cn("row", "ws-select-row", layoutClass);
   const selection = {
     ...(selected ? { "data-selected": "" } : {}),
     ...(current ? { "aria-current": "true" as const } : {}),

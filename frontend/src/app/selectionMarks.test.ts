@@ -86,7 +86,7 @@ describe("straight selection marks", () => {
     expect(source("components/goals/GoalDialog.tsx")).toMatch(/className="tg-choice ws-select-row" data-selected=\{on \? "" : undefined\}/);
     expect(source("components/goals/GoalDialog.tsx")).toContain('className="ws-group-rail tg-pockets"');
     expect(source("components/accounts/RekeningChart.tsx")).toContain('className="ws-select-row" aria-pressed=');
-    expect(source("components/workspace/lists.tsx")).toMatch(/cn\("row", "ws-select-row", layout === "stacked" && "is-stacked"\)/);
+    expect(source("components/workspace/lists.tsx")).toMatch(/cn\("row", "ws-select-row", layoutClass\)/);
     expect(source("components/review/triage/TriageList.tsx")).toMatch(/<ListRow\s+layout="stacked"[\s\S]*current=\{item\.id === selectedId\}/);
     expect(source("components/workspace/rail.tsx")).toContain('className="rail-item ws-select-bar"');
     // A rounded phone chip carries no coloured edge: its bar is removed and the fill marks it.

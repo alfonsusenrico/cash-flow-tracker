@@ -96,13 +96,18 @@ def test_naive_timestamps_are_rejected():
 
 def test_report_windows_ignore_the_estimate(monkeypatch):
     """An open cycle runs to now even after the expected date has passed; no window ends at the estimate."""
+    from contextlib import nullcontext
+
     from app.services import report_windows
     from app.services.salary_cycles import SalaryCycle
 
     start = datetime.now(timezone.utc) - timedelta(days=40)
+    today = datetime.now(JAKARTA).date()
     monkeypatch.setattr(report_windows, "load_user_cycle", lambda *_args, **_kwargs: SalaryCycle("open", start, None))
+    monkeypatch.setattr(report_windows, "db_conn", nullcontext)
+    monkeypatch.setattr(report_windows, "load_running_cycle_label_end", lambda *_args, **_kwargs: today)
     before = datetime.now(timezone.utc)
     begin, finish, _, _, label = report_windows.get_timeframe_window(25, "cycle", user_id="synthetic", language="id")
     assert begin == start
     assert finish >= before
-    assert label.endswith("berlanjut")
+    assert label == report_windows.cycle_range_label("id", start.astimezone(JAKARTA).date(), today)

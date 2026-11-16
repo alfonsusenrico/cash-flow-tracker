@@ -105,8 +105,9 @@ function DayTotals({ group, money }: { group: DayGroup<LedgerRow>; money: (amoun
 }
 
 /**
- * Transaksi's list (D10 to D12): day groups under sticky headings, one-line rows from 768 px and two lines on the
- * phone, each row one button that opens the dialog, or one label with a checkbox while merging.
+ * Transaksi's list (D10 to D12): day groups under sticky headings; from 768 px a row's title has its own line, with
+ * the meta, note and tags on a second line when there are any, and two lines on the phone. Each row is one button
+ * that opens the dialog, or one label with a checkbox while merging.
  */
 export function LedgerList({ groups, openRow, selection, loadMore, openId, accountView, today, labels, format, money }: LedgerListProps) {
   const t = useTranslations("transactions");
@@ -134,6 +135,7 @@ export function LedgerList({ groups, openRow, selection, loadMore, openId, accou
                 <li key={row.id}>
                   <ListRow
                     rowKey={row.id}
+                    layout="title-line"
                     time={time}
                     title={title}
                     note={rowNote(row) ?? undefined}

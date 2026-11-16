@@ -837,6 +837,24 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
 .row .chev { display: flex; flex: none; color: var(--muted); }
 .row.is-plain { cursor: default; }
 .row.is-plain:hover { background: none; }
+/* Transaksi's rows (improve-ledger-readability D1): from 768 px the title has the whole first line and the meta, the
+   note and the tags share a muted second line under it, left-aligned with the title and separated by " · ". The note
+   still gives way before the tags. On the phone the second line's box dissolves into the column, so the phone's own
+   two lines stay as they were, without separators. */
+.row .r-sub { display: contents; }
+.row .r-class { display: contents; }
+.row .r-sep { display: none; }
+@media (min-width: 768px) {
+  .row.is-title-line .r-main { flex-direction: column; align-items: flex-start; gap: 0; }
+  .row.is-title-line .r-main > * { max-width: 100%; }
+  .row.is-title-line .r-sub { display: flex; align-items: center; min-width: 0; overflow: hidden; color: var(--muted); font-size: var(--fs-12); line-height: 16px; white-space: nowrap; }
+  .row.is-title-line .r-sep { display: block; flex: none; white-space: pre; }
+  .row.is-title-line .r-sub > .r-meta { flex: 0 1 auto; }
+  .row.is-title-line .r-note { max-width: none; gap: 0; }
+  /* The category above the pillar in one 168 px cell, so the name gets the pillar column's width. */
+  .row .r-class { display: flex; flex: none; flex-direction: column; justify-content: center; gap: 2px; width: 168px; min-width: 0; }
+  .row .r-class > .r-cat, .row .r-class > .r-pillar { width: 100%; }
+}
 
 .day-h {
   position: sticky;

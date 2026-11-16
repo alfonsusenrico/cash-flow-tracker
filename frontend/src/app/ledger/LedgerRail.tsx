@@ -22,8 +22,6 @@ export function useTypeLabel(): (type: LedgerTypeFilter) => string {
         return t("terms.income");
       case "movement":
         return t("terms.transfer");
-      case "investment":
-        return t("terms.investments");
       case "saving":
         return t("terms.savingsAndInvestments");
       case "credit":

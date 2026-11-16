@@ -315,6 +315,8 @@ def test_list_transactions_summary_cycle_and_cumulative():
             "cumulative_outflow": 5500000,
             "cycle_inflow": 7436000,
             "cycle_outflow": 1250000, "cumulative_saving": 0, "cycle_saving": 0,
+            # The moved-total row shares this mock.
+            "moved": 0, "cycle_moved": 0,
         }
         # 2. Select page fetch & allocations
         cur.fetchall.side_effect = [
@@ -339,6 +341,8 @@ def test_list_transactions_summary_cycle_and_cumulative():
         assert summary["cycle"]["inflow"] == 7436000
         assert summary["cycle"]["outflow"] == 1250000
         assert summary["cycle"]["net"] == 6186000
+        assert summary["cycle"]["moved"] == summary["cumulative"]["moved"] == 0
+        assert summary["cycle"]["label_end_date"] is None
         assert "start" in summary["cycle"]
         assert "end" in summary["cycle"]
 
@@ -386,6 +390,8 @@ def test_list_transactions_summary_with_filters_and_custom_payday():
             "cumulative_outflow": 500000,
             "cycle_inflow": 1000000,
             "cycle_outflow": 250000, "cumulative_saving": 0, "cycle_saving": 0,
+            # The moved-total row shares this mock.
+            "moved": 0, "cycle_moved": 0,
         }
         cur.fetchall.side_effect = [
             [{"id": filter_account_id}],  # accounts query for matching account IDs

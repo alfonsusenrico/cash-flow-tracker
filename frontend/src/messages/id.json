@@ -77,8 +77,7 @@
       "nextMonth": "Bulan berikutnya",
       "thisCycle": "Siklus ini",
       "thisMonth": "Bulan ini",
-      "cycleRange": "Siklus {start} – {end}",
-      "cycleSince": "Siklus sejak {start}",
+      "cycleRange": "{start} – {end}",
       "label": "Periode"
     },
     "change": {
@@ -769,8 +768,7 @@
       "saved": "Ditabung",
       "taken": "Diambil dari tabungan",
       "invested": "Investasi",
-      "debtPayment": "Bayar utang",
-      "none": "—"
+      "debtPayment": "Bayar utang"
     },
     "more": {
       "inDay": "{remaining} lagi di hari ini · Muat lagi",

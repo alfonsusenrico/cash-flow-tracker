@@ -17,7 +17,6 @@ from zoneinfo import ZoneInfo
 
 from app.core.config import settings
 from app.i18n import language_for_user, t
-from app.services.cycle_summary import expected_salary_for_cycle
 from app.services.plan_occurrences import plan_occurrences_in_window
 from app.services.reimbursements import load_spending_offsets
 from app.services.report_figures import daily_offsets, reportable_expense_sql, reportable_income_sql
@@ -28,7 +27,7 @@ from app.services.report_windows import (
 )
 from app.services.salary_cycles import resolve_cycle
 from app.services.spending_basis import spending_basis
-from app.services.salary_receipts import receipts
+from app.services.salary_receipts import expected_salary_for_cycle, receipts
 from app.services.waiting_rows import fetch_waiting_rows
 
 HEAT_PERCENTILES = (0.2, 0.4, 0.6, 0.8)
@@ -211,7 +210,7 @@ def build_calendar(conn, user: dict[str, Any], *, timeframe: str, cycle_offset: 
         "window": {
             "start": start_date.isoformat(),
             "end": grid_end.isoformat(),
-            # An open cycle's report label says "berlanjut"; the calendar names the days it shows.
+            # The calendar names the days it shows, which for an open cycle can differ from the report label's end.
             "label": cycle_range_label(language, start_date, grid_end) if open_cycle else report_label,
             "basis": timeframe,
             "today": today.isoformat(),
