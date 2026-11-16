@@ -27,7 +27,7 @@ PURPOSE_NORMALIZATION = "purpose_normalization"
 # The Indonesian versions predate output languages and stay as they are.
 INDONESIAN_VERSIONS = {
     NOTIFICATION_INTERPRETATION: "notification-interpretation-13",
-    CAPTURE_NORMALIZATION: "capture-normalization-2",
+    CAPTURE_NORMALIZATION: "capture-normalization-3",
     HISTORY_SUGGESTIONS: "history-suggestions-1",
     PURPOSE_NORMALIZATION: "purpose-normalization-1",
 }

@@ -1,0 +1,490 @@
+{
+  "prompt_version": "capture-normalization-3",
+  "model": "gpt-6-luna",
+  "reasoning_effort": "none",
+  "language": "id",
+  "repeats": 3,
+  "outcomes": {
+    "correct": 39
+  },
+  "name_repeats_tag": 0,
+  "gate_pass": true,
+  "observed_usage_usd": 0.02201,
+  "per_case": {
+    "prefix-shortening": [
+      "correct",
+      "correct",
+      "correct"
+    ],
+    "prefix-typo": [
+      "correct",
+      "correct",
+      "correct"
+    ],
+    "prefix-word-order": [
+      "correct",
+      "correct",
+      "correct"
+    ],
+    "hashtag-existing": [
+      "correct",
+      "correct",
+      "correct"
+    ],
+    "instruction-existing": [
+      "correct",
+      "correct",
+      "correct"
+    ],
+    "instruction-exact-name": [
+      "correct",
+      "correct",
+      "correct"
+    ],
+    "two-tags": [
+      "correct",
+      "correct",
+      "correct"
+    ],
+    "instruction-new": [
+      "correct",
+      "correct",
+      "correct"
+    ],
+    "hashtag-new": [
+      "correct",
+      "correct",
+      "correct"
+    ],
+    "none-plain": [
+      "correct",
+      "correct",
+      "correct"
+    ],
+    "none-item-before-colon": [
+      "correct",
+      "correct",
+      "correct"
+    ],
+    "none-merchant-before-colon": [
+      "correct",
+      "correct",
+      "correct"
+    ],
+    "none-birthday-not-named-as-tag": [
+      "correct",
+      "correct",
+      "correct"
+    ]
+  },
+  "rows": [
+    {
+      "case": "prefix-shortening",
+      "repeat": 1,
+      "outcome": "correct",
+      "existing": [
+        "00000000-0000-4000-8000-000000000065"
+      ],
+      "new": [],
+      "name": "Makan di Kafe Contoh",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "prefix-shortening",
+      "repeat": 2,
+      "outcome": "correct",
+      "existing": [
+        "00000000-0000-4000-8000-000000000065"
+      ],
+      "new": [],
+      "name": "Makan di Kafe Contoh",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "prefix-shortening",
+      "repeat": 3,
+      "outcome": "correct",
+      "existing": [
+        "00000000-0000-4000-8000-000000000065"
+      ],
+      "new": [],
+      "name": "Makan di Kafe Contoh",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "prefix-typo",
+      "repeat": 1,
+      "outcome": "correct",
+      "existing": [
+        "00000000-0000-4000-8000-000000000065"
+      ],
+      "new": [],
+      "name": "Kopi susu",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "prefix-typo",
+      "repeat": 2,
+      "outcome": "correct",
+      "existing": [
+        "00000000-0000-4000-8000-000000000065"
+      ],
+      "new": [],
+      "name": "Kopi susu",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "prefix-typo",
+      "repeat": 3,
+      "outcome": "correct",
+      "existing": [
+        "00000000-0000-4000-8000-000000000065"
+      ],
+      "new": [],
+      "name": "Kopi susu",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "prefix-word-order",
+      "repeat": 1,
+      "outcome": "correct",
+      "existing": [
+        "00000000-0000-4000-8000-000000000066"
+      ],
+      "new": [],
+      "name": "Tiket kereta",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "prefix-word-order",
+      "repeat": 2,
+      "outcome": "correct",
+      "existing": [
+        "00000000-0000-4000-8000-000000000066"
+      ],
+      "new": [],
+      "name": "Tiket kereta",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "prefix-word-order",
+      "repeat": 3,
+      "outcome": "correct",
+      "existing": [
+        "00000000-0000-4000-8000-000000000066"
+      ],
+      "new": [],
+      "name": "Tiket kereta",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "hashtag-existing",
+      "repeat": 1,
+      "outcome": "correct",
+      "existing": [
+        "00000000-0000-4000-8000-000000000066"
+      ],
+      "new": [],
+      "name": "Isi bensin",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "hashtag-existing",
+      "repeat": 2,
+      "outcome": "correct",
+      "existing": [
+        "00000000-0000-4000-8000-000000000066"
+      ],
+      "new": [],
+      "name": "Isi bensin",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "hashtag-existing",
+      "repeat": 3,
+      "outcome": "correct",
+      "existing": [
+        "00000000-0000-4000-8000-000000000066"
+      ],
+      "new": [],
+      "name": "Isi bensin",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "instruction-existing",
+      "repeat": 1,
+      "outcome": "correct",
+      "existing": [
+        "00000000-0000-4000-8000-000000000069"
+      ],
+      "new": [],
+      "name": "Tiket pesawat",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "instruction-existing",
+      "repeat": 2,
+      "outcome": "correct",
+      "existing": [
+        "00000000-0000-4000-8000-000000000069"
+      ],
+      "new": [],
+      "name": "Tiket pesawat",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "instruction-existing",
+      "repeat": 3,
+      "outcome": "correct",
+      "existing": [
+        "00000000-0000-4000-8000-000000000069"
+      ],
+      "new": [],
+      "name": "Tiket pesawat",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "instruction-exact-name",
+      "repeat": 1,
+      "outcome": "correct",
+      "existing": [
+        "00000000-0000-4000-8000-000000000065"
+      ],
+      "new": [],
+      "name": "Makan malam",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "instruction-exact-name",
+      "repeat": 2,
+      "outcome": "correct",
+      "existing": [
+        "00000000-0000-4000-8000-000000000065"
+      ],
+      "new": [],
+      "name": "Makan malam",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "instruction-exact-name",
+      "repeat": 3,
+      "outcome": "correct",
+      "existing": [
+        "00000000-0000-4000-8000-000000000065"
+      ],
+      "new": [],
+      "name": "Makan malam",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "two-tags",
+      "repeat": 1,
+      "outcome": "correct",
+      "existing": [
+        "00000000-0000-4000-8000-000000000065",
+        "00000000-0000-4000-8000-000000000067"
+      ],
+      "new": [],
+      "name": "Makan siang",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "two-tags",
+      "repeat": 2,
+      "outcome": "correct",
+      "existing": [
+        "00000000-0000-4000-8000-000000000065",
+        "00000000-0000-4000-8000-000000000067"
+      ],
+      "new": [],
+      "name": "Makan siang",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "two-tags",
+      "repeat": 3,
+      "outcome": "correct",
+      "existing": [
+        "00000000-0000-4000-8000-000000000065",
+        "00000000-0000-4000-8000-000000000067"
+      ],
+      "new": [],
+      "name": "Makan siang",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "instruction-new",
+      "repeat": 1,
+      "outcome": "correct",
+      "existing": [],
+      "new": [
+        "reuni sma"
+      ],
+      "name": "Bensin",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "instruction-new",
+      "repeat": 2,
+      "outcome": "correct",
+      "existing": [],
+      "new": [
+        "reuni sma"
+      ],
+      "name": "Isi bensin",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "instruction-new",
+      "repeat": 3,
+      "outcome": "correct",
+      "existing": [],
+      "new": [
+        "reuni sma"
+      ],
+      "name": "Isi bensin",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "hashtag-new",
+      "repeat": 1,
+      "outcome": "correct",
+      "existing": [],
+      "new": [
+        "nikahandika"
+      ],
+      "name": "Kado",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "hashtag-new",
+      "repeat": 2,
+      "outcome": "correct",
+      "existing": [],
+      "new": [
+        "nikahandika"
+      ],
+      "name": "Kado",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "hashtag-new",
+      "repeat": 3,
+      "outcome": "correct",
+      "existing": [],
+      "new": [
+        "nikahandika"
+      ],
+      "name": "Kado",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "none-plain",
+      "repeat": 1,
+      "outcome": "correct",
+      "existing": [],
+      "new": [],
+      "name": "Es teh manis",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "none-plain",
+      "repeat": 2,
+      "outcome": "correct",
+      "existing": [],
+      "new": [],
+      "name": "Es teh manis",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "none-plain",
+      "repeat": 3,
+      "outcome": "correct",
+      "existing": [],
+      "new": [],
+      "name": "Es teh manis",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "none-item-before-colon",
+      "repeat": 1,
+      "outcome": "correct",
+      "existing": [],
+      "new": [],
+      "name": "Nasi padang",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "none-item-before-colon",
+      "repeat": 2,
+      "outcome": "correct",
+      "existing": [],
+      "new": [],
+      "name": "Nasi padang",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "none-item-before-colon",
+      "repeat": 3,
+      "outcome": "correct",
+      "existing": [],
+      "new": [],
+      "name": "Makan siang nasi padang",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "none-merchant-before-colon",
+      "repeat": 1,
+      "outcome": "correct",
+      "existing": [],
+      "new": [],
+      "name": "Sabun dan sampo",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "none-merchant-before-colon",
+      "repeat": 2,
+      "outcome": "correct",
+      "existing": [],
+      "new": [],
+      "name": "Sabun dan sampo",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "none-merchant-before-colon",
+      "repeat": 3,
+      "outcome": "correct",
+      "existing": [],
+      "new": [],
+      "name": "Sabun dan sampo",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "none-birthday-not-named-as-tag",
+      "repeat": 1,
+      "outcome": "correct",
+      "existing": [],
+      "new": [],
+      "name": "Kado ulang tahun untuk Rani",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "none-birthday-not-named-as-tag",
+      "repeat": 2,
+      "outcome": "correct",
+      "existing": [],
+      "new": [],
+      "name": "Kado ulang tahun untuk Rani",
+      "name_repeats_tag": false
+    },
+    {
+      "case": "none-birthday-not-named-as-tag",
+      "repeat": 3,
+      "outcome": "correct",
+      "existing": [],
+      "new": [],
+      "name": "Kado ulang tahun untuk Rani",
+      "name_repeats_tag": false
+    }
+  ]
+}

@@ -87,6 +87,8 @@ export interface RowFacts {
   name: string | null;
   /** The owner's own remark; never written by the AI. Absent from an older API. */
   note?: string | null;
+  /** The row's tags; movements carry none. Absent from an API older than transaction-tags. */
+  tags?: TagRef[];
   merchant?: string | null;
   kakeibo_type?: string | null;
   review_status?: string | null;
@@ -111,6 +113,12 @@ export interface RowFacts {
   saving_flow?: SavingFlow;
   /** Absent from an API older than add-credit-spending-flow. */
   credit?: CreditBlock | null;
+}
+
+/** A tag on a row (transaction-tags): the owner's own spelling, which is user data and shown as text only. */
+export interface TagRef {
+  id: string;
+  name: string;
 }
 
 /** A row of `GET /api/transactions` and `GET /api/transactions/{id}`. */

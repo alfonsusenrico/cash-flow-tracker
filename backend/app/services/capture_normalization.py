@@ -27,6 +27,8 @@ PLACEHOLDER_DESCRIPTIONS = {
     "id": PLACEHOLDERS_BY_LANGUAGE["id"],
     "en": PLACEHOLDERS_BY_LANGUAGE["id"] | PLACEHOLDERS_BY_LANGUAGE["en"],
 }
+# The same bound as a tag created in the app (transaction-tags D2).
+TAG_NAME_MAX_LENGTH = 40
 # Without an explicit date, a model time older than this is not believed.
 MODEL_TIME_MAX_AGE = timedelta(days=31)
 
@@ -37,6 +39,16 @@ class CaptureTimeInterpretation(BaseModel):
     span: str | None = Field(max_length=80)
     local_datetime: str | None = Field(max_length=40)
     confidence: float = Field(ge=0, le=1)
+
+
+class CaptureTag(BaseModel):
+    """A tag the owner marked the entry with: one of their tags, or a new name, with the words it was read from."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    tag_id: UUID | None
+    new_name: str | None = Field(max_length=80)
+    span: str = Field(max_length=80)
 
 
 class CaptureNormalization(BaseModel):
@@ -52,6 +64,7 @@ class CaptureNormalization(BaseModel):
     account_id: UUID | None
     account_confidence: float = Field(ge=0, le=1)
     time: CaptureTimeInterpretation
+    tags: list[CaptureTag] = Field(default_factory=list, max_length=3)
 
 
 class InvalidCaptureNormalization(ValueError):
@@ -74,6 +87,7 @@ def validate_capture_normalization(result: CaptureNormalization, context: dict, 
     kakeibo = None
     if category and category["kind"] == "expense":
         kakeibo = result.kakeibo or category.get("default_kakeibo")
+    tags = validated_tags(result.tags, context)
     description = " ".join(result.description.split())
     if description.casefold() in PLACEHOLDER_DESCRIPTIONS[output_language]:
         description = ""
@@ -84,7 +98,37 @@ def validate_capture_normalization(result: CaptureNormalization, context: dict, 
         "category_id": category_id, "category_kind": category["kind"] if category else None,
         "kakeibo": kakeibo, "category_confidence": result.category_confidence,
         "account_id": account_id, "account_confidence": result.account_confidence,
+        "tags": tags,
     }
+
+
+def validated_tags(proposed: list[CaptureTag], context: dict) -> list[dict]:
+    """The owner's tags the text marks, as `{tag_id, name}`; anything unproven is dropped, never refused.
+
+    A tag must be quoted from the text; an ID must be one of the owner's active tags; a new name equal to an
+    existing tag after normalizing becomes that tag (transaction-tags D4). The capture stays usable either way.
+    """
+    known = {row["id"]: row["name"] for row in context.get("tags") or []}
+    by_normalized = {" ".join(name.split()).lower(): tag_id for tag_id, name in known.items()}
+    text = context.get("text", "").casefold()
+    accepted: dict[str, dict] = {}
+    for tag in proposed:
+        if not tag.span.strip() or tag.span.casefold() not in text:
+            continue
+        if tag.tag_id is not None:
+            tag_id = str(tag.tag_id)
+            if tag_id in known:
+                accepted[tag_id] = {"tag_id": tag_id, "name": known[tag_id]}
+            continue
+        display = " ".join((tag.new_name or "").split())
+        if not 1 <= len(display) <= TAG_NAME_MAX_LENGTH:
+            continue
+        existing = by_normalized.get(display.lower())
+        if existing:
+            accepted[existing] = {"tag_id": existing, "name": known[existing]}
+        else:
+            accepted[display.lower()] = {"tag_id": None, "name": display}
+    return list(accepted.values())
 
 
 

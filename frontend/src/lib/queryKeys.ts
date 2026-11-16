@@ -70,4 +70,9 @@ export const queryKeys = {
   habits: {
     list: ["habits", "list"] as const,
   },
+  /** The owner's tags (transaction-tags); a save that creates a tag, and every tag change, invalidates `all`. */
+  tags: {
+    all: ["tags"] as const,
+    list: (includeArchived: boolean) => ["tags", "list", includeArchived ? "with-archived" : "active"] as const,
+  },
 } as const;

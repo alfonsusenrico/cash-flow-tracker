@@ -39,6 +39,7 @@ import {
 import { consolidateLedgerMovements } from "@/lib/ledgerMovements";
 import { queryKeys } from "@/lib/queryKeys";
 import type { UndoFields } from "@/lib/reviewUndo";
+import { getTags } from "@/lib/tags";
 import { FOLDER_PARAMS } from "@/lib/triage";
 import { pushSearch, replaceSearch } from "@/lib/urlState";
 import { CreditHeader } from "./CreditHeader";
@@ -347,6 +348,8 @@ function LedgerPageContent() {
 
   const accountName = (id: string) => accounts.flatMap((account) => [account, ...(account.children ?? [])]).find((account) => account.id === id)?.name ?? "…";
   const categoryName = (id: string) => categories.find((category) => category.id === id)?.name ?? "…";
+  const tagList = useQuery({ queryKey: queryKeys.tags.list(true), queryFn: () => getTags(true), enabled: filters.tags.length > 0 }).data?.tags;
+  const tagName = (id: string) => tagList?.find((tag) => tag.id === id)?.name ?? "…";
   const rangeText = (from: string | null, to: string | null) => {
     if (from && to) return `${format.shortDateAt(from)} – ${format.shortDateAt(to)}`;
     return from ? t("transactions.chips.since", { date: format.shortDateAt(from) }) : t("transactions.chips.until", { date: format.shortDateAt(to ?? "") });
@@ -370,6 +373,11 @@ function LedgerPageContent() {
       : null,
     filters.waiting ? { key: "waiting", label: t("transactions.chips.waiting"), remove: () => updateFilters({ waiting: false }) } : null,
     filters.dup ? { key: "dup", label: t("transactions.chips.duplicates"), remove: () => updateFilters({ dup: false }) } : null,
+    ...filters.tags.map((id) => ({
+      key: `tag-${id}`,
+      label: t("transactions.chips.tag", { name: tagName(id) }),
+      remove: () => updateFilters({ tags: filters.tags.filter((tag) => tag !== id) }),
+    })),
     hasDateRange(filters) ? { key: "range", label: rangeText(filters.from, filters.to), remove: () => updateFilters({ from: null, to: null }) } : null,
     appliedSearch ? { key: "q", label: t("transactions.chips.query", { text: appliedSearch }), remove: clearSearch } : null,
   ].filter((chip): chip is ActiveChip => chip !== null);

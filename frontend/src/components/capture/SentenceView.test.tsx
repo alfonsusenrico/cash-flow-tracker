@@ -253,3 +253,38 @@ describe("Web Catat dialog: Tulis transaksi", () => {
     expect(baseElement.querySelector("[lang='id']")).toBeNull();
   });
 });
+
+describe("Tags on the recorded capture (transaction-tags D4)", () => {
+  const transaction = {
+    id: "tx-cap", type: "expense", amount: 5000, date: new Date().toISOString(), account_name: "Tunai", merchant: null, name: "Parkir",
+    category_name: "Parkir", kakeibo: "need", review_status: "auto",
+  };
+
+  function recordWith(capture: Record<string, unknown>) {
+    vi.mocked(api.post).mockImplementation(async (path: string, body?: unknown) => {
+      if (path === "/capture/parse") return { ok: true, preview: preview((body as { text: string }).text) };
+      if (path === "/capture/text") return { ok: true, capture };
+      throw new Error(path);
+    });
+  }
+
+  it("lists the recorded tags as small chips under the result", async () => {
+    recordWith({ ...recorded, transaction: { ...transaction, tags: [{ id: "tag-coach", name: "fellowship coach" }, { id: "tag-new", name: "<i>Malang</i>" }] } });
+    const { user, baseElement } = setup();
+    await user.type(field(), "fellow coach: parkir 5rb{Enter}");
+    const result = (await screen.findByText("Dicatat: Parkir Rp 5.000, hari ini 14.00.")).closest(".ws-toast") as HTMLElement;
+    const chips = [...result.querySelectorAll(".toast-tags .chip")].map((chip) => chip.textContent);
+    expect(chips).toEqual(["fellowship coach", "<i>Malang</i>"]);
+    expect(result.querySelector("i")).toBeNull();
+    expect(within(result).getByRole("button", { name: "Urungkan" })).toBeInTheDocument();
+    expect((await axe(baseElement)).violations).toHaveLength(0);
+  });
+
+  it("shows no tag line when the capture has none or the server sends no tags", async () => {
+    recordWith({ ...recorded, transaction });
+    const { user } = setup();
+    await user.type(field(), "parkir 5rb{Enter}");
+    const result = (await screen.findByText("Dicatat: Parkir Rp 5.000, hari ini 14.00.")).closest(".ws-toast") as HTMLElement;
+    expect(result.querySelector(".toast-tags")).toBeNull();
+  });
+});

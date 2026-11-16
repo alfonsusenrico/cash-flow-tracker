@@ -32,6 +32,7 @@ from app.routers.reports import router as reports_router
 from app.routers.history_suggestions import router as history_suggestions_router
 from app.routers.review import router as review_router
 from app.routers.salary import router as salary_router
+from app.routers.tags import router as tags_router
 from app.services.plan_occurrences import link_requested_plans, process_due_plan_links, set_plan_link_waker
 from app.services.review_undo import sweep_expired as sweep_review_actions
 from app.services.salary_receipts import process_sources as process_salary_sources
@@ -288,6 +289,7 @@ for prefix in ("", "/api", "/v1"):
     app.include_router(accounts_router, prefix=f"{prefix}/accounts")
     app.include_router(categories_router, prefix=f"{prefix}/categories")
     app.include_router(transactions_router, prefix=f"{prefix}/transactions")
+    app.include_router(tags_router, prefix=f"{prefix}/tags")
     app.include_router(credit_router, prefix=prefix)
     app.include_router(movements_router, prefix=prefix)
     app.include_router(investment_topups_router, prefix=f"{prefix}/investment-topups")

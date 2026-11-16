@@ -685,6 +685,7 @@
       "waiting": "Menunggu jawaban",
       "phone": "Dari HP",
       "typed": "Lewat Catat",
+      "tag": "Tag: {name}",
       "duplicates": "Kemungkinan duplikat",
       "since": "sejak {date}",
       "until": "sampai {date}"
@@ -697,6 +698,7 @@
       "category": "Kategori",
       "allCategories": "Semua kategori",
       "pillar": "Pilar Kakeibo",
+      "tags": "Tag",
       "allPillars": "Semua pilar",
       "status": "Status",
       "statusAll": "Semua status",
@@ -810,6 +812,7 @@
       "merchant": "Merchant",
       "name": "Nama transaksi",
       "note": "Catatan",
+      "tags": "Tag",
       "none": "—",
       "from": "Dari",
       "to": "Ke",
@@ -1073,6 +1076,21 @@
       "restCategory": "Kategori uang masuk",
       "restIncomeHint": "Sisa yang tidak terpakai oleh pengeluaran di atas dicatat sebagai pemasukan terpisah di rekening dan tanggal yang sama.",
       "restNoneHint": "Sisa yang tidak terpakai oleh pengeluaran di atas tidak dihitung di mana pun."
+    },
+    "tags": {
+      "label": "Tag (opsional)",
+      "placeholder": "Ketik nama tag",
+      "searchPlaceholder": "Cari tag",
+      "hint": "Pilih tag yang ada atau buat yang baru. Maksimal {limit} tag.",
+      "create": "Buat tag “{name}”",
+      "chosen": "Tag terpilih",
+      "remove": "Hapus tag {name}",
+      "archived": "diarsipkan",
+      "noMatch": "Tidak ada tag yang cocok.",
+      "limit": "Sudah {limit} tag, batas untuk satu transaksi. Hapus satu tag untuk menambah yang lain.",
+      "added": "Tag {name} ditambahkan.",
+      "removed": "Tag {name} dilepas.",
+      "rowLabel": "Tag:"
     }
   },
   "breakdown": {
@@ -1184,6 +1202,10 @@
       "anggaran": {
         "title": "Mata uang & anggaran",
         "description": "Mata uang, dana darurat dan batas pengeluaran."
+      },
+      "tag": {
+        "title": "Tag",
+        "description": "Tag mengelompokkan transaksi lintas kategori, misalnya satu acara."
       },
       "pemetaan": {
         "title": "Pemetaan notifikasi",
@@ -1461,6 +1483,34 @@
       "empty": "Belum ada nama pengirim tersimpan.",
       "loadFailed": "Daftar pengirim gagal dimuat.",
       "loading": "Memuat pengirim…"
+    },
+    "tags": {
+      "list": "Tag aktif",
+      "archivedList": "Diarsipkan",
+      "archivedHint": "Tag yang diarsipkan tetap ada di transaksinya dan di filter Transaksi, tetapi tidak ditawarkan saat mencatat.",
+      "count": "{count, plural, other {# transaksi}}",
+      "rename": "Ubah nama tag {name}",
+      "nameLabel": "Nama tag",
+      "nameHint": "Enter untuk menyimpan, Esc untuk membatalkan.",
+      "saveName": "Simpan nama",
+      "nameInvalid": "Isi nama tag sepanjang 1–{max} karakter.",
+      "merge": "Gabungkan tag {name} ke tag lain",
+      "mergeVerb": "Gabungkan",
+      "mergeInto": "Gabungkan “{name}” ke",
+      "mergeChoose": "Pilih tag",
+      "mergeChooseFirst": "Pilih tag tujuan.",
+      "mergeResult": "{count, plural, other {# transaksi}} dipindah ke “{into}”, lalu tag “{name}” dihapus.",
+      "mergeYes": "Ya, gabungkan",
+      "merged": "Tag “{name}” digabungkan ke “{into}”.",
+      "archive": "Arsipkan tag {name}",
+      "archiveVerb": "Arsipkan",
+      "restore": "Pulihkan tag {name}",
+      "restoreVerb": "Pulihkan",
+      "empty": "Belum ada tag. Tag dibuat dari Catat atau Ubah transaksi.",
+      "loading": "Memuat tag…",
+      "loadFailed": "Daftar tag gagal dimuat.",
+      "saveFailed": "Tag gagal disimpan. Coba lagi.",
+      "mergeFailed": "Tag gagal digabungkan. Coba lagi."
     },
     "testSession": {
       "duration": "Durasi",
@@ -1837,7 +1887,12 @@
     "model_uncertain": "Penafsir otomatis tidak yakin dengan notifikasi ini. Coba ulang, atau pilih rekening dan kategori lalu catat manual.",
     "reimbursement_link_count": "Pilih 1 sampai {limit} pengeluaran yang diganti.",
     "reimbursement_link_invalid": "Pilih pengeluaran yang bukan pindah saldo dan masuk anggaran.",
-    "reimbursement_rest_category": "Pilih kategori pemasukan untuk sisanya."
+    "reimbursement_rest_category": "Pilih kategori pemasukan untuk sisanya.",
+    "tag_not_found": "Tag tidak ditemukan.",
+    "tag_limit": "Satu transaksi paling banyak {limit} tag.",
+    "tag_name_invalid": "Nama tag harus 1–{max_length} karakter.",
+    "tag_name_taken": "Sudah ada tag dengan nama ini.",
+    "tag_merge_same": "Tag tidak bisa digabungkan ke dirinya sendiri."
   },
   "conversation": {
     "helpFactHome": "Beranda menunjukkan berapa yang aman dipakai sampai gajian."
@@ -3243,6 +3298,7 @@
     },
     "toast": {
       "recorded": "Dicatat: {label}{when, select, none {} other {, {when}}}.",
+      "tags": "Tag",
       "undone": "Catatan dibatalkan.",
       "undoFailed": "Gagal membatalkan."
     },

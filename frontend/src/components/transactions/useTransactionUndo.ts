@@ -19,7 +19,7 @@ export function useRefreshTransactionViews() {
     if (deletedId && drop) qc.removeQueries({ queryKey: queryKeys.transactions.detail(deletedId) });
     const deletedDetail = deletedId ? queryKeys.transactions.detail(deletedId).join("/") : null;
     for (const key of [queryKeys.transactions.all, queryKeys.review.all, queryKeys.dashboard.all, queryKeys.accounts,
-      queryKeys.goals, queryKeys.obligations, queryKeys.pulse, queryKeys.insights]) {
+      queryKeys.goals, queryKeys.obligations, queryKeys.pulse, queryKeys.insights, queryKeys.tags.all]) {
       qc.invalidateQueries({ queryKey: key, predicate: (query) => query.queryKey.join("/") !== deletedDetail });
     }
   }, [qc]);

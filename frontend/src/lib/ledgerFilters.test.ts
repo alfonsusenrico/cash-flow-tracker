@@ -15,10 +15,22 @@ const CATEGORY = "11111111-2222-4333-8444-555555555555";
 describe("ledger URL filters", () => {
   it("round-trips through the URL and leaves out defaults", () => {
     const filters = parseLedgerFilters(new URLSearchParams(`period=month&offset=-2&category=${CATEGORY}&kakeibo=culture&type=expense&review=auto`));
-    expect(filters).toEqual({ period: "month", offset: -2, category: CATEGORY, kakeibo: "culture", type: "expense", account: "all", review: "auto", from: null, to: null, q: "", dup: false, source: "all", waiting: false });
+    expect(filters).toEqual({ period: "month", offset: -2, category: CATEGORY, kakeibo: "culture", type: "expense", account: "all", review: "auto", from: null, to: null, q: "", dup: false, source: "all", waiting: false, tags: [] });
     expect(parseLedgerFilters(new URLSearchParams(ledgerFilterQuery(filters)))).toEqual(filters);
     expect(ledgerFilterQuery(DEFAULT_LEDGER_FILTERS)).toBe("");
     expect(ledgerHref({})).toBe("/ledger");
+  });
+
+  it("keeps repeated tag IDs in the URL and the API query, and drops invalid ones (transaction-tags D3)", () => {
+    const first = "aaaaaaaa-1111-4111-8111-111111111111";
+    const second = "bbbbbbbb-2222-4222-8222-222222222222";
+    const filters = parseLedgerFilters(new URLSearchParams(`tag=${first}&tag=not-a-tag&tag=${second}&tag=${first}`));
+    expect(filters.tags).toEqual([first, second]);
+    expect(ledgerFilterQuery(filters)).toBe(`tag=${first}&tag=${second}`);
+    expect(ledgerApiParams(filters).getAll("tag")).toEqual([first, second]);
+    expect(ledgerHref({ tags: [first] })).toBe(`/ledger?tag=${first}`);
+    expect(activeFilterCount(filters)).toBe(1);
+    expect(listsLogicalMovements(filters, "")).toBe(false);
   });
 
   it("falls back to all for invalid or missing values", () => {

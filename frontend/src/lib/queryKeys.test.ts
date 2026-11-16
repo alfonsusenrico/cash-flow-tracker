@@ -22,6 +22,12 @@ describe("queryKeys", () => {
     );
   });
 
+  it("groups both tag lists under one invalidation prefix and keeps them apart", () => {
+    expect(queryKeys.tags.list(false).slice(0, 1)).toEqual(queryKeys.tags.all);
+    expect(queryKeys.tags.list(true).slice(0, 1)).toEqual(queryKeys.tags.all);
+    expect(queryKeys.tags.list(true)).not.toEqual(queryKeys.tags.list(false));
+  });
+
   it("separates archived category management data while preserving invalidation grouping", () => {
     expect(queryKeys.categoryManagement).toEqual(["categories", "management"]);
     expect(queryKeys.categoryManagement.slice(0, 1)).toEqual(queryKeys.categories);

@@ -10,16 +10,21 @@ import { useTranslations } from "next-intl";
 
 export const TOAST_MS = 6500;
 
-interface ToastMessage {
-  id: number;
-  text: string;
+interface ToastOptions {
   onUndo?: () => void;
   /** The button's label when it reverses something other than the last save; "Urungkan" otherwise. */
   actionLabel?: string;
+  /** A line under the text, such as the tags Catat recorded with a capture. */
+  detail?: ReactNode;
+}
+
+interface ToastMessage extends ToastOptions {
+  id: number;
+  text: string;
 }
 
 interface ToastContextValue {
-  showToast: (text: string, options?: { onUndo?: () => void; actionLabel?: string }) => void;
+  showToast: (text: string, options?: ToastOptions) => void;
 }
 
 const ToastContext = createContext<ToastContextValue>({ showToast: () => {} });
@@ -32,9 +37,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const counter = useRef(0);
 
-  const showToast = useCallback((text: string, options?: { onUndo?: () => void; actionLabel?: string }) => {
+  const showToast = useCallback((text: string, options?: ToastOptions) => {
     counter.current += 1;
-    setToast({ id: counter.current, text, onUndo: options?.onUndo, actionLabel: options?.actionLabel });
+    setToast({ id: counter.current, text, onUndo: options?.onUndo, actionLabel: options?.actionLabel, detail: options?.detail });
   }, []);
 
   const value = useMemo(() => ({ showToast }), [showToast]);
@@ -72,7 +77,14 @@ function Toast({ toast, onDone }: { toast: ToastMessage; onDone: () => void }) {
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
     >
-      <span>{toast.text}</span>
+      {toast.detail ? (
+        <span className="toast-body">
+          <span>{toast.text}</span>
+          {toast.detail}
+        </span>
+      ) : (
+        <span>{toast.text}</span>
+      )}
       {toast.onUndo && (
         <button
           type="button"

@@ -39,6 +39,8 @@ export interface CaptureTransaction {
   category_name: string | null;
   kakeibo: string | null;
   review_status: string | null;
+  /** The tags the capture was recorded with (transaction-tags D4); absent from an API older than capture tags. */
+  tags?: { id: string; name: string }[];
 }
 
 export interface Capture {

@@ -820,10 +820,15 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
 .row .r-main { display: flex; flex: 1; align-items: baseline; gap: var(--sp-8); min-width: 0; }
 .row .r-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row .r-meta { flex: 1 1 0; min-width: 0; overflow: hidden; color: var(--muted); font-size: var(--fs-12); line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
-/* The owner's remark (separate-transaction-name-and-note D4): muted like the meta, marked with a note icon. */
-/* It gives way before the title does: the title is what the row is. */
-.row .r-note { display: inline-flex; flex: 0 4 auto; align-items: center; gap: var(--sp-4); min-width: 48px; max-width: 32%; color: var(--muted); font-size: var(--fs-12); line-height: 16px; }
-.row .r-note > svg { flex: none; }
+/* The owner's remark (separate-transaction-name-and-note D4) and the row's tags (transaction-tags): muted like the
+   meta, each marked with its icon. They give way before the title does: the title is what the row is. Tags stay
+   readable before the note does, since they are what the ledger is filtered by; the note can narrow to its icon
+   and is read in full in the detail. */
+.row .r-note { display: inline-flex; flex: 0 4 auto; align-items: center; gap: var(--sp-8); min-width: 48px; max-width: 32%; color: var(--muted); font-size: var(--fs-12); line-height: 16px; }
+.row .r-note:has(> .is-tags) { max-width: 45%; }
+.row .r-note-item { display: inline-flex; flex: 0 8 auto; align-items: center; gap: var(--sp-4); min-width: 12px; }
+.row .r-note-item.is-tags { flex-shrink: 1; min-width: min(100%, 88px); }
+.row .r-note-item > svg { flex: none; }
 .row .r-note-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row .r-cat { flex: none; width: 168px; overflow: hidden; color: var(--muted); font-size: var(--fs-12); line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
 .row .r-pillar { display: flex; flex: none; align-items: center; gap: var(--sp-8); width: 112px; color: var(--muted); font-size: var(--fs-12); line-height: 16px; white-space: nowrap; }
@@ -920,6 +925,7 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
   .row .r-main > * { max-width: 100%; }
   .row .r-meta { flex: none; }
   .row .r-note { max-width: 100%; }
+  .row .r-note:has(> .is-tags) { max-width: 100%; }
   .row :is(.r-time, .r-cat, .r-pillar, .dt-only) { display: none; }
   .row .ph-only { display: block; }
   .row .r-amt { min-width: 0; }
@@ -1124,6 +1130,20 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
 .chip .lbl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip button { display: grid; flex: none; place-items: center; width: 24px; height: 24px; border-radius: var(--r-control); color: var(--muted); }
 .chip button:hover { background: var(--surface-2); color: var(--text); }
+/* A chip without a remove button, such as a tag on Catat's recorded result. */
+.chip.is-static { height: 24px; padding: 0 var(--sp-8); }
+
+/* Tag picker (transaction-tags D2): chosen tags as chips over the field, matches in a list under it, in the flow so
+   a dialog's scrolling never clips it. */
+.tag-chips { display: flex; flex-wrap: wrap; gap: var(--sp-8); }
+.tag-options { max-height: 224px; overflow-y: auto; padding: var(--sp-4) 0; border: 1px solid var(--line-strong); border-radius: var(--r-control); background: var(--window); }
+.tag-option { display: flex; align-items: center; gap: var(--sp-8); min-height: 36px; padding: 0 var(--sp-12); color: var(--text); font-size: var(--fs-14); cursor: pointer; }
+.tag-option > svg { flex: none; color: var(--muted); }
+.tag-option .lbl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tag-option[aria-selected="true"] { background: var(--surface-2); }
+.toast-body { display: flex; flex-direction: column; min-width: 0; }
+.toast-tags { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-4); margin-top: var(--sp-4); color: var(--muted); }
+.toast-tags .chip { color: var(--text); }
 .sel-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-4) var(--sp-12); min-height: 48px; margin-top: var(--sp-12); padding: 0 var(--sp-12); border-radius: var(--r-control); background: var(--surface); }
 .sel-bar.is-sticky { position: sticky; top: var(--topbar-h); z-index: 6; }
 .sel-bar .grow { flex: 1; min-width: 0; }
@@ -1216,6 +1236,7 @@ button.tx-settled-row:focus-visible { outline-offset: -2px; }
   .toolbar .search { min-width: 0; }
   .chips { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
   .chip { flex: none; }
+  .tag-option { min-height: 44px; }
   .sel-bar.is-sticky { top: 56px; }
   .sel-bar { padding: var(--sp-8) var(--sp-12); }
   .tx-list.is-selecting .day-h { top: calc(56px + 48px); }

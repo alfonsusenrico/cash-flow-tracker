@@ -7,6 +7,7 @@ import { useRefreshTransactionViews } from "@/components/transactions/useTransac
 import { KindAmount, bucketName, jakartaDay } from "@/components/transactions/rows";
 import { useMoney } from "@/components/workspace/money";
 import { useToast } from "@/components/workspace/overlays";
+import { Icon } from "@/components/ui/Icon";
 import { api, ApiError } from "@/lib/api";
 import { isCreditAccountChoice } from "@/lib/accountOptions";
 import {
@@ -112,7 +113,10 @@ export function SentenceView({
     const { amount, description, time_label: when } = recorded.summary;
     const label = [description, amount !== null ? money(amount) : null].filter(Boolean).join(" ");
     const undoOpen = undoStillOpen(recorded.undo_until);
+    const tags = recorded.transaction?.tags ?? [];
+    const detail = tags.length > 0 ? <RecordedTags names={tags.map((tag) => tag.name)} /> : undefined;
     showToast(t("toast.recorded", { label, when: when || "none" }), undoOpen ? {
+      detail,
       onUndo: () => {
         undoCapture(recorded.id)
           .then(() => {
@@ -121,7 +125,7 @@ export function SentenceView({
           })
           .catch((failure) => showToast(failure instanceof ApiError ? failure.message : t("toast.undoFailed")));
       },
-    } : undefined);
+    } : { detail });
   };
 
   const handle = (next: Capture) => {
@@ -256,6 +260,22 @@ export function SentenceView({
       </div>
       {error && <p role="alert" className="form-alert">{error}</p>}
     </div>
+  );
+}
+
+/** The tags a capture was recorded with, as small chips under the toast's text; the names are shown as text only. */
+function RecordedTags({ names }: { names: string[] }) {
+  const t = useTranslations("capture.toast");
+  return (
+    <span className="toast-tags">
+      <span className="sr-only">{t("tags")}</span>
+      <Icon name="tag" className="h-3 w-3" />
+      {names.map((name) => (
+        <span key={name} className="chip is-static">
+          <span className="lbl">{name}</span>
+        </span>
+      ))}
+    </span>
   );
 }
 

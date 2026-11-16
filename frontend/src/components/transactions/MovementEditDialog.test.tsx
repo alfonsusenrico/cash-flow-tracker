@@ -77,6 +77,10 @@ describe("Ubah pindah saldo (D16)", () => {
     const patch = requests.find((request) => request.method === "PATCH");
     expect(patch).toMatchObject({ path: "/movements/movement-1", body: { source_account_id: "account-source", target_account_id: "account-target", amount: 750, notes: "Move reserve" } });
     expect(new Date((patch!.body as { date: string }).date).toISOString()).toBe("2026-09-20T12:00:27.000Z");
+    // Movements take no tags (transaction-tags), so the save never sends a tag field.
+    expect(patch!.body).not.toHaveProperty("tag_ids");
+    expect(patch!.body).not.toHaveProperty("new_tags");
+    expect(within(dialog).queryByRole("combobox", { name: "Tag (opsional)" })).not.toBeInTheDocument();
   });
 
   it("splits a wrongly paired movement after a confirmation in the footer", async () => {

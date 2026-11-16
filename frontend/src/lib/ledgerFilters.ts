@@ -34,6 +34,8 @@ export interface LedgerFilters {
   source: LedgerSourceFilter;
   /** The rows behind the Tinjau badge (URL `waiting=1`). */
   waiting: boolean;
+  /** Rows carrying any of these tag IDs (URL `tag`, repeated; transaction-tags D3). */
+  tags: string[];
 }
 
 export const DEFAULT_LEDGER_FILTERS: LedgerFilters = {
@@ -50,6 +52,7 @@ export const DEFAULT_LEDGER_FILTERS: LedgerFilters = {
   dup: false,
   source: "all",
   waiting: false,
+  tags: [],
 };
 
 // Matches the backend's period_offset bounds.
@@ -58,6 +61,8 @@ const MAX_OFFSET = 12;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO_INSTANT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}:\d{2})$/;
 const MAX_SEARCH_LENGTH = 100;
+/** The server takes at most 50 `tag` values; a picker chooses at most 10. */
+const MAX_TAG_FILTERS = 10;
 
 function instantOrNull(value: string | null): string | null {
   return value && ISO_INSTANT_PATTERN.test(value) && !Number.isNaN(Date.parse(value)) ? value : null;
@@ -91,6 +96,7 @@ export function parseLedgerFilters(params: URLSearchParams | null): LedgerFilter
     dup: params.get("dup") === "1",
     source: oneOf(params.get("source"), ["notification", "capture"] as const, "all"),
     waiting: params.get("waiting") === "1",
+    tags: [...new Set(params.getAll("tag").filter((tag) => UUID_PATTERN.test(tag)))].slice(0, MAX_TAG_FILTERS),
   };
 }
 
@@ -113,6 +119,7 @@ export function ledgerFilterQuery(filters: Partial<LedgerFilters>): string {
   if (merged.dup) params.set("dup", "1");
   if (merged.source !== "all") params.set("source", merged.source);
   if (merged.waiting) params.set("waiting", "1");
+  for (const tag of merged.tags) params.append("tag", tag);
   return params.toString();
 }
 
@@ -139,6 +146,7 @@ export function ledgerApiParams(filters: LedgerFilters): URLSearchParams {
   if (filters.dup) params.set("possible_duplicates", "true");
   if (filters.source !== "all") params.set("source", filters.source);
   if (filters.waiting) params.set("waiting", "true");
+  for (const tag of filters.tags) params.append("tag", tag);
   return params;
 }
 
@@ -154,14 +162,15 @@ export function hasDateRange(filters: LedgerFilters): boolean {
 export function listsLogicalMovements(filters: LedgerFilters, search: string): boolean {
   const tabKeepsMovements = filters.type !== "expense" && filters.type !== "income";
   return tabKeepsMovements && !search.trim() && filters.category === "all" && filters.kakeibo === "all"
-    && filters.account === "all" && filters.review === "all" && !filters.dup && filters.source === "all" && !filters.waiting;
+    && filters.account === "all" && filters.review === "all" && !filters.dup && filters.source === "all" && !filters.waiting
+    && filters.tags.length === 0;
 }
 
 /** How many filters "Filter" counts (D7): every active filter except the search text and the type and period. */
 export function activeFilterCount(filters: LedgerFilters): number {
   return [
     filters.account !== "all", filters.category !== "all", filters.kakeibo !== "all", filters.review !== "all",
-    filters.source !== "all", filters.waiting, filters.dup, hasDateRange(filters),
+    filters.source !== "all", filters.waiting, filters.dup, hasDateRange(filters), filters.tags.length > 0,
   ].filter(Boolean).length;
 }
 

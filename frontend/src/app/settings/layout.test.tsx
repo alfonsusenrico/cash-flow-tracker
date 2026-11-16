@@ -24,7 +24,7 @@ function renderAt(pathname: string) {
 }
 
 const TITLES = [
-  "HP & perangkat", "Kebiasaan", "Tampilan", "Profil", "Gaji & siklus", "Mata uang & anggaran", "Pemetaan notifikasi",
+  "HP & perangkat", "Kebiasaan", "Tampilan", "Profil", "Gaji & siklus", "Mata uang & anggaran", "Tag", "Pemetaan notifikasi",
   "Nama pengirim", "Sesi uji",
 ];
 
@@ -35,14 +35,14 @@ describe("Pengaturan rail", () => {
     vi.clearAllMocks();
   });
 
-  it("lists the nine sections in three labelled groups and marks HP & perangkat current at /settings", async () => {
+  it("lists the ten sections in three labelled groups and marks HP & perangkat current at /settings", async () => {
     const { container } = renderAt("/settings");
     const rail = screen.getByRole("navigation", { name: "Bagian pengaturan" });
     expect(within(rail).getAllByRole("link").map((link) => link.textContent)).toEqual(TITLES);
     expect(within(rail).getByRole("link", { name: "HP & perangkat" })).toHaveAttribute("aria-current", "page");
     expect(within(within(rail).getByRole("list", { name: "Perangkat" })).getAllByRole("link")).toHaveLength(2);
     expect(within(within(rail).getByRole("list", { name: "Tampilan" })).getAllByRole("link")).toHaveLength(1);
-    expect(within(within(rail).getByRole("list", { name: "Akun" })).getAllByRole("link")).toHaveLength(6);
+    expect(within(within(rail).getByRole("list", { name: "Akun" })).getAllByRole("link")).toHaveLength(7);
     expect(screen.queryByRole("link", { name: "Semua pengaturan" })).not.toBeInTheDocument();
     expect(screen.getAllByRole("navigation")).toHaveLength(1);
     expect(container.querySelector(".set")).not.toBeNull();
@@ -50,7 +50,7 @@ describe("Pengaturan rail", () => {
   });
 
   it("keeps every section address and marks only the open one current", () => {
-    for (const slug of ["perangkat", "kebiasaan", "tampilan", "profil", "gaji", "anggaran", "pemetaan", "pengirim", "sesi-uji"]) {
+    for (const slug of ["perangkat", "kebiasaan", "tampilan", "profil", "gaji", "anggaran", "tag", "pemetaan", "pengirim", "sesi-uji"]) {
       const view = renderAt(`/settings/${slug}`);
       const rail = screen.getByRole("navigation", { name: "Bagian pengaturan" });
       expect(within(rail).getByRole("link", { current: "page" })).toHaveAttribute("href", `/settings/${slug}`);
@@ -82,7 +82,7 @@ describe("Pengaturan rail", () => {
     renderWithIntl(<SettingsLayout>{probe}</SettingsLayout>, { language: "en" });
     const rail = screen.getByRole("navigation", { name: "Settings sections" });
     expect(within(rail).getAllByRole("link").map((link) => link.textContent)).toEqual([
-      "Phone & devices", "Habits", "Appearance", "Profile", "Salary & cycle", "Currency & budget", "Notification mapping",
+      "Phone & devices", "Habits", "Appearance", "Profile", "Salary & cycle", "Currency & budget", "Tags", "Notification mapping",
       "Sender names", "Test session",
     ]);
     expect(within(rail).getByRole("list", { name: "Account" })).toBeInTheDocument();

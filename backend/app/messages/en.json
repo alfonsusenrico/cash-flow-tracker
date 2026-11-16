@@ -304,7 +304,12 @@
     "model_uncertain": "The automatic interpreter is not sure about this notification. Retry, or choose the account and category and record it manually.",
     "reimbursement_link_count": "Choose 1 to {limit} transactions this repays.",
     "reimbursement_link_invalid": "Choose spending transactions that are not transfers and count in the budget.",
-    "reimbursement_rest_category": "Choose an income category for the rest."
+    "reimbursement_rest_category": "Choose an income category for the rest.",
+    "tag_not_found": "Tag not found.",
+    "tag_limit": "A transaction can have at most {limit} tags.",
+    "tag_name_invalid": "A tag name must be 1 to {max_length} characters.",
+    "tag_name_taken": "A tag with this name already exists.",
+    "tag_merge_same": "A tag cannot be merged into itself."
   },
   "error_messages": {
     "product_not_found": "Product not found.",

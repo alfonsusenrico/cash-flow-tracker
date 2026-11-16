@@ -1,5 +1,5 @@
 from datetime import date, datetime, time, timedelta, timezone
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -64,6 +64,9 @@ from app.services.report_windows import PERIOD_PATTERN, get_timeframe_window
 from app.services.saving_flow import counts_as_saving_sql, credit_row_sql, row_saving_flow_sql, saving_flow_joins
 from app.services.system_categories import (
     INTERNAL_MOVEMENT, INVESTMENT, is_system_sql, non_reportable_sql, reportable_key_sql,
+)
+from app.services.tags import (
+    attached_tag_ids, resolve_tag_set, row_tags_sql, set_transaction_tags, tag_filter_sql,
 )
 from app.services.transaction_text import TransactionTextInput, text_fields
 
@@ -257,13 +260,29 @@ def local_day_bounds(days: list[date]) -> tuple[datetime, datetime]:
     return datetime.combine(min(days), time.min, zone), datetime.combine(max(days) + timedelta(days=1), time.min, zone)
 
 
+class TransactionTagsInput(BaseModel):
+    """Existing tags by ID and new tags by name; the tag rules answer with `tag_*` codes (transaction-tags D2)."""
+
+    tag_ids: list[UUID] | None = Field(default=None, max_length=50)
+    new_tags: list[Annotated[str, Field(max_length=200)]] | None = Field(default=None, max_length=50)
+
+    def has_tags(self) -> bool:
+        return bool(self.tag_ids or self.new_tags)
+
+    def tag_fields_sent(self) -> bool:
+        return bool({"tag_ids", "new_tags"} & self.model_fields_set)
+
+    def requested_tag_ids(self) -> list[str]:
+        return [str(tag_id) for tag_id in self.tag_ids or []]
+
+
 class CreditTermsInput(BaseModel):
     # The range is checked by the service so the refusal carries `credit_terms_count_range`.
     installment_count: int = 1
     first_due_date: date | None = None
 
 
-class TransactionCreate(TransactionClassificationInput, TransactionTextInput):
+class TransactionCreate(TransactionClassificationInput, TransactionTextInput, TransactionTagsInput):
     account_id: UUID | None = None
     account_name: str | None = Field(default=None, max_length=100)
     type: str = Field(pattern="^(expense|income)$")
@@ -287,7 +306,7 @@ class TransactionCreate(TransactionClassificationInput, TransactionTextInput):
     credit_terms: CreditTermsInput | None = None
 
 
-class TransactionUpdate(TransactionClassificationInput, TransactionTextInput):
+class TransactionUpdate(TransactionClassificationInput, TransactionTextInput, TransactionTagsInput):
     account_id: UUID | None = None
     category_id: UUID | None = None
     type: str | None = Field(default=None, pattern="^(expense|income)$")
@@ -319,6 +338,7 @@ def list_transactions(
     q: str | None = None,
     logical_movements: bool = False,
     waiting: bool = False,
+    tag: list[UUID] | None = Query(default=None, max_length=50),
     include: str | None = Query(default=None, max_length=100),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -368,6 +388,9 @@ def list_transactions(
                 params.extend([str(obligation_id), str(obligation_id)])
             if waiting:
                 conditions.append(waiting_row_sql("t"))
+            if tag:
+                conditions.append(tag_filter_sql("t"))
+                params.append([str(tag_id) for tag_id in tag])
             if kakeibo_type and isinstance(kakeibo_type, str):
                 # "unclassified" selects expenses with neither a row nor a category pillar.
                 conditions.append(f"{pillar_bucket_sql()} = %s")
@@ -396,7 +419,7 @@ def list_transactions(
             # movement (its outbound leg, or the only leg), so Transaksi's tab and day counts match its rows.
             if logical_movements and not any((
                 account_id, category_id, goal_id, obligation_id, type not in LOGICAL_MOVEMENT_TYPES,
-                kakeibo_type, source, review_status, q, uncategorized, possible_duplicates, waiting,
+                kakeibo_type, source, review_status, q, uncategorized, possible_duplicates, waiting, tag,
             )):
                 conditions.append(
                     """(
@@ -446,7 +469,10 @@ def list_transactions(
             total = agg["total"]
             # Offsets apply where the filtered rows are exactly what a report figure covers.
             offset_scope = None
-            if not any((account_id, goal_id, obligation_id, source, review_status, q, uncategorized, possible_duplicates, waiting)) \
+            if not any((
+                account_id, goal_id, obligation_id, source, review_status, q, uncategorized, possible_duplicates, waiting,
+                tag,
+            )) \
                     and type in (None, "expense"):
                 offset_scope = {"category_id": str(category_id) if category_id else None, "pillar": kakeibo_type}
             cumulative = ledger_cash_flow(
@@ -462,7 +488,7 @@ def list_transactions(
             saving_net = None
             if type == "saving" and not any((
                 account_id, category_id, goal_id, obligation_id, kakeibo_type, source, review_status, q,
-                uncategorized, possible_duplicates, waiting,
+                uncategorized, possible_duplicates, waiting, tag,
             )):
                 saving_net = ledger_saving_net(cur, user_id, from_date, to_date)
             cumulative = {**cumulative, "saving_net": saving_net}
@@ -511,6 +537,7 @@ def list_transactions(
                     {row_saving_flow_sql("t")} AS saving_flow,
                     t.created_at,
                     (t.date AT TIME ZONE %s)::date AS local_date,
+                    {row_tags_sql("t")} AS tags,
                     {PROVENANCE_SELECT}
                 FROM transactions t
                 JOIN accounts sa ON sa.id = t.account_id
@@ -601,6 +628,7 @@ def list_transactions(
                 "transfer_target_account_parent_name": r.get("movement_target_account_parent_name"),
                 "amount": r["amount"],
                 **text_fields(r),
+                "tags": r["tags"],
                 "date": r["date"].isoformat() if r["date"] else None,
                 "local_date": r["local_date"].isoformat(),
                 "receipt_path": r["receipt_path"],
@@ -980,7 +1008,8 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                     kakeibo_val = crow.get("kakeibo_type")
 
             if payload.investment_action:
-                if payload.merchant or payload.review_status or payload.offset_category_id:
+                # A trade is a movement, and movement legs carry no tags.
+                if payload.merchant or payload.review_status or payload.offset_category_id or payload.has_tags():
                     raise api_error(422, ErrorCode.TRADE_FIELDS_NOT_ALLOWED)
                 if target_account_id is None:
                     raise api_error(400, ErrorCode.TRADE_TARGET_REQUIRED)
@@ -1074,6 +1103,9 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
             if allocation_values:
                 debts = lock_debts(cur, user_id, [debt_id for debt_id, _ in allocation_values])
                 validate_debt_capacity(debts, allocation_values)
+            tag_ids = []
+            if payload.has_tags():
+                tag_ids = resolve_tag_set(cur, user_id, payload.requested_tag_ids(), payload.new_tags or [])
 
             # Insert transaction
             cur.execute(
@@ -1107,6 +1139,8 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                 ),
             )
             created = cur.fetchone()
+            if tag_ids:
+                set_transaction_tags(cur, user_id, str(created["id"]), tag_ids)
             if payload.credit_terms is not None:
                 set_purchase_terms(
                     cur, user_id, lock_purchase(cur, user_id, str(created["id"])),
@@ -1198,6 +1232,7 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
                     t.created_at,
                     (t.date AT TIME ZONE %s)::date AS local_date,
                     {waiting_row_sql("t")} AS waiting,
+                    {row_tags_sql("t")} AS tags,
                     {PROVENANCE_SELECT}
                 FROM transactions t
                 JOIN accounts sa ON sa.id = t.account_id
@@ -1255,6 +1290,7 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
             "transfer_target_account_parent_name": r.get("movement_target_account_parent_name"),
             "amount": r["amount"],
             **text_fields(r),
+            "tags": r["tags"],
             "date": r["date"].isoformat() if r["date"] else None,
             "receipt_path": r["receipt_path"],
             "created_at": r["created_at"].isoformat() if r["created_at"] else None,
@@ -1521,6 +1557,12 @@ def update_transaction(
                 new_review_status = old_tx["review_status"]
             owner_assignments = f", {OWNER_EDIT_ASSIGNMENTS}" if classification_changed else ""
             before_classification = snapshot_rows(cur, user_id, [tid]) if classification_changed else {}
+            new_tag_ids = None
+            if payload.tag_fields_sent():
+                new_tag_ids = resolve_tag_set(
+                    cur, user_id, payload.requested_tag_ids(), payload.new_tags or [],
+                    attached=attached_tag_ids(cur, tid),
+                )
 
             # 4. Update the transaction row
             cur.execute(
@@ -1569,6 +1611,8 @@ def update_transaction(
             )
             if classification_changed:
                 record_owner_corrections(cur, user_id, before_classification)
+            if new_tag_ids is not None:
+                set_transaction_tags(cur, user_id, tid, new_tag_ids)
             edited = lock_purchase(cur, user_id, tid)
             credit_terms_reset = terms_after_edit(
                 cur, user_id, tid, still_credit_purchase=is_credit_purchase(edited),

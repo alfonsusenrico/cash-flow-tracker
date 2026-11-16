@@ -134,7 +134,7 @@ def test_model_reads_a_flagged_phrase_even_when_memory_classifies(client, parkin
     assert (row["amount"], row["classified_by"]) == (10_000, "rule")
     stored = query("SELECT classifier, model_calls, prompt_version FROM text_captures WHERE id = %s",
                    (recorded["id"],))[0]
-    assert dict(stored) == {"classifier": "memory", "model_calls": 1, "prompt_version": "capture-normalization-2"}
+    assert dict(stored) == {"classifier": "memory", "model_calls": 1, "prompt_version": "capture-normalization-3"}
 
 
 @pytest.mark.parametrize("span, moment, confidence, first_label", [

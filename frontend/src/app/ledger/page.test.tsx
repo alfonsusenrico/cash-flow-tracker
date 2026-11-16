@@ -415,6 +415,57 @@ describe("Toolbar, chips and the Filter dialog", () => {
   });
 });
 
+describe("Tag filter (transaction-tags D3)", () => {
+  const COACH = "aaaaaaaa-1111-4111-8111-111111111111";
+  const MALANG = "bbbbbbbb-2222-4222-8222-222222222222";
+  const OLD = "cccccccc-3333-4333-8333-333333333333";
+
+  beforeEach(() => {
+    const listed = vi.mocked(api.get).getMockImplementation()!;
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === "/tags?include_archived=1") {
+        return { ok: true, tags: [
+          { id: COACH, name: "fellowship coach", archived: false, transaction_count: 5 },
+          { id: MALANG, name: "Malang trip", archived: false, transaction_count: 1 },
+          { id: OLD, name: "Kantor lama", archived: true, transaction_count: 3 },
+        ] };
+      }
+      return listed(path);
+    });
+  });
+
+  it("sends every tag in the URL to the list and removes one with its chip", async () => {
+    const { user } = renderPage(`/ledger?period=cycle&tag=${COACH}&tag=${MALANG}`);
+    await findRow(/Kedai Awan/);
+    expect(new URLSearchParams(listCalls().at(-1)!.split("?")[1]).getAll("tag")).toEqual([COACH, MALANG]);
+    expect(listCalls().at(-1)).not.toContain("logical_movements");
+    const chips = screen.getByRole("group", { name: "Filter aktif" });
+    await waitFor(() => expect(chips).toHaveTextContent("Tag: fellowship coach"));
+    expect(screen.getByRole("button", { name: "Filter, 1 aktif" })).toBeInTheDocument();
+    await user.click(within(chips).getByRole("button", { name: "Hapus filter Tag: fellowship coach" }));
+    expect(here()).toBe(`/ledger?period=cycle&tag=${MALANG}`);
+    await waitFor(() => expect(new URLSearchParams(listCalls().at(-1)!.split("?")[1]).getAll("tag")).toEqual([MALANG]));
+  });
+
+  it("picks a tag, archived ones included, in the Filter dialog without offering to create one", async () => {
+    const { user } = renderPage();
+    await findRow(/Kedai Awan/);
+    await user.click(screen.getByRole("button", { name: "Filter" }));
+    const dialog = await screen.findByRole("dialog", { name: "Filter transaksi" });
+    const field = within(dialog).getByRole("combobox", { name: "Tag" });
+    await user.type(field, "kantor");
+    const tagOptions = () => within(document.getElementById("ledger-filter-tags-list")!).queryAllByRole("option", { hidden: true });
+    expect(tagOptions().map((option) => option.textContent)).toEqual(["Kantor lamadiarsipkan"]);
+    await user.keyboard("{Enter}");
+    await user.type(field, "baru sekali");
+    expect(tagOptions()).toHaveLength(0);
+    await user.clear(field);
+    await user.click(within(dialog).getByRole("button", { name: "Terapkan" }));
+    expect(here()).toBe(`/ledger?period=cycle&tag=${OLD}`);
+    await waitFor(() => expect(screen.getByRole("group", { name: "Filter aktif" })).toHaveTextContent("Tag: Kantor lama"));
+  });
+});
+
 describe("States", () => {
   it("says nothing matches and clears every filter but the period", async () => {
     pages = [[]];
