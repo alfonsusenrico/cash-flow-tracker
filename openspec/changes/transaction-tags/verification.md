@@ -11,7 +11,7 @@ Tested on 2026-11-16, branch `feat/tags` at `8bbf8b66` (base `8ad55484`) plus th
 | `git diff --check` | clean |
 | `openspec validate --all --strict` | 86 passed, 0 failed |
 | Capture tag benchmark, offline (`python -m evaluation.capture_tag_benchmark`, `tests/test_capture_tag_benchmark.py`) | 13 cases build; scoring tests pass |
-| Capture tag benchmark, live | not run: it makes paid calls and waits for the owner's OK (task 2.2) |
+| Capture tag benchmark, live (owner's OK 2026-11-16; `gpt-6-luna`, effort `none`, `capture-normalization-3`, Indonesian, 3 repeats) | 39 of 39 correct: no unwanted tag, no duplicate, no missed tag, no invalid answer; 0 names repeat the tag words; observed cost US$0.022. Output: `research/evidence/transaction-tags/capture-tag-benchmark-live.json` |
 
 ## Scenario evidence
 
@@ -43,7 +43,7 @@ Selected captures are in `research/evidence/transaction-tags/`.
 
 ## Not verified
 
-- **Tags on an AI result in the browser.** The browser run had the model off. The recorded result's tags are covered by the backend tests (fake provider) and `SentenceView.test.tsx`; the live model's reading is what the benchmark (task 2.2) measures.
+- **Tags on an AI result in the browser.** The browser run had the model off. The recorded result's tags are covered by the backend tests (fake provider) and `SentenceView.test.tsx`; the live model's reading is measured by the benchmark above.
 - **Saving from Catat in the browser.** The picker was exercised in the browser; the save path is covered by `ManualView.test.tsx` and the API tests.
 - **The companion.** A capture typed on the phone gets its tags on the server like one from the web, and the API result carries `tags`. Design D4 also says the companion's recorded result lists them, but `tasks.md` has no companion task and no companion code changed: the phone does not show the tags yet.
 

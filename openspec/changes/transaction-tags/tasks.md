@@ -9,7 +9,7 @@ Expected Result: tags exist, attach, filter and total.
 ## 2. AI text capture
 
 - [x] 2.1 Context with active tags, schema `tags`, backend checks, tags recorded on send and removed by undo when the capture created them; prompt `capture-normalization-3` in both languages. Evidence: tests with a fake provider for every scenario of "Tags in AI Text Capture", including a foreign ID, a span not in the text and a duplicate new name.
-- [ ] 2.2 Synthetic benchmark cases (prefix, hashtag, instruction, near-duplicate, none) in `backend/evaluation/capture_tag_benchmark.py`, then one paid run with the owner's OK. Evidence: scores and cost in `verification.md`; existing capture cases do not regress.
+- [x] 2.2 Synthetic benchmark cases (prefix, hashtag, instruction, near-duplicate, none) in `backend/evaluation/capture_tag_benchmark.py`, then one paid run with the owner's OK. Evidence: scores and cost in `verification.md`; existing capture cases do not regress.
 
 Expected Result: the AI reuses tags and never creates one without the owner.
 
