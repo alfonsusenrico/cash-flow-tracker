@@ -7,6 +7,7 @@ import com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureOp
 import com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureQuestion
 import com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureSummary
 import com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureSuggestion
+import com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureTag
 import com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureTransaction
 import com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureView
 import com.alfonsusenrico.financialtracker.listener.data.textcapture.TextCaptures
@@ -36,22 +37,25 @@ object CaptureFixtures {
         transactionId = view?.transaction?.id, undoDeadline = undoDeadline, attempts = attempts, errorCode = error, edited = edited
     )
 
-    private fun transaction(id: Long, type: String, amount: Long, merchant: String, account: String, category: String?, kakeibo: String?, hour: Int, date: LocalDate) =
-        CaptureTransaction(
-            id = uuid(3000 + id.toInt()), type = type, amount = amount, date = time(hour, date).toOffsetDateTime().toString(),
-            accountName = account, merchant = merchant, name = merchant, categoryName = category, kakeibo = kakeibo, source = "capture"
-        )
+    private fun transaction(
+        id: Long, type: String, amount: Long, merchant: String, account: String, category: String?, kakeibo: String?, hour: Int, date: LocalDate,
+        tags: List<String>? = null
+    ) = CaptureTransaction(
+        id = uuid(3000 + id.toInt()), type = type, amount = amount, date = time(hour, date).toOffsetDateTime().toString(),
+        accountName = account, merchant = merchant, name = merchant, categoryName = category, kakeibo = kakeibo, source = "capture",
+        tags = tags?.mapIndexed { index, name -> CaptureTag(uuid(9000 + index), name) }
+    )
 
     fun recorded(
         id: Long = 1, text: String = "bayar parkir contoh 10rb", amount: Long = 10_000, merchant: String = "Parkir Contoh",
         type: String = "expense", category: String? = "Parkir", undoDeadline: Long? = NOW + 10_000, hour: Int = 9,
-        date: LocalDate = today, edited: Boolean = false
+        date: LocalDate = today, edited: Boolean = false, tags: List<String>? = null
     ) = entity(
         id, text, TextCaptureState.RECORDED,
         CaptureView(
             id = uuid(2000 + id.toInt()), status = "recorded", text = text,
             summary = CaptureSummary(type, amount, date.toString(), merchant),
-            transaction = transaction(id, type, amount, merchant, "Tunai", category, if (type == "expense") "need" else null, hour, date)
+            transaction = transaction(id, type, amount, merchant, "Tunai", category, if (type == "expense") "need" else null, hour, date, tags)
         ),
         undoDeadline = undoDeadline, hour = hour, edited = edited
     )

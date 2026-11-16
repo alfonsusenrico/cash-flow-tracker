@@ -38,6 +38,39 @@ class CaptureModelTest {
         assertNull(older.note)
     }
 
+    @Test fun aRecordedCaptureReadsItsTagsAndToleratesTrackersWithout() {
+        val gson = com.google.gson.Gson()
+        val tagged = gson.fromJson(
+            """{"id":"t","type":"expense","amount":45000,"tags":[{"id":"a","name":"fellowship coach"},{"id":"b","name":" Malang trip "},{"id":"c","name":" "}]}""",
+            com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureTransaction::class.java
+        )
+        assertEquals(listOf("fellowship coach", " Malang trip ", " "), tagged.tags?.map { it.name })
+        assertEquals(
+            listOf("fellowship coach", "Malang trip"),
+            CapturePresentation.of(CaptureFixtures.recorded(tags = listOf("fellowship coach", " Malang trip ", " "))).tags
+        )
+        assertEquals(emptyList<String>(), CapturePresentation.of(CaptureFixtures.recorded(tags = emptyList())).tags)
+        // A tracker before tags, or a capture stored before this version, has no "tags" field.
+        val older = gson.fromJson(
+            """{"id":"t","type":"expense","amount":10000,"name":"Parkir Contoh"}""",
+            com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureTransaction::class.java
+        )
+        assertNull(older.tags)
+        assertEquals(emptyList<String>(), CapturePresentation.of(CaptureFixtures.recorded()).tags)
+        assertEquals(emptyList<String>(), CapturePresentation.of(CaptureFixtures.movement()).tags)
+    }
+
+    @Test fun anEditOnThePhoneNeverSendsTagFields() {
+        // The tracker replaces a transaction's tags only when "tag_ids" or "new_tags" is present, even as null.
+        val request = com.alfonsusenrico.financialtracker.listener.data.network.model.TransactionUpdateRequest(
+            type = "expense", amount = 45_000, accountId = "a", categoryId = "c", name = "Makan", date = "2026-11-16"
+        )
+        val json = com.google.gson.Gson().toJson(request)
+        assertFalse(json.contains("tag_ids"))
+        assertFalse(json.contains("new_tags"))
+        assertFalse(json.contains("tags"))
+    }
+
     @Test fun textFollowsTheBackendBounds() {
         assertEquals("parkir 10rb", CaptureText.normalize(" parkir\t\n 10rb "))
         assertEquals("kopi", CaptureText.normalize("\uFF4B\uFF4F\uFF50\uFF49"))
