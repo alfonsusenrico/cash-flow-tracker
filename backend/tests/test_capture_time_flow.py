@@ -199,7 +199,7 @@ def test_notification_rows_keep_their_post_time(client, notification_owner):
 def test_database_rejects_unknown_time_basis_and_stray_evidence(client, owner):
     import psycopg
     from app.db.pool import db_conn
-    insert = """INSERT INTO transactions (user_id, account_id, type, amount, notes, source, review_status,
+    insert = """INSERT INTO transactions (user_id, account_id, type, amount, name, source, review_status,
                                           classified_by, time_basis, time_evidence)
                 VALUES (%s, %s, 'expense', 1000, 'Contoh', 'capture', 'reviewed', 'owner', %s, %s)"""
     with db_conn() as conn:

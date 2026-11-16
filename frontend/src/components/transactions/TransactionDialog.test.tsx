@@ -29,7 +29,7 @@ function settled(overrides: Partial<CreditSettledItem>): CreditSettledItem {
 function payment(credit: Partial<CreditBlock>): LedgerRowDetail {
   return {
     id: "payment-1", type: "income", amount: 500_000, account_id: "spaylater", account_name: "SPayLater", category_id: null, category_name: "Transfer",
-    category_system_key: "internal_movement", notes: "Bayar SPayLater", date: "2026-11-07T05:00:00.000Z", movement_id: "movement-1", movement_role: "inbound",
+    category_system_key: "internal_movement", name: "Bayar SPayLater", date: "2026-11-07T05:00:00.000Z", movement_id: "movement-1", movement_role: "inbound",
     transfer_target_account_id: "jago", transfer_target_account_name: "Jago", goal_id: null, goal_name: null, obligation_id: null, obligation_name: null,
     receipt_path: null, created_at: "2026-11-07T05:00:00.000Z", review_status: "reviewed",
     credit: { role: "payment", account_id: "spaylater", account_name: "SPayLater", ...credit },
@@ -38,7 +38,7 @@ function payment(credit: Partial<CreditBlock>): LedgerRowDetail {
 
 const purchase = {
   id: "purchase-1", type: "expense", amount: 300_000, account_id: "spaylater", account_name: "SPayLater", category_id: null, category_name: "Makan",
-  merchant: "Kopi Senja", notes: null, date: "2026-11-05T05:00:00.000Z", goal_id: null, goal_name: null, obligation_id: null, obligation_name: null,
+  merchant: "Kopi Senja", name: null, date: "2026-11-05T05:00:00.000Z", goal_id: null, goal_name: null, obligation_id: null, obligation_name: null,
   receipt_path: null, created_at: "2026-11-05T05:00:00.000Z", review_status: "reviewed",
   credit: { role: "purchase", account_id: "spaylater", account_name: "SPayLater", installment_count: 1, settled_on: "2026-11-07", days_to_settle: 2 },
 } as LedgerRowDetail;
@@ -189,17 +189,17 @@ describe("What a payment paid (show-credit-status-and-payment-settlement)", () =
 describe("Diganti and Mengganti (link-reimbursements-to-expenses)", () => {
   const expense = {
     id: "coffee", type: "expense", amount: 25_500, account_id: "jago", account_name: "Jago", category_id: "belanja", category_name: "Belanja",
-    notes: "beli kopi titipan mama", merchant: null, date: "2026-10-28T11:34:00.000Z", goal_id: null, goal_name: null, obligation_id: null,
+    name: "beli kopi titipan mama", merchant: null, date: "2026-10-28T11:34:00.000Z", goal_id: null, goal_name: null, obligation_id: null,
     obligation_name: null, receipt_path: null, created_at: "2026-10-28T11:34:00.000Z", review_status: "reviewed",
     reimbursement: { repays: [], unallocated: null, repaid_total: 25_500,
-      repaid_by: [{ transaction_id: "mama", amount: 25_500, date: "2026-10-28T23:35:00.000Z", notes: "Dari ibu", merchant: null }] },
+      repaid_by: [{ transaction_id: "mama", amount: 25_500, date: "2026-10-28T23:35:00.000Z", name: "Dari ibu", merchant: null }] },
   } as LedgerRowDetail;
   const money = {
     id: "mama", type: "income", amount: 100_000, account_id: "jago", account_name: "Jago", category_id: "patungan", category_name: "Patungan & Ganti Uang",
-    notes: "Dari ibu", merchant: null, date: "2026-10-28T23:35:00.000Z", goal_id: null, goal_name: null, obligation_id: null, obligation_name: null,
+    name: "Dari ibu", merchant: null, date: "2026-10-28T23:35:00.000Z", goal_id: null, goal_name: null, obligation_id: null, obligation_name: null,
     receipt_path: null, created_at: "2026-10-28T23:35:00.000Z", review_status: "reviewed",
     reimbursement: { repays: [{ transaction_id: "coffee", amount: 25_500, expense_amount: 25_500, date: "2026-10-28T11:34:00.000Z",
-      notes: "beli kopi titipan mama", merchant: null }], unallocated: 74_500, repaid_by: [], repaid_total: 0 },
+      name: "beli kopi titipan mama", merchant: null }], unallocated: 74_500, repaid_by: [], repaid_total: 0 },
   } as LedgerRowDetail;
 
   beforeEach(() => {

@@ -167,7 +167,7 @@ def materialize_legacy_result(cur, event: dict):
         if outgoing and incoming:
             kind, source, target = "internal_movement", label(outgoing), label(incoming)
     language, _region = account_language(cur, str(event["user_id"]))
-    snapshot = committed_snapshot(key=key, kind=kind, description=anchor.get("notes") or t(language, "notes.transaction"),
+    snapshot = committed_snapshot(key=key, kind=kind, description=anchor.get("name") or t(language, "notes.transaction"),
                                   amount=int(anchor["amount"]), source=source, target=target)
     cur.execute(
         """UPDATE notification_events SET processing_state = 'recorded', result_key = %s,
@@ -607,7 +607,7 @@ def resolve_event(event_id: str, user_id: str, resolution: dict) -> dict:
             context = load_context(cur, user_id, facts, history_limit=settings.notification_ai_history_limit)
             if context["incomplete"]:
                 raise api_error(409, ErrorCode.INCOMPLETE_CONTEXT)
-            description = resolution.get("notes") or sanitize_text(
+            description = resolution.get("name") or sanitize_text(
                 facts.parsed.counterparty or event.get("title") or t(account_language(cur, user_id)[0], "notes.transaction")
             )[:160]
             try:
@@ -619,7 +619,14 @@ def resolve_event(event_id: str, user_id: str, resolution: dict) -> dict:
             except EvidenceError as exc:
                 raise api_error(422, exc.code, message_key="invalid_manual_choice") from None
             cur.execute("SELECT * FROM notification_events WHERE user_id = %s AND id = %s", (user_id, event_id))
-            result = compact_result(cur, cur.fetchone())
+            event = cur.fetchone()
+            # The owner's note is written here, by the owner's request, never by the recording path itself.
+            if resolution.get("note") and event.get("transaction_id"):
+                cur.execute(
+                    "UPDATE transactions SET note = %s, updated_at = NOW() WHERE user_id = %s AND id = %s",
+                    (resolution["note"], user_id, event["transaction_id"]),
+                )
+            result = compact_result(cur, event)
         conn.commit()
     request_plan_linking(user_id)
     return result

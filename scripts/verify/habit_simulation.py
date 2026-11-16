@@ -178,7 +178,7 @@ def simulate(config: Config, scenario: str = "steady", seed: int = 20261031) -> 
 
         def label(kind: str) -> habits.Label:
             return WeightedLabel(
-                transaction_id=f"t{index}", kind=kind, category_id=truth[0], kakeibo=truth[1], notes=None,
+                transaction_id=f"t{index}", kind=kind, category_id=truth[0], kakeibo=truth[1], name=None,
                 merchant=None, amount=payment["amount"], weekday=moment.isoweekday(), hour=moment.hour,
                 created_at=moment,
             )

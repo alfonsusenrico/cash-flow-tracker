@@ -83,14 +83,16 @@ describe("Catat transaksi (manual view)", () => {
 
     await user.type(amountField(), "15000");
     await openDetails(user);
-    await user.type(screen.getByRole("textbox", { name: "Catatan (opsional)" }), "Lunch");
+    await user.type(screen.getByRole("textbox", { name: "Nama transaksi (opsional)" }), "Lunch");
+    await user.type(screen.getByRole("textbox", { name: "Catatan (opsional)" }), "fellowship coach");
     await user.keyboard("{Enter}");
 
+    // The name and the owner's own note travel separately (separate-transaction-name-and-note).
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/transactions", expect.objectContaining({
-      account_id: "account-1", amount: 15_000, category_id: "need-category", kakeibo_type: "need", notes: "Lunch",
+      account_id: "account-1", amount: 15_000, category_id: "need-category", kakeibo_type: "need", name: "Lunch", note: "fellowship coach",
     })));
     const body = vi.mocked(api.post).mock.calls[0][1] as Record<string, unknown>;
-    expect(Object.keys(body).sort()).toEqual(["account_id", "amount", "category_id", "date", "goal_id", "kakeibo_type", "notes", "obligation_id", "type"]);
+    expect(Object.keys(body).sort()).toEqual(["account_id", "amount", "category_id", "date", "goal_id", "kakeibo_type", "name", "note", "obligation_id", "type"]);
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
   });
 
@@ -192,7 +194,7 @@ describe("Catat transaksi (manual view)", () => {
     expect(screen.getByRole("radio", { name: "Keinginan" })).toHaveAttribute("aria-checked", "true");
     await user.type(amountField(), "10000");
     await user.click(submitButton("Simpan transaksi"));
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/transactions", expect.objectContaining({ goal_id: "goal-1", kakeibo_type: "want", notes: null })));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/transactions", expect.objectContaining({ goal_id: "goal-1", kakeibo_type: "want", name: null, note: null })));
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
   });
 
@@ -356,11 +358,13 @@ describe("Catat transaksi (manual view)", () => {
       await openDetails(user);
       await user.selectOptions(screen.getByRole("combobox", { name: "Kaitkan ke target (opsional)" }), "goal-1");
       await user.type(amountField(), "15000");
-      await user.type(screen.getByRole("textbox", { name: "Catatan (opsional)" }), "Move savings");
+      await user.type(screen.getByRole("textbox", { name: "Nama transaksi (opsional)" }), "Move savings");
       await user.click(screen.getByRole("radio", { name: "Perpindahan" }));
 
       expect(amountField()).toHaveValue("15.000");
-      expect(screen.getByRole("textbox", { name: "Catatan (opsional)" })).toHaveValue("Move savings");
+      expect(screen.getByRole("textbox", { name: "Nama transaksi (opsional)" })).toHaveValue("Move savings");
+      // A move has a name only; the owner's note belongs to expenses and income.
+      expect(screen.queryByRole("textbox", { name: "Catatan (opsional)" })).not.toBeInTheDocument();
       expect(screen.getByRole("combobox", { name: "Dari rekening" })).toHaveValue("cash-a");
       expect(screen.getByRole("combobox", { name: "Ke rekening" })).toHaveValue("cash-b");
       expect(screen.queryByRole("combobox", { name: "Kategori" })).not.toBeInTheDocument();
@@ -874,7 +878,7 @@ describe("Catat a reimbursement linked to its expense (link-reimbursements-to-ex
       if (path === "/goals") return { goals: [] };
       if (path === "/obligations") return { obligations: [] };
       if (path.startsWith("/transactions?")) return { transactions: [
-        { id: "main-bl", type: "expense", amount: 80_000, notes: "main BL", merchant: null, account_id: "bca", account_name: "BCA", date: "2026-11-02T11:53:00.000Z" },
+        { id: "main-bl", type: "expense", amount: 80_000, name: "main BL", merchant: null, account_id: "bca", account_name: "BCA", date: "2026-11-02T11:53:00.000Z" },
       ] };
       throw new Error(`Unexpected GET ${path}`);
     });

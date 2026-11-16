@@ -28,7 +28,7 @@ import {
 import type { CaptureMode, FooterState } from "./types";
 
 type FieldKey =
-  | "amount" | "account" | "time" | "notes" | "goal" | "debt" | "source" | "target" | "fee" | "count" | "firstDue";
+  | "amount" | "account" | "time" | "name" | "note" | "goal" | "debt" | "source" | "target" | "fee" | "count" | "firstDue";
 type FieldErrors = Partial<Record<FieldKey, string>>;
 type Submission = { kind: "movement"; payload: CreateMovementPayload } | { kind: "transaction" };
 
@@ -46,14 +46,15 @@ const MOVEMENT_ISSUE: Record<MovementIssueCode, { field: FieldKey; key: Movement
   target_required: { field: "target", key: "targetRequired" },
   amount_invalid: { field: "amount", key: "amountRequired" },
   date_required: { field: "time", key: "transferTimeRequired" },
-  notes_too_long: { field: "notes", key: "noteTooLong" },
+  notes_too_long: { field: "name", key: "noteTooLong" },
   same_account: { field: "target", key: "sameAccount" },
 };
 const FIELD_ID: Record<FieldKey, string> = {
   amount: "capture-amount",
   account: "capture-account",
   time: "capture-date",
-  notes: "capture-notes",
+  name: "capture-name",
+  note: "capture-note",
   goal: "capture-goal",
   debt: "capture-debt-0",
   source: "capture-source",
@@ -64,7 +65,7 @@ const FIELD_ID: Record<FieldKey, string> = {
 };
 const SPLIT_ERROR = { positive: "errors.positive", total: "errors.total" } as const;
 /** Fields inside "Detail tambahan", which opens itself when one of them holds an error (D7). */
-const DETAIL_FIELDS = new Set<FieldKey>(["time", "notes", "goal", "debt"]);
+const DETAIL_FIELDS = new Set<FieldKey>(["time", "name", "note", "goal", "debt"]);
 
 function accountId(account: { id?: unknown; account_id?: unknown }): string {
   return String(account.id ?? account.account_id ?? "");
@@ -130,7 +131,9 @@ export function ManualView({
   const [hasKakeiboOverride, setHasKakeiboOverride] = useState(false);
   const [selectedGoalId, setSelectedGoalId] = useState("");
   const [debtRows, setDebtRows] = useState<DebtAllocationValue[]>([]);
-  const [notes, setNotes] = useState("");
+  // The transaction's name, and the owner's own remark (separate-transaction-name-and-note D3).
+  const [name, setName] = useState("");
+  const [note, setNote] = useState("");
   const [feeStr, setFeeStr] = useState("");
   const [receipt, setReceipt] = useState<File | null>(null);
   const [savedTransactionId, setSavedTransactionId] = useState<string | null>(null);
@@ -267,7 +270,8 @@ export function ManualView({
         ...(type === "expense" && debtRows.length > 1
           ? { obligation_allocations: debtRows.map((row) => ({ obligation_id: row.obligation_id, amount: Number(stripGrouping(row.amount)) })) }
           : {}),
-        notes: notes.trim() || null,
+        name: name.trim() || null,
+        note: note.trim() || null,
         ...(offsetsSpending ? { offset_category_id: links.expenses.length > 0 ? null : offsetCategoryId || null } : {}),
         date: localDatetimeToISO(txDate) || new Date().toISOString(),
         ...(accountIsCredit ? { credit_terms: creditTermsRequest(credit) } : {}),
@@ -328,7 +332,7 @@ export function ManualView({
   });
 
   const submitMovement = () => {
-    const validation = movementFormSchema.safeParse({ sourceAccountId: sourceId, targetAccountId: targetId, amount: parsedAmount, date: txDate, notes: notes.trim() });
+    const validation = movementFormSchema.safeParse({ sourceAccountId: sourceId, targetAccountId: targetId, amount: parsedAmount, date: txDate, notes: name.trim() });
     if (!validation.success) {
       const issue = MOVEMENT_ISSUE[validation.error.issues[0].message as MovementIssueCode];
       return fail(issue.field, t(`errors.${issue.key}`));
@@ -357,7 +361,8 @@ export function ManualView({
       if (parsedAmount <= 0) return fail("amount", amountStr.trim() ? t("errors.amountInvalid") : t("errors.amountRequired"));
       if (!selectedAccount) return fail("account", t("errors.accountRequired"));
       if (!txDate) return fail("time", t("errors.timeRequired"));
-      if (notes.trim().length > 500) return fail("notes", t("errors.noteTooLong"));
+      if (name.trim().length > 500) return fail("name", t("errors.noteTooLong"));
+      if (note.trim().length > 500) return fail("note", t("errors.noteTooLong"));
       if (selectedGoalId && debtRows.some((row) => row.obligation_id)) return fail("goal", t("errors.goalOrDebt"));
       if (debtRows.some((row) => !row.obligation_id || debtRows.filter((item) => item.obligation_id === row.obligation_id).length > 1)) {
         return fail("debt", t("errors.distinctDebts"));
@@ -467,13 +472,23 @@ export function ManualView({
     </div>
   );
 
+  const nameField = (
+    <div className="field">
+      <label htmlFor={FIELD_ID.name}>{t("fields.name")}</label>
+      <input id={FIELD_ID.name} name="name" type="text" maxLength={500} autoComplete="off" placeholder={t("fields.namePlaceholder")} value={name}
+        aria-invalid={errorOf("name") ? true : undefined} aria-describedby={described("name")}
+        onChange={(event) => { setName(event.target.value); clearError("name"); }} className="field-control" />
+      {errorLine("name")}
+    </div>
+  );
+
   const noteField = (
     <div className="field">
-      <label htmlFor={FIELD_ID.notes}>{t("fields.note")}</label>
-      <input id={FIELD_ID.notes} name="notes" type="text" maxLength={500} autoComplete="off" placeholder={t("fields.notePlaceholder")} value={notes}
-        aria-invalid={errorOf("notes") ? true : undefined} aria-describedby={described("notes")}
-        onChange={(event) => { setNotes(event.target.value); clearError("notes"); }} className="field-control" />
-      {errorLine("notes")}
+      <label htmlFor={FIELD_ID.note}>{t("fields.note")}</label>
+      <input id={FIELD_ID.note} name="note" type="text" maxLength={500} autoComplete="off" placeholder={t("fields.notePlaceholder")} value={note}
+        aria-invalid={errorOf("note") ? true : undefined} aria-describedby={described("note")}
+        onChange={(event) => { setNote(event.target.value); clearError("note"); }} className="field-control" />
+      {errorLine("note")}
     </div>
   );
 
@@ -648,6 +663,7 @@ export function ManualView({
                     }} />
                 </div>
               )}
+              {nameField}
               {noteField}
               {receiptField}
             </div>
@@ -681,6 +697,7 @@ export function ManualView({
             </div>
           )}
           {timeField("time")}
+          {nameField}
           {noteField}
           {receiptField}
         </>
@@ -725,7 +742,7 @@ export function ManualView({
             </div>
           )}
           {timeField("transferTime")}
-          {noteField}
+          {nameField}
         </>
       )}
 

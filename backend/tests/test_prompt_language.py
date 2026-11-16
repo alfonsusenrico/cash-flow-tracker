@@ -192,22 +192,22 @@ def test_english_purpose_answer_rejects_a_placeholder(placeholder):
         validate_normalization(purpose_result(placeholder), PURPOSE_CONTEXT, "expense", output_language="en")
     assert str(error.value) == "generic_description"
     checked = validate_normalization(purpose_result("Futsal court rental"), PURPOSE_CONTEXT, "expense", output_language="en")
-    assert checked["notes"] == "Futsal court rental"
+    assert checked["name"] == "Futsal court rental"
 
 
 def test_indonesian_purpose_validation_is_unchanged():
     checked = validate_normalization(purpose_result("Pembayaran"), PURPOSE_CONTEXT, "expense", output_language="id")
-    assert checked["notes"] == "Pembayaran"
+    assert checked["name"] == "Pembayaran"
 
 
 @pytest.mark.parametrize("language,expected", [("en", "Pembayaran QRIS"), ("id", "Payment")])
-def test_english_history_placeholder_keeps_the_rows_notes(language, expected):
+def test_english_history_placeholder_keeps_the_rows_name(language, expected):
     batch = HistorySuggestionBatch.model_validate_json(json.dumps({"suggestions": [{
         "ref": "r1", "merchant": None, "description": "Payment", "category_id": CATEGORY, "kakeibo": "want",
         "offset_category_id": None, "confidence": 0.9, "reason": "Same as your choice for Kedai Awan",
     }]}))
-    row = {"id": UUID(int=7), "type": "expense", "merchant": None, "notes": "Pembayaran QRIS"}
+    row = {"id": UUID(int=7), "type": "expense", "merchant": None, "name": "Pembayaran QRIS"}
     context = {"rows": [{"ref": "r1"}], "offset_categories": [],
                "categories": [{"id": CATEGORY, "kind": "expense", "offsets_spending": False, "default_kakeibo": "want"}]}
     valid, invalid = validated_proposals(batch, [row], context, output_language=language)
-    assert invalid == 0 and valid[0].notes == expected
+    assert invalid == 0 and valid[0].name == expected

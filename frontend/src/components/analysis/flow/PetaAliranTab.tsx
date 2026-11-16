@@ -578,7 +578,7 @@ function LinkRows({ linkKey, basis, offset, through, money, onRow }: { linkKey: 
               onClick={() => onRow(row.id)}
               layout="stacked"
               rowKey={row.id}
-              title={row.merchant || row.notes || row.category_name || t("noDescription")}
+              title={row.merchant || row.name || row.category_name || t("noDescription")}
               meta={`${format.shortDate(row.local_date)} · ${row.account_name}${row.waiting ? ` · ${t("waitingRow")}` : ""}`}
               amount={<KindAmount kind={rowKindOf(row.type)} amount={row.amount} money={money} />}
             />

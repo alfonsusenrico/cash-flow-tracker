@@ -25,6 +25,7 @@ from app.services.prompt_language import PURPOSE_NORMALIZATION, select_prompt
 from app.services.purpose_normalization import InvalidNormalization, validate_normalization
 from app.services.reimbursements import validate_offset_category
 from app.services.system_categories import is_non_reportable
+from app.services.transaction_text import text_fields
 from app.services.review_undo import ActionRecorder, null_token
 
 
@@ -117,7 +118,7 @@ def habit_suggestion(habit: HabitDecision, categories: dict[str, dict], language
     category = categories.get(habit.category_id)
     if not category or category["is_archived"] or category["kind"] != "expense":
         return None
-    values = {"merchant": habit.merchant, "notes": habit.notes or category["name"],
+    values = {"merchant": habit.merchant, "notes": habit.name or category["name"],
               "category_id": habit.category_id, "kakeibo": habit.kakeibo, "offset_category_id": None}
     guess = guess_label(language, category["name"])
     return {**suggestion("habit", values, categories, language), "label": guess["text"][:160],
@@ -378,10 +379,13 @@ def prepare_answer(event_id: str, user_id: str, answer: dict) -> dict:
 
 def answer_values(cur, user_id: str, transaction: dict, chosen: dict | None, normalized: dict | None,
                   text: str | None) -> tuple[dict, str]:
-    """Final values and review status of an answer (design D11, D12)."""
+    """Final column values and review status of an answer (design D11, D12).
+
+    A suggestion carries the name it offers under `notes`, as stored with open questions.
+    """
     direction = transaction["type"]
     if chosen is not None:
-        values = {"merchant": chosen["merchant"], "notes": chosen["notes"] or chosen["label"],
+        values = {"merchant": chosen["merchant"], "name": chosen["notes"] or chosen["label"],
                   "category_id": chosen["category_id"],
                   "kakeibo_type": chosen["kakeibo"] if direction == "expense" else None,
                   "offset_category_id": chosen["offset_category_id"]}
@@ -390,12 +394,12 @@ def answer_values(cur, user_id: str, transaction: dict, chosen: dict | None, nor
     elif normalized is not None and normalized["category_id"]:
         values = normalized
     elif normalized is not None:
-        kept = {"notes": normalized["notes"]}
+        kept = {"name": normalized["name"]}
         if normalized["merchant"]:
             kept["merchant"] = normalized["merchant"]
         return kept, "needs_review"
     else:
-        return {"notes": text}, "needs_review"
+        return {"name": text}, "needs_review"
     cur.execute(
         """SELECT kind, offsets_spending FROM categories
            WHERE user_id = %s AND id = %s AND is_archived = FALSE""",
@@ -459,7 +463,7 @@ def apply_answer(event_id: str, user_id: str, answer: dict, normalized: dict | N
                        result_snapshot = jsonb_set(COALESCE(result_snapshot, '{}'::jsonb), '{description}', to_jsonb(%s::text)),
                        updated_at = NOW()
                    WHERE user_id = %s AND id = %s RETURNING *""",
-                (Jsonb({"purpose_answer": outcome}), (after["notes"] or "")[:160], user_id, event_id),
+                (Jsonb({"purpose_answer": outcome}), (after["name"] or "")[:160], user_id, event_id),
             )
             event = cur.fetchone()
             response = {**answer_response(cur, event, compact_result(cur, event)), **recorder.finish()}
@@ -479,7 +483,8 @@ def answer_response(cur, event: dict, result: dict) -> dict:
         if row:
             summary = {
                 "status": "applied" if stored.get("review_status") == "reviewed" else "needs_review",
-                "transaction_id": str(row["id"]), "merchant": row["merchant"], "notes": row["notes"],
+                "transaction_id": str(row["id"]), "merchant": row["merchant"],
+                "name": row["name"], "notes": row["name"],
                 "category_id": str(row["category_id"]) if row["category_id"] else None,
                 "category_name": row["category_name"], "kakeibo": row["kakeibo_type"],
                 "offset_category_id": str(row["offset_category_id"]) if row["offset_category_id"] else None,
@@ -521,7 +526,7 @@ def list_open_questions(user_id: str, limit: int) -> list[dict]:
         with conn.cursor() as cur:
             cur.execute(
                 """SELECT n.id AS event_id, n.post_time, n.active_question, t.id, t.type, t.amount, t.date,
-                          t.account_id, a.name AS account_name, t.notes, t.merchant, t.category_id,
+                          t.account_id, a.name AS account_name, t.name, t.note, t.merchant, t.category_id,
                           c.name AS category_name, t.kakeibo_type, t.review_status
                    FROM notification_events n
                    JOIN transactions t ON t.user_id = n.user_id
@@ -541,7 +546,7 @@ def list_open_questions(user_id: str, limit: int) -> list[dict]:
             "id": str(row["id"]), "type": row["type"], "amount": row["amount"],
             "date": row["date"].isoformat() if row["date"] else None,
             "account_id": str(row["account_id"]), "account_name": row["account_name"],
-            "notes": row["notes"], "merchant": row["merchant"],
+            **text_fields(row), "merchant": row["merchant"],
             "category_id": str(row["category_id"]) if row["category_id"] else None,
             "category_name": row["category_name"], "kakeibo_type": row["kakeibo_type"],
             "review_status": row["review_status"],

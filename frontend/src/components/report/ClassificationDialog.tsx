@@ -19,7 +19,7 @@ interface Gaps {
     date: string;
     amount: number;
     merchant: string | null;
-    notes: string | null;
+    name: string | null;
     category_name: string | null;
     account_name: string;
   }[];
@@ -177,7 +177,7 @@ export function ClassificationDialog({ open, onClose, scope }: { open: boolean; 
                   <label className="row is-selectable lp-classify-pick">
                     <input type="checkbox" className="r-check" checked={selected.has(row.id)} onChange={() => toggle(row.id)} />
                     <span className="r-main">
-                      <span className="r-title">{row.merchant || row.notes || terms("noDescription")}</span>
+                      <span className="r-title">{row.merchant || row.name || terms("noDescription")}</span>
                       <span className="r-meta">
                         {t("rowMeta", { date: format.shortDate(jakartaDay(row.date)), category: row.category_name ?? terms("noCategory"), account: row.account_name })}
                       </span>

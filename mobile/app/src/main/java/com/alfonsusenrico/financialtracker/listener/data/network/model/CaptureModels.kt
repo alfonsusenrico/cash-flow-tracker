@@ -89,7 +89,10 @@ data class CaptureTransaction(
     @SerializedName("account_id") val accountId: String? = null,
     @SerializedName("account_name") val accountName: String? = null,
     @SerializedName("merchant") val merchant: String? = null,
-    @SerializedName("notes") val notes: String? = null,
+    // The transaction's name; a tracker before the name/note split sends it as "notes".
+    @SerializedName(value = "name", alternate = ["notes"]) val name: String? = null,
+    // The owner's own remark, written only by the owner.
+    @SerializedName("note") val note: String? = null,
     @SerializedName("category_id") val categoryId: String? = null,
     @SerializedName("category_name") val categoryName: String? = null,
     @SerializedName("kakeibo") val kakeibo: String? = null,

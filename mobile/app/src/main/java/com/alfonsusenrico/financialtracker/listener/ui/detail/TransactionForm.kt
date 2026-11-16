@@ -64,7 +64,7 @@ enum class FormMode(val pageTitle: String, val cardTitle: String) {
  * The form's starting values. [key] identifies the record, so typed values survive recomposition but not a
  * switch to another record.
  */
-data class FormSeed(val key: String, val amount: Long?, val type: String, val notes: String) {
+data class FormSeed(val key: String, val amount: Long?, val type: String, val name: String) {
     companion object {
         /** A notification's values: the tracker's record, else what the phone detected in the text. */
         fun of(item: RowPresentation): FormSeed {
@@ -82,7 +82,7 @@ data class FormSeed(val key: String, val amount: Long?, val type: String, val no
                 key = "notification-${row.id}",
                 amount = recorded?.amount ?: row.expectedAmount?.toLong() ?: summary.expectedAmount?.toLong(),
                 type = type,
-                notes = recorded?.description ?: row.labelNotes ?: summary.expectedCounterparty ?: row.title ?: ""
+                name = recorded?.description ?: row.labelNotes ?: summary.expectedCounterparty ?: row.title ?: ""
             )
         }
     }
@@ -94,7 +94,7 @@ data class TransactionDraft(
     val type: String,
     val accountId: String?,
     val categoryId: String?,
-    val notes: String?
+    val name: String?
 )
 
 /**
@@ -121,7 +121,7 @@ fun TransactionForm(
     val initialAmount = seed.amount ?: 0L
     var amountText by rememberSaveable(key) { mutableStateOf(if (initialAmount > 0) initialAmount.toString() else "") }
     var type by rememberSaveable(key) { mutableStateOf(seed.type) }
-    var notes by rememberSaveable(key) { mutableStateOf(seed.notes) }
+    var name by rememberSaveable(key) { mutableStateOf(seed.name) }
     val pickers = mode != FormMode.SEND_UNSENT
     val activeAccounts = remember(accounts) {
         accounts.filter { !it.isArchived && it.type !in setOf("investment", "stock", "crypto") }
@@ -184,9 +184,9 @@ fun TransactionForm(
         }
 
         OutlinedTextField(
-            value = notes,
-            onValueChange = { notes = it },
-            label = { Text("Catatan (opsional)") },
+            value = name,
+            onValueChange = { name = it },
+            label = { Text("Nama transaksi (opsional)") },
             placeholder = { Text("mis. Kopi Kenangan, Makan Siang") },
             singleLine = true,
             shape = RoundedCornerShape(14.dp),
@@ -209,7 +209,7 @@ fun TransactionForm(
                         mode == FormMode.MANUAL_RECORD && (account == null || category == null) ->
                             onInvalid("Pilih rekening dan kategori")
                         else -> onSubmit(
-                            TransactionDraft(amount, type, account?.id.takeIf { pickers }, category?.id.takeIf { pickers }, notes.ifBlank { null })
+                            TransactionDraft(amount, type, account?.id.takeIf { pickers }, category?.id.takeIf { pickers }, name.ifBlank { null })
                         )
                     }
                 },

@@ -16,7 +16,7 @@ from app.services.ledger_mutations import (
 from app.services.merchant_memory import (
     PLACEHOLDER_COUNTERPARTIES, count_memory_hit, learn_from_model, normalize_key_text, stored_key_fields,
 )
-from app.services.movement_linkage import movement_note, self_transfer_note
+from app.services.movement_linkage import movement_name, self_transfer_name
 from app.services.movement_pairing import (
     COMPLETION_KEY_PREFIX, PairingDecision, drop_observation, find_counterpart, flag_ambiguous,
     keeps_new_observation, leg_evidence, link_pair, load_accounts, mark_duplicate_observation,
@@ -215,7 +215,7 @@ def confirm_hand_entered_move(cur, event: dict, facts: NotificationFacts, *, sou
         return False
     leg = matches[0]
     cur.execute(
-        "SELECT type, account_id, amount, notes FROM transactions WHERE user_id = %s AND movement_id = %s",
+        "SELECT type, account_id, amount, name FROM transactions WHERE user_id = %s AND movement_id = %s",
         (user_id, leg["movement_id"]),
     )
     legs = {row["type"]: row for row in cur.fetchall()}
@@ -224,7 +224,7 @@ def confirm_hand_entered_move(cur, event: dict, facts: NotificationFacts, *, sou
     by_id = {str(account["id"]): account for account in accounts}
     snapshot = committed_snapshot(
         key=f"notification:{event['id']}", kind="internal_movement",
-        description=legs["expense"]["notes"] or t(account_language(cur, user_id)[0], "notes.movement"),
+        description=legs["expense"]["name"] or t(account_language(cur, user_id)[0], "notes.movement"),
         amount=int(legs["expense"]["amount"]),
         source=account_label(by_id[str(legs["expense"]["account_id"])], accounts),
         target=account_label(by_id[str(legs["income"]["account_id"])], accounts),
@@ -257,13 +257,13 @@ def record_arrival_from(
     _expense_category, income_category = movement_categories(context)
     lock_owned_accounts(cur, user_id, [str(source["id"]), str(target["id"])])
     lock_application_categories(cur, user_id, {income_category: "income"})
-    note = movement_note(cur, user_id, str(target["id"]))
+    leg_name = movement_name(cur, user_id, str(target["id"]))
     record_key = f"notification:{event_id}"
     cur.execute(
-        """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, idempotency_key,
+        """INSERT INTO transactions (user_id, account_id, category_id, type, amount, name, date, idempotency_key,
                source, review_status, classified_by, classification_confidence)
            VALUES (%s, %s, %s, 'income', %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
-        (user_id, str(target["id"]), income_category, facts.amount, note, facts.timestamp, record_key,
+        (user_id, str(target["id"]), income_category, facts.amount, leg_name, facts.timestamp, record_key,
          *provenance.columns()),
     )
     tx_id = str(cur.fetchone()["id"])
@@ -275,12 +275,12 @@ def record_arrival_from(
     except HTTPException:
         cur.execute("UPDATE transactions SET review_status = 'needs_review' WHERE user_id = %s AND id = %s",
                     (user_id, tx_id))
-        snapshot = committed_snapshot(key=record_key, kind="income", description=note, amount=facts.amount,
+        snapshot = committed_snapshot(key=record_key, kind="income", description=leg_name, amount=facts.amount,
                                       source=None, target=account_label(target, accounts))
         save_recorded(cur, event, tx_id, snapshot, signature, role="inbound")
         cur.execute("UPDATE notification_events SET error_code = 'ambiguous_movement' WHERE id = %s", (event_id,))
         return 1
-    snapshot = committed_snapshot(key=record_key, kind="internal_movement", description=note, amount=facts.amount,
+    snapshot = committed_snapshot(key=record_key, kind="internal_movement", description=leg_name, amount=facts.amount,
                                   source=account_label(source, accounts), target=account_label(target, accounts))
     save_recorded(cur, event, tx_id, snapshot, signature, movement_id=result["movement_id"], role="inbound")
     return 1 + int(bool(result.get("created_transaction_id")))
@@ -317,7 +317,7 @@ def deterministic_interpretation(facts: NotificationFacts, context: dict) -> Int
         # No single category: the row is still recorded, uncategorised and flagged (design D1).
         category = matches[0] if len(matches) == 1 else None
         if self_transfer or (context.get("facts") or {}).get("counterparty_is_owner"):
-            description = self_transfer_note(context["_language"], facts.direction)
+            description = self_transfer_name(context["_language"], facts.direction)
         else:
             description = notification_description(facts, context)
             merchant = (context.get("_classification_key") or {}).get("merchant")
@@ -384,14 +384,14 @@ def confirm_completed_movement(cur, event: dict, facts: NotificationFacts, accou
         raise EvidenceError("ambiguous_existing_movement")
     leg = matches[0]
     cur.execute(
-        "SELECT type, account_id, amount, notes FROM transactions WHERE user_id = %s AND movement_id = %s",
+        "SELECT type, account_id, amount, name FROM transactions WHERE user_id = %s AND movement_id = %s",
         (user_id, leg["movement_id"]),
     )
     legs = {row["type"]: row for row in cur.fetchall()}
     by_id = {str(account["id"]): account for account in accounts}
     snapshot = committed_snapshot(
         key=f"notification:{event['id']}", kind="internal_movement",
-        description=legs["expense"]["notes"] or t(account_language(cur, str(event["user_id"]))[0], "notes.movement"),
+        description=legs["expense"]["name"] or t(account_language(cur, str(event["user_id"]))[0], "notes.movement"),
         amount=int(legs["expense"]["amount"]),
         source=account_label(by_id[str(legs["expense"]["account_id"])], accounts),
         target=account_label(by_id[str(legs["income"]["account_id"])], accounts),
@@ -458,9 +458,9 @@ def resolve_record(
         expense_category, income_category = movement_categories(context)
         category_id = expense_category if facts.direction == "expense" else income_category
         kakeibo = None
-        description = self_transfer_note(context["_language"], facts.direction)
+        description = self_transfer_name(context["_language"], facts.direction)
     elif (context.get("facts") or {}).get("counterparty_is_owner"):
-        description = self_transfer_note(context["_language"], facts.direction)
+        description = self_transfer_name(context["_language"], facts.direction)
     return {
         "description": description,
         "observed": observed, "signature": signature, "category_id": category_id,
@@ -511,7 +511,7 @@ def apply_interpretation(
         reconciliation_flag(cur, user_id, event_id, str(source["id"]), facts.amount)
         result = create_bilateral_movement(
             cur, user_id=user_id, source_id=str(source["id"]), target_id=str(target["id"]),
-            amount=facts.amount, notes=proposal.description, tx_date=facts.timestamp,
+            amount=facts.amount, name=proposal.description, tx_date=facts.timestamp,
             expense_category_id=exp_category, income_category_id=inc_category,
             source_account=locked[str(source["id"])], target_account=locked[str(target["id"])],
             idempotency_key=key, allow_negative=True, provenance=provenance,
@@ -667,7 +667,7 @@ def record_observed_leg(
         # The owner's repeated answers replace the automatic classification and its doubts
         # (learn-habits-to-ask-less D7).
         category_id, kakeibo = habit.category_id, habit.kakeibo
-        description = habit.notes or habit_category_name(context, habit.category_id)
+        description = habit.name or habit_category_name(context, habit.category_id)
         merchant = habit.merchant
         provenance = habit_provenance()
         reasons, ask_purpose = [], False
@@ -696,7 +696,7 @@ def record_observed_leg(
     if facts.direction == "expense":
         reconciliation_flag(cur, user_id, event_id, account_id, facts.amount)
     cur.execute(
-        """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, kakeibo_type, idempotency_key,
+        """INSERT INTO transactions (user_id, account_id, category_id, type, amount, name, date, kakeibo_type, idempotency_key,
                merchant, offset_category_id, source, review_status, classified_by, classification_confidence)
            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
         (user_id, account_id, category_id, facts.direction, facts.amount,
@@ -713,11 +713,11 @@ def record_observed_leg(
         other = next(row for row in accounts if str(row["id"]) == str(counterpart["account_id"]))
         source = observed if facts.direction == "expense" else other
         target = other if facts.direction == "expense" else observed
-        note = movement_note(cur, user_id, str(target["id"]))
+        leg_name = movement_name(cur, user_id, str(target["id"]))
         # Links equal legs; a known fee on the outbound leg becomes its own expense (link_pair).
-        result = link_pair(cur, user_id, expense_id, income_id, fee=pairing.fee, notes=note)
+        result = link_pair(cur, user_id, expense_id, income_id, fee=pairing.fee, name=leg_name)
         snapshot = committed_snapshot(key=counterpart["result_key"] or record_key, kind="internal_movement",
-                                      description=note, amount=facts.amount - pairing.fee if facts.direction == "expense" else facts.amount,
+                                      description=leg_name, amount=facts.amount - pairing.fee if facts.direction == "expense" else facts.amount,
                                       source=account_label(source, accounts), target=account_label(target, accounts))
         if counterpart.get("event_id"):
             # The counterpart's classification doubts and purpose question ended with the pairing (design D1).
@@ -758,7 +758,7 @@ def record_observed_leg(
         count_memory_hit(cur, user_id, memory_id)
     if provenance.classified_by == "ai" and provenance.review_status == "auto" and not counterpart:
         learn_from_model(cur, user_id, key, {
-            "merchant": stored_merchant, "notes": sanitize_text(description)[:160], "category_id": category_id,
+            "merchant": stored_merchant, "name": sanitize_text(description)[:160], "category_id": category_id,
             "kakeibo_type": kakeibo if facts.direction == "expense" else None, "offset_category_id": None,
         })
     return 1
@@ -924,7 +924,7 @@ def apply_broker_trade(cur, event: dict, facts: NotificationFacts, context: dict
     description = t(context["_language"], trade_note, count=parsed.lots, symbol=parsed.symbol)
     result = create_bilateral_movement(
         cur, user_id=user_id, source_id=str(source["id"]), target_id=str(target["id"]), amount=amount,
-        notes=description, tx_date=facts.timestamp, expense_category_id=exp_category, income_category_id=inc_category,
+        name=description, tx_date=facts.timestamp, expense_category_id=exp_category, income_category_id=inc_category,
         source_account=locked[str(source["id"])], target_account=locked[str(target["id"])],
         idempotency_key=key, is_trade=True, allow_negative=True,
         provenance=notification_provenance(None, None),

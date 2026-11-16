@@ -212,7 +212,7 @@ def test_fee_row_cannot_be_merged_into_a_movement(client, notification_owner):
     fee_row = next(row for row in rows_of(owner) if row["fee_for_movement_id"])
     with db_conn() as conn:
         income_id = conn.execute(
-            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date)
+            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, name, date)
                VALUES (%s, %s, %s, 'income', 2500, 'Catatan', NOW()) RETURNING id""",
             (owner["user_id"], owner["bca"], owner["income"]),
         ).fetchone()["id"]
@@ -271,7 +271,7 @@ def test_manual_internal_movement_row_is_a_candidate(client, notification_owner)
     with db_conn() as conn:
         for account, category, amount in [("bca", "internal_out", 1502500), ("gopay", "expense", 1500000)]:
             conn.execute(
-                """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date,
+                """INSERT INTO transactions (user_id, account_id, category_id, type, amount, name, date,
                        source, review_status, classified_by)
                    VALUES (%s, %s, %s, 'expense', %s, 'Catatan sendiri', '2026-09-29T06:00:00Z',
                            'manual', 'reviewed', 'owner')""",
@@ -290,7 +290,7 @@ def test_manual_internal_movement_row_is_a_candidate(client, notification_owner)
     assert next(row for row in legs if row["type"] == "expense")["review_status"] == "reviewed"
     assert any(row["fee_for_movement_id"] and int(row["amount"]) == 2500 for row in rows)
     other = next(row for row in rows if str(row["account_id"]) == owner["gopay"])
-    assert other["movement_id"] is None and other["notes"] == "Catatan sendiri"
+    assert other["movement_id"] is None and other["name"] == "Catatan sendiri"
 
 
 def test_owner_reclassified_notification_row_is_not_a_candidate(client, notification_owner):
@@ -511,7 +511,7 @@ def insert_leg(owner, account_key, tx_type, amount, *, category_key, days_from_r
     from app.db.pool import db_conn
     with db_conn() as conn:
         tx_id = conn.execute(
-            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, source, review_status, classified_by)
+            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, name, date, source, review_status, classified_by)
                VALUES (%s, %s, %s, %s, %s, 'Pindah saldo contoh', %s + %s * INTERVAL '1 day', %s, 'auto', 'rule') RETURNING id""",
             (owner["user_id"], owner[account_key], owner[category_key], tx_type, amount, row_date, days_from_row, source),
         ).fetchone()["id"]

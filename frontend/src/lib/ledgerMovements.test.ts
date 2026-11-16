@@ -11,7 +11,7 @@ const outbound: LedgerMovementRow = {
   type: "expense",
   amount: 500,
   date: "2026-09-20T10:00:00.000Z",
-  notes: "Payment",
+  name: "Payment",
 };
 const inbound: LedgerMovementRow = {
   ...outbound,
@@ -20,7 +20,7 @@ const inbound: LedgerMovementRow = {
   account_name: "Target",
   type: "income",
   date: "2026-09-20T10:00:29.000Z",
-  notes: "Internal Movement",
+  name: "Internal Movement",
 };
 
 describe("ledger movement display", () => {

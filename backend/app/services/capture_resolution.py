@@ -168,7 +168,7 @@ def similar_rows(cur, user_id: str, facts: dict, kind: str | None = None) -> lis
         return []
     patterns = [f"%{word}%" for word in words]
     cur.execute(
-        f"""SELECT t.merchant, LEFT(t.notes, 160) AS description, t.category_id, t.type, t.amount, t.account_id,
+        f"""SELECT t.merchant, LEFT(t.name, 160) AS description, t.category_id, t.type, t.amount, t.account_id,
                   CASE WHEN t.type = 'expense' THEN COALESCE(t.kakeibo_type, c.kakeibo_type) END AS kakeibo,
                   (t.classified_by = 'owner'
                    OR (t.review_status = 'reviewed' AND t.classified_by IS DISTINCT FROM 'habit')) AS owner_confirmed
@@ -176,7 +176,7 @@ def similar_rows(cur, user_id: str, facts: dict, kind: str | None = None) -> lis
            JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id AND c.is_archived = FALSE
            WHERE t.user_id = %s AND t.movement_id IS NULL AND t.type IN ('expense', 'income')
              AND (%s::text IS NULL OR t.type = %s) AND {reportable_key_sql("c")}
-             AND (t.notes ILIKE ANY(%s) OR t.merchant ILIKE ANY(%s))
+             AND (t.name ILIKE ANY(%s) OR t.merchant ILIKE ANY(%s))
            ORDER BY owner_confirmed DESC, t.date DESC, t.id
            LIMIT %s""",
         (user_id, kind, kind, patterns, patterns, SIMILAR_HISTORY_LIMIT),

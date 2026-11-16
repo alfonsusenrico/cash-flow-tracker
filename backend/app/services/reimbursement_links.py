@@ -12,6 +12,7 @@ from typing import Any
 
 from app.errors import ErrorCode, api_error
 from app.services.system_categories import reportable_key_sql
+from app.services.transaction_text import text_fields
 
 LINK_LIMIT = 20
 
@@ -97,7 +98,7 @@ def links_touching(cur, user_id: str, transaction_id: str) -> tuple[set[str], se
 
 def _lock_reimbursement(cur, user_id: str, reimbursement_id: str) -> dict[str, Any]:
     cur.execute(
-        """SELECT t.id, t.amount, t.account_id, t.date, t.notes, t.merchant, t.type, c.offsets_spending
+        """SELECT t.id, t.amount, t.account_id, t.date, t.name, t.merchant, t.type, c.offsets_spending
            FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
            WHERE t.user_id = %s AND t.id = %s FOR UPDATE OF t""",
         (user_id, reimbursement_id),
@@ -168,10 +169,10 @@ def set_links(cur, user_id: str, reimbursement_id: str, expense_ids: list[str], 
                 (held, user_id, reimbursement_id),
             )
             cur.execute(
-                """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, merchant, date,
+                """INSERT INTO transactions (user_id, account_id, category_id, type, amount, name, merchant, date,
                        source, review_status, classified_by, classification_confidence)
                    VALUES (%s, %s, %s, 'income', %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
-                (user_id, reimbursement["account_id"], rest_category_id, rest, reimbursement["notes"],
+                (user_id, reimbursement["account_id"], rest_category_id, rest, reimbursement["name"],
                  reimbursement["merchant"], reimbursement["date"], *provenance),
             )
             rest_id = str(cur.fetchone()["id"])
@@ -197,25 +198,25 @@ def link_details(cur, user_id: str, transaction_id: str, amount: int) -> dict[st
     """Both sides of a row's links for its detail (D8): what a reimbursement repaid and what is left, and
     what repaid an expense."""
     cur.execute(
-        """SELECT l.expense_id, l.amount, e.date, e.amount AS expense_amount, e.notes, e.merchant
+        """SELECT l.expense_id, l.amount, e.date, e.amount AS expense_amount, e.name, e.note, e.merchant
            FROM reimbursement_links l JOIN transactions e ON e.id = l.expense_id
            WHERE l.user_id = %s AND l.reimbursement_id = %s ORDER BY e.date, l.expense_id""",
         (user_id, transaction_id),
     )
     repays = [
         {"transaction_id": str(row["expense_id"]), "amount": int(row["amount"]), "date": row["date"].isoformat(),
-         "expense_amount": int(row["expense_amount"]), "notes": row["notes"], "merchant": row["merchant"]}
+         "expense_amount": int(row["expense_amount"]), **text_fields(row), "merchant": row["merchant"]}
         for row in cur.fetchall()
     ]
     cur.execute(
-        """SELECT l.reimbursement_id, l.amount, r.date, r.notes, r.merchant
+        """SELECT l.reimbursement_id, l.amount, r.date, r.name, r.note, r.merchant
            FROM reimbursement_links l JOIN transactions r ON r.id = l.reimbursement_id
            WHERE l.user_id = %s AND l.expense_id = %s ORDER BY r.date, l.reimbursement_id""",
         (user_id, transaction_id),
     )
     repaid_by = [
         {"transaction_id": str(row["reimbursement_id"]), "amount": int(row["amount"]), "date": row["date"].isoformat(),
-         "notes": row["notes"], "merchant": row["merchant"]}
+         **text_fields(row), "merchant": row["merchant"]}
         for row in cur.fetchall()
     ]
     return {

@@ -41,6 +41,7 @@ from app.services.salary_cycles import resolve_cycle
 from app.services.salary_receipts import receipts as salary_receipts
 from app.services.spending_basis import spending_basis
 from app.services.saving_flow import SAVINGS_ACCOUNT_SQL, SAVINGS_DESTINATION_SQL, counted_movement_sql
+from app.services.transaction_text import text_fields
 
 router = APIRouter(tags=["Dashboard"])
 
@@ -773,7 +774,7 @@ def get_dashboard_overview(
                     t.id, t.account_id, sa.name AS account_name,
                     t.category_id, c.name AS category_name, c.icon AS category_icon, c.color AS category_color,
                     t.type,
-                    t.amount, t.notes, t.date, t.receipt_path,
+                    t.amount, t.name, t.note, t.date, t.receipt_path,
                     COALESCE(c.is_excluded_from_budget, false) AS is_excluded_from_budget,
                     topup.id AS investment_topup_id
                 FROM transactions t
@@ -800,7 +801,7 @@ def get_dashboard_overview(
                     "transfer_target_account_id": None,
                     "transfer_target_account_name": None,
                     "amount": r["amount"],
-                    "notes": r["notes"],
+                    **text_fields(r),
                     "date": r["date"].isoformat() if r["date"] else None,
                     "receipt_path": r["receipt_path"],
                     "is_excluded_from_budget": bool(r.get("is_excluded_from_budget", False)),

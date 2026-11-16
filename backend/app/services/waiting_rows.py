@@ -43,7 +43,7 @@ def fetch_waiting_rows(cur, user_id: str, start: datetime, end: datetime) -> lis
     """Every waiting row of the window in one statement, newest first, each with its `section`."""
     cur.execute(
         f"""
-        SELECT t.id, t.type, t.amount, t.date, t.review_status, t.movement_id, t.merchant, t.notes,
+        SELECT t.id, t.type, t.amount, t.date, t.review_status, t.movement_id, t.merchant, t.name,
                t.account_id, a.name AS account_name, c.name AS category_name,
                {is_system_sql('c', INTERNAL_MOVEMENT)} AS movement_category,
                {reportable_expense_sql()} AS in_keluar,
@@ -76,7 +76,7 @@ def waiting_summary(rows: list[dict[str, Any]], language: str) -> dict[str, Any]
     lines = []
     for row in rows:
         in_keluar = bool(row["in_keluar"])
-        described = row["merchant"] or row["notes"] or row["category_name"]
+        described = row["merchant"] or row["name"] or row["category_name"]
         lines.append({
             "section": row["section"],
             "transaction_id": str(row["id"]),

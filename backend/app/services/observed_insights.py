@@ -348,7 +348,7 @@ def recurring_charges(cur, user_id: str, *, now: datetime | None = None) -> dict
     since = datetime.combine(first_day, datetime.min.time(), tzinfo=zone).astimezone(timezone.utc)
     cur.execute(
         f"""
-        SELECT t.id, t.amount, t.date, t.merchant, t.notes, t.account_id, a.name AS account_name,
+        SELECT t.id, t.amount, t.date, t.merchant, t.name, t.account_id, a.name AS account_name,
                t.category_id, c.name AS category_name
         FROM transactions t
         JOIN accounts a ON a.id = t.account_id
@@ -362,7 +362,7 @@ def recurring_charges(cur, user_id: str, *, now: datetime | None = None) -> dict
     )
     groups: dict[str, list[dict[str, Any]]] = {}
     for row in cur.fetchall():
-        key = merchant_key(row["merchant"] or row["notes"])
+        key = merchant_key(row["merchant"] or row["name"])
         if key:
             groups.setdefault(key, []).append({**row, "day": row["date"].astimezone(zone).date()})
     plans, linked = _plan_matches(cur, user_id)
@@ -371,7 +371,7 @@ def recurring_charges(cur, user_id: str, *, now: datetime | None = None) -> dict
         charge = detect_charge(rows, today)
         if charge is None:
             continue
-        name = rows[-1]["merchant"] or rows[-1]["notes"]
+        name = rows[-1]["merchant"] or rows[-1]["name"]
         charge.update({
             "key": key, "merchant": name, "search_text": search_text(name),
             "existing_plan": _matching_plan(charge, key, [str(row["id"]) for row in rows], plans, linked),

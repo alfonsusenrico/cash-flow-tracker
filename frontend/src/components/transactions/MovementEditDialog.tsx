@@ -68,7 +68,7 @@ export function MovementEditDialog({
   const [targetId, setTargetId] = useState(inbound ? row.account_id : row.transfer_target_account_id ?? "");
   const [amount, setAmount] = useState(formatNumberWithDots(row.amount));
   const [date, setDate] = useState(toDatetimeLocal(row.date));
-  const [notes, setNotes] = useState(row.notes ?? "");
+  const [notes, setNotes] = useState(row.name ?? "");
   const [error, setError] = useState("");
   const [confirmSplit, setConfirmSplit] = useState(false);
 

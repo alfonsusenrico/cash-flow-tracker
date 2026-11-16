@@ -35,7 +35,7 @@ class Label:
     kind: str
     category_id: str
     kakeibo: str | None
-    notes: str | None
+    name: str | None
     merchant: str | None
     amount: int
     weekday: int | None
@@ -55,7 +55,7 @@ class Label:
 class HabitDecision:
     category_id: str
     kakeibo: str | None
-    notes: str | None
+    name: str | None
     merchant: str | None
     support: int
     agreeing: int
@@ -129,7 +129,7 @@ def decide(
     wording = max(leading, key=lambda item: (time_fit(item, weekday, hour), item.created_at))
     support = len(evidence)
     return HabitDecision(
-        category_id=wording.category_id, kakeibo=wording.kakeibo, notes=wording.notes, merchant=wording.merchant,
+        category_id=wording.category_id, kakeibo=wording.kakeibo, name=wording.name, merchant=wording.merchant,
         support=support, agreeing=len(leading), agreement=leading_weight / total_weight,
         auto=auto_enabled and support >= MIN_SUPPORT and agrees,
     )
@@ -201,7 +201,7 @@ def load_labels(cur, user_id: str, *, institution: str, signature: str, account_
     )
     return [Label(
         transaction_id=str(row["transaction_id"]), kind=row["kind"], category_id=str(row["after_category_id"]),
-        kakeibo=row["after_kakeibo_type"], notes=row["after_notes"], merchant=row["after_merchant"],
+        kakeibo=row["after_kakeibo_type"], name=row["after_notes"], merchant=row["after_merchant"],
         amount=int(row["amount"]), weekday=row["local_weekday"], hour=row["local_hour"], created_at=row["created_at"],
     ) for row in cur.fetchall()]
 

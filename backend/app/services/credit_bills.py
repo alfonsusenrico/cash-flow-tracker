@@ -428,7 +428,7 @@ def purchase_facts(schedule: Schedule | None, transaction_id: str, terms_count: 
 
 
 ITEM_DESCRIPTIONS_SQL = """
-    SELECT t.id, t.merchant, t.notes, c.name AS category_name
+    SELECT t.id, t.merchant, t.name, c.name AS category_name
     FROM transactions t
     LEFT JOIN categories c ON c.id = t.category_id
     WHERE t.user_id = %s AND t.id = ANY(%s::uuid[])
@@ -436,12 +436,12 @@ ITEM_DESCRIPTIONS_SQL = """
 
 
 def _item_title(item: Item, description: dict[str, Any] | None) -> str | None:
-    """The item's name as its own ledger row is titled; a movement leg has only its note."""
+    """The item's name as its own ledger row is titled; a movement leg has only its name."""
     if description is None:
         return None
     if item.kind == CASH_ADVANCE:
-        return description["notes"] or None
-    return description["merchant"] or description["notes"] or description["category_name"]
+        return description["name"] or None
+    return description["merchant"] or description["name"] or description["category_name"]
 
 
 def payment_settlement(cur, user_id: str, schedule: Schedule | None, movement_id: str) -> dict[str, Any]:

@@ -51,4 +51,4 @@ So there is no place for the owner's own context, such as "fellowship coach" on 
 
 ## Approval
 
-Planned 2026-11-16 at the owner's request; waiting for approval.
+Planned 2026-11-16 at the owner's request. Approved 2026-11-16 ("ok approved, build plan 1 first").

@@ -62,7 +62,7 @@ def row(owner, category, amount, when, *, tx_type="expense", pillar=None, notes=
 
     with db_conn() as conn:
         tx_id = conn.execute(
-            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, kakeibo_type, source)
+            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, name, date, kakeibo_type, source)
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'manual') RETURNING id""",
             (owner[user], owner[account], owner[category], tx_type, amount, notes, when, pillar),
         ).fetchone()["id"]
@@ -189,8 +189,8 @@ def test_the_rest_as_income_keeps_the_balance(client, owner):
     rest_id = body["rest_transaction_id"]
     assert body["reimbursement"]["unallocated"] == 0
     with db_conn() as conn:
-        amounts = {str(item["id"]): (int(item["amount"]), str(item["category_id"]), item["date"], item["notes"])
-                   for item in conn.execute("SELECT id, amount, category_id, date, notes FROM transactions WHERE id = ANY(%s::uuid[])",
+        amounts = {str(item["id"]): (int(item["amount"]), str(item["category_id"]), item["date"], item["name"])
+                   for item in conn.execute("SELECT id, amount, category_id, date, name FROM transactions WHERE id = ANY(%s::uuid[])",
                                             ([mother, rest_id],)).fetchall()}
     assert amounts[mother][0] == 25_500
     assert amounts[rest_id][:2] == (74_500, owner["other_income"])

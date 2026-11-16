@@ -658,7 +658,7 @@ def test_f1_worked_numbers_from_the_research_note(owner):
     """Masuk 10.000.000, cash spending 7.000.000, SPayLater 2.000.000 and a 2.000.000 "Bayar SPayLater" plan."""
     owner.ids["jago"] = owner.account("jago", "Jago Contoh", initial=0)
     add_credit(owner, limit=5_000_000)
-    owner.tx("income", 10_000_000, category="gaji", account="jago", notes="Gaji contoh")
+    owner.tx("income", 10_000_000, category="gaji", account="jago", name="Gaji contoh")
     owner.expense(7_000_000, "makan", account="jago")
     purchase(owner, 2_000_000)
     rule_id = str(uuid4())
@@ -766,11 +766,11 @@ def test_an_english_account_books_its_first_fee_as_credit_fee(owner):
     paid = pay(owner, 105_000, fee=5_000)
     with db_conn() as conn:
         fee = conn.execute(
-            """SELECT c.name, c.system_key, c.kakeibo_type, c.is_excluded_from_budget, t.notes FROM transactions t
+            """SELECT c.name, c.system_key, c.kakeibo_type, c.is_excluded_from_budget, t.name AS transaction_name FROM transactions t
                JOIN categories c ON c.id = t.category_id WHERE t.id = %s""",
             (paid["fee_transaction_id"],),
         ).fetchone()
-    assert (fee["name"], fee["system_key"], fee["kakeibo_type"], fee["is_excluded_from_budget"], fee["notes"]) == (
+    assert (fee["name"], fee["system_key"], fee["kakeibo_type"], fee["is_excluded_from_budget"], fee["transaction_name"]) == (
         "Credit fee", "credit_fee", "unexpected", False, "Credit fee")
 
 
@@ -910,8 +910,8 @@ def detail_credit(owner, transaction_id):
 def test_a_payment_lists_what_it_paid_on_either_leg(owner, monkeypatch):
     freeze(monkeypatch, date(2026, 11, 21))
     add_credit(owner)
-    by_merchant = owner.tx("expense", 300_000, category="makan", account="credit", when=at_local(date(2026, 11, 5)), merchant="Kopi Senja", notes="Sarapan")
-    by_note = owner.tx("expense", 100_000, category="makan", account="credit", when=at_local(date(2026, 11, 6)), notes="Makan malam")
+    by_merchant = owner.tx("expense", 300_000, category="makan", account="credit", when=at_local(date(2026, 11, 5)), merchant="Kopi Senja", name="Sarapan")
+    by_note = owner.tx("expense", 100_000, category="makan", account="credit", when=at_local(date(2026, 11, 6)), name="Makan malam")
     paid = pay(owner, 450_000, date(2026, 11, 7))
     on_credit = detail_credit(owner, paid["income_transaction_id"])
     on_cash = detail_credit(owner, paid["expense_transaction_id"])

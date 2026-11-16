@@ -304,7 +304,7 @@ export function TransactionDialog({
             target_account_id: row.movement_role === "inbound" ? row.account_id : row.transfer_target_account_id ?? "",
             amount: row.amount,
             date: row.date,
-            notes: row.notes,
+            notes: row.name,
           }}
         />
       )}
@@ -423,7 +423,7 @@ function Facts({
           {complete ? t("transactions.detail.pairComplete") : <span className="c-warning">{labels.unpaired}</span>}
         </Fact>
         <Fact label={t("transactions.detail.savingFlow")}>{savingFlowLabel(row, labels) ?? none}</Fact>
-        <Fact label={t("transactions.detail.notes")}>{row.notes || none}</Fact>
+        <Fact label={t("transactions.detail.name")}>{row.name || none}</Fact>
         <Fact label={t("transactions.detail.recorded")}>{recorded}</Fact>
         <Fact label={t("transactions.detail.classified")}>{classified}</Fact>
         <Fact label={t("transactions.detail.checked")}>{checked}</Fact>
@@ -453,7 +453,8 @@ function Facts({
           })}
         </Fact>
       )}
-      <Fact label={t("transactions.detail.notes")}>{row.notes || none}</Fact>
+      <Fact label={t("transactions.detail.name")}>{row.name || none}</Fact>
+      <Fact label={t("transactions.detail.note")}>{row.note || none}</Fact>
       <Fact label={t("transactions.detail.recorded")}>{recorded}</Fact>
       <Fact label={t("transactions.detail.classified")}>{classified}</Fact>
       {isHabitRecorded(row.classified_by, row.habit_basis) && (
@@ -564,7 +565,7 @@ function LinkRow({ line, onOpenRow }: { line: ReimbursementLinkLine; onOpenRow: 
   const money = useMoney();
   const format = useFormat();
   const labels = useRowLabels();
-  const title = line.notes?.trim() || line.merchant || labels.undescribed;
+  const title = line.name?.trim() || line.merchant || labels.undescribed;
   return (
     <button type="button" className="tx-settled-row" onClick={() => onOpenRow(line.transaction_id)}>
       <span className="tx-settled-main">

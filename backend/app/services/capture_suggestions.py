@@ -70,14 +70,14 @@ def parse_device_time(value: str) -> datetime:
 # --- Candidates (D1) ---------------------------------------------------------------------------
 
 
-def entry_key(capture_key: str | None, merchant: str | None, notes: str | None) -> str | None:
-    return capture_key or merchant_match_key(merchant) or merchant_match_key(notes)
+def entry_key(capture_key: str | None, merchant: str | None, name: str | None) -> str | None:
+    return capture_key or merchant_match_key(merchant) or merchant_match_key(name)
 
 
 def ledger_entries(cur, user_id: str, since: datetime) -> list[Entry]:
     """Owner-reviewed manual and capture rows; a recorded capture brings its text to its row."""
     cur.execute(
-        f"""SELECT t.type, t.amount, t.date, t.merchant, t.notes, c.name AS category_name,
+        f"""SELECT t.type, t.amount, t.date, t.merchant, t.name, c.name AS category_name,
                   a.name AS account_name, p.name AS parent_name, tc.text AS capture_text,
                   tc.match_key AS capture_key, tc.draft -> 'facts' ->> 'amount' AS capture_amount
            FROM transactions t
@@ -93,13 +93,13 @@ def ledger_entries(cur, user_id: str, since: datetime) -> list[Entry]:
     )
     entries = []
     for row in cur.fetchall():
-        key = entry_key(row["capture_key"], row["merchant"], row["notes"])
+        key = entry_key(row["capture_key"], row["merchant"], row["name"])
         if not key:
             continue
         account = f"{row['parent_name']} · {row['account_name']}" if row["parent_name"] else row["account_name"]
         entries.append(Entry(
             key=key, moment=row["date"], undone=False, kind=row["type"], amount=int(row["amount"]),
-            label=(row["merchant"] or row["notes"] or row["category_name"] or "").strip() or None,
+            label=(row["merchant"] or row["name"] or row["category_name"] or "").strip() or None,
             category_name=row["category_name"], account_name=account, capture_text=row["capture_text"],
             capture_amount=int(row["capture_amount"]) if row["capture_amount"] else None,
         ))

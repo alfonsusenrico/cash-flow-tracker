@@ -146,8 +146,8 @@ fun CaptureRecorded(state: CaptureSheetState, actions: CaptureSheetActions) {
         )
         MoneyText(item.amount, item.direction, CompanionType.heroAmount)
         FactTags(recordedTags(item))
-        val notes = item.view?.transaction?.notes
-        if (!notes.isNullOrBlank() && notes != item.title) WhyLine("Catatan: $notes")
+        val note = item.view?.transaction?.note
+        if (!note.isNullOrBlank()) WhyLine("Catatan: $note")
         ActionPair(
             first = { modifier ->
                 if (state.canEdit) CompanionButton("Ubah", { editing = true }, modifier, ButtonKind.GHOST, Icons.Outlined.Edit, enabled = !state.busy)
@@ -283,5 +283,5 @@ fun captureFormSeed(item: CapturePresentation) = FormSeed(
     key = "capture-${item.id}",
     amount = item.amount,
     type = if (item.direction == MoneyDirection.IN) "income" else "expense",
-    notes = item.view?.transaction?.notes ?: item.title
+    name = item.view?.transaction?.name ?: item.title
 )

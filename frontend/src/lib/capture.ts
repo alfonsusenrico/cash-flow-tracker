@@ -35,7 +35,7 @@ export interface CaptureTransaction {
   date: string;
   account_name: string;
   merchant: string | null;
-  notes: string | null;
+  name: string | null;
   category_name: string | null;
   kakeibo: string | null;
   review_status: string | null;

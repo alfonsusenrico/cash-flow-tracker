@@ -79,7 +79,7 @@ def _habits(user_id: str, rows: list[dict], language: str) -> list[dict[str, Any
             remaining = [row for row in remaining if row not in band]
             labels = [Label(
                 transaction_id=str(row["transaction_id"]), kind=row["kind"], category_id=str(row["after_category_id"]),
-                kakeibo=row["after_kakeibo_type"], notes=row["after_notes"], merchant=row["after_merchant"],
+                kakeibo=row["after_kakeibo_type"], name=row["after_notes"], merchant=row["after_merchant"],
                 amount=int(row["amount"]), weekday=row["local_weekday"], hour=row["local_hour"], created_at=row["created_at"],
             ) for row in band]
             decision = decide(labels, weekday=None, hour=None, auto_enabled=True)

@@ -23,12 +23,12 @@ def ensure_internal_movement_categories(cur, user_id: str) -> tuple[str, str]:
     )
 
 
-def self_transfer_note(language: str, direction: str) -> str:
+def self_transfer_name(language: str, direction: str) -> str:
     """ "Pindah saldo masuk" / "Pindah saldo keluar" for a transfer between the owner's own accounts."""
     return t(language, "notes.movement_in" if direction == "income" else "notes.movement_out")
 
 
-def movement_note(cur, user_id: str, target_account_id: str) -> str:
+def movement_name(cur, user_id: str, target_account_id: str) -> str:
     """Neutral description for a linked movement, naming its destination account."""
     cur.execute(
         """SELECT a.name, p.name AS parent_name FROM accounts a
@@ -45,7 +45,7 @@ def movement_note(cur, user_id: str, target_account_id: str) -> str:
 
 
 def link_transactions_as_movement(
-    cur, user_id: str, expense_id: str, income_id: str, *, notes: str | None = None, owner_edit: bool = False,
+    cur, user_id: str, expense_id: str, income_id: str, *, name: str | None = None, owner_edit: bool = False,
 ) -> dict:
     """Link an expense and an income as one movement.
 
@@ -126,10 +126,10 @@ def link_transactions_as_movement(
         """,
         (movement_id, income_category_id, user_id, income_id),
     )
-    if notes:
+    if name:
         cur.execute(
-            "UPDATE transactions SET notes = %s WHERE user_id = %s AND movement_id = %s",
-            (notes, user_id, movement_id),
+            "UPDATE transactions SET name = %s WHERE user_id = %s AND movement_id = %s",
+            (name, user_id, movement_id),
         )
     if owner_edit:
         cur.execute(

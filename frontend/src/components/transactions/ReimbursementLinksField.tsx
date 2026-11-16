@@ -38,7 +38,7 @@ export function linksValue(links: ReimbursementLinks | undefined, undescribed: s
     ...NO_LINKS,
     expenses: links.repays.map((line) => ({
       id: line.transaction_id,
-      title: line.notes?.trim() || line.merchant || undescribed,
+      title: line.name?.trim() || line.merchant || undescribed,
       date: line.date,
       amount: line.expense_amount ?? line.amount,
     })),

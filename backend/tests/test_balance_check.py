@@ -72,7 +72,7 @@ def owner(client):
 def add_row(owner, account, amount, *, tx_type="expense", category="shop", when=None, source="manual", notes="Contoh"):
     with _db() as conn:
         tx_id = conn.execute(
-            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, source)
+            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, name, date, source)
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
             (owner["user_id"], owner[account], owner[category] if category else None, tx_type, amount, notes,
              when or NOW - timedelta(hours=1), source),

@@ -21,6 +21,23 @@ import org.junit.Test
 class CaptureModelTest {
     private val now = CaptureFixtures.NOW
 
+    @Test fun aRecordedCaptureIsTitledByItsNameAndReadsANoteFromTheTracker() {
+        // A tracker after the name/note split sends "name" and the owner's "note"; an older one sends "notes".
+        val gson = com.google.gson.Gson()
+        val current = gson.fromJson(
+            """{"id":"t","type":"expense","amount":10000,"merchant":"Kafe Contoh","name":"Bayar makan di Kafe Contoh","note":"fellowship coach"}""",
+            com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureTransaction::class.java
+        )
+        assertEquals("Bayar makan di Kafe Contoh", current.name)
+        assertEquals("fellowship coach", current.note)
+        val older = gson.fromJson(
+            """{"id":"t","type":"expense","amount":10000,"notes":"Parkir Contoh"}""",
+            com.alfonsusenrico.financialtracker.listener.data.network.model.CaptureTransaction::class.java
+        )
+        assertEquals("Parkir Contoh", older.name)
+        assertNull(older.note)
+    }
+
     @Test fun textFollowsTheBackendBounds() {
         assertEquals("parkir 10rb", CaptureText.normalize(" parkir\t\n 10rb "))
         assertEquals("kopi", CaptureText.normalize("\uFF4B\uFF4F\uFF50\uFF49"))

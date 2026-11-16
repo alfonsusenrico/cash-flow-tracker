@@ -40,7 +40,7 @@ def paired_with_fee(owner, pocket):
                 (owner["user_id"], account_id, tx_type, amount),
             ).fetchone()["id"])
         with conn.cursor() as cur:
-            linked = link_pair(cur, owner["user_id"], legs["expense"], legs["income"], fee=2_500, notes=None)
+            linked = link_pair(cur, owner["user_id"], legs["expense"], legs["income"], fee=2_500, name=None)
         conn.commit()
     assert linked["fee_transaction_id"]
 

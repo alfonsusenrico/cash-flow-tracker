@@ -95,7 +95,7 @@ class CaptureScreenshotTest {
         CaptureView(
             id = uuid(201), status = "recorded", summary = CaptureSummary("expense", 10_000, "2026-10-30", "Parkir Contoh"),
             transaction = CaptureTransaction(uuid(301), "expense", 10_000, "2026-10-30T09:15:00+07:00", accountName = "Tunai",
-                merchant = "Parkir Contoh", notes = "Parkir Contoh", categoryName = "Parkir", kakeibo = "need")
+                merchant = "Parkir Contoh", name = "Parkir Contoh", categoryName = "Parkir", kakeibo = "need")
         ), deadline = deadline
     )
 
@@ -103,7 +103,7 @@ class CaptureScreenshotTest {
         "recorded", "tarik tunai 200rb",
         CaptureView(
             id = uuid(202), status = "recorded", summary = CaptureSummary("movement", 200_000, "2026-10-30", "Tarik tunai"),
-            transaction = CaptureTransaction(uuid(302), "expense", 200_000, "2026-10-30T09:15:00+07:00", accountName = "Bank Contoh", notes = "Tarik tunai"),
+            transaction = CaptureTransaction(uuid(302), "expense", 200_000, "2026-10-30T09:15:00+07:00", accountName = "Bank Contoh", name = "Tarik tunai"),
             movement = CaptureMovement(uuid(402), CaptureTransaction(uuid(302), accountName = "Bank Contoh"), CaptureTransaction(uuid(303), accountName = "Tunai"))
         ), deadline = deadline
     )

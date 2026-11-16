@@ -163,9 +163,14 @@ export function movementDirection(row: RowFacts, labels: RowLabels): string {
   return ownIsTarget ? labels.inFrom(other) : labels.outTo(other);
 }
 
-/** A transfer's or top-up's own note, as stored; the server's "no note" placeholder counts as none (D11). */
+/** A transfer's or top-up's own name, as stored; the server's "no name" placeholder counts as none (D11). */
 export function movementNote(row: RowFacts): string | null {
-  return isPlaceholderNote(row.notes) ? null : (row.notes as string).trim();
+  return isPlaceholderNote(row.name) ? null : (row.name as string).trim();
+}
+
+/** The owner's remark shown under the title; null when there is none. */
+export function rowNote(row: RowFacts): string | null {
+  return row.note?.trim() || null;
 }
 
 /** The product a top-up went into, by its own name; null when the list does not know it. */
@@ -183,15 +188,15 @@ export function rowTitle(row: RowFacts, labels: RowLabels): string {
   }
   if (kind === "movement") return movementNote(row) ?? routeText(movementRoute(row));
   // The owner's own words come first; the merchant then moves to the meta (open-beranda-figures D7).
-  return ownRowNote(row.notes) || row.merchant || row.notes?.trim() || row.category_name || labels.undescribed;
+  return ownRowNote(row.name) || row.merchant || row.name?.trim() || row.category_name || labels.undescribed;
 }
 
-/** The merchant the meta leads with: only when the note is the title and does not already name it. */
+/** The merchant the meta leads with: only when the name is the title and does not already name it. */
 function metaMerchant(row: RowFacts): string | null {
-  const note = ownRowNote(row.notes);
+  const name = ownRowNote(row.name);
   const merchant = row.merchant?.trim();
-  if (!note || !merchant) return null;
-  return note.toLocaleLowerCase().includes(merchant.toLocaleLowerCase()) ? null : merchant;
+  if (!name || !merchant) return null;
+  return name.toLocaleLowerCase().includes(merchant.toLocaleLowerCase()) ? null : merchant;
 }
 
 /** Whether the title is the row's own words rather than its route: the route then goes to the meta. */

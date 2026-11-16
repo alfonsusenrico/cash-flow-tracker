@@ -65,6 +65,7 @@ from app.services.saving_flow import counts_as_saving_sql, credit_row_sql, row_s
 from app.services.system_categories import (
     INTERNAL_MOVEMENT, INVESTMENT, is_system_sql, non_reportable_sql, reportable_key_sql,
 )
+from app.services.transaction_text import TransactionTextInput, text_fields
 
 router = APIRouter(tags=["Transactions"])
 
@@ -262,7 +263,7 @@ class CreditTermsInput(BaseModel):
     first_due_date: date | None = None
 
 
-class TransactionCreate(TransactionClassificationInput):
+class TransactionCreate(TransactionClassificationInput, TransactionTextInput):
     account_id: UUID | None = None
     account_name: str | None = Field(default=None, max_length=100)
     type: str = Field(pattern="^(expense|income)$")
@@ -274,7 +275,7 @@ class TransactionCreate(TransactionClassificationInput):
     goal_id: UUID | None = None
     obligation_id: UUID | None = None
     obligation_allocations: list[DebtAllocation] | None = None
-    notes: str | None = Field(default=None, max_length=500)
+    name: str | None = Field(default=None, max_length=500)
     date: datetime | None = None
     receipt_path: str | None = None
     idempotency_key: str | None = Field(default=None, max_length=64)
@@ -286,7 +287,7 @@ class TransactionCreate(TransactionClassificationInput):
     credit_terms: CreditTermsInput | None = None
 
 
-class TransactionUpdate(TransactionClassificationInput):
+class TransactionUpdate(TransactionClassificationInput, TransactionTextInput):
     account_id: UUID | None = None
     category_id: UUID | None = None
     type: str | None = Field(default=None, pattern="^(expense|income)$")
@@ -294,7 +295,7 @@ class TransactionUpdate(TransactionClassificationInput):
     obligation_id: UUID | None = None
     obligation_allocations: list[DebtAllocation] | None = None
     amount: int | None = Field(default=None, gt=0)
-    notes: str | None = Field(default=None, max_length=500)
+    name: str | None = Field(default=None, max_length=500)
     date: datetime | None = None
     kakeibo_type: str | None = Field(default=None, pattern=PILLAR_PATTERN)
 
@@ -387,8 +388,8 @@ def list_transactions(
                 params.append(to_date)
             if q:
                 search_pattern = f"%{q.strip()}%"
-                conditions.append("(t.notes ILIKE %s OR t.merchant ILIKE %s OR c.name ILIKE %s OR g.name ILIKE %s OR o.name ILIKE %s OR EXISTS (SELECT 1 FROM transaction_obligation_allocations a JOIN obligations debt ON debt.id = a.obligation_id WHERE a.transaction_id = t.id AND debt.name ILIKE %s))")
-                params.extend([search_pattern] * 6)
+                conditions.append("(t.name ILIKE %s OR t.note ILIKE %s OR t.merchant ILIKE %s OR c.name ILIKE %s OR g.name ILIKE %s OR o.name ILIKE %s OR EXISTS (SELECT 1 FROM transaction_obligation_allocations a JOIN obligations debt ON debt.id = a.obligation_id WHERE a.transaction_id = t.id AND debt.name ILIKE %s))")
+                params.extend([search_pattern] * 7)
 
             # Filtered views retain individual legs: either side may match independently. A period or date
             # window and the Pindah saldo, Investasi, Tabungan & investasi and Kredit tabs keep one row per
@@ -488,7 +489,8 @@ def list_transactions(
                     t.type,
                     {effective_pillar_sql()} AS kakeibo_type,
                     t.amount,
-                    t.notes,
+                    t.name,
+                    t.note,
                     t.date,
                     t.receipt_path,
                     t.movement_id,
@@ -598,7 +600,7 @@ def list_transactions(
                 "transfer_target_account_name": r.get("movement_target_account_name"),
                 "transfer_target_account_parent_name": r.get("movement_target_account_parent_name"),
                 "amount": r["amount"],
-                "notes": r["notes"],
+                **text_fields(r),
                 "date": r["date"].isoformat() if r["date"] else None,
                 "local_date": r["local_date"].isoformat(),
                 "receipt_path": r["receipt_path"],
@@ -1026,7 +1028,7 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                     source_id=source_id,
                     target_id=destination_id,
                     amount=payload.amount,
-                    notes=payload.notes or t(language_for_user(current_user), "notes.investment_trade", action=payload.investment_action),
+                    name=payload.name or t(language_for_user(current_user), "notes.investment_trade", action=payload.investment_action),
                     tx_date=tx_date,
                     expense_category_id=expense_category_id,
                     income_category_id=income_category_id,
@@ -1078,11 +1080,11 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                 """
                 INSERT INTO transactions (
                     user_id, account_id, category_id, goal_id, obligation_id, type,
-                    amount, notes, date, receipt_path, kakeibo_type, idempotency_key,
+                    amount, name, note, date, receipt_path, kakeibo_type, idempotency_key,
                     merchant, offset_category_id,
                     source, review_status, classified_by, classification_confidence
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id, created_at
                 """,
                 (
@@ -1093,7 +1095,8 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                     obligation_id,
                     payload.type,
                     payload.amount,
-                    payload.notes,
+                    payload.name,
+                    payload.note,
                     tx_date,
                     None,
                     kakeibo_val,
@@ -1181,7 +1184,7 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
                     t.obligation_id, o.name AS obligation_name,
                     t.type,
                     {effective_pillar_sql()} AS kakeibo_type,
-                    t.amount, t.notes, t.date, t.receipt_path,
+                    t.amount, t.name, t.note, t.date, t.receipt_path,
                     t.movement_id, t.movement_role, t.fee_for_movement_id, topup.id AS investment_topup_id,
                     partner.id AS partner_id,
                     partner.account_id AS movement_target_account_id,
@@ -1251,7 +1254,7 @@ def get_transaction(transaction_id: UUID, current_user: dict = Depends(get_curre
             "transfer_target_account_name": r.get("movement_target_account_name"),
             "transfer_target_account_parent_name": r.get("movement_target_account_parent_name"),
             "amount": r["amount"],
-            "notes": r["notes"],
+            **text_fields(r),
             "date": r["date"].isoformat() if r["date"] else None,
             "receipt_path": r["receipt_path"],
             "created_at": r["created_at"].isoformat() if r["created_at"] else None,
@@ -1301,7 +1304,7 @@ def update_transaction(
             cur.execute(
                 """
                 SELECT t.id, t.account_id, t.category_id, t.goal_id, t.obligation_id, t.type,
-                       t.amount, t.notes, t.date, t.receipt_path, t.kakeibo_type, t.movement_id,
+                       t.amount, t.name, t.note, t.date, t.receipt_path, t.kakeibo_type, t.movement_id,
                        t.merchant, t.offset_category_id, t.review_status,
                        c.kakeibo_type AS category_kakeibo_type
                 FROM transactions t
@@ -1382,7 +1385,8 @@ def update_transaction(
                 transaction_type=new_type,
             )
 
-            new_notes = payload.notes if "notes" in payload.model_fields_set else old_tx["notes"]
+            new_name = payload.name if "name" in payload.model_fields_set else old_tx["name"]
+            new_note = payload.note if "note" in payload.model_fields_set else old_tx["note"]
             new_date = payload.date if payload.date is not None else old_tx["date"]
 
             if "kakeibo_type" in payload.model_fields_set:
@@ -1503,7 +1507,7 @@ def update_transaction(
                 {
                     "category_id": new_category_id,
                     "kakeibo_type": effective_pillar(new_type, new_kakeibo_type, new_category_pillar),
-                    "notes": new_notes,
+                    "name": new_name,
                     "merchant": new_merchant,
                     "type": new_type,
                     "offset_category_id": new_offset_id,
@@ -1528,7 +1532,8 @@ def update_transaction(
                     goal_id = %s,
                     obligation_id = %s,
                     amount = %s,
-                    notes = %s,
+                    name = %s,
+                    note = %s,
                     date = %s,
                     kakeibo_type = %s,
                     merchant = %s,
@@ -1549,7 +1554,8 @@ def update_transaction(
                     new_goal_id,
                     new_obligation_id,
                     new_amount,
-                    new_notes,
+                    new_name,
+                    new_note,
                     new_date,
                     new_kakeibo_type,
                     new_merchant,
@@ -1627,12 +1633,12 @@ def classification_change(old_tx: dict[str, Any], new_values: dict[str, Any]) ->
     old_values = {
         "category_id": str(old_tx["category_id"]) if old_tx["category_id"] else None,
         "kakeibo_type": effective_pillar(old_tx["type"], old_tx.get("kakeibo_type"), old_tx.get("category_kakeibo_type")),
-        "notes": (old_tx.get("notes") or "").strip(),
+        "name": (old_tx.get("name") or "").strip(),
         "merchant": old_tx.get("merchant"),
         "type": old_tx["type"],
         "offset_category_id": str(old_tx["offset_category_id"]) if old_tx.get("offset_category_id") else None,
     }
-    compared = {**new_values, "notes": (new_values.get("notes") or "").strip()}
+    compared = {**new_values, "name": (new_values.get("name") or "").strip()}
     return any(old_values[field] != compared[field] for field in CLASSIFICATION_FIELDS)
 
 

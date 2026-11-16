@@ -55,7 +55,7 @@ export function SpendingDetails({ report, money }: { report: MonthlyReport; mone
                     <ListRow
                       onClick={() => setOpenId(item.id)}
                       rowKey={item.id}
-                      title={item.merchant || item.notes || item.category_name || terms("noDescription")}
+                      title={item.merchant || item.name || item.category_name || terms("noDescription")}
                       meta={format.shortDate(jakartaDay(item.date))}
                       amount={<KindAmount kind="expense" amount={item.amount} money={money} />}
                     />

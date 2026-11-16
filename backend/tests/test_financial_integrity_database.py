@@ -227,7 +227,7 @@ def test_user_expense_rejects_insufficient_funds_without_ledger_effect(auth_clie
     with db_conn() as connection:
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT COUNT(*) AS count FROM transactions WHERE account_id = %s AND notes = %s",
+                "SELECT COUNT(*) AS count FROM transactions WHERE account_id = %s AND name = %s",
                 (account_id, note),
             )
             transaction_count = cursor.fetchone()["count"]
@@ -1230,7 +1230,7 @@ def test_confirmed_merge_links_existing_transactions_without_changing_balances(a
             connection.commit()
             cursor.execute(
                 """
-                SELECT id, account_id, type, amount, notes, date, receipt_path
+                SELECT id, account_id, type, amount, name, date, receipt_path
                 FROM transactions WHERE id = ANY(%s) ORDER BY id
                 """,
                 ([expense_id, income_id],),
@@ -1248,7 +1248,7 @@ def test_confirmed_merge_links_existing_transactions_without_changing_balances(a
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT id, account_id, type, amount, notes, date, receipt_path,
+                SELECT id, account_id, type, amount, name, date, receipt_path,
                        movement_id, movement_role, category_id
                 FROM transactions WHERE id = ANY(%s) ORDER BY id
                 """,

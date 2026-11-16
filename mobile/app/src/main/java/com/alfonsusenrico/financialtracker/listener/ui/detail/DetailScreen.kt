@@ -144,12 +144,12 @@ fun DetailRoute(
                     // Recorded notification rows are corrected with "Perbaiki label"; full edits are on the web.
                     FormMode.EDIT_RECORDED -> done(false)
                     FormMode.MANUAL_RECORD -> viewModel.resolveNotification(
-                        target.id, draft.amount, draft.type, draft.accountId!!, draft.categoryId!!, draft.notes
+                        target.id, draft.amount, draft.type, draft.accountId!!, draft.categoryId!!, draft.name
                     ) { ok, error ->
                         say(if (ok) "Transaksi dicatat manual di tracker" else "Gagal mencatat: ${error ?: "periksa koneksi"}")
                         done(ok)
                     }
-                    FormMode.SEND_UNSENT -> viewModel.saveAndSyncUnsynced(target.id, draft.amount, draft.type, draft.notes) { ok, error ->
+                    FormMode.SEND_UNSENT -> viewModel.saveAndSyncUnsynced(target.id, draft.amount, draft.type, draft.name) { ok, error ->
                         say(if (ok) "Notifikasi disimpan dan sedang dikirim ke tracker" else "Gagal menyimpan: ${error ?: "periksa koneksi"}")
                         done(ok)
                     }

@@ -38,7 +38,7 @@ KINDS = frozenset({
 
 # Every column whose change after the action makes an undo a conflict (D10, D12).
 TRANSACTION_IMAGE_COLUMNS = (
-    "type", "amount", "account_id", "date", "category_id", "kakeibo_type", "notes", "merchant",
+    "type", "amount", "account_id", "date", "category_id", "kakeibo_type", "name", "note", "merchant",
     "offset_category_id", "movement_id", "movement_role", "fee_for_movement_id", "goal_id", "obligation_id",
     "recurring_rule_id", "idempotency_key", "source", "review_status", "classified_by",
     "classification_confidence", "owner_edited_at", "owner_split_at", "updated_at",
@@ -46,7 +46,7 @@ TRANSACTION_IMAGE_COLUMNS = (
 # What undo writes back. Amount, account, date, type, source, idempotency key and goal, debt and plan
 # links are never written; the conflict check proves they are unchanged (D11).
 RESTORED_COLUMNS = {
-    "category_id": "uuid", "kakeibo_type": "text", "notes": "text", "merchant": "text",
+    "category_id": "uuid", "kakeibo_type": "text", "name": "text", "note": "text", "merchant": "text",
     "offset_category_id": "uuid", "movement_id": "uuid", "movement_role": "text", "review_status": "text",
     "classified_by": "text", "classification_confidence": "numeric", "owner_edited_at": "timestamptz",
     "owner_split_at": "timestamptz",

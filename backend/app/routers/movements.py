@@ -73,7 +73,7 @@ class MovementCompletion(BaseModel):
 from app.services.movement_linkage import (
     ensure_internal_movement_categories as _ensure_internal_movement_categories,
     link_transactions_as_movement,
-    movement_note,
+    movement_name,
 )
 
 
@@ -86,7 +86,8 @@ def create_movement(payload: MovementCreate, current_user: dict = Depends(get_cu
         raise api_error(400, ErrorCode.SAME_ACCOUNT)
 
     tx_date = payload.date or datetime.now(timezone.utc)
-    notes_val = payload.notes.strip() if payload.notes else t(language_for_user(current_user), "notes.movement_default")
+    # A movement's `notes` field is stored as its legs' name.
+    leg_name = payload.notes.strip() if payload.notes else t(language_for_user(current_user), "notes.movement_default")
 
     with db_conn() as conn:
         with conn.cursor() as cur:
@@ -180,7 +181,7 @@ def create_movement(payload: MovementCreate, current_user: dict = Depends(get_cu
                 source_id=source_id,
                 target_id=target_id,
                 amount=payload.amount,
-                notes=notes_val,
+                name=leg_name,
                 tx_date=tx_date,
                 expense_category_id=expense_cat_id,
                 income_category_id=income_cat_id,
@@ -225,14 +226,14 @@ def merge_transactions_as_movement(
                 (current_user["id"], [expense_id, income_id]),
             )
             from_notification = cur.fetchone() is not None
-            note = None
+            leg_name = None
             if from_notification:
                 cur.execute("SELECT account_id FROM transactions WHERE user_id = %s AND id = %s", (current_user["id"], income_id))
                 target = cur.fetchone()
-                note = movement_note(cur, current_user["id"], str(target["account_id"])) if target else None
-            # Notes written by notification processing describe one leg; a user's own notes are kept.
+                leg_name = movement_name(cur, current_user["id"], str(target["account_id"])) if target else None
+            # Names written by notification processing describe one leg; a name the owner wrote is kept.
             result = link_transactions_as_movement(
-                cur, current_user["id"], expense_id, income_id, notes=note, owner_edit=True,
+                cur, current_user["id"], expense_id, income_id, name=leg_name, owner_edit=True,
             )
             undo = recorder.finish()
         conn.commit()
@@ -259,7 +260,7 @@ def complete_one_sided_movement(payload: MovementCompletion, current_user: dict 
 
 @router.post("/{movement_id}/split")
 def split_movement(movement_id: UUID, current_user: dict = Depends(get_current_user)):
-    """Undo a movement link, keeping both legs' accounts, dates, and notes.
+    """Undo a movement link, keeping both legs' accounts, dates, and names.
 
     A transfer fee split off at pairing returns to the outbound leg, so each leg again shows the amount
     its account actually moved.
@@ -269,7 +270,7 @@ def split_movement(movement_id: UUID, current_user: dict = Depends(get_current_u
         with conn.cursor() as cur:
             reject_topup_movement(cur, user_id, str(movement_id))
             cur.execute(
-                """SELECT id, type, account_id, amount, notes FROM transactions
+                """SELECT id, type, account_id, amount, name FROM transactions
                    WHERE user_id = %s AND movement_id = %s ORDER BY id FOR UPDATE""",
                 (user_id, str(movement_id)),
             )
@@ -335,7 +336,7 @@ def split_movement(movement_id: UUID, current_user: dict = Depends(get_current_u
                 label = account_label(by_id[str(leg["account_id"])], accounts)
                 key = f"notification:{event['id']}"
                 snapshot = committed_snapshot(
-                    key=key, kind=leg["type"], description=leg["notes"] or t(language_for_user(current_user), "notes.transaction"),
+                    key=key, kind=leg["type"], description=leg["name"] or t(language_for_user(current_user), "notes.transaction"),
                     amount=int(leg["amount"]),
                     source=label if leg["type"] == "expense" else None,
                     target=label if leg["type"] == "income" else None,
@@ -365,7 +366,7 @@ def update_movement(
         with conn.cursor() as cur:
             reject_topup_movement(cur, user_id, str(movement_id))
             cur.execute(
-                "SELECT id, movement_role, notes, account_id, amount FROM transactions WHERE user_id = %s AND movement_id = %s FOR UPDATE",
+                "SELECT id, movement_role, name, account_id, amount FROM transactions WHERE user_id = %s AND movement_id = %s FOR UPDATE",
                 (user_id, str(movement_id)),
             )
             movement_rows = cur.fetchall()
@@ -387,11 +388,11 @@ def update_movement(
                     exclude_movement_id=str(movement_id),
                 )
             tx_date = payload.date or datetime.now(timezone.utc)
-            notes = payload.notes.strip() if payload.notes else t(language_for_user(current_user), "notes.movement_default")
+            leg_name = payload.notes.strip() if payload.notes else t(language_for_user(current_user), "notes.movement_default")
             from app.services.ledger_mutations import movement_kakeibo
 
             kakeibo = movement_kakeibo(locked[source_id], locked[target_id])
-            renamed = any(row["notes"] != notes for row in movement_rows)
+            renamed = any(row["name"] != leg_name for row in movement_rows)
             before_classification = (
                 snapshot_rows(cur, user_id, [str(row["id"]) for row in movement_rows]) if renamed else {}
             )
@@ -399,12 +400,12 @@ def update_movement(
                 """
                 UPDATE transactions
                 SET account_id = CASE movement_role WHEN 'outbound' THEN %s::uuid ELSE %s::uuid END,
-                    amount = %s, notes = %s, date = %s,
+                    amount = %s, name = %s, date = %s,
                     kakeibo_type = CASE movement_role WHEN 'outbound' THEN %s ELSE NULL END,
                     updated_at = NOW()
                 WHERE user_id = %s AND movement_id = %s
                 """,
-                (source_id, target_id, payload.amount, notes, tx_date, kakeibo, user_id, str(movement_id)),
+                (source_id, target_id, payload.amount, leg_name, tx_date, kakeibo, user_id, str(movement_id)),
             )
             if renamed:
                 cur.execute(

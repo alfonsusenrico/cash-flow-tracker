@@ -75,7 +75,8 @@ data class CapturePresentation(
                     "${movement.source.accountName} → ${movement.target.accountName}"
                 else -> transaction?.accountName
             }
-            val title = listOf(transaction?.merchant, transaction?.notes, view?.summary?.description)
+            // The name first, as on the web; the owner's note is shown on its own (separate-transaction-name-and-note D4).
+            val title = listOf(transaction?.name, transaction?.merchant, view?.summary?.description)
                 .firstOrNull { !it.isNullOrBlank() }?.trim() ?: capture.text
             val recordedAt = transaction?.date?.let(::epochMillis)?.takeIf { capture.state == TextCaptureState.RECORDED }
             return CapturePresentation(

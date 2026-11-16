@@ -525,7 +525,7 @@ def test_legacy_result_materializes_without_inference_or_replay(client, notifica
     from app.db.pool import db_conn
     event_id = str(uuid4())
     with db_conn() as conn:
-        transaction = conn.execute("INSERT INTO transactions (user_id, account_id, category_id, type, amount, date, notes) VALUES (%s, %s, %s, 'expense', 125000, NOW(), 'Synthetic legacy') RETURNING id", (notification_owner["user_id"], notification_owner["main"], notification_owner["expense"])).fetchone()
+        transaction = conn.execute("INSERT INTO transactions (user_id, account_id, category_id, type, amount, date, name) VALUES (%s, %s, %s, 'expense', 125000, NOW(), 'Synthetic legacy') RETURNING id", (notification_owner["user_id"], notification_owner["main"], notification_owner["expense"])).fetchone()
         conn.execute("INSERT INTO notification_events (id, user_id, device_id, package_name, post_time, payload_hash, transaction_id) VALUES (%s, %s, 'synthetic-device', 'com.jago.digitalbanking', NOW(), %s, %s)", (event_id, notification_owner["user_id"], uuid4().hex, transaction["id"]))
     result = client.get(f"/api/ingest/notifications/{event_id}/result").json()["result"]
     assert result["status"] == "recorded" and result["amount"] == 125000
@@ -697,7 +697,7 @@ def test_outbound_request_minimizes_owned_context_and_preserves_exact_facts(clie
     enable_ai(monkeypatch)
     owner = notification_owner
     with db_conn() as conn:
-        conn.execute("INSERT INTO transactions (user_id, account_id, category_id, type, amount, date, notes, receipt_path) VALUES (%s, %s, %s, 'expense', 1, NOW(), 'token=fictional-sensitive-token account 987654321098765', '/private/fictional-receipt')", (owner["user_id"], owner["main"], owner["expense"]))
+        conn.execute("INSERT INTO transactions (user_id, account_id, category_id, type, amount, date, name, receipt_path) VALUES (%s, %s, %s, 'expense', 1, NOW(), 'token=fictional-sensitive-token account 987654321098765', '/private/fictional-receipt')", (owner["user_id"], owner["main"], owner["expense"]))
     payload = notification("You've paid Rp125.000 to Kedai Awan using your Kantong Utama Pocket. account 987654321098765 token=fictional-sensitive-token")
     payload["raw_extras"] = {"secret": "fictional-extra-value"}
     event = ingest(client, payload)["results"][0]
@@ -811,7 +811,7 @@ def transactions_of(owner):
     from app.db.pool import db_conn
     with db_conn() as conn:
         return conn.execute(
-            """SELECT t.id, t.type, t.account_id, t.movement_id, t.movement_role, t.category_id, t.notes, c.name AS category
+            """SELECT t.id, t.type, t.account_id, t.movement_id, t.movement_role, t.category_id, t.name, c.name AS category
                FROM transactions t JOIN categories c ON c.id = t.category_id
                WHERE t.user_id = %s ORDER BY t.type""",
             (owner["user_id"],),
@@ -1081,14 +1081,14 @@ def test_paired_legs_are_renamed_as_one_movement(client, top_up_owner):
     ingest(client, at(notification(SHOPEEPAY_TOP_UP, "com.shopeepay.id"), 0))
     result = ingest(client, at(notification(BCA_TOP_UP_DEBIT, "com.bca.mybca.omni.android"), 3))["results"][0]
     assert result["description"] == "Pindah saldo ke ShopeePay"
-    assert {row["notes"] for row in transactions_of(top_up_owner)} == {"Pindah saldo ke ShopeePay"}
+    assert {row["name"] for row in transactions_of(top_up_owner)} == {"Pindah saldo ke ShopeePay"}
 
 
 def test_unpaired_self_transfer_is_named_neutrally(client, notification_owner):
     result = ingest(client, notification("Raka Purnama has sent Rp125.000 to you. Need help? Contact Tanya Jago at 1500 746."))["results"][0]
     assert result["type"] == "income" and result["description"] == "Pindah saldo masuk"
     [row] = transactions_of(notification_owner)
-    assert row["notes"] == "Pindah saldo masuk" and row["category"] == "Internal Movement"
+    assert row["name"] == "Pindah saldo masuk" and row["category"] == "Internal Movement"
 
 
 def test_ai_self_transfer_description_is_replaced(client, notification_owner, monkeypatch):
@@ -1119,13 +1119,13 @@ def test_manual_merge_renames_notification_legs_only(client, top_up_owner):
         "expense_transaction_id": str(rows["expense"]["id"]), "income_transaction_id": str(rows["income"]["id"]),
     })
     assert merged.status_code == 200, merged.text
-    assert {row["notes"] for row in transactions_of(top_up_owner)} == {"Pindah saldo ke ShopeePay"}
+    assert {row["name"] for row in transactions_of(top_up_owner)} == {"Pindah saldo ke ShopeePay"}
 
     with db_conn() as conn:
         manual = []
         for kind, account, category in [("expense", "bca", "shopping"), ("income", "gopay", "income")]:
             manual.append(str(conn.execute(
-                """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date)
+                """INSERT INTO transactions (user_id, account_id, category_id, type, amount, name, date)
                    VALUES (%s, %s, %s, %s, 77000, 'Catatan sendiri', NOW()) RETURNING id""",
                 (top_up_owner["user_id"], top_up_owner[account], top_up_owner[category], kind),
             ).fetchone()["id"]))
@@ -1133,8 +1133,8 @@ def test_manual_merge_renames_notification_legs_only(client, top_up_owner):
         "expense_transaction_id": manual[0], "income_transaction_id": manual[1],
     }).status_code == 200
     with db_conn() as conn:
-        notes = {row["notes"] for row in conn.execute("SELECT notes FROM transactions WHERE id = ANY(%s)", (manual,)).fetchall()}
-    assert notes == {"Catatan sendiri"}
+        names = {row["name"] for row in conn.execute("SELECT name FROM transactions WHERE id = ANY(%s)", (manual,)).fetchall()}
+    assert names == {"Catatan sendiri"}
 
 
 def test_wallet_moved_under_bank_receives_both_apps_notifications(client, notification_owner):
@@ -1663,9 +1663,9 @@ def test_incomplete_model_record_falls_back_without_asking_again(client, notific
     assert stored["interpretation"]["source"] == "deterministic_fallback"
     assert stored["interpretation"]["review_reasons"][0] == "model_fallback"
     with db_conn() as conn:
-        row = conn.execute("SELECT notes, review_status, account_id, amount FROM transactions WHERE user_id = %s",
+        row = conn.execute("SELECT name, review_status, account_id, amount FROM transactions WHERE user_id = %s",
                            (notification_owner["user_id"],)).fetchone()
-    assert row["review_status"] == "needs_review" and row["notes"] != model_description
+    assert row["review_status"] == "needs_review" and row["name"] != model_description
     assert (str(row["account_id"]), row["amount"]) == (notification_owner["bca"], 45000)
 
 

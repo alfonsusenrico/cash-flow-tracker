@@ -158,7 +158,7 @@ class CaptureViewModel @JvmOverloads constructor(
     }
 
     fun edit(id: Long, draft: TransactionDraft, done: (Boolean) -> Unit) = act(id) {
-        val result = captures.edit(id, TransactionUpdateRequest(draft.type, draft.amount, draft.accountId, draft.categoryId, draft.notes))
+        val result = captures.edit(id, TransactionUpdateRequest(draft.type, draft.amount, draft.accountId, draft.categoryId, draft.name))
         done(result == CaptureActionResult.DONE)
         CaptureMessages.edit(result)
     }

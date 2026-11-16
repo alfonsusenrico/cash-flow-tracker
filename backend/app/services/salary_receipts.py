@@ -23,16 +23,26 @@ class SalaryError(Exception):
     status: int
 
 
-def has_explicit_salary_marker(merchant: str | None, notes: str | None) -> bool:
-    evidence = f"{merchant or ''} {notes or ''}".casefold()
+# A stored matcher field names the transaction column it matches; `notes` predates the column's rename to
+# `name` and stays the stored value (V35 check constraint).
+MATCHER_COLUMNS = {'merchant': 'merchant', 'notes': 'name'}
+
+
+def has_explicit_salary_marker(merchant: str | None, name: str | None) -> bool:
+    evidence = f"{merchant or ''} {name or ''}".casefold()
     salary = re.search(r'(?<!\w)(?:gaji|salary)(?!\w)', evidence)
     excluded = re.search(r'(?<!\w)(?:bonus|refund|reimbursement|cashback)(?!\w)|ganti\s+uang|(?:bukan|tidak|not)\s+(?:gaji|salary)', evidence)
     return bool(salary and not excluded)
 
 
+def with_notes_alias(row: dict[str, Any]) -> dict[str, Any]:
+    """A listed income with `notes` kept as a copy of its name for older clients."""
+    return {**row, 'notes': row['name']}
+
+
 def _eligible_income(cur: Any, user_id: str, transaction_id: str) -> dict[str, Any]:
     cur.execute(
-        f"""SELECT t.id, t.type, t.date, t.merchant, t.notes, t.movement_id,
+        f"""SELECT t.id, t.type, t.date, t.merchant, t.name, t.movement_id,
                   {reportable_income_sql()} AS reportable
            FROM transactions t LEFT JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id
            WHERE t.user_id = %s AND t.id = %s FOR UPDATE OF t""",
@@ -51,7 +61,7 @@ def configure_source(conn: Any, user_id: str, transaction_id: str) -> dict[str, 
         cur.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))', (f'salary:{user_id}',))
         row = _eligible_income(cur, user_id, transaction_id)
         field = 'merchant' if (row['merchant'] or '').strip() else 'notes'
-        value = ' '.join((row[field] or '').split())
+        value = ' '.join((row[MATCHER_COLUMNS[field]] or '').split())
         if not value or len(value) > 500:
             raise SalaryError('salary_source_missing', 422)
         cur.execute(
@@ -76,7 +86,7 @@ def get_source(conn: Any, user_id: str) -> dict[str, str] | None:
 def candidates(conn: Any, user_id: str) -> list[dict[str, Any]]:
     with conn.cursor() as cur:
         cur.execute(
-            f"""SELECT t.id, t.amount, t.date, t.merchant, t.notes,
+            f"""SELECT t.id, t.amount, t.date, t.merchant, t.name,
                       (r.id IS NOT NULL AND r.revoked_at IS NULL) AS confirmed,
                       (r.id IS NOT NULL) AS previously_confirmed, r.confirmation_method
                FROM salary_sources s JOIN transactions t ON t.user_id = s.user_id
@@ -84,14 +94,14 @@ def candidates(conn: Any, user_id: str) -> list[dict[str, Any]]:
                LEFT JOIN salary_receipts r ON r.user_id = t.user_id AND r.transaction_id = t.id
                WHERE s.user_id = %s AND {reportable_income_sql()} AND t.movement_id IS NULL AND t.date <= NOW()
                  AND lower(regexp_replace(trim(COALESCE(CASE WHEN s.matcher_field = 'merchant'
-                       THEN t.merchant ELSE t.notes END, '')), '[[:space:]]+', ' ', 'g')) = lower(s.matcher_text)
+                       THEN t.merchant ELSE t.name END, '')), '[[:space:]]+', ' ', 'g')) = lower(s.matcher_text)
                ORDER BY t.date DESC, t.id DESC LIMIT 100""",
             (user_id,),
         )
         result = []
         for row in cur.fetchall():
-            item = dict(row)
-            invalid_detection = item['confirmed'] and item['confirmation_method'] == 'detected' and not has_explicit_salary_marker(item['merchant'], item['notes'])
+            item = with_notes_alias(row)
+            invalid_detection = item['confirmed'] and item['confirmation_method'] == 'detected' and not has_explicit_salary_marker(item['merchant'], item['name'])
             item['confirmed'] = bool(item['confirmed'] and not invalid_detection)
             item['rejected'] = bool(item['previously_confirmed'] and not item['confirmed'] and item['confirmation_method'] == 'owner' and not invalid_detection)
             item['needs_review'] = not item['confirmed'] and not item['rejected']
@@ -102,7 +112,7 @@ def candidates(conn: Any, user_id: str) -> list[dict[str, Any]]:
 def receipts(conn: Any, user_id: str) -> list[dict[str, Any]]:
     with conn.cursor() as cur:
         cur.execute(
-            f"""SELECT t.id, t.amount, t.date, t.merchant, t.notes, r.confirmed_at, r.confirmation_method
+            f"""SELECT t.id, t.amount, t.date, t.merchant, t.name, r.confirmed_at, r.confirmation_method
                FROM salary_receipts r JOIN transactions t ON t.id = r.transaction_id AND t.user_id = r.user_id
                LEFT JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id
                WHERE r.user_id = %s AND r.revoked_at IS NULL AND {reportable_income_sql()}
@@ -110,15 +120,15 @@ def receipts(conn: Any, user_id: str) -> list[dict[str, Any]]:
                ORDER BY t.date DESC, t.id DESC""",
             (user_id,),
         )
-        return [dict(row) for row in cur.fetchall()
-                if row['confirmation_method'] == 'owner' or has_explicit_salary_marker(row['merchant'], row['notes'])]
+        return [with_notes_alias(row) for row in cur.fetchall()
+                if row['confirmation_method'] == 'owner' or has_explicit_salary_marker(row['merchant'], row['name'])]
 
 
 def invalidated_detections(conn: Any, user_id: str) -> list[dict[str, Any]]:
     """Expose edited automatic confirmations for review even after source matching changes."""
     with conn.cursor() as cur:
         cur.execute(
-            f"""SELECT t.id, t.amount, t.date, t.merchant, t.notes
+            f"""SELECT t.id, t.amount, t.date, t.merchant, t.name
                 FROM salary_receipts r
                 JOIN transactions t ON t.id = r.transaction_id AND t.user_id = r.user_id
                 LEFT JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id
@@ -128,8 +138,8 @@ def invalidated_detections(conn: Any, user_id: str) -> list[dict[str, Any]]:
                 ORDER BY t.date DESC, t.id DESC""",
             (user_id,),
         )
-        return [dict(row) for row in cur.fetchall()
-                if not has_explicit_salary_marker(row['merchant'], row['notes'])]
+        return [with_notes_alias(row) for row in cur.fetchall()
+                if not has_explicit_salary_marker(row['merchant'], row['name'])]
 
 
 def confirm(conn: Any, user_id: str, transaction_id: str, *, method: str = 'owner') -> bool:
@@ -141,8 +151,8 @@ def confirm(conn: Any, user_id: str, transaction_id: str, *, method: str = 'owne
         if method == 'detected':
             cur.execute('SELECT matcher_field, matcher_text FROM salary_sources WHERE user_id = %s', (user_id,))
             source = cur.fetchone()
-            observed = ' '.join((row[source['matcher_field']] or '').split()) if source else ''
-            if not source or observed.casefold() != source['matcher_text'].casefold() or not has_explicit_salary_marker(row['merchant'], row['notes']):
+            observed = ' '.join((row[MATCHER_COLUMNS[source['matcher_field']]] or '').split()) if source else ''
+            if not source or observed.casefold() != source['matcher_text'].casefold() or not has_explicit_salary_marker(row['merchant'], row['name']):
                 raise SalaryError('salary_detection_stale', 409)
         cur.execute('SELECT id, revoked_at, confirmation_method FROM salary_receipts WHERE user_id = %s AND transaction_id = %s FOR UPDATE', (user_id, transaction_id))
         existing = cur.fetchone()
@@ -150,7 +160,7 @@ def confirm(conn: Any, user_id: str, transaction_id: str, *, method: str = 'owne
             # An owner revocation must not be undone by an automatic retry.
             return False
         cur.execute(
-            f"""SELECT r.id, r.confirmation_method, t.merchant, t.notes FROM salary_receipts r JOIN transactions t ON t.id = r.transaction_id AND t.user_id = r.user_id
+            f"""SELECT r.id, r.confirmation_method, t.merchant, t.name FROM salary_receipts r JOIN transactions t ON t.id = r.transaction_id AND t.user_id = r.user_id
                LEFT JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id
                WHERE r.user_id = %s AND r.revoked_at IS NULL AND {reportable_income_sql()} AND t.movement_id IS NULL
                  AND (t.date AT TIME ZONE %s)::date = (%s::timestamptz AT TIME ZONE %s)::date
@@ -158,7 +168,7 @@ def confirm(conn: Any, user_id: str, transaction_id: str, *, method: str = 'owne
             (user_id, settings.tz, row['date'], settings.tz, transaction_id),
         )
         conflicts = cur.fetchall()
-        if any(item['confirmation_method'] == 'owner' or has_explicit_salary_marker(item['merchant'], item['notes']) for item in conflicts):
+        if any(item['confirmation_method'] == 'owner' or has_explicit_salary_marker(item['merchant'], item['name']) for item in conflicts):
             raise SalaryError('salary_same_day_conflict', 409)
         if existing and existing['revoked_at'] is None:
             if existing['confirmation_method'] == 'owner':
@@ -234,7 +244,7 @@ def detect_for_user(conn: Any, user_id: str) -> dict[str, int]:
             if item['needs_review']:
                 review += 1
             continue
-        if ambiguous or not has_explicit_salary_marker(item['merchant'], item['notes']):
+        if ambiguous or not has_explicit_salary_marker(item['merchant'], item['name']):
             review += 1
             continue
         try:

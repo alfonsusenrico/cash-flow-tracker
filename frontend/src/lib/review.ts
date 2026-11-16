@@ -17,7 +17,7 @@ export interface ReviewItem {
   category_name: string | null;
   kakeibo_type: KakeiboPillar | null;
   merchant: string | null;
-  notes: string | null;
+  name: string | null;
   review_status: "auto" | "needs_review" | "reviewed";
   source: string;
   classified_by: string | null;
@@ -72,7 +72,7 @@ export interface PurposeQuestionEntry {
     amount: number;
     date: string | null;
     account_name: string;
-    notes: string | null;
+    name: string | null;
     merchant: string | null;
     category_name: string | null;
   };
@@ -193,7 +193,7 @@ export interface CompletionCandidate {
   date: string;
   account_id: string;
   category_name: string | null;
-  notes: string | null;
+  name: string | null;
 }
 
 /** Candidates the server returns instead of completing, when the chosen account already has a match. */

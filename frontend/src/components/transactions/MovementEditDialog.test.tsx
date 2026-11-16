@@ -19,7 +19,7 @@ let movementResponse: { status: number; body: unknown } = { status: 200, body: {
 function row(overrides: Partial<LedgerRowDetail> = {}): LedgerRowDetail {
   return {
     id: "out-1", type: "expense", amount: 500, account_id: "account-source", account_name: "Cash", category_id: null, category_name: "Transfer",
-    category_system_key: "internal_movement", notes: "Move savings", date: "2026-09-20T12:00:27.000Z", movement_id: "movement-1", movement_role: "outbound",
+    category_system_key: "internal_movement", name: "Move savings", date: "2026-09-20T12:00:27.000Z", movement_id: "movement-1", movement_role: "outbound",
     transfer_target_account_id: "account-target", transfer_target_account_name: "Bank", goal_id: null, goal_name: null, obligation_id: null,
     obligation_name: null, receipt_path: null, created_at: "2026-09-20T12:00:27.000Z", ...overrides,
   } as LedgerRowDetail;
@@ -99,7 +99,7 @@ describe("Ubah pindah saldo (D16)", () => {
       { id: "spaylater", name: "SPayLater", type: "credit", balance: 0, credit_owed: 0 },
       { id: "kredivo", name: "Kredivo", type: "credit", balance: -100_000, credit_owed: 100_000 },
     ];
-    const user = show(row({ id: "payment-1", movement_id: "payment-1", account_id: "bayar-kredit", transfer_target_account_id: "spaylater", amount: 470_000, notes: null }));
+    const user = show(row({ id: "payment-1", movement_id: "payment-1", account_id: "bayar-kredit", transfer_target_account_id: "spaylater", amount: 470_000, name: null }));
     const dialog = await screen.findByRole("dialog", { name: "Ubah pindah saldo" });
     const target = within(dialog).getByRole("combobox", { name: "Ke rekening" });
     await waitFor(() => expect(target).toHaveValue("spaylater"));

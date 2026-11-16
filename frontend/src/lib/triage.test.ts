@@ -12,7 +12,7 @@ import {
 
 const row = (id: string, status: ReviewItem["review_status"] = "needs_review", overrides: Partial<ReviewItem> = {}): ReviewItem => ({
   id, type: "expense", amount: 25_000, date: "2026-11-02T05:00:00Z", account_id: "acc-dompet", account_name: "Dompet Contoh",
-  category_id: "cat-makan", category_name: "Makan di Luar", kakeibo_type: "want", merchant: "Kedai Awan", notes: "Kedai Awan",
+  category_id: "cat-makan", category_name: "Makan di Luar", kakeibo_type: "want", merchant: "Kedai Awan", name: "Kedai Awan",
   review_status: status, source: "notification", classified_by: "ai", movement_id: null, movement_role: null,
   fee_for_movement_id: null, reasons: [], ...overrides,
 });
@@ -34,7 +34,7 @@ function queue(): ReviewQueue {
     questions: [{
       event_id: "ev-1", post_time: "2026-11-02T09:00:00Z",
       question: { question_id: "q-1", prompt: "Apa ini? Rp45.000 dari Dompet Contoh", suggestions: [] },
-      transaction: { id: "tx-q", type: "expense", amount: 45_000, date: "2026-11-02T09:00:00Z", account_name: "Dompet Contoh", notes: null, merchant: null, category_name: null },
+      transaction: { id: "tx-q", type: "expense", amount: 45_000, date: "2026-11-02T09:00:00Z", account_name: "Dompet Contoh", name: null, merchant: null, category_name: null },
     }],
     groups: [
       group("expense|merchant:kedai awan", [row("tx-k1"), row("tx-k2")]),

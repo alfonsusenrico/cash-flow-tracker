@@ -982,17 +982,17 @@ def reconcile_account(
             tx_amount = abs(diff)
             if diff:
                 category_id = ensure_adjustment_category(cur, user_id, tx_type)
-                tx_notes = payload.notes or t(language_for_user(current_user), "notes.reconciliation")
+                tx_name = payload.notes or t(language_for_user(current_user), "notes.reconciliation")
                 cur.execute(
                     """
                     INSERT INTO transactions (
-                        user_id, account_id, category_id, type, amount, notes, date,
+                        user_id, account_id, category_id, type, amount, name, date,
                         source, review_status, classified_by, classification_confidence
                     )
                     VALUES (%s, %s, %s, %s, %s, %s, NOW(), %s, %s, %s, %s)
                     RETURNING id
                     """,
-                    (user_id, aid, category_id, tx_type, tx_amount, tx_notes, *system_provenance("reconcile").columns()),
+                    (user_id, aid, category_id, tx_type, tx_amount, tx_name, *system_provenance("reconcile").columns()),
                 )
             cur.execute(
                 """

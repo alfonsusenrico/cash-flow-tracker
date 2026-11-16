@@ -175,7 +175,7 @@ def build_calendar(conn, user: dict[str, Any], *, timeframe: str, cycle_offset: 
                 {
                     "transaction_id": str(item["id"]),
                     "section": item["section"],
-                    "label": item["merchant"] or item["notes"] or item["category_name"] or t(language, "labels.fallback.undescribed"),
+                    "label": item["merchant"] or item["name"] or item["category_name"] or t(language, "labels.fallback.undescribed"),
                     "account_name": item["account_name"],
                     "type": item["type"],
                     "amount": int(item["amount"]),
