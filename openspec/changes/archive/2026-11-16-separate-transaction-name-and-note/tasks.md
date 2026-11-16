@@ -23,4 +23,4 @@ Expected Result: the owner can name a transaction and add a remark on web and ph
 ## 4. Verify and deliver
 
 - [x] 4.1 Full backend, frontend and companion suites; `openspec validate --all --strict`; `verification.md`.
-- [ ] 4.2 After the owner accepts, archive, push, open the PR and report its URL. After deploy, check read-only that the row counts are unchanged and that the notes now sit in `name`; then release the companion.
+- [x] 4.2 After the owner accepts, archive, push, open the PR and report its URL. After deploy, check read-only that the row counts are unchanged and that the notes now sit in `name`; then release the companion.

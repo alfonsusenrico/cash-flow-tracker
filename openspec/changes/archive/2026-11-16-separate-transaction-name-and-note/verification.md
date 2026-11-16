@@ -46,3 +46,7 @@ The prototype's synthetic dataset was loaded at V51 (`seed_parity.py`) and migra
 
 - **Notification rows in the companion:** the detail does not show the owner's note, because the event result carries the recorded name only. Notes are added on the web.
 - Production behaviour after deploy.
+
+## Acceptance
+
+The owner accepted the result on 2026-11-16 ("accept, push it and open the PR"). The production check and the companion release follow the merge and deploy.
