@@ -14,9 +14,9 @@ The application SHALL provide a `/ledger` screen in the interface language that 
 
   The application SHALL provide a dedicated `/ledger` screen with real-time filtering:
   1. Full-text search by notes, merchant, or category name, in a field labelled "Cari catatan, merchant, kategori".
-  2. The types "Semua", "Pengeluaran", "Masuk", "Pindah saldo", "Investasi" and "Tabungan & investasi", each with the count of rows matching the other filters: in the rail's JENIS group from 1200 px, and in one horizontal type control below 1200 px.
+  2. The types "Semua", "Pengeluaran", "Masuk", "Pindah saldo", "Tabungan & investasi" and "Kredit", each with the count of rows matching the other filters: in the rail's JENIS group from 1200 px, and in one horizontal type control below 1200 px.
   3. "Filter" opens the "Filter transaksi" dialog and shows the number of active filters. Every active filter, including the search text, is shown as a removable chip below the toolbar only while set. The page's "…" holds "Gabungkan dua transaksi" and "Filter transaksi".
-  4. Cash flow figures for the filtered rows: the payday cycle (or labelled calendar month) and cumulative totals, or the selected period's figures, shown as the hero "Pengeluaran" (the summary's `spending`) with "Masuk" and "Bersih" beside it, matching active filters and independent of how many rows are loaded.
+  4. Cash flow figures for the filtered rows: the payday cycle (or labelled calendar month) and cumulative totals, or the selected period's figures, shown as the hero the chosen type calls for ("Transaksi Hero Figures"), matching active filters and independent of how many rows are loaded.
   5. Rows grouped by local day with one sticky heading per day, holding that day's Masuk, Pengeluaran (`spending`), Pindah saldo and the number of rows that are "menunggu jawaban".
   6. Below 768 px, the phone composition of "Mobile Date-Grouped Transaction Ledger"; from 768 px up, the desktop rows at every width.
 
@@ -187,7 +187,7 @@ The application SHALL persist and present each bilateral internal movement as on
   The application SHALL persist and present each bilateral internal movement as one logical operation backed by two durably linked ledger records:
   1. Both records SHALL share an immutable movement identifier assigned by the server.
   2. In the default "Semua Rekening" view, durably linked records SHALL render as one consolidated row regardless of their timestamp difference.
-  3. The row SHALL be titled by the movement's note, as written by the owner or stored by the server, with its route `Sumber → Tujuan` in the direction the money moved as the meta; without a note, or with the server's placeholder note, the route SHALL be the title. The category column SHALL read "Pindah saldo", the pillar column SHALL name its saving direction ("Ditabung", "Diambil dari tabungan", "Investasi", "Bayar utang") or "—", never "Tidak dihitung", and the amount SHALL be in the transfer colour without a `+` or `−` sign, reflecting zero net cash flow change. A pocket SHALL be named with its parent account, as `Jago · Main Pocket`; an account without a parent SHALL be named alone.
+  3. The row SHALL be titled by the movement's note, as written by the owner or stored by the server, with its route `Sumber → Tujuan` in the direction the money moved as the meta; without a note, or with the server's placeholder note, the route SHALL be the title. The category column SHALL read "Pindah saldo", the pillar column SHALL show the transfer dot with its saving direction ("Ditabung", "Diambil dari tabungan", "Investasi", "Bayar utang") or "Pindah saldo", never "—" or "Tidak dihitung", and the amount SHALL be in the transfer colour without a `+` or `−` sign, reflecting zero net cash flow change. A pocket SHALL be named with its parent account, as `Jago · Main Pocket`; an account without a parent SHALL be named alone.
   4. In account-filtered views, the movement SHALL display its full route and its direction relative to the selected account, as "Masuk dari" or "Keluar ke" the other account. A leg shown without its partner SHALL take its route from its own movement role and the partner's account, never reversed.
   4a. A movement leg without a partner, such as an unlinked row filed as Internal Movement, SHALL show its own account on the side its type implies (target for an income, source for an expense), "?" for the other side and the label "Pasangan belum ditemukan". The missing side SHALL NOT be guessed from another row.
   5. Creating, editing, or deleting the logical movement SHALL atomically create, update, or delete both records through a server-owned movement operation.
@@ -378,7 +378,7 @@ After a successful financial form mutation, every active view whose displayed da
 
 #### Scenario: Tab counts
 - **WHEN** the ledger is requested with `type=expense&include=type_counts`
-- **THEN** `type_counts` SHALL count the expense, income, movement, investment, saving and credit rows of the other filters, a top-up leg SHALL count under investment and, when it is counted as saving, under saving, a credit purchase SHALL count under expense and credit, and no other key SHALL change
+- **THEN** `type_counts` SHALL count the expense, income, movement, investment, saving and credit rows of the other filters, a top-up leg SHALL count under investment and under saving, a credit purchase SHALL count under expense and credit, and no other key SHALL change
 
 #### Scenario: Only the owner's rows
 - **WHEN** another owner has rows on the same days
@@ -389,15 +389,19 @@ After a successful financial form mutation, every active view whose displayed da
 - **THEN** the response SHALL be 422
 
 ### Requirement: Ledger Type and Waiting Filters
-`GET /api/transactions` SHALL accept `type=movement` (internal movements and excluded categories outside top-ups), `type=investment` (top-up legs and Investasi rows), `type=saving` (rows whose `saving_flow` changes "Ditabung & investasi"), `type=credit` (rows on a credit account and cash legs of movements with one) and `waiting=true` (Tinjau's attention set). With `type=saving` and no other row filter, the summary SHALL carry `saving_net`. `type=transfer` SHALL keep its meaning.
+`GET /api/transactions` SHALL accept `type=movement` (internal movements and excluded categories outside top-ups), `type=investment` (top-up legs and Investasi rows), `type=saving` (rows whose `saving_flow` changes "Ditabung & investasi", and top-up legs and Investasi rows), `type=credit` (rows on a credit account and cash legs of movements with one) and `waiting=true` (Tinjau's attention set). With `type=saving` and no other row filter, the summary SHALL carry `saving_net`. `type=transfer` SHALL keep its meaning.
 
 #### Scenario: Waiting filter matches the badge
 - **WHEN** the ledger is requested with `waiting=true` and no other filter
 - **THEN** `total` SHALL equal the badge's `attention` count
 
 #### Scenario: Investment tab
-- **WHEN** the owner selects "Investasi" after converting an RDN Contoh debit into a top-up of Bibit Contoh · Reksa Dana A
-- **THEN** both legs of that top-up SHALL be listed and the "Pindah saldo" tab SHALL not list them
+- **WHEN** the API is asked for `type=investment` after an RDN Contoh debit was converted into a top-up of Bibit Contoh · Reksa Dana A
+- **THEN** both legs of that top-up SHALL be listed and `type=movement` SHALL not list them
+
+#### Scenario: Top-ups under Tabungan & investasi
+- **WHEN** the owner selects "Tabungan & investasi" after that conversion, and after a top-up funded from Jago · Tabungan
+- **THEN** both top-ups SHALL be listed, the second reading "Pindah saldo", and `saving_net` SHALL be the same as without them
 
 #### Scenario: Savings filter equals Beranda
 - **GIVEN** a cycle with Rp 1.000.000 moved from harian into a tabungan pocket, Rp 300.000 taken back out, Rp 50.000 spent from the tabungan pocket and Rp 200.000 of saving-pillar expenses
@@ -511,7 +515,7 @@ The ledger summary of `GET /api/transactions` SHALL add `spending`, the outflow 
 - **THEN** its `spending` SHALL equal the cycle summary's `spending`
 
 ### Requirement: Ledger Table Columns
-Each desktop ledger row SHALL be one line with the columns time, title with its meta, category, pillar (136 px) and amount, in that order, without a header row, a type column or a type pill. The category SHALL show the row's category name as the owner wrote it, and the pillar its dot and name, or a transfer's saving direction. The row SHALL NOT show provenance; the transaction dialog SHALL keep showing it.
+Each desktop ledger row SHALL have the columns time, title with its second line ("Ledger Row Title Lines"), one 168 px cell with the category above the pillar, and amount, in that order, without a header row, a type column or a type pill. The category SHALL show the row's category name as the owner wrote it, and the pillar a dot and a word on every row: an expense's pillar, "Uang masuk", a move's saving direction or "Pindah saldo", "Investasi", or "Menunggu jawaban". The row SHALL NOT show provenance; the transaction dialog SHALL keep showing it.
 
 #### Scenario: Expense shows its category
 - **GIVEN** an expense "Indomaret" in the category "Belanja Harian", whose pillar is Kebutuhan
@@ -520,7 +524,7 @@ Each desktop ledger row SHALL be one line with the columns time, title with its 
 
 #### Scenario: Movement has no category
 - **WHEN** the list shows a movement "Jago · Makan-Jalan → Gopay"
-- **THEN** the category column SHALL name the kind as "Pindah saldo" and the pillar column SHALL show its saving direction or "—", never "Internal Movement" or "Tidak dihitung"
+- **THEN** the category column SHALL name the kind as "Pindah saldo" and the pillar column SHALL show the transfer dot with its saving direction or "Pindah saldo", never "—", "Internal Movement" or "Tidak dihitung"
 
 #### Scenario: Provenance stays in the detail
 - **WHEN** the owner opens that expense's dialog
@@ -538,6 +542,14 @@ Each desktop ledger row SHALL be one line with the columns time, title with its 
 - **WHEN** a transfer reads "Diambil dari tabungan", or "Taken from savings" in English, at 1024 px
 - **THEN** the label SHALL fit the pillar column on one line, and the row SHALL not scroll horizontally
 
+#### Scenario: Every row has a dot
+- **WHEN** the list shows an expense in Budaya, an income, an ordinary move, a top-up and a waiting row
+- **THEN** each pillar cell SHALL start with a dot: the Budaya colour, the income colour with "Uang masuk", the transfer colour with "Pindah saldo", the investment colour with "Investasi", and the warning colour with "Menunggu jawaban", and the dot SHALL be hidden from assistive technology
+
+#### Scenario: Category and pillar share a cell
+- **WHEN** Transaksi is shown at 1280 px
+- **THEN** each row's category SHALL sit above its pillar in one cell, and the title column SHALL be at least 330 px wide
+
 ### Requirement: Ledger Saving Flow
 Each row of `GET /api/transactions` and `GET /api/transactions/{id}` SHALL carry a read-only `saving_flow`: `saved`, `invested`, `taken`, `paid_from_savings`, `saving_pillar`, `debt_payment` or `null`, by the rule and account roles that compute Beranda's "Ditabung & investasi". A saving label SHALL appear only when the row changes that figure; "Bayar utang" is informational. Both legs SHALL carry the same value, and no existing field or figure SHALL change.
 
@@ -551,11 +563,11 @@ Each row of `GET /api/transactions` and `GET /api/transactions/{id}` SHALL carry
 
 #### Scenario: Investment cash is not counted
 - **WHEN** the owner moves Rp 2.000.000 from Jago · Harian into RDN Contoh (role `dana_investasi`)
-- **THEN** the movement SHALL carry `null` and its pillar column SHALL read "—", it SHALL NOT be listed under "Tabungan & investasi", and Beranda's figure SHALL not change
+- **THEN** the movement SHALL carry `null` and its pillar column SHALL read "Pindah saldo", it SHALL NOT be listed under "Tabungan & investasi", and Beranda's figure SHALL not change
 
 #### Scenario: Move inside savings and investments
 - **WHEN** the owner tops up Bibit Contoh · Reksa Dana A from Jago · Tabungan
-- **THEN** the top-up SHALL carry `null` and read "—", it SHALL NOT be listed under "Tabungan & investasi", and Beranda's figure SHALL not change
+- **THEN** the top-up SHALL carry `null` and read "Pindah saldo", it SHALL be listed under "Tabungan & investasi" as an investment row, and Beranda's figure SHALL not change
 
 #### Scenario: Top-up into a product
 - **WHEN** an RDN Contoh debit is converted into a top-up of Bibit Contoh · Reksa Dana A
@@ -567,14 +579,14 @@ Each row of `GET /api/transactions` and `GET /api/transactions/{id}` SHALL carry
 
 #### Scenario: Ordinary move
 - **WHEN** the owner moves money between two harian pockets
-- **THEN** the movement SHALL carry `null` and its pillar column SHALL read "—"
+- **THEN** the movement SHALL carry `null` and its pillar column SHALL read "Pindah saldo"
 
 #### Scenario: Aggregate unchanged
 - **WHEN** the backend suite runs on the parity seed
 - **THEN** the sum of `saved` and `invested` movement amounts SHALL equal `saving_into`, the sum of `taken` amounts SHALL equal `saving_out`, and every existing Kakeibo and cycle-summary figure SHALL be unchanged
 
 ### Requirement: Transaksi Hero Figures
-Transaksi SHALL show one hero "Pengeluaran" with the summary's `spending` in 44 px, and beside it "Masuk" (`inflow`, signed "+", green) and "Bersih · masuk − pengeluaran" (`spending_net`, signed). Without a period the label SHALL add "semua waktu". One muted line SHALL name a reimbursement offset or saved part. For "Tabungan & investasi" the hero SHALL be "Ditabung & investasi" with `saving_net`. Values SHALL be the server's.
+Transaksi SHALL show one hero "Pengeluaran" with the summary's `spending` in 44 px, and beside it "Masuk" (`inflow`, signed "+", green) and "Bersih · masuk − pengeluaran" (`spending_net`, signed). Without a period the label SHALL add "semua waktu". One muted line SHALL name a reimbursement offset or saved part. For "Tabungan & investasi" the hero SHALL be "Ditabung & investasi" with `saving_net`; "Masuk" and "Pindah saldo" follow "Hero for Masuk and Pindah Saldo". Values SHALL be the server's.
 
 #### Scenario: Cycle figures
 - **GIVEN** a cycle with `spending` Rp 3.502.990, `inflow` Rp 9.518.400 and `spending_net` Rp 6.015.410
@@ -603,7 +615,7 @@ Transaksi SHALL show one hero "Pengeluaran" with the summary's `spending` in 44 
 - **THEN** the hero SHALL read "Tidak tersedia dengan filter lain" in words, and no figure SHALL be computed in the browser
 
 ### Requirement: Transaksi Type and Period Rail
-From 1200 px Transaksi SHALL show a rail labelled "Jenis dan periode" with JENIS (Semua, Pengeluaran, Masuk, Pindah saldo, Investasi, Tabungan & investasi, Kredit, with counts) and PERIODE (Siklus gaji, Bulan kalender, Semua waktu). The chosen items SHALL be marked by `aria-pressed`, a fill and the straight selection bar. Below 1200 px the types SHALL be a horizontal control and the period mode SHALL be in Filter.
+From 1200 px Transaksi SHALL show a rail labelled "Jenis dan periode" with JENIS (Semua, Pengeluaran, Masuk, Pindah saldo, Tabungan & investasi, Kredit, with counts) and PERIODE (Siklus gaji, Bulan kalender, Semua waktu). The chosen items SHALL be marked by `aria-pressed`, a fill and the straight selection bar. Below 1200 px the types SHALL be a horizontal control and the period mode SHALL be in Filter.
 
 #### Scenario: Choosing a type
 - **WHEN** the owner presses "Pengeluaran" in the rail
@@ -616,6 +628,10 @@ From 1200 px Transaksi SHALL show a rail labelled "Jenis dan periode" with JENIS
 #### Scenario: Counts while loading
 - **WHEN** the first page is still loading
 - **THEN** the rail and the type control SHALL show no counts and no invented numbers
+
+#### Scenario: An old Investasi link
+- **WHEN** the owner opens `/ledger?type=investment`
+- **THEN** "Tabungan & investasi" SHALL be the chosen type, the URL SHALL read `type=saving`, and no "Investasi" type SHALL be offered
 
 ### Requirement: Ledger Filter Dialog
 "Filter" SHALL open the centered 640 px dialog "Filter transaksi", a bottom sheet below 768 px, with Rekening, Kategori, Pilar, Status, Sumber, "Hanya yang menunggu jawaban di Tinjau", "Kemungkinan duplikat" while set, and Periode. "Terapkan" SHALL write every field to the URL at once; "Batal" and Esc SHALL discard; "Atur ulang" SHALL clear all but the period. Focus SHALL return to the opener.
@@ -800,3 +816,40 @@ During the compatibility window the API SHALL return `notes` as a copy of `name`
 #### Scenario: An older companion resolves an event
 - **WHEN** a companion sends `notes: "Parkir Contoh"` when resolving an event
 - **THEN** the recorded transaction's name SHALL be "Parkir Contoh" and its note SHALL be empty
+
+### Requirement: Ledger Row Title Lines
+A transaction row SHALL give its title the whole first line of the title column. When the row has a meta, a note or tags, they SHALL be shown on a muted second line under the title, left-aligned with it, in that order, separated by " · ", the note and the tags each marked by their icon. A row without them SHALL stay one line. On the phone the existing two-line composition SHALL remain.
+
+#### Scenario: A long name keeps its line
+- **GIVEN** an income "Ganti uang transport dari Rani untuk fellowship" on BCA with the note "fellowship coach" and the tag "fellowship coach"
+- **WHEN** the owner opens Transaksi at 1280 px
+- **THEN** the first line SHALL show the whole name, and the second line SHALL read "BCA · fellowship coach · fellowship coach" with the note icon before the note and the tag icon before the tag
+
+#### Scenario: Extras line up
+- **WHEN** two rows with different name lengths both have tags
+- **THEN** both tag lists SHALL start at the same horizontal position, the left edge of the title
+
+#### Scenario: A row without extras
+- **WHEN** a row has no meta, note or tags
+- **THEN** it SHALL be one line, as tall as before
+
+#### Scenario: Narrow desktop
+- **WHEN** Transaksi is shown at 1024 px with a long name, a long note and three tags
+- **THEN** each line SHALL end with an ellipsis where it does not fit, the tags SHALL stay readable before the note does, and the page SHALL not scroll horizontally
+
+### Requirement: Hero for Masuk and Pindah Saldo
+For "Masuk" Transaksi SHALL show one hero "Masuk" with the summary's `inflow`, without "Pengeluaran" or "Bersih". For "Pindah saldo" it SHALL show one hero "Pindah saldo" with the summary's `moved`. The ledger summary SHALL carry `moved`: the sum of the matching movements in the window, each counted once, by the rule of the day totals' `movements`.
+
+#### Scenario: Money in
+- **GIVEN** a cycle with `inflow` Rp 7.837.737
+- **WHEN** the owner chooses "Masuk"
+- **THEN** the hero SHALL read "Masuk" "+Rp 7.837.737", and no "Pengeluaran Rp 0" SHALL be shown
+
+#### Scenario: Moves
+- **GIVEN** a cycle whose movements are Rp 247.856 and Rp 648.026
+- **WHEN** the owner chooses "Pindah saldo"
+- **THEN** the hero SHALL read "Pindah saldo" "Rp 895.882", equal to the sum of the day totals' `movements` over every page
+
+#### Scenario: Older API
+- **WHEN** the summary carries no `moved`
+- **THEN** the "Pindah saldo" hero SHALL read "Belum tersedia" in words
