@@ -389,7 +389,7 @@ After a successful financial form mutation, every active view whose displayed da
 - **THEN** the response SHALL be 422
 
 ### Requirement: Ledger Type and Waiting Filters
-`GET /api/transactions` SHALL accept `type=movement` (internal movements and excluded categories outside top-ups), `type=investment` (top-up legs and Investasi rows), `type=saving` (rows whose `saving_flow` changes "Ditabung & investasi", and top-up legs and Investasi rows), `type=credit` (rows on a credit account and cash legs of movements with one) and `waiting=true` (Tinjau's attention set). With `type=saving` and no other row filter, the summary SHALL carry `saving_net`. `type=transfer` SHALL keep its meaning.
+`GET /api/transactions` SHALL accept `type=movement` (internal movements and excluded categories outside top-ups), `type=investment` (top-up legs and Investasi rows), `type=saving` (rows that change "Ditabung & investasi", plus the `investment` rows), `type=credit` (rows on a credit account and cash legs of movements with one) and `waiting=true` (Tinjau's attention set). With `type=saving` and no other row filter, the summary SHALL carry `saving_net`. `type=transfer` SHALL keep its meaning.
 
 #### Scenario: Waiting filter matches the badge
 - **WHEN** the ledger is requested with `waiting=true` and no other filter
@@ -515,7 +515,7 @@ The ledger summary of `GET /api/transactions` SHALL add `spending`, the outflow 
 - **THEN** its `spending` SHALL equal the cycle summary's `spending`
 
 ### Requirement: Ledger Table Columns
-Each desktop ledger row SHALL have the columns time, title with its second line ("Ledger Row Title Lines"), one 168 px cell with the category above the pillar, and amount, in that order, without a header row, a type column or a type pill. The category SHALL show the row's category name as the owner wrote it, and the pillar a dot and a word on every row: an expense's pillar, "Uang masuk", a move's saving direction or "Pindah saldo", "Investasi", or "Menunggu jawaban". The row SHALL NOT show provenance; the transaction dialog SHALL keep showing it.
+Each desktop ledger row SHALL have the columns time, title with its second line ("Ledger Row Title Lines"), one 168 px cell with the category above the pillar, and amount, in that order, without a header row, a type column or a type pill. The category SHALL show the row's category name as the owner wrote it, and the pillar a dot and a word on every row ("Every row has a dot"). The row SHALL NOT show provenance; the transaction dialog SHALL keep showing it.
 
 #### Scenario: Expense shows its category
 - **GIVEN** an expense "Indomaret" in the category "Belanja Harian", whose pillar is Kebutuhan
