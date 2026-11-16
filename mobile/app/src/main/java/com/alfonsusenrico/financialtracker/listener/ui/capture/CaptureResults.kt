@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Sell
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.outlined.WifiOff
 import androidx.compose.material.icons.rounded.Check
@@ -148,6 +149,7 @@ fun CaptureRecorded(state: CaptureSheetState, actions: CaptureSheetActions) {
         FactTags(recordedTags(item))
         val note = item.view?.transaction?.note
         if (!note.isNullOrBlank()) WhyLine("Catatan: $note")
+        if (item.tags.isNotEmpty()) WhyLine("Tag: ${item.tags.joinToString(", ")}", Icons.Outlined.Sell)
         ActionPair(
             first = { modifier ->
                 if (state.canEdit) CompanionButton("Ubah", { editing = true }, modifier, ButtonKind.GHOST, Icons.Outlined.Edit, enabled = !state.busy)

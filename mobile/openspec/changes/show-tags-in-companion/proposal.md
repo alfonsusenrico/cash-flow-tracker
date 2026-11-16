@@ -1,7 +1,7 @@
 # Proposal
 
 ## Approval
-Pending. Requested by the owner on 2026-11-16 ("ok plan the companion tags display") after `transaction-tags` shipped in tracker PR #119.
+Approved by the owner on 2026-11-16 ("ok approved, build it"). Requested the same day ("ok plan the companion tags display") after `transaction-tags` shipped in tracker PR #119.
 
 ## Why
 A sentence typed in the companion's Catat can now carry tags ("fellow coach: bayar makan …"), and the tracker applies them on send. The tracker's capture view already returns them, but the companion ignores the field: the owner cannot see on the phone which tag was attached or whether a new one was created, and has to open Tracker Web to check.

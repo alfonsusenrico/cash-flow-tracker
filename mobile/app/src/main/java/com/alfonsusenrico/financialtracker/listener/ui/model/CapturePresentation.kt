@@ -32,7 +32,9 @@ data class CapturePresentation(
     val category: String?,
     val kakeibo: String?,
     /** The transaction's time once recorded, otherwise when it was typed. */
-    val moment: Long
+    val moment: Long,
+    /** The owner's tag names on a recorded expense or income, in the tracker's order; moves carry none. */
+    val tags: List<String> = emptyList()
 ) {
     val id: Long get() = capture.id
     val localDate: LocalDate get() = Instant.ofEpochMilli(moment).atZone(ZoneId.systemDefault()).toLocalDate()
@@ -90,7 +92,9 @@ data class CapturePresentation(
                 account = account,
                 category = transaction?.categoryName.takeIf { movement == null },
                 kakeibo = transaction?.kakeibo.takeIf { movement == null && direction == MoneyDirection.OUT },
-                moment = recordedAt ?: capture.createdAt
+                moment = recordedAt ?: capture.createdAt,
+                tags = transaction?.tags.orEmpty().mapNotNull { it.name?.trim()?.takeIf(String::isNotEmpty) }
+                    .takeIf { movement == null }.orEmpty()
             )
         }
 

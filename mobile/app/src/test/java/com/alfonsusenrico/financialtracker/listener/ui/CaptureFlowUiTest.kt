@@ -111,6 +111,38 @@ class CaptureFlowUiTest {
         assertEquals(listOf(1L), undone)
     }
 
+    @Test fun aRecordedCaptureListsItsTagsOnOneLine() {
+        sheet(CaptureFixtures.recorded(tags = listOf("fellowship coach", "Malang trip")))
+        compose.onNodeWithText("Tag: fellowship coach, Malang trip").assertIsDisplayed()
+    }
+
+    @Test fun aRecordedCaptureWithoutTagsShowsNoTagLine() {
+        sheet(CaptureFixtures.recorded())
+        compose.onNodeWithText("Tag:", substring = true).assertDoesNotExist()
+    }
+
+    @Test fun captureRincianListsTheTagsTheTrackerRecorded() {
+        compose.show(dark = false) {
+            CaptureDetailScreen(
+                CapturePresentation.of(CaptureFixtures.recorded(undoDeadline = 0, tags = listOf("fellowship coach"))), UiFixtures.PAIRING,
+                emptyList(), emptyList(), false, null, CaptureDetailActions({}, {}, {}, {}, {}, { _, _, _ -> }, {})
+            )
+        }
+        compose.onNodeWithText("Tag").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("fellowship coach").assertIsDisplayed()
+    }
+
+    @Test fun captureRincianOfAnOlderCaptureHasNoTagRow() {
+        compose.show(dark = false) {
+            CaptureDetailScreen(
+                CapturePresentation.of(CaptureFixtures.recorded(undoDeadline = 0)), UiFixtures.PAIRING,
+                emptyList(), emptyList(), false, null, CaptureDetailActions({}, {}, {}, {}, {}, { _, _, _ -> }, {})
+            )
+        }
+        compose.onNodeWithText("Yang dicatat tracker").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Tag").assertDoesNotExist()
+    }
+
     @Test fun reducedMotionKeepsTheCountdownTextOnly() {
         sheet(CaptureFixtures.recorded(undoDeadline = now + 5_000), reducedMotion = true)
         compose.onNodeWithTag(UNDO_BAR_TAG, useUnmergedTree = true).assertDoesNotExist()

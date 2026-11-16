@@ -97,7 +97,14 @@ data class CaptureTransaction(
     @SerializedName("category_name") val categoryName: String? = null,
     @SerializedName("kakeibo") val kakeibo: String? = null,
     @SerializedName("source") val source: String? = null,
-    @SerializedName("classified_by") val classifiedBy: String? = null
+    @SerializedName("classified_by") val classifiedBy: String? = null,
+    // The owner's tags on the transaction; a tracker before tags, or a capture stored before this version, has none.
+    @SerializedName("tags") val tags: List<CaptureTag>? = null
+)
+
+data class CaptureTag(
+    @SerializedName("id") val id: String? = null,
+    @SerializedName("name") val name: String? = null
 )
 
 data class CaptureMovement(
