@@ -1,6 +1,6 @@
 ## Approval
 
-Pending. Requested by the owner on 2026-11-16 from their review of Transaksi in production. Decisions made the same day: two-line rows, a dot on every row, and the running cycle's end estimated from the payday, never before today.
+Approved by the owner on 2026-11-16 ("ok approved, build it"). Requested the same day from their review of Transaksi in production. Decisions made the same day: two-line rows, a dot on every row, and cycles labelled payday to payday, the running cycle ending on the expected payday, never before today.
 
 ## Why
 
@@ -12,7 +12,7 @@ On Transaksi the transaction name is what tells the owner what a row is, but on 
 - Every row's pillar column has a dot and a word: the pillar, "Uang masuk", the saving direction, or "Pindah saldo".
 - The types are Semua, Pengeluaran, Masuk, Pindah saldo, Tabungan & investasi and Kredit. Investment top-ups are listed under "Tabungan & investasi".
 - Each type's hero shows a figure that means something for it: Masuk shows the money in, Pindah saldo the amount moved.
-- Every salary-cycle label is a date range, such as "30 Okt – 28 Nov" for the running cycle.
+- Every salary-cycle label is a date range, such as "30 Okt – 29 Nov" for the running cycle.
 
 ## What Changes
 
@@ -20,7 +20,7 @@ On Transaksi the transaction name is what tells the owner what a row is, but on 
 - **Pillar column:** a dot on every row, with the existing status colours (income mint, moves sky, investment lavender, waiting amber); a move that changes no saving figure reads "Pindah saldo" instead of "—".
 - **Types:** "Investasi" leaves the rail and the type control. `type=saving` also lists top-up legs and Investasi rows; "Ditabung & investasi" (`saving_net`) is unchanged. An old `?type=investment` link opens "Tabungan & investasi". The API keeps accepting `type=investment`.
 - **Hero:** "Masuk" shows the money in alone; "Pindah saldo" shows the amount moved, from a new summary field `moved`.
-- **Cycle labels:** "{start} – {end}" everywhere a salary cycle is named (Transaksi, Analisis, Beranda, Laporan). A finished cycle ends on its last day. The running cycle ends on the day before the expected next salary (the existing estimate from regular receipts, otherwise the payday setting), and never before today. The label never moves a report window.
+- **Cycle labels:** "{start} – {end}" everywhere a salary cycle is named (Transaksi, Analisis, Beranda, Laporan). Cycles read payday to payday: a finished cycle ends on the day its next salary arrived; the running cycle ends on the expected next salary day (the existing estimate from regular receipts, otherwise the payday setting), never before today. The label never moves a report window.
 
 ## Non-goals
 

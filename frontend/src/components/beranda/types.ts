@@ -93,6 +93,8 @@ export interface CycleSummary {
     status: string;
     cycle_status: string;
     start_date: string;
+    /** The cycle label's last day: the running cycle's estimate (improve-ledger-readability D5); null for a month. */
+    label_end_date?: string | null;
     today: string;
     day_index: number;
     label: string;

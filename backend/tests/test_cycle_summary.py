@@ -294,7 +294,10 @@ def test_open_cycle_period_and_salary_in_masuk(owner):
     period = data["period"]
     assert period["basis"] == "cycle" and period["cycle_offset_basis"] == "cycle"
     assert period["start_date"] == latest.isoformat() and period["day_index"] == 6
-    assert period["label"].startswith("Siklus sejak ")
+    from app.services.report_windows import cycle_range_label
+    label_end = max(today(), shift_months(latest, 1))
+    assert period["label_end_date"] == label_end.isoformat()
+    assert period["label"] == cycle_range_label("id", latest, label_end)
     assert data["masuk"]["total"] == SALARY
     assert [line["label"] for line in data["masuk"]["lines"]] == ["Gaji"]
     assert data["masuk"]["lines"][0]["href"] == f"/ledger?period=cycle&type=income&category={owner['gaji']}"
@@ -483,7 +486,11 @@ def test_late_salary_is_overdue_and_the_cycle_stays_open(owner):
     assert data["scheduled"]["window_basis"] == "next_30_days"
     # The estimate is not a boundary: the cycle and every report window still run to now.
     assert data["period"]["start_date"] == latest.isoformat()
-    assert owner.session.get("/api/dashboard/overview?timeframe=cycle").json()["timeframe_label"].endswith("berlanjut")
+    # Past the estimate, the running cycle's label ends today.
+    from app.services.report_windows import cycle_range_label
+    overview = owner.session.get("/api/dashboard/overview?timeframe=cycle").json()
+    assert overview["timeframe_label"] == cycle_range_label("id", latest, today())
+    assert overview["timeframe_label"] == data["period"]["label"] and data["period"]["label_end_date"] == today().isoformat()
     with db_conn() as conn:
         receipts_after = conn.execute("SELECT COUNT(*) AS n FROM salary_receipts WHERE user_id = %s", (owner.user_id,)).fetchone()["n"]
     assert receipts_after == receipts_before

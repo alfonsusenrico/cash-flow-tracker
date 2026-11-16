@@ -29,6 +29,7 @@ import {
   UNCATEGORIZED,
   activeFilterCount,
   hasDateRange,
+  isRetiredLedgerType,
   ledgerApiParams,
   ledgerFilterQuery,
   listsLogicalMovements,
@@ -60,6 +61,11 @@ interface PeriodMetrics extends CashFlowMetrics {
   label: string | null;
   start: string | null;
   end: string | null;
+  /**
+   * The last local day a cycle's label names: a finished cycle's last day, the running cycle's estimated last day;
+   * null for a month. Only for the label: `end` still runs to now (improve-ledger-readability D5). Absent on an older API.
+   */
+  label_end_date?: string | null;
 }
 
 interface LedgerPage {
@@ -131,6 +137,15 @@ function LedgerPageContent() {
     const query = next.toString();
     replaceSearch(query ? `/ledger?${query}` : "/ledger");
   }, [focusRequested, searchKey]);
+
+  // An old link to a retired type opens the type that now lists its rows, and the URL says so (improve-ledger-readability D3).
+  const retiredType = isRetiredLedgerType(params.get("type"));
+  useEffect(() => {
+    if (!retiredType) return;
+    const next = new URLSearchParams(searchKey);
+    next.set("type", filters.type);
+    replaceSearch(`/ledger?${next.toString()}`);
+  }, [retiredType, searchKey, filters.type]);
 
   const [filterOpen, setFilterOpen] = useState(false);
   const [selecting, setSelecting] = useState(false);
@@ -400,6 +415,10 @@ function LedgerPageContent() {
 
   const setType = (type: LedgerTypeFilter) => updateFilters({ type });
   const period = first?.summary?.period;
+  // The stepper names the period by local days; a cycle always as a range, its end the label's own last day.
+  const stepperPeriod = period?.start
+    ? { start: jakartaDay(period.start), end: period.label_end_date ?? (period.end ? jakartaDay(period.end) : null) }
+    : null;
   const heroPeriod = filters.period !== "all"
     ? null
     : hasDateRange(filters) ? { kind: "range" as const, range: rangeText(filters.from, filters.to) } : { kind: "all" as const };
@@ -432,8 +451,8 @@ function LedgerPageContent() {
         {filters.period !== "all" && (
           <PeriodStepper
             unit={filters.period === "month" ? "Bulan" : "Siklus"}
-            label={period?.start ? period.label ?? `${format.shortDateAt(period.start)} – ${format.shortDateAt(period.end ?? period.start)}` : null}
-            period={period?.start ? { start: period.start, end: period.end } : null}
+            label={stepperPeriod ? period?.label ?? `${format.shortDate(stepperPeriod.start)} – ${format.shortDate(stepperPeriod.end ?? todayLocal())}` : null}
+            period={stepperPeriod}
             offset={filters.offset}
             onChange={(next) => updateFilters({ offset: next })}
           />

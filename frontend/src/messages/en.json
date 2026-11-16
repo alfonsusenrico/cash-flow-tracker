@@ -77,8 +77,7 @@
       "nextMonth": "Next month",
       "thisCycle": "This cycle",
       "thisMonth": "This month",
-      "cycleRange": "Cycle {start} – {end}",
-      "cycleSince": "Cycle since {start}",
+      "cycleRange": "{start} – {end}",
       "label": "Period"
     },
     "change": {
@@ -769,8 +768,7 @@
       "saved": "Saved",
       "taken": "Taken from savings",
       "invested": "Invested",
-      "debtPayment": "Debt payment",
-      "none": "—"
+      "debtPayment": "Debt payment"
     },
     "more": {
       "inDay": "{remaining} more on this day · Load more",

@@ -282,7 +282,16 @@ describe("Beranda period", () => {
     expect(headerFor(previewSummary(), NOW, testWords())).toEqual({ title: "Senin, 2 November", subtitle: "Siklus gaji 25 Okt – 24 Nov · hari ke-9" });
   });
 
-  it("names only the cycle's start when the expected salary date is unknown", () => {
+  it("ends the cycle's span on the label's last day from the server, whatever the salary estimate (improve-ledger-readability D5)", () => {
+    const base = previewSummary();
+    const estimated = { ...base, period: { ...base.period, label_end_date: "2026-11-28" } };
+    expect(headerFor(estimated, NOW, testWords()).subtitle).toBe("Siklus gaji 25 Okt – 28 Nov · hari ke-9");
+    const unknown = { ...estimated, scheduled: { ...base.scheduled, window_basis: "next_30_days" as const, window_end: "2026-12-01" } };
+    expect(headerFor(unknown, NOW, testWords()).subtitle).toBe("Siklus gaji 25 Okt – 28 Nov · hari ke-9");
+    expect(headerFor(unknown, NOW, testWords("en")).subtitle).toBe("Pay cycle 25 Oct – 28 Nov · day 9");
+  });
+
+  it("names only the cycle's start on an older API when the expected salary date is unknown", () => {
     const base = previewSummary();
     const unknown = { ...base, scheduled: { ...base.scheduled, window_basis: "next_30_days" as const, window_end: "2026-12-01" } };
     expect(headerFor(unknown, NOW, testWords()).subtitle).toBe("Siklus gaji sejak 25 Okt · hari ke-9");
@@ -563,12 +572,15 @@ describe("Aktivitas terbaru", () => {
     const topup = within(section).getByRole("button", { name: /Top up Reksa Dana A/ });
     expect(topup.querySelector(".r-amt .t-amt")).toHaveClass("c-invest");
     expect(topup.querySelector(".r-amt")).toHaveTextContent(/^Rp 250\.000$/);
-    // A top-up's pillar column names its saving direction from the server; this row carries none (owner feedback 3).
-    expect(topup.querySelector(".r-pillar")).toHaveTextContent("—");
+    // A top-up's pillar column names its saving direction from the server; this row changes none: "Pindah saldo"
+    // beside the investment dot (improve-ledger-readability D2).
+    expect(topup.querySelector(".r-pillar")).toHaveTextContent("Pindah saldo");
+    expect(topup.querySelector(".r-pillar .dot")).toHaveStyle({ background: "var(--inv-solid)" });
     expect(topup.querySelector(".ws-ava")).toBeNull();
     const movement = within(section).getByRole("button", { name: /Bank Utama → Dompet Digital/ });
     expect(movement.querySelector(".r-amt .t-amt")).toHaveClass("c-transfer");
-    expect(movement.querySelector(".r-pillar")).toHaveTextContent("—");
+    expect(movement.querySelector(".r-pillar")).toHaveTextContent("Pindah saldo");
+    expect(section).not.toHaveTextContent("—");
     expect(section).not.toHaveTextContent("Tidak dihitung");
     expect(movement.querySelector(".ph-only")).toHaveTextContent("09.12 · Pindah saldo");
     const kopi = within(section).getByRole("button", { name: /Kopi Pagi/ });

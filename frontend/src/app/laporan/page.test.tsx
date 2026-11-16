@@ -559,6 +559,23 @@ describe("Laporan", () => {
     expect(screen.getByRole("button", { name: "Coba lagi" })).toBeInTheDocument();
   });
 
+  it("names a running cycle as a range to its estimated last day in English (improve-ledger-readability D5)", async () => {
+    const running = {
+      ...period, kind: "cycle", basis: "cycle" as const, label: "30 Oct – 29 Nov", start_date: "2026-10-30", end_date: "2026-11-16",
+      label_end_date: "2026-11-29", days: 18, complete: false, url: "/laporan?basis=cycle&start=2026-10-30",
+    };
+    navigation.params = new URLSearchParams("basis=cycle&start=2026-10-30");
+    mockApi(makeReport({ basis: "cycle", cycle_available: true, period: running }));
+    const served = vi.mocked(api.get).getMockImplementation()!;
+    vi.mocked(api.get).mockImplementation(async (path: string) => (
+      path.startsWith("/reports/monthly/periods") ? { basis: "cycle", cycle_available: true, periods: [running] } : served(path)
+    ));
+    renderPage("en");
+    const stepper = await screen.findByRole("group", { name: "Period" });
+    expect(stepper).toHaveTextContent("30 Oct – 29 Nov");
+    expect(stepper).not.toHaveTextContent("since");
+  });
+
   it("keeps naming the requested period in the stepper when the report fails", async () => {
     mockApi(makeReport());
     const listed = vi.mocked(api.get).getMockImplementation()!;

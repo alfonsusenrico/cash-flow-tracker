@@ -31,7 +31,6 @@ export interface RowLabels {
   /** A Kakeibo bucket's name; the bucket key itself when unknown. */
   bucket: (bucket: string) => string;
   flow: { saved: string; taken: string; invested: string; debtPayment: string };
-  none: string;
   paidFromSavings: string;
   payLater: string;
   due: (date: string) => string;
@@ -67,7 +66,6 @@ export function rowLabelsFor(t: Translate): RowLabels {
       invested: t("transactions.flow.invested"),
       debtPayment: t("transactions.flow.debtPayment"),
     },
-    none: t("transactions.flow.none"),
     paidFromSavings: t("transactions.row.paidFromSavings"),
     payLater: t("transactions.row.payLater"),
     due: (date) => t("transactions.row.due", { date }),
@@ -235,29 +233,44 @@ export function savingFlowLabel(row: RowFacts, labels: RowLabels): string | null
 
 export interface RowStatusFacts {
   text: string;
-  /** The pillar's bucket for the dot; null when the column holds words only (D11). */
+  /** An expense's pillar bucket; null for a row whose dot is its kind's colour (D11). */
   bucket: string | null;
+  /** The dot's mark colour; absent only for a pillar the app does not know. */
   color?: string;
   warning?: boolean;
 }
 
-/** The pillar column: a waiting row says so, income is "Uang masuk", a move names its saving direction or "—". */
+/** The dots of rows that are not spending: the kinds' mark colours, as their amounts use the kinds' inks. */
+const KIND_DOT = {
+  income: "var(--in-solid)",
+  transfer: "var(--tr-solid)",
+  investment: "var(--inv-solid)",
+  warning: "var(--warn-solid)",
+} as const;
+
+/**
+ * The pillar column, a dot and a word on every row (improve-ledger-readability D2): a waiting row says so, income
+ * is "Uang masuk", a move or a top-up names its saving direction or "Pindah saldo", and spending its pillar.
+ */
 export function rowStatus(row: RowFacts, labels: RowLabels): RowStatusFacts {
   const kind = rowKind(row);
-  if (isWaiting(row)) return { text: labels.waiting, bucket: null, warning: true };
-  if (kind === "income") return { text: labels.income, bucket: null };
-  if (kind === "movement" || kind === "topup") return { text: savingFlowLabel(row, labels) ?? labels.none, bucket: null };
+  if (isWaiting(row)) return { text: labels.waiting, bucket: null, color: KIND_DOT.warning, warning: true };
+  if (kind === "income") return { text: labels.income, bucket: null, color: KIND_DOT.income };
+  if (kind === "movement" || kind === "topup") {
+    const color = kind === "topup" ? KIND_DOT.investment : KIND_DOT.transfer;
+    return { text: savingFlowLabel(row, labels) ?? labels.transfer, bucket: null, color };
+  }
   const bucket = row.kakeibo_type || "unclassified";
   return { text: labels.bucket(bucket), bucket, color: kakeiboBucketInfo(bucket)?.color };
 }
 
+/** The dot is decorative: the word beside it carries the meaning. */
 export function RowStatus({ row, labels }: { row: RowFacts; labels: RowLabels }) {
   const status = rowStatus(row, labels);
-  if (status.bucket === null) return <span className={status.warning ? "c-warning" : undefined}>{status.text}</span>;
   return (
     <>
       <span className={status.bucket === "unclassified" ? "dot is-unclassified" : "dot"} style={status.color ? { background: status.color } : undefined} aria-hidden="true" />
-      <span>{status.text}</span>
+      <span className={status.warning ? "c-warning" : undefined}>{status.text}</span>
     </>
   );
 }

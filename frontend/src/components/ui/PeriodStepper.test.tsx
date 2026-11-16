@@ -25,15 +25,32 @@ describe("PeriodStepper", () => {
   });
 
   it("names a cycle by its dates in English and says Loading while the label is not known", () => {
-    const { rerender } = renderWithIntl(<PeriodStepper unit="Siklus" label="Siklus 25 Sep – 24 Okt" period={{ start: "2026-09-25", end: "2026-10-24" }} offset={0} onChange={vi.fn()} />, { language: "en" });
-    expect(screen.getByText("Cycle 25 Sep – 24 Oct")).toBeInTheDocument();
+    const { rerender } = renderWithIntl(<PeriodStepper unit="Siklus" label="25 Sep – 24 Okt" period={{ start: "2026-09-25", end: "2026-10-24" }} offset={0} onChange={vi.fn()} />, { language: "en" });
+    expect(screen.getByText("25 Sep – 24 Oct")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Previous cycle" })).toBeInTheDocument();
     rerender(<PeriodStepper unit="Siklus" label={null} offset={0} onChange={vi.fn()} />);
     expect(screen.getByText("Loading…")).toBeInTheDocument();
   });
 
+  it("names a running cycle as a range to its last day in English, today without one (improve-ledger-readability D5)", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-16T05:00:00+07:00"));
+    try {
+      const { rerender } = renderWithIntl(
+        <PeriodStepper unit="Siklus" label="30 Okt – 29 Nov" period={{ start: "2026-10-30", end: "2026-11-29" }} offset={0} onChange={vi.fn()} />,
+        { language: "en" },
+      );
+      expect(screen.getByText("30 Oct – 29 Nov")).toBeInTheDocument();
+      rerender(<PeriodStepper unit="Siklus" label="Siklus sejak 30 Okt" period={{ start: "2026-10-30", end: null }} offset={0} onChange={vi.fn()} />);
+      expect(screen.getByText("30 Oct – 16 Nov")).toBeInTheDocument();
+      expect(screen.queryByText(/since/)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("is the SPEC stepper: a labelled group of two icon buttons around a live label, with the reset kept", () => {
-    const { container } = renderWithIntl(<PeriodStepper unit="Siklus" label="Siklus 23 Sep – 22 Okt" offset={-1} minOffset={-1} onChange={vi.fn()} />);
+    const { container } = renderWithIntl(<PeriodStepper unit="Siklus" label="23 Sep – 22 Okt" offset={-1} minOffset={-1} onChange={vi.fn()} />);
     const group = screen.getByRole("group", { name: "Periode" });
     expect(group).toHaveClass("stepper");
     expect(container.querySelector(".stepper .cur")).toHaveAttribute("aria-live", "polite");

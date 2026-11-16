@@ -3,10 +3,15 @@
 import { useLocale, useTranslations } from "next-intl";
 import { Icon } from "@/components/ui/Icon";
 import { useFormat } from "@/lib/format";
+import { todayLocal } from "@/lib/ledgerDays";
 
 /** The period's own dates, so the stepper can name it in a language the server label is not written in. */
 export interface StepperPeriod {
   start: string;
+  /**
+   * The last day the label names: a finished cycle's last day or the running cycle's estimated last day
+   * (`label_end_date`); without one a running cycle's label ends today.
+   */
   end?: string | null;
 }
 
@@ -25,7 +30,7 @@ interface PeriodStepperProps {
 /**
  * Previous/next stepper for a report period, in the pattern of the top bar month stepper. It follows the interface
  * language on every page (add-language-system D17): Indonesian keeps the server's label, English names the period
- * from its dates ("Oct 2026", "Cycle 25 Sep – 24 Oct").
+ * from its dates ("Oct 2026", "25 Sep – 24 Oct"). A cycle is always a range, payday to payday (improve-ledger-readability D5).
  */
 export function PeriodStepper({ label, offset, onChange, unit, minOffset = -36, period, monthStyle = "short" }: PeriodStepperProps) {
   const t = useTranslations("common");
@@ -36,9 +41,7 @@ export function PeriodStepper({ label, offset, onChange, unit, minOffset = -36, 
     if (label === null) return t("loading");
     if (locale === "id" || !period?.start) return label;
     if (!cycle) return monthStyle === "long" ? format.monthYear(period.start) : format.shortMonthYear(period.start);
-    return period.end
-      ? t("period.cycleRange", { start: format.shortDate(period.start), end: format.shortDate(period.end) })
-      : t("period.cycleSince", { start: format.shortDate(period.start) });
+    return t("period.cycleRange", { start: format.shortDate(period.start), end: format.shortDate(period.end ?? todayLocal()) });
   })();
   const previous = cycle ? t("period.previousCycle") : t("period.previousMonth");
   const next = cycle ? t("period.nextCycle") : t("period.nextMonth");

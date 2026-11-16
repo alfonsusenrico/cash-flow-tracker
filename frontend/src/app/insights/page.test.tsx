@@ -242,6 +242,29 @@ describe("Analisis tabs", () => {
     expect(app.setTimeframe).toHaveBeenCalledWith("cycle");
   });
 
+  it("names a running cycle as a range to its estimated last day, and a finished one to its last day (improve-ledger-readability D5)", async () => {
+    app.timeframe = "cycle";
+    const cycle = { kind: "cycle", basis: "cycle", tracking_started_inside: false, first_recorded_date: null, url: "" };
+    const cyclePeriods = {
+      basis: "cycle", cycle_available: true,
+      periods: [
+        { ...cycle, label: "30 Okt – 29 Nov", start: "2026-10-30T02:00:00Z", end: "2026-11-16T05:00:00Z", start_date: "2026-10-30", end_date: "2026-11-16", label_end_date: "2026-11-29", days: 18, complete: false },
+        { ...cycle, label: "30 Sep – 30 Okt", start: "2026-09-30T02:00:00Z", end: "2026-10-30T01:59:59Z", start_date: "2026-09-30", end_date: "2026-10-30", label_end_date: "2026-10-30", days: 30, complete: true },
+      ],
+    };
+    const served = vi.mocked(api.get).getMockImplementation()!;
+    vi.mocked(api.get).mockImplementation(async (path: string) => (path.startsWith("/reports/monthly/periods?") ? cyclePeriods : served(path)));
+    const first = renderWithIntl(<QueryClientProvider client={queryClient()}><AnalyticsPage /></QueryClientProvider>, { language: "en" });
+    const stepper = await screen.findByRole("group", { name: "Period" });
+    await waitFor(() => expect(stepper).toHaveTextContent("30 Oct – 29 Nov"));
+    expect(stepper).not.toHaveTextContent("since");
+    first.unmount();
+    app.cycleOffset = -1;
+    renderWithIntl(<QueryClientProvider client={queryClient()}><AnalyticsPage /></QueryClientProvider>, { language: "en" });
+    const previous = await screen.findByRole("group", { name: "Period" });
+    await waitFor(() => expect(previous).toHaveTextContent("30 Sep – 30 Oct"));
+  });
+
   it("says when a rolling window is shown as this cycle, without changing the shared value", async () => {
     app.timeframe = "rolling30";
     renderPage();

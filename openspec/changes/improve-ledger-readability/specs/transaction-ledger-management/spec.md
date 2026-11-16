@@ -235,7 +235,7 @@ The application SHALL persist and present each bilateral internal movement as on
 - **THEN** the response SHALL be 422, as for any value outside the pattern
 
 ### Requirement: Ledger Table Columns
-Each desktop ledger row SHALL have the columns time, title with its second line ("Ledger Row Title Lines"), category, pillar (136 px) and amount, in that order, without a header row, a type column or a type pill. The category SHALL show the row's category name as the owner wrote it, and the pillar a dot and a word on every row: an expense's pillar, "Uang masuk", a move's saving direction or "Pindah saldo", "Investasi", or "Menunggu jawaban". The row SHALL NOT show provenance; the transaction dialog SHALL keep showing it.
+Each desktop ledger row SHALL have the columns time, title with its second line ("Ledger Row Title Lines"), one 168 px cell with the category above the pillar, and amount, in that order, without a header row, a type column or a type pill. The category SHALL show the row's category name as the owner wrote it, and the pillar a dot and a word on every row: an expense's pillar, "Uang masuk", a move's saving direction or "Pindah saldo", "Investasi", or "Menunggu jawaban". The row SHALL NOT show provenance; the transaction dialog SHALL keep showing it.
 
 #### Scenario: Expense shows its category
 - **GIVEN** an expense "Indomaret" in the category "Belanja Harian", whose pillar is Kebutuhan
@@ -265,6 +265,10 @@ Each desktop ledger row SHALL have the columns time, title with its second line 
 #### Scenario: Every row has a dot
 - **WHEN** the list shows an expense in Budaya, an income, an ordinary move, a top-up and a waiting row
 - **THEN** each pillar cell SHALL start with a dot: the Budaya colour, the income colour with "Uang masuk", the transfer colour with "Pindah saldo", the investment colour with "Investasi", and the warning colour with "Menunggu jawaban", and the dot SHALL be hidden from assistive technology
+
+#### Scenario: Category and pillar share a cell
+- **WHEN** Transaksi is shown at 1280 px
+- **THEN** each row's category SHALL sit above its pillar in one cell, and the title column SHALL be at least 330 px wide
 
 ### Requirement: Ledger Saving Flow
 Each row of `GET /api/transactions` and `GET /api/transactions/{id}` SHALL carry a read-only `saving_flow`: `saved`, `invested`, `taken`, `paid_from_savings`, `saving_pillar`, `debt_payment` or `null`, by the rule and account roles that compute Beranda's "Ditabung & investasi". A saving label SHALL appear only when the row changes that figure; "Bayar utang" is informational. Both legs SHALL carry the same value, and no existing field or figure SHALL change.

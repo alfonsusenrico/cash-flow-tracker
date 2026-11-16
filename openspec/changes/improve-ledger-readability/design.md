@@ -16,7 +16,7 @@ What the code does today:
 
 A transaction row with any of meta, note or tags renders `.r-main` as two lines on every width: the title alone on line 1, then a muted 12 px line 2 with the meta, the note (file icon and text) and the tags (tag icon and names), separated by " · ", left-aligned under the title. Line 1 ellipsizes only when the name is longer than the whole title column; line 2 ellipsizes as one line, the tags kept readable before the note, as today. A row without extras stays one line. The row's minimum height stays 56 px; only rows with a second line grow, to 60 px at most.
 
-This applies through `LedgerList`'s rows (a `layout="stacked"` option of `ListRow`), so Pengaturan, Tinjau and the account dialogs keep their lists.
+The category and the pillar share one 168 px cell, the pillar under the category (owner, 2026-11-16, after the browser check showed a 200 px name column at 1280 px); the name gains the pillar column's width. This applies through `LedgerList`'s rows (a `layout="stacked"` option of `ListRow`), so Pengaturan, Tinjau and the account dialogs keep their lists.
 
 Rejected: icons with counts in one line (owner chose two lines); wrapping the title (rows of different heights for the same content).
 
@@ -48,15 +48,15 @@ Rejected: computing the moved total in the browser from loaded rows (wrong while
 
 ### 5. Cycle labels as a date range (owner, 2026-11-16)
 
-Every salary-cycle label is "{start} – {end}" in the interface language ("30 Okt – 28 Nov", "Oct 30 – Nov 28"):
-- a finished cycle: its last day, as today's `cycle_range`;
-- the running cycle: its **estimated last day**, `max(today, expected next salary − 1 day)`.
+Every salary-cycle label is "{start} – {end}" in the interface language, without the "Siklus" prefix ("30 Okt – 29 Nov", "30 Oct – 29 Nov"). Cycles read payday to payday (owner, 2026-11-16, after a correction: a cycle closes at the moment its next salary arrives, so payday-morning spending belongs to it):
+- a finished cycle: the day its next salary arrived, as today's `cycle_range`;
+- the running cycle: `max(today, expected next salary day)`.
 
-The expected next salary is the existing regular-receipts estimate when it is known; otherwise the payday setting: the payday-of-month date nearest the cycle's start (in its month or a neighbouring month), moved one month on and clamped to that month's length. Start 30 Okt with payday 29 gives 29 Nov, so the label reads "30 Okt – 28 Nov". On 30 Nov, with the salary not yet recorded, it reads "30 Okt – 30 Nov". When a salary is recorded on 27 Nov, that cycle is finished, "30 Okt – 26 Nov", and the next reads "27 Nov – 28 Des".
+The expected next salary is the existing regular-receipts estimate when it is known; otherwise the payday setting: the payday-of-month date nearest the cycle's start (in its month or a neighbouring month), moved one month on and clamped to that month's length. Start 30 Okt with payday 29 gives 29 Nov, so the label reads "30 Okt – 29 Nov". On 30 Nov, with the salary not yet recorded, it reads "30 Okt – 30 Nov". When a salary is recorded on 27 Nov, that cycle is finished, "30 Okt – 27 Nov", and the next reads "27 Nov – 29 Des".
 
 The period payloads that describe the running cycle (`summary.cycle` of the ledger, Analisis and Laporan periods, Beranda's cycle) gain `label_end_date`, and the server's `label` uses it. The web formats the same range from `start` and `label_end_date`. Report windows, figures and boundaries are unchanged: the running cycle still runs to now ("Expected Date Is Never a Boundary").
 
-Rejected: today as the end (owner chose the estimate); the expected payday itself as the end (finished cycles end on their last day, so the running one does too).
+Rejected: today as the end (owner chose the estimate); the day before the expected payday (payday-morning spending would fall outside the printed range of its own cycle).
 
 ## Risks
 

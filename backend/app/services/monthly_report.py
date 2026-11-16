@@ -22,9 +22,10 @@ from app.services.observed_insights import (
 )
 from app.services.observed_periods import (
     ObservedPeriod,
-    cycle_label,
+    closed_cycle,
     first_recorded_day,
     month_period,
+    running_cycle,
     salary_boundaries,
 )
 from app.services.report_figures import (
@@ -141,13 +142,8 @@ def list_periods(cur, user_id: str, basis: str, *, now: datetime) -> dict[str, A
             periods.append(period)
             year, month = shift_month(year, month, -1)
     elif first_day is not None and basis == "cycle" and boundaries:
-        periods.append(ObservedPeriod("cycle", boundaries[-1], now,
-                                      cycle_label(boundaries[-1], now, open_cycle=True, language=language), False))
-        closed = [
-            ObservedPeriod("cycle", start, end,
-                           cycle_label(start, end - timedelta(microseconds=1), open_cycle=False, language=language), True)
-            for start, end in zip(boundaries[:-1], boundaries[1:])
-        ]
+        periods.append(running_cycle(cur, user_id, boundaries[-1], now=now, language=language))
+        closed = [closed_cycle(start, end, language=language) for start, end in zip(boundaries[:-1], boundaries[1:])]
         periods.extend(reversed(closed[-CLOSED_PERIOD_LIMIT:]))
     return {
         "periods": periods, "first_day": first_day,

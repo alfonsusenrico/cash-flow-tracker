@@ -461,7 +461,11 @@ SYNTHETIC_USER_DATA = ("BCA Harian", "Jago · Utama", "Jago · Tabungan", "Reksa
                        "Kedai Awan", "Listrik", "Rani", "RANI ***", "Groceries", "BBCA", "Oktober 2026", "25 Okt", "24 Nov",
                        "Jajan & Nongkrong")
 # Month names that are spelled the same in both languages.
-SHARED_WORDS = {"windows.month_name.4", "windows.month_name.9", "windows.month_name.11", "summary.period_month"}
+# A cycle range is only "{start} – {end}"; its dates are formatted per language before they reach the template.
+CYCLE_RANGES = {"windows.cycle_closed", "windows.cycle_open", "observed.cycle_open", "observed.cycle_closed",
+                "calendar.cycle", "summary.period_cycle"}
+SHARED_WORDS = {"windows.month_name.4", "windows.month_name.9", "windows.month_name.11", "summary.period_month",
+                *CYCLE_RANGES}
 
 
 def test_english_account_output_holds_no_indonesian_server_text():
@@ -664,12 +668,10 @@ def test_period_label_for_an_english_account(browser):
     from datetime import date
 
     from app.i18n import t
-    from app.services.report_windows import short_local_date
+    from app.services.report_windows import cycle_range_label
 
-    assert t("en", "periods.cycle_ongoing", start=short_local_date("en", date(2026, 10, 25))) == (
-        "Pay cycle since 25 Oct · ongoing")
-    assert t("id", "periods.cycle_ongoing", start=short_local_date("id", date(2026, 10, 25))) == (
-        "Siklus sejak 25 Okt · berlanjut")
+    assert cycle_range_label("en", date(2026, 10, 30), date(2026, 11, 29)) == "30 Oct – 29 Nov"
+    assert cycle_range_label("id", date(2026, 10, 30), date(2026, 11, 29)) == "30 Okt – 29 Nov"
     body = browser("en").get("/api/dashboard/period-comparison?timeframe=month").json()
     from app.core.config import settings
 

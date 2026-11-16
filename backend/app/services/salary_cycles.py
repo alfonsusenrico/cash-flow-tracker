@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import calendar
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 # The expected-date rule (salary-cycles "Expected Next Salary Date").
@@ -107,3 +107,33 @@ def expected_next_salary(receipts: list[datetime], *, tz_name: str, as_of: datet
     today = as_of.astimezone(zone).date()
     status = 'overdue' if expected < today else 'estimated'
     return ExpectedSalary(status, expected, latest, None)
+
+
+def _payday_months_from(day: date, months: int, payday_day: int) -> date:
+    """The payday of the month `months` away from `day`'s month, clamped to that month's length."""
+    year, month_index = divmod(day.year * 12 + day.month - 1 + months, 12)
+    month = month_index + 1
+    return date(year, month, min(payday_day, calendar.monthrange(year, month)[1]))
+
+
+def next_payday_from_setting(cycle_start: date, payday_day: int) -> date:
+    """The payday setting's date one month after the payday nearest the cycle's start.
+
+    The nearest payday is looked for in the start's month and its neighbours, so a salary paid a few days
+    early or late still maps to its own payday; a tie goes to the earlier payday.
+    """
+    candidates = [_payday_months_from(cycle_start, months, payday_day) for months in (-1, 0, 1)]
+    nearest = min(candidates, key=lambda payday: (abs((payday - cycle_start).days), payday))
+    return _payday_months_from(nearest, 1, payday_day)
+
+
+def running_cycle_label_end(cycle_start: date, today: date, *, expected: ExpectedSalary, payday_day: int) -> date:
+    """The last day the running cycle's label names: the expected next salary day, never before today.
+
+    A finished cycle also ends on the day its next salary arrived, so cycles read payday to payday (owner decision
+    2026-11-16).
+
+    A label only: the cycle itself still runs to now and closes only on a confirmed receipt.
+    """
+    next_salary = expected.date if expected.date is not None else next_payday_from_setting(cycle_start, payday_day)
+    return max(today, next_salary)

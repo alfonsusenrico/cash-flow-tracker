@@ -31,16 +31,19 @@ const SUMMARY_REFRESH_MS = 30_000;
 // Plans due today, overdue, or due within this many days appear in "Perlu tindakan".
 const PLAN_NOTICE_DAYS = 2;
 
-/** The title block (D2): today's date and the period line, with the cycle's span when the salary date is known. */
+/**
+ * The title block (D2): today's date and the period line. The cycle's span ends on its label's last day
+ * (improve-ledger-readability D5); an older API without one ends it at the expected salary when known.
+ */
 export function headerFor(summary: CycleSummary | undefined, now: Date, { t, format }: Words) {
   const title = format.weekdayAt(now);
   if (!summary) return { title, subtitle: "" };
   const { period, scheduled } = summary;
   if (period.basis === "cycle") {
-    const span =
-      scheduled.window_basis === "expected_salary"
-        ? t("home.cycleSpanRange", { start: format.shortDate(period.start_date), end: format.shortDate(scheduled.window_end) })
-        : t("home.cycleSpanSince", { start: format.shortDate(period.start_date) });
+    const end = period.label_end_date ?? (scheduled.window_basis === "expected_salary" ? scheduled.window_end : null);
+    const span = end
+      ? t("home.cycleSpanRange", { start: format.shortDate(period.start_date), end: format.shortDate(end) })
+      : t("home.cycleSpanSince", { start: format.shortDate(period.start_date) });
     return { title, subtitle: t("home.titleCycle", { span, day: String(period.day_index) }) };
   }
   return { title, subtitle: t("home.titleMonth", { month: format.monthName(period.start_date) }) };

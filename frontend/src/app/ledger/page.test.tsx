@@ -298,6 +298,42 @@ describe("Transaksi hero", () => {
     expect(await screen.findByText("Tidak tersedia dengan filter lain")).toBeInTheDocument();
   });
 
+  it("shows Masuk alone for the income type, signed in the income colour (improve-ledger-readability D4)", async () => {
+    summaryPatch = { inflow: 7_837_737, spending: 0, spending_net: 7_837_737 };
+    renderPage("/ledger?period=cycle&type=income");
+    const hero = await screen.findByRole("region", { name: "Masuk" });
+    const figure = await within(hero).findByText("+Rp 7.837.737");
+    expect(figure).toHaveClass("c-income");
+    expect(hero).not.toHaveTextContent("Pengeluaran");
+    expect(hero).not.toHaveTextContent("Bersih");
+    expect(hero).not.toHaveTextContent("Rp 0");
+  });
+
+  it("shows Pindah saldo alone with the amount moved, and words on an older API without it", async () => {
+    summaryPatch = { moved: 895_882 };
+    const first = renderPage("/ledger?period=cycle&type=movement");
+    const hero = await screen.findByRole("region", { name: "Pindah saldo" });
+    const figure = await within(hero).findByText("Rp 895.882");
+    expect(figure).toHaveClass("c-transfer");
+    expect(hero).not.toHaveTextContent("Pengeluaran");
+    expect(hero).not.toHaveTextContent("Masuk");
+    expect(hero).not.toHaveTextContent("+");
+    first.unmount();
+    summaryPatch = {};
+    renderPage("/ledger?period=cycle&type=movement");
+    const older = await screen.findByRole("region", { name: "Pindah saldo" });
+    expect(await within(older).findByText("Belum tersedia")).toBeInTheDocument();
+    expect(older).not.toHaveTextContent(/\d/);
+  });
+
+  it("keeps one hero figure while the income and movement types load", async () => {
+    holdFirst = true;
+    renderPage("/ledger?period=cycle&type=income");
+    const hero = await screen.findByRole("region", { name: "Masuk" });
+    expect(hero).toHaveAttribute("aria-busy", "true");
+    expect(hero.querySelectorAll(".skel")).toHaveLength(1);
+  });
+
   it("shows skeleton figures and no counts while the first page loads", async () => {
     holdFirst = true;
     renderPage();
@@ -309,16 +345,27 @@ describe("Transaksi hero", () => {
 });
 
 describe("Type and period rail", () => {
-  it("lists seven types with the server's counts and two period groups", async () => {
+  it("lists six types with the server's counts and two period groups, without Investasi", async () => {
     renderPage();
     await findRow(/Kedai Awan/);
     const items = within(rail()).getAllByRole("button");
     expect(items.map((item) => item.querySelector(".lbl")?.textContent)).toEqual([
-      "Semua", "Pengeluaran", "Masuk", "Pindah saldo", "Investasi", "Tabungan & investasi", "Kredit", "Siklus gaji", "Bulan kalender", "Semua waktu",
+      "Semua", "Pengeluaran", "Masuk", "Pindah saldo", "Tabungan & investasi", "Kredit", "Siklus gaji", "Bulan kalender", "Semua waktu",
     ]);
-    expect(within(rail()).getByRole("button", { name: /^Investasi/ })).toHaveTextContent("1");
+    expect(within(rail()).getByRole("button", { name: /^Tabungan & investasi/ })).toHaveTextContent("1");
     expect(within(rail()).getByRole("button", { name: /^Siklus gaji/ })).toHaveAttribute("aria-pressed", "true");
-    expect(within(screen.getByRole("group", { name: "Jenis" })).getAllByRole("button")).toHaveLength(7);
+    const control = within(screen.getByRole("group", { name: "Jenis" })).getAllByRole("button");
+    expect(control).toHaveLength(6);
+    expect(control.map((button) => button.textContent)).not.toContainEqual(expect.stringMatching(/^Investasi/));
+  });
+
+  it("opens an old Investasi link as Tabungan & investasi and rewrites the URL (improve-ledger-readability D3)", async () => {
+    renderPage("/ledger?period=cycle&type=investment");
+    await waitFor(() => expect(here()).toBe("/ledger?period=cycle&type=saving"));
+    expect(await screen.findByRole("region", { name: "Ditabung & investasi" })).toBeInTheDocument();
+    expect(within(rail()).getByRole("button", { name: /^Tabungan & investasi/ })).toHaveAttribute("aria-pressed", "true");
+    expect(listCalls().every((path) => !path.includes("type=investment"))).toBe(true);
+    expect(navigation.replace).not.toHaveBeenCalled();
   });
 
   it("writes the type to the URL without a navigation and keeps focus on the pressed item", async () => {
@@ -695,7 +742,7 @@ describe("Movement routes and saving directions", () => {
     const noted = await findRow(/Isi GoPay/);
     expect(noted.querySelector(".r-meta")).toHaveTextContent("BCA · ATM → Gopay");
     expect(noted.querySelector(".r-cat")).toHaveTextContent("Pindah saldo");
-    expect(noted.querySelector(".r-pillar")).toHaveTextContent("—");
+    expect(noted.querySelector(".r-pillar")).toHaveTextContent("Pindah saldo");
     expect(within(noted).getByText("Rp 30.000")).toHaveClass("c-transfer");
     const routed = rowButton(/Gopay → Jago · Tabungan/);
     expect(routed.querySelector(".r-pillar")).toHaveTextContent("Ditabung");
@@ -801,6 +848,28 @@ describe("Credit (H5)", () => {
     await user.click(within(edit).getByRole("button", { name: "Simpan" }));
     await waitFor(() => expect(api.put).toHaveBeenCalledWith(`/transactions/${purchase.id}/credit-terms`, { installment_count: 3, first_due_date: null }));
     expect(api.patch).toHaveBeenCalled();
+  });
+});
+
+describe("Period label (improve-ledger-readability D5)", () => {
+  it("names the running cycle as a range to its estimated last day in English", async () => {
+    summaryPatch = { label: "25 Okt – 24 Nov", label_end_date: "2026-11-24" };
+    renderPage("/ledger?period=cycle", "en");
+    await findRow(/Kedai Awan/);
+    expect(screen.getByRole("group", { name: "Period" })).toHaveTextContent("25 Oct – 24 Nov");
+  });
+
+  it("keeps the server's label in Indonesian and composes the same range when it is missing", async () => {
+    summaryPatch = { label: "25 Okt – 24 Nov", label_end_date: "2026-11-24" };
+    const first = renderPage();
+    await findRow(/Kedai Awan/);
+    expect(screen.getByRole("group", { name: "Periode" })).toHaveTextContent("25 Okt – 24 Nov");
+    first.unmount();
+    summaryPatch = { label: null, label_end_date: "2026-11-23" };
+    renderPage();
+    await findRow(/Kedai Awan/);
+    expect(screen.getByRole("group", { name: "Periode" })).toHaveTextContent("25 Okt – 23 Nov");
+    expect(screen.getByRole("group", { name: "Periode" })).not.toHaveTextContent("sejak");
   });
 });
 

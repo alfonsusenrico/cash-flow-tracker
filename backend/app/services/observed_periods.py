@@ -12,9 +12,9 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.core.config import settings
-from app.i18n import account_language, t
-from app.services.report_windows import month_label, shift_month, short_local_date
-from app.services.salary_receipts import receipts as confirmed_receipts
+from app.i18n import account_language
+from app.services.report_windows import cycle_range_label, month_label, shift_month
+from app.services.salary_receipts import load_running_cycle_label_end, receipts as confirmed_receipts
 
 COMPLETED_PERIOD_LIMIT = 6
 
@@ -26,6 +26,9 @@ class ObservedPeriod:
     end: datetime  # UTC, exclusive; for the current period, the instant it was observed
     label: str
     complete: bool
+    # The last day a cycle's label names: its last day once complete, else the running cycle's estimate.
+    # A label only, never a bound; None for a month.
+    label_end_date: date | None = None
 
     @property
     def last_instant(self) -> datetime:
@@ -43,6 +46,7 @@ class ObservedPeriod:
             "end": self.last_instant.isoformat(),
             "start_date": first_day.isoformat(),
             "end_date": last_day.isoformat(),
+            "label_end_date": self.label_end_date.isoformat() if self.label_end_date else None,
             "days": (last_day - first_day).days + 1,
             "complete": self.complete,
         }
@@ -67,12 +71,19 @@ def month_period(year: int, month: int, *, now: datetime, language: str) -> Obse
     return ObservedPeriod("month", start, end if complete else now, month_label(language, year, month), complete)
 
 
-def cycle_label(start: datetime, last: datetime, *, open_cycle: bool, language: str) -> str:
+def closed_cycle(start: datetime, end: datetime, *, language: str) -> ObservedPeriod:
+    """The cycle from one confirmed receipt to the next, `end` exclusive."""
     zone = ZoneInfo(settings.tz)
-    first_day = short_local_date(language, start.astimezone(zone).date())
-    if open_cycle:
-        return t(language, "periods.cycle_since", start=first_day)
-    return t(language, "periods.cycle_range", start=first_day, end=short_local_date(language, last.astimezone(zone).date()))
+    first_day = start.astimezone(zone).date()
+    last_day = (end - timedelta(microseconds=1)).astimezone(zone).date()
+    return ObservedPeriod("cycle", start, end, cycle_range_label(language, first_day, last_day), True, last_day)
+
+
+def running_cycle(cur, user_id: str, start: datetime, *, now: datetime, language: str) -> ObservedPeriod:
+    """The cycle since the latest confirmed receipt: it runs to now, its label to the estimated last day."""
+    first_day = start.astimezone(ZoneInfo(settings.tz)).date()
+    label_end = load_running_cycle_label_end(cur.connection, user_id, first_day, now)
+    return ObservedPeriod("cycle", start, now, cycle_range_label(language, first_day, label_end), False, label_end)
 
 
 def first_recorded_day(cur, user_id: str) -> date | None:
@@ -132,12 +143,9 @@ def load_period_history(
     if first_day is None:
         return PeriodHistory([], None, cycle_status)
     if boundaries:
-        current = ObservedPeriod("cycle", boundaries[-1], now,
-                                 cycle_label(boundaries[-1], now, open_cycle=True, language=language), False)
+        current = running_cycle(cur, user_id, boundaries[-1], now=now, language=language)
         completed = [
-            ObservedPeriod("cycle", start, end,
-                           cycle_label(start, end - timedelta(microseconds=1), open_cycle=False, language=language), True)
-            for start, end in zip(boundaries[:-1], boundaries[1:])
+            closed_cycle(start, end, language=language) for start, end in zip(boundaries[:-1], boundaries[1:])
         ]
         completed.reverse()
         completed = completed[:limit]

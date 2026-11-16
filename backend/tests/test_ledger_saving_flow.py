@@ -142,8 +142,12 @@ def test_each_movement_carries_its_saving_flow_on_both_legs(saver):
         "beli_trade": None,
     }
 
+    # A top-up funded from savings changes no saving figure but is still listed, as every top-up is.
     listed = {row["movement_id"] for row in listing(saver, "type=saving")["transactions"]}
-    assert listed == {moves["saved"], moves["taken"], moves["goal_saved"], moves["tabungan_to_credit"], moves["rdn_topup"]}
+    assert listed == {
+        moves["saved"], moves["taken"], moves["goal_saved"], moves["tabungan_to_credit"], moves["rdn_topup"],
+        moves["tabungan_topup"],
+    }
 
 
 def test_expenses_paid_from_savings_and_saving_pillar(saver):

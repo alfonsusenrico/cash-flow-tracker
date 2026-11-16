@@ -6,8 +6,19 @@ export type LedgerPeriod = "all" | "cycle" | "month";
  * "movement" is Pindah saldo, "saving" Tabungan & investasi, "credit" Kredit. Each is also the API's `type` value
  * and the `type_counts` key.
  */
-export const LEDGER_TYPES = ["all", "expense", "income", "movement", "investment", "saving", "credit"] as const;
+export const LEDGER_TYPES = ["all", "expense", "income", "movement", "saving", "credit"] as const;
 export type LedgerTypeFilter = (typeof LEDGER_TYPES)[number];
+
+/**
+ * Types the page no longer offers, read as the type that now lists their rows: "Investasi" became part of
+ * "Tabungan & investasi" (improve-ledger-readability D3). The API still accepts them for its other consumers.
+ */
+const RETIRED_LEDGER_TYPES: ReadonlyMap<string, LedgerTypeFilter> = new Map<string, LedgerTypeFilter>([["investment", "saving"]]);
+
+/** Whether a URL's `type` is a retired one, which the page rewrites to its current type. */
+export function isRetiredLedgerType(value: string | null): boolean {
+  return value !== null && RETIRED_LEDGER_TYPES.has(value);
+}
 export type LedgerSourceFilter = "all" | "notification" | "capture";
 export type LedgerReviewFilter = "all" | "needs_review" | "auto" | "reviewed";
 
@@ -87,7 +98,7 @@ export function parseLedgerFilters(params: URLSearchParams | null): LedgerFilter
     offset,
     category: category === UNCATEGORIZED || (category && UUID_PATTERN.test(category)) ? category : "all",
     kakeibo: isKakeiboBucket(kakeibo) ? kakeibo : "all",
-    type: oneOf(params.get("type"), LEDGER_TYPES, "all"),
+    type: RETIRED_LEDGER_TYPES.get(params.get("type") ?? "") ?? oneOf(params.get("type"), LEDGER_TYPES, "all"),
     account: account && UUID_PATTERN.test(account) ? account : "all",
     review: oneOf(params.get("review"), ["needs_review", "auto", "reviewed"] as const, "all"),
     from: ranged ? instantOrNull(params.get("from")) : null,
@@ -155,7 +166,7 @@ export function hasDateRange(filters: LedgerFilters): boolean {
 }
 
 /**
- * Whether the list may show one row per movement. A period, a date range and the Pindah saldo, Investasi,
+ * Whether the list may show one row per movement. A period, a date range and the Pindah saldo,
  * Tabungan & investasi and Kredit types keep it; any other filter lists both legs, because either side may match
  * on its own.
  */
