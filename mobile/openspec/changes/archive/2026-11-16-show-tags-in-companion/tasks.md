@@ -15,5 +15,5 @@ Expected Result: the owner sees on the phone which tags the tracker attached.
 ## 3. Verify and deliver
 
 - [x] 3.1 `./gradlew testDebugUnitTest lintDebug assembleDebug`; `openspec validate --all --strict` in `mobile/`; `verification.md`.
-- [ ] 3.2 After the owner accepts: archive, push, open the PR and report its URL.
+- [x] 3.2 After the owner accepts: archive, push, open the PR and report its URL.
 - [ ] 3.3 After the merge and green Android checks: push `android-v2.4.5` and verify the APK (checksum, version, signer `CN=Cash Flow Companion`, dex strings).
