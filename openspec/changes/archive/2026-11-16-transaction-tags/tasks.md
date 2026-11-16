@@ -16,11 +16,11 @@ Expected Result: the AI reuses tags and never creates one without the owner.
 ## 3. Web
 
 - [x] 3.1 Tag picker with create in Catat (manual form) and the edit dialog; tags on the recorded AI result; chips on rows and in the detail; ledger filter; Pengaturan "Tag" section; messages in both languages. Evidence: component tests; keyboard and axe checks; type check, lint, tests and build.
-- [ ] 3.2 Browser check on a production build with synthetic data at 1440 and 390, light and dark: create from Catat, tags on an AI result, filter with totals, merge. Evidence: captures shown to the owner.
+- [x] 3.2 Browser check on a production build with synthetic data at 1440 and 390, light and dark: create from Catat, tags on an AI result, filter with totals, merge. Evidence: captures shown to the owner.
 
 Expected Result: tagging takes a few taps, and the filter answers "what did this cost".
 
 ## 4. Verify and deliver
 
-- [ ] 4.1 Full backend and frontend suites; `openspec validate --all --strict`; `verification.md`.
-- [ ] 4.2 After the owner accepts, archive, push, open the PR and report its URL.
+- [x] 4.1 Full backend and frontend suites; `openspec validate --all --strict`; `verification.md`.
+- [x] 4.2 After the owner accepts, archive, push, open the PR and report its URL.
