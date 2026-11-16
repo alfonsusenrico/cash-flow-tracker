@@ -270,3 +270,40 @@ def test_another_owners_account_answers_404(client, owner):
     }
     response = client.post(f"/api/accounts/{owner['main']}/balance-check", json={"actual_balance": 0})
     assert response.status_code == 404
+
+
+def flag(owner, *keys_):
+    with _db() as conn:
+        for key in keys_:
+            conn.execute("UPDATE accounts SET reconciliation_required = TRUE, reconciliation_reason = 'notification_overdraft' WHERE id = %s",
+                         (owner[key],))
+        conn.commit()
+
+
+def flagged(owner, key):
+    with _db() as conn:
+        return conn.execute("SELECT reconciliation_required FROM accounts WHERE id = %s", (owner[key],)).fetchone()["reconciliation_required"]
+
+
+def test_saldo_cocok_clears_the_pockets_warning(client, owner):
+    # A pocket flagged "Perlu dicocokkan" whose recorded balance the owner confirms in the bank app (2026-11-16).
+    flag(owner, "saving")
+    matched = client.post(f"/api/accounts/{owner['saving']}/balance-matches", json={"actual_balance": 500_000})
+    assert matched.status_code == 200, matched.text
+    assert flagged(owner, "saving") is False
+    account = next(row for row in client.get("/api/accounts").json()["accounts"] if row["id"] == owner["saving"])
+    assert account["reconciliation_required"] is False
+
+
+def test_a_refused_match_keeps_the_warning(client, owner):
+    flag(owner, "saving")
+    refused = client.post(f"/api/accounts/{owner['saving']}/balance-matches", json={"actual_balance": 1})
+    assert refused.status_code == 409
+    assert flagged(owner, "saving") is True
+
+
+def test_a_matching_total_keeps_a_flagged_pockets_warning(client, owner):
+    flag(owner, "main")
+    matched = client.post(f"/api/accounts/{owner['parent']}/balance-matches", json={"actual_balance": 1_000_000})
+    assert matched.status_code == 200, matched.text
+    assert flagged(owner, "main") is True

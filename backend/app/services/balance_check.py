@@ -310,4 +310,13 @@ def record_match(cur, user_id: str, account_id: str, actual_balance: int) -> dic
            VALUES (%s, %s, %s) RETURNING matched_at""",
         (user_id, account_id, actual_balance),
     )
-    return {"matched_at": cur.fetchone()["matched_at"].isoformat(), "balance": actual_balance}
+    matched_at = cur.fetchone()["matched_at"]
+    # The owner confirmed this account's balance in the bank app, which is what "Perlu dicocokkan" asks for
+    # (clear-flag-on-matched-balance). Only the checked account: a matching total does not prove each pocket.
+    cur.execute(
+        """UPDATE accounts SET reconciliation_required = FALSE, reconciliation_reason = NULL,
+               reconciliation_event_id = NULL, updated_at = NOW()
+           WHERE user_id = %s AND id = %s AND reconciliation_required""",
+        (user_id, account_id),
+    )
+    return {"matched_at": matched_at.isoformat(), "balance": actual_balance}
