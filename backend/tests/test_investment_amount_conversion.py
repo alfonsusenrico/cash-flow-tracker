@@ -171,7 +171,7 @@ def test_notification_expense_becomes_topup_without_moving_funding(auth_client, 
     leg = row(transaction_id)
     assert str(leg["movement_id"]) == topup["id"]
     assert leg["movement_role"] == "outbound"
-    assert leg["notes"] == "Top up Investasi"
+    assert leg["name"] == "Top up Investasi"
     assert leg["idempotency_key"] == original_key
     listing = auth_client.get("/api/transactions", params={"account_id": source}).json()["transactions"]
     shown = next(item for item in listing if item["id"] == transaction_id)
@@ -197,7 +197,7 @@ def test_owner_notes_are_kept_for_manual_expense(auth_client, converted_fund):
 
     assert response.status_code == 200, response.text
     assert response.json()["topup"]["notes"] == "Autodebet Bibit Oktober"
-    assert row(transaction_id)["notes"] == "Autodebet Bibit Oktober"
+    assert row(transaction_id)["name"] == "Autodebet Bibit Oktober"
 
 
 @pytest.mark.parametrize("case", ["income", "movement", "debt", "goal", "unit_product", "investment_source"])
@@ -285,7 +285,7 @@ def test_deleting_converted_topup_restores_corrected_bank_debit(auth_client, con
     assert restored["movement_role"] is None
     assert restored["category_id"] == original["category_id"]
     assert restored["kakeibo_type"] == original["kakeibo_type"]
-    assert restored["notes"] == original["notes"]
+    assert restored["name"] == original["name"]
     assert restored["amount"] == 100_000
     assert restored["idempotency_key"] == original["idempotency_key"]
     after = balances(auth_client)

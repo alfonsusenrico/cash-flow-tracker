@@ -64,7 +64,7 @@ def pair(owner, source, target, amount, when, *, category="movement"):
     movement_id = str(uuid4())
     for account, kind, role in ((source, "expense", "outbound"), (target, "income", "inbound")):
         owner.db(
-            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, date, notes, source,
+            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, date, name, source,
                                          review_status, movement_id, movement_role)
                VALUES (%s, %s, %s, %s, %s, %s, 'Pindah saldo contoh', 'manual', 'reviewed', %s, %s)""",
             (owner.user_id, owner[account], owner[category], kind, amount, when, movement_id, role),
@@ -113,7 +113,7 @@ def rich_owner(owner):
     owner.account("minus", "Kartu Contoh", initial=-150_000)
     owner.goal("goal", "Dana Darurat", 10_000_000, shift_months(today(), 6), accounts=["dd"])
 
-    owner.tx("income", 8_200_000, category="gaji", when=at_local(month_day(1)), notes="Gaji contoh")
+    owner.tx("income", 8_200_000, category="gaji", when=at_local(month_day(1)), name="Gaji contoh")
     owner.expense(120_000, "makan", when=at_local(month_day(2)))
     owner.expense(85_000, "jajan", when=at_local(month_day(3)))
     owner.expense(60_000, "buku", when=at_local(month_day(3), 15))
@@ -121,7 +121,7 @@ def rich_owner(owner):
     owner.expense(40_000, "lain", when=at_local(month_day(5)))
     owner.expense(300_000, "tabung", when=at_local(month_day(5), 14))
     owner.expense(75_000, "excluded", when=at_local(month_day(6)))
-    owner.tx("income", 30_000, category="patungan", when=at_local(month_day(7)), notes="Ganti uang contoh")
+    owner.tx("income", 30_000, category="patungan", when=at_local(month_day(7)), name="Ganti uang contoh")
     owner.db("UPDATE transactions SET offset_category_id = %s WHERE user_id = %s AND category_id = %s",
              (owner["makan"], owner.user_id, owner["patungan"]))
     pair(owner, "bank", "wallet", 500_000, at_local(month_day(8)))
@@ -130,10 +130,10 @@ def rich_owner(owner):
     pair(owner, "bank", "rda", 450_000, at_local(month_day(10)), category="investasi")
     pair(owner, "rda", "bank", 100_000, at_local(month_day(11)), category="investasi")
     awaiting = owner.expense(112_590, "movement", account="wallet", when=at_local(month_day(12)),
-                             notes="Transfer keluar contoh", review_status="needs_review")
+                             name="Transfer keluar contoh", review_status="needs_review")
     waiting_event(owner, awaiting, reasons=["awaiting_counterpart"])
     question = owner.expense(45_000, "jajan", account="wallet", when=at_local(month_day(13)),
-                             notes="QRIS contoh", review_status="needs_review")
+                             name="QRIS contoh", review_status="needs_review")
     waiting_event(owner, question, question=True, reasons=["purpose_question"])
     owner.expense(20_000, "makan", account="minus", when=at_local(month_day(14)))
     owner.ids["awaiting_tx"] = awaiting

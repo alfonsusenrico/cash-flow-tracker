@@ -295,8 +295,8 @@ class FakeCursor:
         return self.descriptions
 
 
-def description(transaction, *, merchant=None, notes=None, category=None):
-    return {"id": transaction["id"], "merchant": merchant, "notes": notes, "category_name": category}
+def description(transaction, *, merchant=None, name=None, category=None):
+    return {"id": transaction["id"], "merchant": merchant, "name": name, "category_name": category}
 
 
 def test_settlement_titles_follow_the_row_title_with_one_query():
@@ -307,8 +307,8 @@ def test_settlement_titles_follow_the_row_title_with_one_query():
     payment = row("payment", 90_000, date(2026, 11, 8), movement="payment")
     result = schedule([by_merchant, by_note, by_category, advance, payment], date(2026, 11, 9), owed=50_000)
     cursor = FakeCursor([
-        description(by_merchant, merchant="Kopi Senja", notes="Sarapan", category="Makan"),
-        description(by_note, notes="Sarapan", category="Makan"),
+        description(by_merchant, merchant="Kopi Senja", name="Sarapan", category="Makan"),
+        description(by_note, name="Sarapan", category="Makan"),
         description(by_category, category="Makan"),
         description(advance, category="Internal Movement"),
     ])

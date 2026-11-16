@@ -40,8 +40,9 @@ from app.services.ledger_mutations import (
 from app.services.merchant_memory import (
     count_memory_hit, insert_feedback, memory_row, restore_memory, snapshot_rows, upsert_memory,
 )
-from app.services.movement_linkage import ensure_internal_movement_categories, movement_note
+from app.services.movement_linkage import ensure_internal_movement_categories, movement_name
 from app.services.provenance import capture_provenance, normalize_merchant
+from app.services.transaction_text import text_fields
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,7 @@ MOVEMENT_DESCRIPTIONS = {"withdraw": "notes.cash_withdrawal", "deposit": "notes.
 # Answers to these questions are the owner's teaching; an amount answer is not a classification.
 TEACHING_ANSWERS = frozenset({"kind", "account", "category"})
 SNAPSHOT_COLUMNS = (
-    "id, type, amount, account_id, date, category_id, kakeibo_type, notes, merchant, offset_category_id, "
+    "id, type, amount, account_id, date, category_id, kakeibo_type, name, merchant, offset_category_id, "
     "movement_id, review_status, classified_by, owner_edited_at, updated_at"
 )
 
@@ -128,11 +129,11 @@ def record_plan(cur, user_id: str, capture_id: str, draft: dict, plan: dict) -> 
         locked = lock_owned_accounts(cur, user_id, [source_id, target_id])
         ensure_generic_movement_accounts(locked[source_id], locked[target_id])
         expense_category_id, income_category_id = ensure_internal_movement_categories(cur, user_id)
-        form_note = MOVEMENT_DESCRIPTIONS.get(facts["movement_form"])
-        notes = t(account_language(cur, user_id)[0], form_note) if form_note else movement_note(cur, user_id, target_id)
+        form_name = MOVEMENT_DESCRIPTIONS.get(facts["movement_form"])
+        leg_name = t(account_language(cur, user_id)[0], form_name) if form_name else movement_name(cur, user_id, target_id)
         # A typed movement describes money already moved, so it is recorded even past the ledger balance.
         result = create_bilateral_movement(
-            cur, user_id=user_id, source_id=source_id, target_id=target_id, amount=plan["amount"], notes=notes,
+            cur, user_id=user_id, source_id=source_id, target_id=target_id, amount=plan["amount"], name=leg_name,
             tx_date=tx_date, expense_category_id=expense_category_id, income_category_id=income_category_id,
             source_account=locked[source_id], target_account=locked[target_id], idempotency_key=key,
             allow_negative=True, provenance=capture_provenance(by),
@@ -154,16 +155,16 @@ def record_plan(cur, user_id: str, capture_id: str, draft: dict, plan: dict) -> 
         kakeibo = classification.get("kakeibo") or default_pillar("expense", category)
     offset = classification.get("offset_category_id") if category["offsets_spending"] else None
     merchant = normalize_merchant((classification.get("merchant") or "")[:120])
-    notes = (classification.get("description") or facts["description"] or category["name"])[:160]
+    name = (classification.get("description") or facts["description"] or category["name"])[:160]
     provenance = capture_provenance(by, classification.get("confidence"))
     cur.execute(
         """INSERT INTO transactions (
-               user_id, account_id, category_id, type, amount, notes, date, kakeibo_type, idempotency_key,
+               user_id, account_id, category_id, type, amount, name, date, kakeibo_type, idempotency_key,
                merchant, offset_category_id, source, review_status, classified_by, classification_confidence,
                time_basis, time_evidence)
            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
            RETURNING id""",
-        (user_id, account_id, classification["category_id"], plan["kind"], plan["amount"], notes, tx_date, kakeibo,
+        (user_id, account_id, classification["category_id"], plan["kind"], plan["amount"], name, tx_date, kakeibo,
          key, merchant, offset, *provenance.columns(), moment["basis"], moment["evidence"]),
     )
     return {"transaction_ids": [str(cur.fetchone()["id"])], "movement_id": None}
@@ -192,7 +193,7 @@ def learn(cur, user_id: str, capture: dict, draft: dict, plan: dict, recorded: d
     if classification["by"] == "memory":
         count_memory_hit(cur, user_id, draft["memory"]["hit"]["memory_id"])
     upsert_memory(cur, user_id, match_key, {
-        "merchant": after.get("merchant"), "notes": after.get("notes"), "category_id": str(after["category_id"]),
+        "merchant": after.get("merchant"), "name": after.get("name"), "category_id": str(after["category_id"]),
         "kakeibo_type": after.get("effective_kakeibo"),
         "offset_category_id": str(after["offset_category_id"]) if after.get("offset_category_id") else None,
         "account_id": str(after["account_id"]),
@@ -250,7 +251,7 @@ def transaction_view(cur, user_id: str, capture: dict) -> tuple[dict | None, dic
         return None, None
     cur.execute(
         """SELECT t.id, t.type, t.amount, t.date, t.account_id, a.name AS account_name, p.name AS parent_name,
-                  t.merchant, t.notes, t.category_id, c.name AS category_name,
+                  t.merchant, t.name, t.note, t.category_id, c.name AS category_name,
                   CASE WHEN t.movement_id IS NOT NULL THEN t.kakeibo_type
                        WHEN t.type = 'expense' THEN COALESCE(t.kakeibo_type, c.kakeibo_type) END AS kakeibo,
                   t.offset_category_id, t.source, t.review_status, t.classified_by, t.movement_id, t.movement_role,
@@ -269,7 +270,7 @@ def transaction_view(cur, user_id: str, capture: dict) -> tuple[dict | None, dic
         return {
             "id": str(row["id"]), "type": row["type"], "amount": int(row["amount"]), "date": row["date"].isoformat(),
             "account_id": str(row["account_id"]), "account_name": label, "merchant": row["merchant"],
-            "notes": row["notes"], "category_id": str(row["category_id"]) if row["category_id"] else None,
+            **text_fields(row), "category_id": str(row["category_id"]) if row["category_id"] else None,
             "category_name": row["category_name"], "kakeibo": row["kakeibo"],
             "offset_category_id": str(row["offset_category_id"]) if row["offset_category_id"] else None,
             "source": row["source"], "review_status": row["review_status"], "classified_by": row["classified_by"],

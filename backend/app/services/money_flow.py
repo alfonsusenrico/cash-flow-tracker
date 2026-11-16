@@ -24,6 +24,7 @@ from app.services.account_roles import TABUNGAN
 from app.services.kakeibo import pillar_bucket_sql
 from app.services.reimbursements import load_spending_offsets
 from app.services.report_figures import cash_flow_totals, reportable_expense_sql, reportable_income_sql
+from app.services.transaction_text import text_fields
 from app.services.waiting_rows import COUNTERPART_SECTIONS, fetch_waiting_rows
 
 KakeiboBreakdown = Callable[..., dict[str, Any]]
@@ -159,7 +160,7 @@ def _load_window_rows(cur, user_id: str, start: datetime, end: datetime) -> list
     cur.execute(
         f"""
         SELECT t.id, t.account_id, t.type, t.amount, t.date, t.movement_id, t.movement_role,
-               t.merchant, t.notes, t.category_id, c.name AS category_name,
+               t.merchant, t.name, t.note, t.category_id, c.name AS category_name,
                {reportable_expense_sql()} AS reportable_expense,
                {reportable_income_sql()} AS reportable_income,
                COALESCE(c.offsets_spending, FALSE) AS offsets_spending,
@@ -528,7 +529,7 @@ def flow_rows(context: FlowContext, *, link: str | None, node: str | None, offse
             "account_name": context.accounts[str(row["account_id"])]["name"],
             "category_name": row["category_name"],
             "merchant": row["merchant"],
-            "notes": row["notes"],
+            **text_fields(row),
             "movement_id": str(row["movement_id"]) if row["movement_id"] else None,
             "waiting": assignment.row_id in context.waiting,
         })

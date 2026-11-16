@@ -5,7 +5,7 @@ import type { ActivityRow } from "./types";
 function spend(id: string, date: string, extra: Partial<ActivityRow> = {}): ActivityRow {
   return {
     id, account_id: "main", account_name: "Main Pocket", account_parent_name: "Jago", category_name: "Makan", category_system_key: null,
-    type: "expense", amount: 30_000, date, notes: null, merchant: "Kedai Awan", kakeibo_type: "need", review_status: "reviewed", ...extra,
+    type: "expense", amount: 30_000, date, name: null, merchant: "Kedai Awan", kakeibo_type: "need", review_status: "reviewed", ...extra,
   };
 }
 

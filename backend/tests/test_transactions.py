@@ -70,7 +70,8 @@ def test_create_transaction_by_name():
         assert args[5] == "expense"
         assert args[6] == 25000
         assert args[7] == "Kopi Kenangan"
-        assert args[11] == "test_gopay_key_123"
+        assert args[8] is None
+        assert args[12] == "test_gopay_key_123"
 
 
 def test_create_jago_pocket_movement():
@@ -412,7 +413,7 @@ def test_list_transactions_summary_with_filters_and_custom_payday():
         summary_params = summary_call[0][1]
         assert "t.account_id IN" in summary_query
         assert "t.category_id = %s" in summary_query
-        assert "t.notes ILIKE" in summary_query
+        assert "t.name ILIKE" in summary_query and "t.note ILIKE" in summary_query
         # Ensure parameter order matches SQL placeholders: 6 date bounds first (cycle inflow, outflow and saving), then where_clause params
         assert summary_query.count("%s") == len(summary_params)
         assert isinstance(summary_params[0], datetime)

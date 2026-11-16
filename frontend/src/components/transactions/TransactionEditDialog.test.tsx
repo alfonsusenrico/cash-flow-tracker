@@ -17,7 +17,7 @@ const accounts = [
 
 function row(overrides: Partial<LedgerRowDetail>): LedgerRowDetail {
   return {
-    id: "tx-1", type: "expense", amount: 120_000, account_id: "jago", account_name: "Jago", category_id: null, notes: null,
+    id: "tx-1", type: "expense", amount: 120_000, account_id: "jago", account_name: "Jago", category_id: null, name: null,
     date: "2026-11-05T12:00:00.000Z", ...overrides,
   } as LedgerRowDetail;
 }
@@ -214,7 +214,7 @@ describe("Mengganti transaksi (link-reimbursements-to-expenses)", () => {
     { id: "lain", name: "Pendapatan Lain", kind: "income", offsets_spending: false },
     { id: "belanja", name: "Belanja", kind: "expense", kakeibo_type: "need" },
   ];
-  const coffee = { id: "coffee", type: "expense", amount: 25_500, notes: "beli kopi titipan mama", merchant: null, account_id: "jago", account_name: "Jago",
+  const coffee = { id: "coffee", type: "expense", amount: 25_500, name: "beli kopi titipan mama", merchant: null, account_id: "jago", account_name: "Jago",
     category_name: "Belanja", date: "2026-10-28T11:34:00.000Z" };
   const search: string[] = [];
 
@@ -237,7 +237,7 @@ describe("Mengganti transaksi (link-reimbursements-to-expenses)", () => {
     vi.mocked(api.del).mockResolvedValue({ ok: true });
   });
 
-  const motherMoney = row({ id: "mama", type: "income", amount: 100_000, category_id: "patungan", notes: null });
+  const motherMoney = row({ id: "mama", type: "income", amount: 100_000, category_id: "patungan", name: null });
 
   it("links the coffee, records the rest as income, and leaves the category link out", async () => {
     const user = userEvent.setup();
@@ -261,7 +261,7 @@ describe("Mengganti transaksi (link-reimbursements-to-expenses)", () => {
   it("searches by text and unlinks when every expense is removed", async () => {
     const user = userEvent.setup();
     const linked = { ...motherMoney, reimbursement: { repays: [{ transaction_id: "coffee", amount: 25_500, expense_amount: 25_500, date: coffee.date,
-      notes: "beli kopi titipan mama", merchant: null }], unallocated: 74_500, repaid_by: [], repaid_total: 0 } } as LedgerRowDetail;
+      name: "beli kopi titipan mama", merchant: null }], unallocated: 74_500, repaid_by: [], repaid_total: 0 } } as LedgerRowDetail;
     renderDialog(linked);
     const dialog = await screen.findByRole("dialog", { name: "Ubah transaksi" });
     const field = await within(dialog).findByRole("group", { name: "Mengganti transaksi (opsional)" });

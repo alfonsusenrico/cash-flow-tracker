@@ -27,7 +27,8 @@ def test_account_reconcile_model():
 def test_transaction_update_model():
     up = TransactionUpdate(amount=75000, notes="Dinner with friends")
     assert up.amount == 75000
-    assert up.notes == "Dinner with friends"
+    # An older client's `notes` is the transaction's name.
+    assert up.name == "Dinner with friends"
     assert "amount" in up.model_fields_set
     assert "category_id" not in up.model_fields_set
 

@@ -604,7 +604,7 @@ def _execute_rule_occurrence(
             tzinfo=timezone.utc,
         )
         # Written in the owner's language when the job records it (D1, D6).
-        notes = rule.get("notes") or t(account_language(cur, user_id)[0], "notes.recurring", plan=rule["name"])
+        tx_name = rule.get("notes") or t(account_language(cur, user_id)[0], "notes.recurring", plan=rule["name"])
         transaction_id = None
         movement_id = None
 
@@ -613,7 +613,7 @@ def _execute_rule_occurrence(
                 raise api_error(422, ErrorCode.INVESTMENT_CONFIRMATION_REQUIRED)
             topup = create_topup(
                 cur, user_id=user_id, source_id=source_id, target_id=target_id,
-                amount=int(rule["amount"]), tx_date=tx_dt, notes=notes,
+                amount=int(rule["amount"]), tx_date=tx_dt, notes=tx_name,
                 idempotency_key=f"recurring:{rule_id}:{scheduled_for.isoformat()}",
                 recurring_rule_id=rule_id, recurring_execution_id=occurrence_id, ledger_source="recurring",
             )["topup"]
@@ -628,7 +628,7 @@ def _execute_rule_occurrence(
                 source_id=source_id,
                 target_id=target_id,
                 amount=int(rule["amount"]),
-                notes=notes,
+                name=tx_name,
                 tx_date=tx_dt,
                 expense_category_id=expense_category_id,
                 income_category_id=income_category_id,
@@ -649,7 +649,7 @@ def _execute_rule_occurrence(
                 """
                 INSERT INTO transactions (
                     user_id, account_id, category_id, obligation_id, type,
-                    amount, notes, date, recurring_rule_id, idempotency_key,
+                    amount, name, date, recurring_rule_id, idempotency_key,
                     source, review_status, classified_by, classification_confidence
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
@@ -661,7 +661,7 @@ def _execute_rule_occurrence(
                     rule["obligation_id"],
                     rule["type"],
                     rule["amount"],
-                    notes,
+                    tx_name,
                     tx_dt,
                     rule_id,
                     f"recurring:{rule_id}:{scheduled_for.isoformat()}",

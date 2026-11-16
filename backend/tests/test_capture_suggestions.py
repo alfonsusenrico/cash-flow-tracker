@@ -50,7 +50,7 @@ def record(user_id, account_id, moment, notes, amount, *, category_id=None, merc
 
     with db_conn() as conn:
         conn.execute(
-            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, merchant, date, source,
+            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, name, merchant, date, source,
                                          review_status, classified_by, fee_for_movement_id)
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'owner', %s)""",
             (user_id, account_id, category_id, kind, amount, notes, merchant, moment, source, review, fee_for),

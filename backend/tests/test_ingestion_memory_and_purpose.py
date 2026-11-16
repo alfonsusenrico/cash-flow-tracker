@@ -299,7 +299,7 @@ def test_memory_hit_records_without_calling_the_model(client, owner, monkeypatch
     assert str(remembered["category_id"]) == owner["jajan"] and remembered["kakeibo_type"] == "want"
     assert (remembered["classified_by"], remembered["review_status"], remembered["merchant"]) == (
         "rule", "auto", "Kedai Awan")
-    assert remembered["notes"] == "Ngopi di Kedai Awan" and remembered["classification_confidence"] is None
+    assert remembered["name"] == "Ngopi di Kedai Awan" and remembered["classification_confidence"] is None
     assert event_row(second["event_id"])["interpretation"]["source"] == "memory"
     assert memory_rows(owner)["merchant:kedai awan"]["hit_count"] == 1
 
@@ -310,7 +310,7 @@ def test_archived_memory_category_disables_the_hit(client, owner):
     with db_conn() as conn:
         with conn.cursor() as cur:
             upsert_memory(cur, owner["user_id"], "merchant:kedai awan",
-                          {"merchant": "Kedai Awan", "notes": "Ngopi", "category_id": owner["jajan"]}, "owner")
+                          {"merchant": "Kedai Awan", "name": "Ngopi", "category_id": owner["jajan"]}, "owner")
             cur.execute("UPDATE categories SET is_archived = TRUE WHERE id = %s", (owner["jajan"],))
         conn.commit()
     event = ingest(client, notification(KEDAI))["results"][0]
@@ -325,9 +325,9 @@ def test_ai_memory_never_replaces_owner_memory(client, owner):
     with db_conn() as conn:
         with conn.cursor() as cur:
             upsert_memory(cur, owner["user_id"], "merchant:kedai awan",
-                          {"merchant": "Kedai Awan", "notes": "Ngopi", "category_id": owner["jajan"]}, "owner")
+                          {"merchant": "Kedai Awan", "name": "Ngopi", "category_id": owner["jajan"]}, "owner")
             upsert_memory(cur, owner["user_id"], "merchant:kedai awan",
-                          {"merchant": "Kedai Awan", "notes": "Tagihan", "category_id": owner["expense"]}, "ai")
+                          {"merchant": "Kedai Awan", "name": "Tagihan", "category_id": owner["expense"]}, "ai")
         conn.commit()
     entry = memory_rows(owner)["merchant:kedai awan"]
     assert (entry["source"], str(entry["category_id"]), entry["notes"]) == ("owner", owner["jajan"], "Ngopi")
@@ -367,7 +367,7 @@ def test_similar_history_prefers_owner_confirmed_same_merchant_rows(client, owne
     ingest(client, bca(SHOPPING, seconds=2))
     with db_conn() as conn:
         for _ in range(25):
-            conn.execute("""INSERT INTO transactions (user_id, account_id, category_id, type, amount, date, notes,
+            conn.execute("""INSERT INTO transactions (user_id, account_id, category_id, type, amount, date, name,
                                 source, review_status, classified_by)
                             VALUES (%s, %s, %s, 'expense', 125000, NOW(), 'Unrelated', 'manual', 'reviewed', 'owner')""",
                          (owner["user_id"], owner["bca"], owner["belanja"]))
@@ -525,7 +525,7 @@ def test_answer_with_suggestion_updates_row_feedback_memory_and_result(client, o
     assert payload["result"]["description"] == "makan kafe senja"
     assert payload["answer"]["status"] == "applied" and payload["answer"]["category_id"] == owner["jajan"]
     row = tx_for(event_id)
-    assert (row["notes"], str(row["category_id"]), row["classified_by"], row["review_status"]) == (
+    assert (row["name"], str(row["category_id"]), row["classified_by"], row["review_status"]) == (
         "makan kafe senja", owner["jajan"], "owner", "reviewed")
     assert row["owner_edited_at"] is not None
     stored = [item for item in feedback_rows(owner) if item["kind"] == "purpose_answer"]
@@ -558,7 +558,7 @@ def test_answer_with_text_uses_normaliser(client, owner, monkeypatch):
     assert context["answer"] == "sewa lapangan arena futsal" and context["direction"] == "expense"
     assert {row["id"] for row in context["categories"]} >= {owner["olahraga"], owner["jajan"]}
     row = tx_for(event_id)
-    assert (row["merchant"], row["notes"], str(row["category_id"]), row["kakeibo_type"], row["review_status"]) == (
+    assert (row["merchant"], row["name"], str(row["category_id"]), row["kakeibo_type"], row["review_status"]) == (
         "Arena Futsal", "Sewa lapangan Arena Futsal", owner["olahraga"], "culture", "reviewed")
     feedback = [item for item in feedback_rows(owner) if item["kind"] == "purpose_answer"][0]
     assert feedback["answer_text"] == "sewa lapangan arena futsal"
@@ -618,7 +618,7 @@ def test_normaliser_failure_keeps_text_and_flags_row(client, owner, monkeypatch,
                                          "text": "kado ulang tahun"})
     assert response.status_code == 200, response.text
     row = tx_for(event_id)
-    assert (row["notes"], str(row["category_id"]), row["review_status"], row["classified_by"]) == (
+    assert (row["name"], str(row["category_id"]), row["review_status"], row["classified_by"]) == (
         "kado ulang tahun", owner["belanja"], "needs_review", "owner")
     assert response.json()["answer"]["status"] == "needs_review"
     assert event_row(event_id)["active_question"] is None

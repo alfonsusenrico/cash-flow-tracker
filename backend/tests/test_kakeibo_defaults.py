@@ -211,7 +211,7 @@ def test_movement_fee_in_a_fee_category_without_a_pillar_stays_unclassified(clie
     income = insert(owner, None, 100_000, when + timedelta(minutes=1), tx_type="income", account="pocket")
     with db_conn() as conn:
         with conn.cursor() as cur:
-            linked = link_pair(cur, owner["user_id"], expense, income, fee=2_500, notes=None)
+            linked = link_pair(cur, owner["user_id"], expense, income, fee=2_500, name=None)
         conn.commit()
     assert stored(linked["fee_transaction_id"])["kakeibo_type"] is None
     listed = {item["name"]: item["kakeibo_type"] for item in client.get("/api/categories").json()["categories"]}

@@ -52,7 +52,7 @@ function installMatchMedia() {
 const item = (id: string, overrides: Partial<ReviewItem> = {}): ReviewItem => ({
   id, type: "expense", amount: 125_000, date: "2026-10-20T05:00:00Z", account_id: "account-bca", account_name: "BCA Harian",
   category_id: "category-food", category_name: "Makanan & Minuman", kakeibo_type: "need", merchant: "Kedai Awan",
-  notes: "Kedai Awan", review_status: "auto", source: "notification", classified_by: "rule", movement_id: null,
+  name: "Kedai Awan", review_status: "auto", source: "notification", classified_by: "rule", movement_id: null,
   movement_role: null, fee_for_movement_id: null, reasons: [], ...overrides,
 });
 
@@ -80,7 +80,7 @@ function queue(): ReviewQueue {
       },
       transaction: {
         id: "tx-question", type: "expense", amount: 187_500, date: "2026-10-21T11:00:00Z",
-        account_name: "BCA Harian", notes: "Pengeluaran Groceries", merchant: null, category_name: null,
+        account_name: "BCA Harian", name: "Pengeluaran Groceries", merchant: null, category_name: null,
       },
     }],
     groups: [
@@ -89,8 +89,8 @@ function queue(): ReviewQueue {
         count: 2, total: 400_000, needs_review_count: 2, auto_count: 0,
         first_date: "2026-10-19T05:00:00Z", last_date: "2026-10-20T05:00:00Z", reasons: ["low_confidence"], category: null,
         transactions: [
-          item("tx-c", { merchant: "Toko Serba Ada", notes: "Toko Serba Ada", amount: 200_000, review_status: "needs_review", reasons: ["low_confidence"] }),
-          item("tx-d", { merchant: "Toko Serba Ada", notes: "Toko Serba Ada", amount: 200_000, review_status: "needs_review" }),
+          item("tx-c", { merchant: "Toko Serba Ada", name: "Toko Serba Ada", amount: 200_000, review_status: "needs_review", reasons: ["low_confidence"] }),
+          item("tx-d", { merchant: "Toko Serba Ada", name: "Toko Serba Ada", amount: 200_000, review_status: "needs_review" }),
         ],
       },
       {
@@ -103,13 +103,13 @@ function queue(): ReviewQueue {
     ],
     awaiting: [{
       ...item("tx-await", {
-        amount: 500_000, account_id: "account-gopay", account_name: "GoPay", notes: "Pindah saldo", merchant: null,
+        amount: 500_000, account_id: "account-gopay", account_name: "GoPay", name: "Pindah saldo", merchant: null,
         category_name: "Internal Movement", review_status: "needs_review", reasons: ["awaiting_counterpart"],
       }),
       topup_suggestion: null,
     }],
     ambiguous: [{
-      ...item("tx-ambiguous", { type: "income", amount: 500_000, notes: "Transfer masuk", merchant: null, review_status: "needs_review", reasons: ["ambiguous_movement"] }),
+      ...item("tx-ambiguous", { type: "income", amount: 500_000, name: "Transfer masuk", merchant: null, review_status: "needs_review", reasons: ["ambiguous_movement"] }),
       candidates: [
         { id: "tx-send-1", type: "expense", amount: 500_000, date: "2026-10-20T04:59:00Z", account_id: "account-gopay", account_name: "GoPay" },
         { id: "tx-send-2", type: "expense", amount: 500_000, date: "2026-10-20T04:58:00Z", account_id: "account-ovo", account_name: "OVO" },
@@ -401,7 +401,7 @@ describe("Tinjau", () => {
       question: { ...entry.question, question_id: "question-income", prompt: "Apa ini? Rp10.000 masuk ke Kantong Utama" },
       transaction: {
         ...entry.transaction, id: "tx-income-question", type: "income", amount: 10_000, date: "2026-10-21T12:00:00Z",
-        account_name: "Bank Jago · Kantong Utama", notes: "Uang masuk dari GoPay",
+        account_name: "Bank Jago · Kantong Utama", name: "Uang masuk dari GoPay",
       },
     }] };
     const { user } = renderPage();
@@ -589,7 +589,7 @@ describe("Tinjau", () => {
   describe("top-up of an awaiting debit", () => {
     const rdnDebit = (suggestion: AwaitingItem["topup_suggestion"] = null): AwaitingItem => ({
       ...item("tx-rdn", {
-        amount: 112_590, account_id: "account-rdn", account_name: "RDN Contoh", notes: "Pindah saldo keluar",
+        amount: 112_590, account_id: "account-rdn", account_name: "RDN Contoh", name: "Pindah saldo keluar",
         category_name: "Internal Movement", review_status: "needs_review", reasons: ["awaiting_counterpart"], merchant: null,
       }),
       topup_suggestion: suggestion,

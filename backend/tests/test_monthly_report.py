@@ -103,7 +103,7 @@ def insert(owner, category, amount, when, *, tx_type="expense", account="cash", 
     with db_conn() as conn:
         row = conn.execute(
             """INSERT INTO transactions (user_id, account_id, category_id, type, amount, date, kakeibo_type,
-                   offset_category_id, merchant, notes, source, review_status)
+                   offset_category_id, merchant, name, source, review_status)
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'manual', %s) RETURNING id""",
             (owner["user_id"], owner[account], owner[category] if category else None, tx_type, amount, when, pillar,
              owner[offset] if offset else None, merchant, merchant or "Contoh", review_status),
@@ -121,7 +121,7 @@ def fee_movement(owner, when):
     income = insert(owner, None, 100_000, when + timedelta(minutes=1), tx_type="income", account="pocket")
     with db_conn() as conn:
         with conn.cursor() as cur:
-            linked = link_pair(cur, owner["user_id"], expense, income, fee=2_500, notes=None)
+            linked = link_pair(cur, owner["user_id"], expense, income, fee=2_500, name=None)
         conn.commit()
     assert linked["fee_transaction_id"]
 

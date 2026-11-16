@@ -336,7 +336,7 @@ def recent_auto_links(cur, user_id: str, *, now: datetime | None = None) -> list
         """
         SELECT e.recurring_rule_id, e.scheduled_for, e.transaction_id, e.updated_at,
                r.name, r.amount, r.type, o.name AS obligation_name,
-               t.date AS transaction_date, t.merchant, t.notes, a.name AS account_name
+               t.date AS transaction_date, t.merchant, t.name AS transaction_name, a.name AS account_name
         FROM recurring_executions e
         JOIN recurring_rules r ON r.id = e.recurring_rule_id
         LEFT JOIN obligations o ON o.id = r.obligation_id
@@ -360,7 +360,7 @@ def recent_auto_links(cur, user_id: str, *, now: datetime | None = None) -> list
             "transaction_id": str(row["transaction_id"]) if row["transaction_id"] else None,
             "transaction_date": row["transaction_date"].isoformat() if row["transaction_date"] else None,
             "merchant": row["merchant"],
-            "notes": row["notes"],
+            "notes": row["transaction_name"],
             "account_name": row["account_name"],
         }
         for row in cur.fetchall()

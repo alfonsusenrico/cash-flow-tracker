@@ -153,7 +153,7 @@ const queue = {
   questions: [{ event_id: "e1", post_time: "2026-11-02T09:05:00Z",
     question: { question_id: "q1", prompt: "Apa ini?", suggestions: [] },
     transaction: { id: "qris", type: "expense", amount: 45_000, date: "2026-11-02T09:05:00Z", account_name: "Dompet Digital",
-      notes: "QRIS 0812-xxxx", merchant: null, category_name: null } }],
+      name: "QRIS 0812-xxxx", merchant: null, category_name: null } }],
   groups: [{ key: "toko", kind: "merchant", type: "expense", label: "Toko Serba Ada", count: 1, total: 312_000, needs_review_count: 1, auto_count: 0,
     first_date: "2026-11-01T12:20:00Z", last_date: "2026-11-01T12:20:00Z", reasons: [], category: null,
     transactions: [{ id: "toko", date: "2026-11-01T12:20:00Z" }] }],
@@ -168,20 +168,20 @@ const plan = { id: "streamio", name: "Streamio", type: "expense", amount: 65_000
   source_account_name: "Dompet Digital" };
 
 const recent = [
-  { id: "qris", type: "expense", amount: 45_000, notes: null, merchant: "QRIS 0812-xxxx", account_id: "dw", account_name: "Dompet Digital",
+  { id: "qris", type: "expense", amount: 45_000, name: null, merchant: "QRIS 0812-xxxx", account_id: "dw", account_name: "Dompet Digital",
     date: "2026-11-02T09:05:00Z", review_status: "needs_review", source: "notification", classified_by: "ai", category_name: null },
-  { id: "topup-out", type: "expense", amount: 250_000, notes: "", account_id: "rdn", account_name: "RDN Contoh", date: "2026-11-02T03:00:00Z",
+  { id: "topup-out", type: "expense", amount: 250_000, name: "", account_id: "rdn", account_name: "RDN Contoh", date: "2026-11-02T03:00:00Z",
     movement_id: "t1", movement_role: "outbound", investment_topup_id: "topup-1", transfer_target_account_name: "Reksa Dana A",
     category_name: "Internal Movement", category_system_key: "internal_movement", review_status: "reviewed" },
-  { id: "topup-in", type: "income", amount: 250_000, notes: "", account_id: "rda", account_name: "Reksa Dana A", date: "2026-11-02T03:00:00Z",
+  { id: "topup-in", type: "income", amount: 250_000, name: "", account_id: "rda", account_name: "Reksa Dana A", date: "2026-11-02T03:00:00Z",
     movement_id: "t1", movement_role: "inbound", investment_topup_id: "topup-1", partner_id: "topup-out", category_name: "Internal Movement", category_system_key: "internal_movement",
     review_status: "reviewed" },
-  { id: "move-out", type: "expense", amount: 500_000, notes: "", account_id: "bu", account_name: "Bank Utama", date: "2026-11-02T02:12:00Z",
+  { id: "move-out", type: "expense", amount: 500_000, name: "", account_id: "bu", account_name: "Bank Utama", date: "2026-11-02T02:12:00Z",
     movement_id: "m1", movement_role: "outbound", transfer_target_account_name: "Dompet Digital", category_name: "Internal Movement", category_system_key: "internal_movement",
     review_status: "auto" },
-  { id: "move-in", type: "income", amount: 500_000, notes: "", account_id: "dw", account_name: "Dompet Digital", date: "2026-11-02T02:12:00Z",
+  { id: "move-in", type: "income", amount: 500_000, name: "", account_id: "dw", account_name: "Dompet Digital", date: "2026-11-02T02:12:00Z",
     movement_id: "m1", movement_role: "inbound", partner_id: "move-out", category_name: "Internal Movement", category_system_key: "internal_movement", review_status: "auto" },
-  { id: "kopi", type: "expense", amount: 32_000, notes: null, merchant: "Kopi Pagi", account_id: "dw", account_name: "Dompet Digital",
+  { id: "kopi", type: "expense", amount: 32_000, name: null, merchant: "Kopi Pagi", account_id: "dw", account_name: "Dompet Digital",
     date: "2026-11-02T00:45:00Z", kakeibo_type: "want", review_status: "auto", source: "notification", classified_by: "habit" },
 ];
 
@@ -585,7 +585,7 @@ describe("Aktivitas terbaru", () => {
 
   it("puts yesterday's rows under their own heading and keeps eight rows at most", async () => {
     const yesterday = Array.from({ length: 9 }, (_, index) => ({
-      id: `y${index}`, type: "expense", amount: 10_000 + index, notes: null, merchant: `Warung ${index}`, account_id: "dw", account_name: "Pocket",
+      id: `y${index}`, type: "expense", amount: 10_000 + index, name: null, merchant: `Warung ${index}`, account_id: "dw", account_name: "Pocket",
       account_parent_name: "Jago", date: `2026-11-01T1${index}:00:00Z`, kakeibo_type: "need", review_status: "reviewed",
     }));
     activityRows = [...recent, ...yesterday.reverse()];
@@ -626,14 +626,14 @@ describe("Aktivitas terbaru", () => {
   });
 
   it("titles movements in the direction the money moved, with each pocket's bank, and marks an unpaired leg", async () => {
-    const movement = { type: "expense", amount: 300_000, notes: "", category_name: "Internal Movement", category_system_key: "internal_movement", review_status: "reviewed", date: "2026-11-02T01:00:00Z" };
+    const movement = { type: "expense", amount: 300_000, name: "", category_name: "Internal Movement", category_system_key: "internal_movement", review_status: "reviewed", date: "2026-11-02T01:00:00Z" };
     activityRows = [
       { ...movement, id: "pair-out", account_id: "main", account_name: "Main Pocket", account_parent_name: "Jago", movement_id: "p1",
         movement_role: "outbound", partner_id: "pair-in", transfer_target_account_name: "ATM", transfer_target_account_parent_name: "BCA" },
       { ...movement, id: "pair-in", type: "income", account_id: "atm", account_name: "ATM", account_parent_name: "BCA", movement_id: "p1",
         movement_role: "inbound", partner_id: "pair-out", transfer_target_account_name: "Main Pocket", transfer_target_account_parent_name: "Jago" },
       { ...movement, id: "unpaired", type: "income", amount: 120_000, account_id: "main", account_name: "Main Pocket", account_parent_name: "Jago",
-        notes: "Pindah uang dari BCA", date: "2026-11-02T02:00:00Z" },
+        name: "Pindah uang dari BCA", date: "2026-11-02T02:00:00Z" },
     ];
     await beranda();
     const section = region("Aktivitas terbaru");
@@ -961,8 +961,8 @@ describe("Tagihan kredit (open-beranda-figures)", () => {
     over_limit: false, payment_day: 20, statement_day: null, is_archived: false, created_at: "2026-01-01T00:00:00Z",
     next_due: { due_date: "2026-11-20", amount: 400_000, left_to_pay: 400_000, status: "upcoming" },
   };
-  const purchase = (id: string, day: string, notes: string, amount: number) => ({
-    id, date: `${day}T05:00:00Z`, type: "expense", amount, notes, merchant: null, account_id: "spay", account_name: "Spaylater",
+  const purchase = (id: string, day: string, name: string, amount: number) => ({
+    id, date: `${day}T05:00:00Z`, type: "expense", amount, name, merchant: null, account_id: "spay", account_name: "Spaylater",
     account_parent_name: null, category_name: "Makanan & Minuman", category_system_key: null, kakeibo_type: "need", review_status: "reviewed",
     credit: { role: "purchase", account_name: "Spaylater", installment_count: 1, installments_settled: 0, next_due_date: "2026-12-11", settled_on: null },
   });

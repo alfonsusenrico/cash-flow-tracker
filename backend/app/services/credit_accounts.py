@@ -63,18 +63,18 @@ def book_credit_fee(cur, user_id: str, credit_account_id: str, movement_id: str,
     the movement removes it. The payment lowers what is owed by its amount less this fee.
 
     The fee category is found by its `credit_fee` key, so a renamed one is reused, and a missing one is
-    created in the account's language (add-credit-spending-flow D8). The note is `notes.credit_fee` in the
+    created in the account's language (add-credit-spending-flow D8). The name is `notes.credit_fee` in the
     account's language, written once (add-language-system D15).
     """
     category_id = ensure_system_category(cur, user_id, CREDIT_FEE, "expense")
     cur.execute("SELECT kakeibo_type FROM categories WHERE id = %s AND user_id = %s", (category_id, user_id))
     category = cur.fetchone()
-    note = t(account_language(cur, user_id)[0], "notes.credit_fee")
+    fee_name = t(account_language(cur, user_id)[0], "notes.credit_fee")
     cur.execute(
-        """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, kakeibo_type,
+        """INSERT INTO transactions (user_id, account_id, category_id, type, amount, name, date, kakeibo_type,
                idempotency_key, fee_for_movement_id, source, review_status, classified_by, classification_confidence)
            VALUES (%s, %s, %s, 'expense', %s, %s, %s, %s, %s, %s, 'movement', 'auto', 'system', NULL) RETURNING id""",
-        (user_id, credit_account_id, category_id, fee, note, date, category["kakeibo_type"],
+        (user_id, credit_account_id, category_id, fee, fee_name, date, category["kakeibo_type"],
          f"credit-fee:{movement_id}", movement_id),
     )
     return str(cur.fetchone()["id"])

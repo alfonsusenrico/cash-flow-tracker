@@ -24,7 +24,7 @@ from app.services.movement_linkage import ensure_internal_movement_categories
 from app.services.provenance import OWNER_EDIT_ASSIGNMENTS, system_provenance
 from app.services.topup_learning import record_answer
 
-def topup_note(cur, user_id: str) -> str:
+def topup_name(cur, user_id: str) -> str:
     """ "Top up Investasi", written in the owner's language at creation (D6)."""
     return t(account_language(cur, user_id)[0], "notes.topup")
 # A debit recorded as a top-up from the owner's repeated conversions (clarify-review-and-learn-topups D8).
@@ -231,7 +231,7 @@ def create_topup(
     expense_category, income_category = ensure_internal_movement_categories(cur, user_id)
     create_bilateral_movement(
         cur, user_id=user_id, source_id=effective_source_id, target_id=target_id,
-        amount=amount, notes=notes or topup_note(cur, user_id), tx_date=tx_date,
+        amount=amount, name=notes or topup_name(cur, user_id), tx_date=tx_date,
         expense_category_id=expense_category, income_category_id=income_category,
         source_account=source, target_account=target,
         idempotency_key=f"investment-topup:{topup_id}", recurring_rule_id=recurring_rule_id,
@@ -305,8 +305,8 @@ def convert_transaction_to_topup(
         (user_id, transaction_id),
     )
     from_notification = cur.fetchone() is not None
-    # Notes written by notification processing describe the bank text; the owner's own notes are kept.
-    notes = "" if from_notification else (expense["notes"] or "")[:500]
+    # A name written by notification processing describes the bank text; a name the owner wrote is kept.
+    notes = "" if from_notification else (expense["name"] or "")[:500]
     amount = int(expense["amount"])
     topup_id = str(uuid4())
     fingerprint = sha256(json.dumps({"transaction": transaction_id, "target": target_id}, sort_keys=True).encode()).hexdigest()
@@ -314,7 +314,8 @@ def convert_transaction_to_topup(
         "transaction_id": transaction_id,
         "category_id": str(expense["category_id"]) if expense["category_id"] else None,
         "kakeibo_type": expense["kakeibo_type"],
-        "notes": expense["notes"],
+        # The expense's name, under the key `notes` that stored conversions use and restoring reads.
+        "notes": expense["name"],
     }
     if learned_basis is not None:
         # Undoing a learned conversion returns the debit to Tinjau as it was (design D8).
@@ -331,23 +332,23 @@ def convert_transaction_to_topup(
          f"transaction:{transaction_id}:{topup_id}", fingerprint, Jsonb(converted_from)),
     )
     expense_category, income_category = ensure_internal_movement_categories(cur, user_id)
-    leg_notes = notes or topup_note(cur, user_id)
+    leg_name = notes or topup_name(cur, user_id)
     before_classification = snapshot_rows(cur, user_id, [transaction_id]) if learned_basis is None else {}
     classifier = OWNER_EDIT_ASSIGNMENTS if learned_basis is None else LEARNED_ASSIGNMENTS
     cur.execute(
         f"""UPDATE transactions SET movement_id = %s, movement_role = 'outbound', category_id = %s,
-               kakeibo_type = %s, notes = %s, review_status = 'reviewed', {classifier},
+               kakeibo_type = %s, name = %s, review_status = 'reviewed', {classifier},
                updated_at = NOW()
            WHERE user_id = %s AND id = %s""",
-        (topup_id, expense_category, movement_kakeibo(source, target), leg_notes, user_id, transaction_id),
+        (topup_id, expense_category, movement_kakeibo(source, target), leg_name, user_id, transaction_id),
     )
     cur.execute(
         """INSERT INTO transactions (
-               user_id, account_id, category_id, type, amount, notes, date,
+               user_id, account_id, category_id, type, amount, name, date,
                idempotency_key, movement_id, movement_role,
                source, review_status, classified_by, classification_confidence
            ) VALUES (%s, %s, %s, 'income', %s, %s, %s, %s, %s, 'inbound', %s, %s, %s, %s)""",
-        (user_id, target_id, income_category, amount, leg_notes, expense["date"],
+        (user_id, target_id, income_category, amount, leg_name, expense["date"],
          f"investment-topup:{topup_id}:in", topup_id, *system_provenance("investment").columns()),
     )
     if learned_basis is None:
@@ -373,7 +374,7 @@ def restore_converted_expense(cur, user_id: str, row: dict[str, Any]) -> None:
     )
     cur.execute(
         """UPDATE transactions SET movement_id = NULL, movement_role = NULL, category_id = %s,
-               kakeibo_type = %s, notes = %s, updated_at = NOW()
+               kakeibo_type = %s, name = %s, updated_at = NOW()
            WHERE user_id = %s AND movement_id = %s AND movement_role = 'outbound'
            RETURNING id, account_id, amount, classified_by""",
         (origin.get("category_id"), origin.get("kakeibo_type"), origin.get("notes"), user_id, row["id"]),
@@ -432,14 +433,14 @@ def mutate_topup(
         cur.execute("SELECT id FROM transactions WHERE user_id = %s AND movement_id = %s", (user_id, topup_id))
         before_classification = snapshot_rows(cur, user_id, [str(leg["id"]) for leg in cur.fetchall()])
         cur.execute(
-            """UPDATE transactions SET amount = %s, date = %s, notes = %s, updated_at = NOW(),
-                   owner_edited_at = CASE WHEN notes IS DISTINCT FROM %s THEN NOW() ELSE owner_edited_at END,
-                   classified_by = CASE WHEN notes IS DISTINCT FROM %s THEN 'owner' ELSE classified_by END,
-                   classification_confidence = CASE WHEN notes IS DISTINCT FROM %s
+            """UPDATE transactions SET amount = %s, date = %s, name = %s, updated_at = NOW(),
+                   owner_edited_at = CASE WHEN name IS DISTINCT FROM %s THEN NOW() ELSE owner_edited_at END,
+                   classified_by = CASE WHEN name IS DISTINCT FROM %s THEN 'owner' ELSE classified_by END,
+                   classification_confidence = CASE WHEN name IS DISTINCT FROM %s
                        THEN NULL ELSE classification_confidence END,
-                   review_status = CASE WHEN notes IS DISTINCT FROM %s THEN 'reviewed' ELSE review_status END
+                   review_status = CASE WHEN name IS DISTINCT FROM %s THEN 'reviewed' ELSE review_status END
                WHERE user_id = %s AND movement_id = %s""",
-            (amount, tx_date, notes or topup_note(cur, user_id), *([notes or topup_note(cur, user_id)] * 4), user_id, topup_id),
+            (amount, tx_date, notes or topup_name(cur, user_id), *([notes or topup_name(cur, user_id)] * 4), user_id, topup_id),
         )
         record_owner_corrections(cur, user_id, before_classification)
         cur.execute(

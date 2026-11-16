@@ -34,12 +34,12 @@ def window(days=30):
     return {"from_date": (today() - timedelta(days=days)).isoformat(), "to_date": today().isoformat()}
 
 
-def add_row(owner, *, notes, category, amount=50000, kind="expense", merchant=None, days_ago=1,
+def add_row(owner, *, name, category, amount=50000, kind="expense", merchant=None, days_ago=1,
             classified_by="ai", pillar=None, **columns):
     from app.db.pool import db_conn
     values = {
         "id": str(uuid4()), "user_id": owner["user_id"], "account_id": owner["bca"], "type": kind,
-        "amount": amount, "notes": notes, "merchant": merchant, "category_id": owner[category] if category else None,
+        "amount": amount, "name": name, "merchant": merchant, "category_id": owner[category] if category else None,
         "kakeibo_type": pillar, "date": datetime.now(TZ) - timedelta(days=days_ago, hours=1),
         "source": "notification", "review_status": "auto", "classified_by": classified_by, **columns,
     }
@@ -58,7 +58,7 @@ def remember(owner, match_key, *, category, notes, merchant=None, pillar=None, o
     with db_conn() as conn:
         with conn.cursor() as cur:
             upsert_memory(cur, owner["user_id"], match_key, {
-                "merchant": merchant, "notes": notes, "category_id": owner[category], "kakeibo_type": pillar,
+                "merchant": merchant, "name": notes, "category_id": owner[category], "kakeibo_type": pillar,
                 "offset_category_id": owner[offset] if offset else None,
             }, "owner")
         conn.commit()
@@ -129,11 +129,11 @@ def test_eligibility_excludes_owner_movement_fee_system_and_out_of_window_rows(c
     from app.db.pool import db_conn
     remember(owner, "merchant:kedai awan", category="jajan", notes="Ngopi di Kedai Awan", merchant="Kedai Awan",
              pillar="want")
-    eligible = add_row(owner, notes="Pengeluaran makanan dan minuman", merchant="Kedai Awan", category="makan")
-    add_row(owner, notes="Kedai Awan", merchant="Kedai Awan", category="makan", classified_by="owner")
-    add_row(owner, notes="Kedai Awan", merchant="Kedai Awan", category="makan", owner_edited_at=datetime.now(TZ))
-    add_row(owner, notes="Kedai Awan", merchant="Kedai Awan", category="makan", classified_by="system")
-    add_row(owner, notes="Kedai Awan", merchant="Kedai Awan", category="makan", days_ago=60)
+    eligible = add_row(owner, name="Pengeluaran makanan dan minuman", merchant="Kedai Awan", category="makan")
+    add_row(owner, name="Kedai Awan", merchant="Kedai Awan", category="makan", classified_by="owner")
+    add_row(owner, name="Kedai Awan", merchant="Kedai Awan", category="makan", owner_edited_at=datetime.now(TZ))
+    add_row(owner, name="Kedai Awan", merchant="Kedai Awan", category="makan", classified_by="system")
+    add_row(owner, name="Kedai Awan", merchant="Kedai Awan", category="makan", days_ago=60)
     moved = client.post("/api/movements", json={
         "source_account_id": owner["bca"], "target_account_id": owner["gopay"], "amount": 40000, "notes": "Kedai Awan",
     })
@@ -143,7 +143,7 @@ def test_eligibility_excludes_owner_movement_fee_system_and_out_of_window_rows(c
         conn.execute("UPDATE transactions SET classified_by = 'ai', merchant = 'Kedai Awan' WHERE movement_id = %s",
                      (movement_id,))
         conn.commit()
-    add_row(owner, notes="Biaya transfer", merchant="Kedai Awan", category="expense", fee_for_movement_id=movement_id)
+    add_row(owner, name="Biaya transfer", merchant="Kedai Awan", category="expense", fee_for_movement_id=movement_id)
 
     estimate = client.post("/api/review/suggestions/runs", json=window())
     assert estimate.status_code == 200, estimate.text
@@ -161,7 +161,7 @@ def test_estimate_counts_model_calls_and_respects_max_rows(client, owner, ai, mo
     from app.services import history_suggestions as history
     monkeypatch.setattr(history, "settings", replace(history.settings, history_suggestion_max_rows=3))
     for day in range(1, 6):
-        add_row(owner, notes="Belanja", category="belanja", days_ago=day)
+        add_row(owner, name="Belanja", category="belanja", days_ago=day)
     data = client.post("/api/review/suggestions/runs", json=window()).json()["estimate"]
     assert (data["eligible_count"], data["selected_count"], data["truncated"]) == (5, 3, True)
     assert (data["ai_rows"], data["ai_calls"], data["batch_size"], data["ai_available"]) == (3, 2, 2, True)
@@ -174,7 +174,7 @@ def test_estimate_counts_model_calls_and_respects_max_rows(client, owner, ai, mo
 def test_memory_first_rule_suggestion_skips_the_model(client, owner, ai):
     remember(owner, "merchant:kedai awan", category="jajan", notes="Ngopi di Kedai Awan", merchant="Kedai Awan",
              pillar="want")
-    tx_id = add_row(owner, notes="Pengeluaran makanan dan minuman", merchant="Kedai Awan", category="makan")
+    tx_id = add_row(owner, name="Pengeluaran makanan dan minuman", merchant="Kedai Awan", category="makan")
     response = start(client)
     assert response.status_code == 200, response.text
     ai.suggest_history.assert_not_awaited()
@@ -198,7 +198,7 @@ def test_template_reason_follows_the_account_and_stays_out_of_logs(client, owner
     switch_account_language(owner["user_id"], language)
     remember(owner, "merchant:kedai awan", category="jajan", notes="Ngopi di Kedai Awan", merchant="Kedai Awan",
              pillar="want")
-    tx_id = add_row(owner, notes="Pengeluaran makanan dan minuman", merchant="Kedai Awan", category="makan")
+    tx_id = add_row(owner, name="Pengeluaran makanan dan minuman", merchant="Kedai Awan", category="makan")
     caplog.set_level(logging.DEBUG)
     assert start(client).status_code == 200
     item = pending_by_transaction(client)[tx_id]
@@ -212,8 +212,8 @@ def test_signature_memory_and_repayment_and_cafe_rules(client, owner):
     recorded = ingest(client, bca(GROCERIES, days=(today() - date(2026, 9, 28)).days - 1))["results"][0]
     assert recorded["status"] == "recorded", recorded
     groceries = str(tx_for(recorded["event_id"])["id"])
-    repayment = add_row(owner, notes="Transfer masuk tf makan", kind="income", category="income", amount=57000)
-    cafe = add_row(owner, notes="Pengeluaran makanan dan minuman", merchant="Kopi Senja", category="makan")
+    repayment = add_row(owner, name="Transfer masuk tf makan", kind="income", category="income", amount=57000)
+    cafe = add_row(owner, name="Pengeluaran makanan dan minuman", merchant="Kopi Senja", category="makan")
     assert start(client).status_code == 200
     pending = pending_by_transaction(client)
     assert pending[groceries]["source"] == "memory"
@@ -236,7 +236,7 @@ def test_rules_read_the_recording_notification_text():
         "makan": {"id": "makan", "name": "Makanan & Minuman", "kind": "expense", "kakeibo_type": "need",
                   "offsets_spending": False, "is_archived": False, "is_excluded_from_budget": False, "system_key": None},
     }
-    row = {"id": "row", "type": "income", "merchant": None, "notes": "Transfer masuk", "category_id": None,
+    row = {"id": "row", "type": "income", "merchant": None, "name": "Transfer masuk", "category_id": None,
            "event_text": "Dana masuk Rp57.000 berita: patungan bakso"}
     proposal = rule_proposal(row, categories, None, "id")
     assert (proposal.category_id, proposal.offset_category_id, proposal.source) == ("patungan", "makan", "rule")
@@ -263,8 +263,8 @@ def test_groups_never_mix_offsets():
 
 
 def test_provider_batches_are_validated_and_stored(client, owner, ai, caplog):
-    rows = [add_row(owner, notes="Belanja", category="belanja", days_ago=day, merchant=None) for day in (1, 2)]
-    rows.append(add_row(owner, notes="Belanja titipan Raka Purnama", category="belanja", days_ago=3))
+    rows = [add_row(owner, name="Belanja", category="belanja", days_ago=day, merchant=None) for day in (1, 2)]
+    rows.append(add_row(owner, name="Belanja titipan Raka Purnama", category="belanja", days_ago=3))
     seen_contexts = []
 
     async def suggest(context, *, prompt):
@@ -298,8 +298,8 @@ def test_provider_batches_are_validated_and_stored(client, owner, ai, caplog):
 
 
 def test_low_confidence_and_unchanged_proposals_are_skipped(client, owner, ai):
-    low = add_row(owner, notes="Belanja", category="belanja", days_ago=1)
-    same = add_row(owner, notes="Makan siang Warung Bu Sri", merchant="Warung Bu Sri", category="makan", days_ago=2)
+    low = add_row(owner, name="Belanja", category="belanja", days_ago=1)
+    same = add_row(owner, name="Makan siang Warung Bu Sri", merchant="Warung Bu Sri", category="makan", days_ago=2)
 
     async def suggest(context, *, prompt):
         refs = {row["description"]: row["ref"] for row in context["rows"]}
@@ -311,14 +311,14 @@ def test_low_confidence_and_unchanged_proposals_are_skipped(client, owner, ai):
     assert suggestion_rows(owner) == []
     run = latest(client)
     assert (run["unchanged_count"], run["ai_count"], run["processed_count"]) == (1, 0, 2)
-    assert transaction(low)["notes"] == "Belanja" and transaction(same)["review_status"] == "auto"
+    assert transaction(low)["name"] == "Belanja" and transaction(same)["review_status"] == "auto"
 
 
 def test_provider_failure_completes_with_memory_suggestions_and_error_code(client, owner, ai):
     remember(owner, "merchant:kedai awan", category="jajan", notes="Ngopi di Kedai Awan", merchant="Kedai Awan",
              pillar="want")
-    remembered = add_row(owner, notes="Pengeluaran makanan dan minuman", merchant="Kedai Awan", category="makan")
-    add_row(owner, notes="Belanja", category="belanja", days_ago=2)
+    remembered = add_row(owner, name="Pengeluaran makanan dan minuman", merchant="Kedai Awan", category="makan")
+    add_row(owner, name="Belanja", category="belanja", days_ago=2)
     ai.suggest_history.side_effect = ProviderError("provider_unavailable", transient=True)
     assert start(client).status_code == 200
     run = latest(client)
@@ -329,8 +329,8 @@ def test_provider_failure_completes_with_memory_suggestions_and_error_code(clien
 
 def test_ai_disabled_records_the_reason_and_keeps_memory_suggestions(client, owner):
     remember(owner, "merchant:kedai awan", category="jajan", notes="Ngopi di Kedai Awan", merchant="Kedai Awan")
-    add_row(owner, notes="Pengeluaran makanan dan minuman", merchant="Kedai Awan", category="makan")
-    add_row(owner, notes="Belanja", category="belanja", days_ago=2)
+    add_row(owner, name="Pengeluaran makanan dan minuman", merchant="Kedai Awan", category="makan")
+    add_row(owner, name="Belanja", category="belanja", days_ago=2)
     assert start(client).status_code == 200
     run = latest(client)
     assert (run["status"], run["error_code"], run["memory_count"], run["model"]) == ("completed", "ai_disabled", 1, None)
@@ -372,7 +372,7 @@ def test_one_active_run_per_owner_and_interrupted_runs_expire(client, owner):
 def two_kedai_suggestions(client, owner):
     remember(owner, "merchant:kedai awan", category="jajan", notes="Ngopi di Kedai Awan", merchant="Kedai Awan",
              pillar="want")
-    ids = [add_row(owner, notes="Pengeluaran makanan dan minuman", merchant="Kedai Awan", category="makan",
+    ids = [add_row(owner, name="Pengeluaran makanan dan minuman", merchant="Kedai Awan", category="makan",
                    days_ago=day) for day in (1, 2)]
     assert start(client).status_code == 200
     groups = client.get("/api/review/suggestions").json()["groups"]
@@ -397,7 +397,7 @@ def test_accept_applies_through_owner_edit_hooks(client, owner):
         "ok": True, "accepted": 2, "skipped": [], "corrections": 2}
     for tx_id in tx_ids:
         row = transaction(tx_id)
-        assert (row["notes"], row["merchant"], str(row["category_id"])) == ("Ngopi di Kedai Awan", "Kedai Awan", owner["jajan"])
+        assert (row["name"], row["merchant"], str(row["category_id"])) == ("Ngopi di Kedai Awan", "Kedai Awan", owner["jajan"])
         # "want" is the category's own pillar, so the row follows its category.
         assert row["kakeibo_type"] is None
         assert (row["classified_by"], row["review_status"], row["classification_confidence"]) == ("owner", "reviewed", None)
@@ -449,7 +449,7 @@ def test_later_edit_supersedes_the_suggestion(client, owner):
     assert statuses[by_tx[tx_ids[0]]] == "superseded"
     accepted = client.post("/api/review/suggestions/accept", json={"suggestion_ids": [by_tx[tx_ids[0]]]})
     assert accepted.json()["accepted"] == 0 and accepted.json()["skipped"] == [by_tx[tx_ids[0]]]
-    assert transaction(tx_ids[0])["notes"] == "Makan siang kantor"
+    assert transaction(tx_ids[0])["name"] == "Makan siang kantor"
 
 
 def test_review_accept_without_change_does_not_supersede(client, owner):
@@ -555,7 +555,7 @@ def test_runs_record_the_rendering_their_model_calls_use(client, owner, ai, monk
 
     monkeypatch.setattr(config, "settings", replace(config.settings, llm_english_output_enabled=enabled))
     set_account_language(owner, language)
-    add_row(owner, notes="Belanja", category="belanja", days_ago=1, merchant=None)
+    add_row(owner, name="Belanja", category="belanja", days_ago=1, merchant=None)
     prompts = []
 
     async def suggest(context, *, prompt):

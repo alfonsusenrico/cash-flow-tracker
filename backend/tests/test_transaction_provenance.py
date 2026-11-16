@@ -27,7 +27,7 @@ def stored(tx_id):
     with db_conn() as conn:
         return conn.execute(
             """SELECT source, review_status, classified_by, classification_confidence, owner_edited_at,
-                      merchant, notes, category_id, amount, updated_at
+                      merchant, name, category_id, amount, updated_at
                FROM transactions WHERE id = %s""",
             (tx_id,),
         ).fetchone()
@@ -54,7 +54,7 @@ def insert_classified_row(client, account_id, category_id, *, source="notificati
     user_id = client.get("/api/auth/me").json()["user"]["id"]
     with db_conn() as conn:
         tx_id = conn.execute(
-            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date,
+            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, name, date,
                    source, review_status, classified_by, classification_confidence)
                VALUES (%s, %s, %s, 'expense', 25000, %s, NOW(), %s, %s, %s, %s) RETURNING id""",
             (user_id, account_id, category_id, notes, source, review_status, classified_by, confidence),
@@ -99,7 +99,7 @@ def test_manual_create_writes_owner_provenance_and_validates_inputs(auth_client)
     assert created.status_code == 200, created.text
     row = stored(created.json()["transaction_id"])
     assert (row["source"], row["review_status"], row["classified_by"]) == ("manual", "reviewed", "owner")
-    assert row["merchant"] == "Kopi Contoh" and row["notes"] == "Kopi susu"
+    assert row["merchant"] == "Kopi Contoh" and row["name"] == "Kopi susu"
     assert row["classification_confidence"] is None and row["owner_edited_at"] is None
 
     flagged = auth_client.post("/api/transactions", json={
@@ -234,7 +234,7 @@ def test_review_only_patch_keeps_classifier_and_works_on_movement_legs(auth_clie
     assert reviewed.status_code == 200, reviewed.text
     row = stored(tx_id)
     assert (row["review_status"], row["classified_by"], row["owner_edited_at"]) == ("reviewed", "ai", None)
-    assert row["amount"] == 25_000 and row["notes"] == "Bayar Kedai Contoh" and str(row["category_id"]) == food
+    assert row["amount"] == 25_000 and row["name"] == "Bayar Kedai Contoh" and str(row["category_id"]) == food
 
     assert auth_client.patch(f"/api/transactions/{tx_id}", json={"review_status": "auto"}).status_code == 422
     assert auth_client.patch(f"/api/transactions/{tx_id}", json={"review_status": None}).status_code == 422

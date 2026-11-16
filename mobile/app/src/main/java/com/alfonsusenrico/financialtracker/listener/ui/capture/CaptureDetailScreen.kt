@@ -289,7 +289,7 @@ private fun RecordedCard(item: CapturePresentation, canEdit: Boolean, busy: Bool
             "Rekening" to (item.account ?: "Belum diketahui"),
             item.category?.let { "Kategori" to it },
             kakeiboLabel(item.kakeibo)?.let { "Pilar Kakeibo" to it },
-            transaction?.notes?.takeIf { it.isNotBlank() && it != item.title }?.let { "Catatan" to it }
+            transaction?.note?.takeIf { it.isNotBlank() }?.let { "Catatan" to it }
         )
         Column {
             facts.forEachIndexed { index, (label, value) ->

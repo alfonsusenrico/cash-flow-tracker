@@ -820,6 +820,11 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
 .row .r-main { display: flex; flex: 1; align-items: baseline; gap: var(--sp-8); min-width: 0; }
 .row .r-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row .r-meta { flex: 1 1 0; min-width: 0; overflow: hidden; color: var(--muted); font-size: var(--fs-12); line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
+/* The owner's remark (separate-transaction-name-and-note D4): muted like the meta, marked with a note icon. */
+/* It gives way before the title does: the title is what the row is. */
+.row .r-note { display: inline-flex; flex: 0 4 auto; align-items: center; gap: var(--sp-4); min-width: 48px; max-width: 32%; color: var(--muted); font-size: var(--fs-12); line-height: 16px; }
+.row .r-note > svg { flex: none; }
+.row .r-note-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row .r-cat { flex: none; width: 168px; overflow: hidden; color: var(--muted); font-size: var(--fs-12); line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
 .row .r-pillar { display: flex; flex: none; align-items: center; gap: var(--sp-8); width: 112px; color: var(--muted); font-size: var(--fs-12); line-height: 16px; white-space: nowrap; }
 .row .r-amt { flex: none; min-width: 120px; text-align: right; }
@@ -914,6 +919,7 @@ html:has(.day-h) { scroll-padding-top: calc(var(--topbar-h) + 40px + var(--sp-16
   .row .r-main { flex-direction: column; align-items: flex-start; gap: 0; }
   .row .r-main > * { max-width: 100%; }
   .row .r-meta { flex: none; }
+  .row .r-note { max-width: 100%; }
   .row :is(.r-time, .r-cat, .r-pillar, .dt-only) { display: none; }
   .row .ph-only { display: block; }
   .row .r-amt { min-width: 0; }

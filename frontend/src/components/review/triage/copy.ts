@@ -37,8 +37,8 @@ export function groupLabel(t: Translate, group: ReviewGroup): string {
 export function itemTitle(t: Translate, item: TriageItem): string {
   switch (item.kind) {
     case "question": {
-      const { merchant, notes, type } = item.entry.transaction;
-      return merchant || notes || (type === "income" ? t("review.list.title.moneyIn") : t("review.list.title.noStore"));
+      const { merchant, name, type } = item.entry.transaction;
+      return merchant || name || (type === "income" ? t("review.list.title.moneyIn") : t("review.list.title.noStore"));
     }
     case "group":
       return groupLabel(t, item.group);

@@ -26,7 +26,7 @@ def insert(owner, amount, when, *, kind="expense", category=None, account=None, 
     tx_id = str(uuid4())
     with db() as conn:
         conn.execute(
-            """INSERT INTO transactions (id, user_id, account_id, category_id, type, amount, notes, date, source,
+            """INSERT INTO transactions (id, user_id, account_id, category_id, type, amount, name, date, source,
                                          review_status, created_at, offset_category_id)
                VALUES (%s, %s, %s, %s, %s, %s, 'Contoh', %s, 'manual', %s, %s, %s)""",
             (tx_id, owner["user_id"], account or owner["bca"], category or owner["expense"], kind, amount, when,

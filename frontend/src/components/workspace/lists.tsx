@@ -58,6 +58,8 @@ export interface ListRowProps {
   timeIsDate?: boolean;
   icon?: IconName;
   title: ReactNode;
+  /** The owner's remark: beside the title on a desktop, on its own line under it on the phone. */
+  note?: ReactNode;
   /** The meta line beside the title on a desktop and under it on the phone. */
   meta?: ReactNode;
   /** A different meta line for the phone's second line, such as "18.23 · Kebutuhan". */
@@ -91,7 +93,7 @@ export interface ListRowProps {
  * the row has two lines, the title and the meta, and only the amount stays beside them.
  */
 export function ListRow({
-  href, onClick, time, timeIsDate, icon, title, meta, phoneMeta, category, status, amount, chevron, selected, current, layout, rowKey, actions,
+  href, onClick, time, timeIsDate, icon, title, note, meta, phoneMeta, category, status, amount, chevron, selected, current, layout, rowKey, actions,
   selectable, pressHandlers,
 }: ListRowProps) {
   const content = (
@@ -104,6 +106,12 @@ export function ListRow({
       )}
       <span className="r-main">
         <span className="r-title">{title}</span>
+        {note && (
+          <span className="r-note">
+            <Icon name="file-text" className="h-3 w-3" />
+            <span className="r-note-text">{note}</span>
+          </span>
+        )}
         {meta && <span className={cn("r-meta", phoneMeta !== undefined && "dt-only")}>{meta}</span>}
         {phoneMeta !== undefined && <span className="r-meta ph-only">{phoneMeta}</span>}
       </span>

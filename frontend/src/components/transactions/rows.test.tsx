@@ -6,7 +6,7 @@ import { testWords } from "@/lib/i18n/testing";
 import { GENERIC_ROW_NOTES, PLACEHOLDER_NOTES, isPlaceholderNote } from "@/lib/placeholderNotes";
 import {
   KindAmount, RowAmount, creditPurchaseLine, movementDirection, movementRoute, routeIncomplete, rowCategory, rowKind, rowLabelsFor,
-  rowMeta, rowPhoneLine, rowStatus, rowTitle,
+  rowMeta, rowNote, rowPhoneLine, rowStatus, rowTitle,
 } from "./rows";
 import type { RowFacts } from "./types";
 
@@ -24,7 +24,7 @@ function leg(extra: Partial<RowFacts>): RowFacts {
   return {
     id: "row", account_id: "main", account_name: "Main Pocket", account_parent_name: "Jago", category_name: "Transfer",
     category_system_key: "internal_movement",
-    type: "expense", amount: 500_000, date: "2026-11-04T01:39:00+07:00", notes: null, ...extra,
+    type: "expense", amount: 500_000, date: "2026-11-04T01:39:00+07:00", name: null, ...extra,
   };
 }
 
@@ -79,7 +79,7 @@ describe("movementDirection", () => {
 
 describe("transfer titles (owner feedback 2)", () => {
   it("titles a transfer by its note with the route as meta, and by its route without a note", () => {
-    const noted = { ...outboundLeg, notes: "Isi GoPay" };
+    const noted = { ...outboundLeg, name: "Isi GoPay" };
     expect(rowTitle(noted, labels)).toBe("Isi GoPay");
     expect(rowMeta(noted, labels, id.format)).toEqual({ text: "BCA · ATM → Gopay" });
     expect(rowPhoneLine(noted, labels, id.format)).toEqual({ text: "BCA · ATM → Gopay" });
@@ -89,7 +89,7 @@ describe("transfer titles (owner feedback 2)", () => {
 
   it("treats the server's placeholder note as no note", () => {
     for (const note of PLACEHOLDER_NOTES) {
-      expect(rowTitle({ ...outboundLeg, notes: note }, labels)).toBe("BCA · ATM → Gopay");
+      expect(rowTitle({ ...outboundLeg, name: note }, labels)).toBe("BCA · ATM → Gopay");
     }
     expect(isPlaceholderNote("  ")).toBe(true);
     expect(isPlaceholderNote("Pindah saldo ke GoPay")).toBe(false);
@@ -103,25 +103,34 @@ describe("transfer titles (owner feedback 2)", () => {
     }
   });
 
-  it("titles an expense by its note, then its merchant, then its category", () => {
+  it("keeps the owner's note out of the title and shows it on its own", () => {
+    const base = leg({ category_name: "Budaya", category_system_key: null, account_name: "Makan-Jalan", account_parent_name: "Jago" });
+    const remarked = { ...base, name: "Bayar makan di Kafe Contoh", note: "  fellowship coach ", merchant: "Kafe Contoh" };
+    expect(rowTitle(remarked, labels)).toBe("Bayar makan di Kafe Contoh");
+    expect(rowNote(remarked)).toBe("fellowship coach");
+    expect(rowNote({ ...base, name: "Parkir", note: "   " })).toBeNull();
+    expect(rowNote({ ...base, name: "Parkir" })).toBeNull();
+  });
+
+  it("titles an expense by its name, then its merchant, then its category", () => {
     const base = leg({ category_name: "Langganan", category_system_key: null, account_name: "Subscription", account_parent_name: "Jago" });
-    const both = { ...base, notes: "Top up saldo untuk development", merchant: "fal.ai" };
+    const both = { ...base, name: "Top up saldo untuk development", merchant: "fal.ai" };
     expect(rowTitle(both, labels)).toBe("Top up saldo untuk development");
     expect(rowMeta(both, labels, id.format).text).toBe("fal.ai · Jago · Subscription");
-    const named = { ...base, notes: "Top up saldo FAL.AI untuk development", merchant: "fal.ai" };
+    const named = { ...base, name: "Top up saldo FAL.AI untuk development", merchant: "fal.ai" };
     expect(rowTitle(named, labels)).toBe("Top up saldo FAL.AI untuk development");
     expect(rowMeta(named, labels, id.format).text).toBe("Jago · Subscription");
-    expect(rowTitle({ ...base, notes: null, merchant: "Kedai Awan" }, labels)).toBe("Kedai Awan");
-    expect(rowMeta({ ...base, notes: null, merchant: "Kedai Awan" }, labels, id.format).text).toBe("Jago · Subscription");
-    expect(rowTitle({ ...base, notes: "  ", merchant: null }, labels)).toBe("Langganan");
+    expect(rowTitle({ ...base, name: null, merchant: "Kedai Awan" }, labels)).toBe("Kedai Awan");
+    expect(rowMeta({ ...base, name: null, merchant: "Kedai Awan" }, labels, id.format).text).toBe("Jago · Subscription");
+    expect(rowTitle({ ...base, name: "  ", merchant: null }, labels)).toBe("Langganan");
   });
 
   it("titles a row with only a generic notification note by its merchant", () => {
     const base = leg({ category_name: "Belanja", category_system_key: null, account_name: "ATM", account_parent_name: "BCA" });
     for (const note of GENERIC_ROW_NOTES) {
-      expect(rowTitle({ ...base, notes: note, merchant: "Toko Contoh" }, labels)).toBe("Toko Contoh");
-      expect(rowMeta({ ...base, notes: note, merchant: "Toko Contoh" }, labels, id.format).text).toBe("BCA · ATM");
-      expect(rowTitle({ ...base, notes: note, merchant: null }, labels)).toBe(note);
+      expect(rowTitle({ ...base, name: note, merchant: "Toko Contoh" }, labels)).toBe("Toko Contoh");
+      expect(rowMeta({ ...base, name: note, merchant: "Toko Contoh" }, labels, id.format).text).toBe("BCA · ATM");
+      expect(rowTitle({ ...base, name: note, merchant: null }, labels)).toBe(note);
     }
   });
 
@@ -139,7 +148,7 @@ describe("transfer titles (owner feedback 2)", () => {
     const topup = leg({ investment_topup_id: "t1", movement_id: "t1", movement_role: "outbound", account_name: "RDN", account_parent_name: "Stockbit", transfer_target_account_name: "Reksa Dana A" });
     expect(rowTitle(topup, labels)).toBe("Top up Reksa Dana A");
     expect(rowTitle(topup, english)).toBe("Top-up Reksa Dana A");
-    expect(rowTitle({ ...topup, notes: "Tambah reksa dana" }, labels)).toBe("Tambah reksa dana");
+    expect(rowTitle({ ...topup, name: "Tambah reksa dana" }, labels)).toBe("Tambah reksa dana");
     expect(rowTitle({ ...topup, transfer_target_account_name: null }, labels)).toBe("Top up Investasi");
     expect(rowCategory(topup, labels)).toBe("Top up investasi");
   });
@@ -210,7 +219,7 @@ describe("credit rows (H5, D30)", () => {
     });
     expect(rowTitle(payment, labels)).toBe("Jago → SPayLater");
     expect(rowMeta(payment, labels, id.format)).toEqual({ text: "bayar tagihan" });
-    expect(rowMeta({ ...payment, notes: "Bayar SPayLater" }, labels, id.format)).toEqual({ text: "Jago → SPayLater · bayar tagihan" });
+    expect(rowMeta({ ...payment, name: "Bayar SPayLater" }, labels, id.format)).toEqual({ text: "Jago → SPayLater · bayar tagihan" });
     expect(rowMeta(payment, labels, id.format, true)).toEqual({ text: "Keluar ke SPayLater · bayar tagihan" });
     expect(rowPhoneLine(payment, labels, id.format)).toEqual({ text: "bayar tagihan" });
   });

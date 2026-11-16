@@ -218,7 +218,7 @@ export interface MonthlyReport {
     unexpected: {
       amount: number;
       count: number;
-      items: { id: string; date: string; amount: number; merchant: string | null; notes: string | null; category_name: string | null }[];
+      items: { id: string; date: string; amount: number; merchant: string | null; name: string | null; category_name: string | null }[];
     };
     recurring: { charges: RecurringCharge[]; monthly_equivalent_total: number };
     essential: EssentialSummary;

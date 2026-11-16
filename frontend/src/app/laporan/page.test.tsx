@@ -125,7 +125,7 @@ function makeReport(overrides: Partial<MonthlyReport> = {}): MonthlyReport {
         { name: "Swalayan Hemat", search_text: "Swalayan Hemat", amount: 1_087_000 },
         { name: "Leasing Motor Sentosa", search_text: "Leasing Motor Sentosa", amount: 850_000 },
       ],
-      unexpected: { amount: 698_000, count: 12, items: [{ id: "t-repair", date: "2026-10-08T05:00:00+00:00", amount: 425_000, merchant: "Bengkel Motor Jaya", notes: null, category_name: "Perbaikan & Darurat" }] },
+      unexpected: { amount: 698_000, count: 12, items: [{ id: "t-repair", date: "2026-10-08T05:00:00+00:00", amount: 425_000, merchant: "Bengkel Motor Jaya", name: null, category_name: "Perbaikan & Darurat" }] },
       recurring: {
         charges: [{ merchant: "Internet Rumah Cepat", search_text: "Internet Rumah Cepat", cadence: "monthly", typical_amount: 385_000, last_amount: 385_000, amount_changed: true, last_date: "2026-10-05", monthly_equivalent: 385_000, existing_plan: { id: "p1", name: "Internet" }, category_name: null }],
         monthly_equivalent_total: 385_000,

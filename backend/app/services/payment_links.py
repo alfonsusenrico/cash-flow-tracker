@@ -16,6 +16,7 @@ from fastapi import HTTPException
 from app.core.config import settings
 from app.errors import ErrorCode, api_error
 from app.services.debt_allocations import apply_allocations, lock_debts, validate_debt_capacity
+from app.services.transaction_text import text_fields
 
 CANDIDATE_WINDOW_DAYS = 7
 CANDIDATE_LIMIT = 10
@@ -85,7 +86,7 @@ def obligation_payment_candidates(cur, user_id: str, obligation: dict[str, Any])
     expected = int(obligation["minimum_payment"] or 0)
     cur.execute(
         """
-        SELECT t.id, t.amount, t.date, t.notes, t.merchant, t.source, a.name AS account_name
+        SELECT t.id, t.amount, t.date, t.name, t.note, t.merchant, t.source, a.name AS account_name
         FROM transactions t
         JOIN accounts a ON a.id = t.account_id
         WHERE t.user_id = %s AND t.type = 'expense' AND t.movement_id IS NULL
@@ -126,7 +127,7 @@ def occurrence_candidates(cur, user_id: str, rule: dict[str, Any], scheduled_for
         params += [str(rule["obligation_id"]), str(rule["obligation_id"])]
     cur.execute(
         f"""
-        SELECT t.id, t.amount, t.date, t.notes, t.merchant, t.source, a.name AS account_name
+        SELECT t.id, t.amount, t.date, t.name, t.note, t.merchant, t.source, a.name AS account_name
         FROM transactions t
         JOIN accounts a ON a.id = t.account_id
         WHERE {' AND '.join(conditions)}
@@ -144,7 +145,7 @@ def _candidate(row: dict[str, Any], expected: int) -> dict[str, Any]:
         "id": str(row["id"]),
         "amount": int(row["amount"]),
         "date": row["date"].isoformat(),
-        "notes": row["notes"],
+        **text_fields(row),
         "merchant": row["merchant"],
         "source": row["source"],
         "account_name": row["account_name"],

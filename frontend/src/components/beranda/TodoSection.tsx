@@ -76,7 +76,7 @@ export function todoItems({
   const questions: TodoItem[] = (queue?.questions ?? []).map(({ transaction: tx }) => ({
     key: `q-${tx.id}`,
     icon: "help",
-    title: tx.merchant || tx.notes || t("home.unnamedTransaction"),
+    title: tx.merchant || tx.name || t("home.unnamedTransaction"),
     meta: t("home.notRecognizedWhen", { when: when(tx.date, today, words) }),
     amount: signedAmount(tx.type, tx.amount),
     href: `/review?item=${tx.id}#review-questions`,

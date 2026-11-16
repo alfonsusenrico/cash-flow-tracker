@@ -256,7 +256,7 @@ data class NotificationResolveRequest(
     @SerializedName("account_id") val accountId: String,
     @SerializedName("category_id") val categoryId: String,
     @SerializedName("amount") val amount: Long? = null,
-    @SerializedName("notes") val notes: String? = null
+    @SerializedName("name") val name: String? = null
 )
 
 data class NotificationResultResponse(
@@ -326,7 +326,7 @@ data class TransactionUpdateRequest(
     @SerializedName("amount") val amount: Long? = null,
     @SerializedName("account_id") val accountId: String? = null,
     @SerializedName("category_id") val categoryId: String? = null,
-    @SerializedName("notes") val notes: String? = null,
+    @SerializedName("name") val name: String? = null,
     @SerializedName("date") val date: String? = null
 )
 

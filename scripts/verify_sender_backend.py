@@ -135,7 +135,7 @@ def verification_owner(user=Depends(get_current_user)):
 def state(_user=Depends(verification_owner)):
     with db_conn() as conn:
         records = conn.execute(
-            "SELECT id, amount, notes FROM transactions WHERE user_id = %s", (owner_id,),
+            "SELECT id, amount, name FROM transactions WHERE user_id = %s", (owner_id,),
         ).fetchall()
         answers = conn.execute(
             "SELECT event_id, question_id, action FROM notification_sender_answers WHERE user_id = %s",

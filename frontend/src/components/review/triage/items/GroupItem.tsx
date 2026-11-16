@@ -144,7 +144,7 @@ function GroupTransactions({ group, automatic, ctx }: { group: ReviewGroup; auto
             <ListRow
               layout="stacked"
               href={transaksiHref(row.id, automatic ? "otomatis" : "jawab")}
-              title={row.notes || row.merchant || row.category_name || t("terms.noDescription")}
+              title={row.name || row.merchant || row.category_name || t("terms.noDescription")}
               meta={[
                 dateTime(format, row.date),
                 row.account_name,

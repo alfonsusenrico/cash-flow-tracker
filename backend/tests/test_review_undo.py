@@ -43,7 +43,7 @@ def image(tx_id):
     if row is None:
         return None
     return {key: row[key] for key in (
-        "type", "amount", "account_id", "date", "category_id", "kakeibo_type", "notes", "merchant",
+        "type", "amount", "account_id", "date", "category_id", "kakeibo_type", "name", "note", "merchant",
         "offset_category_id", "movement_id", "movement_role", "fee_for_movement_id", "goal_id", "obligation_id",
         "recurring_rule_id", "idempotency_key", "source", "review_status", "classified_by",
         "classification_confidence", "owner_edited_at", "owner_split_at")}
@@ -387,8 +387,8 @@ def test_debt_and_goal_rows_recategorised_then_undone(client, owner):
     debt_id = debt.json()["obligation"]["id"]
     with db() as conn:
         goal_id = conn.execute("SELECT id FROM goals WHERE user_id = %s", (owner["user_id"],)).fetchone()["id"]
-    paid = add_row(owner, notes="Bayar cicilan", category="belanja", amount=100_000, merchant="Toko Cicilan")
-    saved = add_row(owner, notes="Tabung", category="belanja", amount=50_000, merchant="Toko Cicilan", goal_id=goal_id)
+    paid = add_row(owner, name="Bayar cicilan", category="belanja", amount=100_000, merchant="Toko Cicilan")
+    saved = add_row(owner, name="Tabung", category="belanja", amount=50_000, merchant="Toko Cicilan", goal_id=goal_id)
     assert client.post(f"/api/obligations/{debt_id}/payments", json={"transaction_id": paid}).status_code == 200
 
     def progress():
@@ -645,7 +645,7 @@ def test_text_answer_that_stays_needs_review_is_undoable(client, owner):
     response = answer(client, event_id, {"question_id": question["question_id"], "reply_id": str(uuid4()),
                                          "text": "belanja dapur mingguan"})
     token = token_of(response)
-    assert tx(row_id)["review_status"] == "needs_review" and tx(row_id)["notes"] == "belanja dapur mingguan"
+    assert tx(row_id)["review_status"] == "needs_review" and tx(row_id)["name"] == "belanja dapur mingguan"
     assert undo(client, token).status_code == 200
     assert image(row_id) == before
 

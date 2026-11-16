@@ -560,7 +560,7 @@ def typed_movement_leg(owner, account_key, tx_type, amount, moment):
     tx_id = str(uuid4())
     with db_conn() as conn:
         conn.execute(
-            """INSERT INTO transactions (id, user_id, account_id, category_id, type, amount, notes, date, source,
+            """INSERT INTO transactions (id, user_id, account_id, category_id, type, amount, name, date, source,
                    review_status, classified_by)
                VALUES (%s, %s, %s, %s, %s, %s, 'Pindah saldo', %s, 'manual', 'reviewed', 'owner')""",
             (tx_id, owner["user_id"], owner[account_key], category, tx_type, amount, moment),

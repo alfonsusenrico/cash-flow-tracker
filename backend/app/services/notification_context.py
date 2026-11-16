@@ -152,7 +152,7 @@ def load_context(cur, user_id: str, facts: NotificationFacts, *, history_limit: 
         str(row["id"]): row["system_key"] for row in categories[:CATEGORY_LIMIT] if row["system_key"]
     }
     context["_habit"] = evaluate_habit(cur, user_id, facts, context)
-    # The language generated notes are written in, once, at creation (localize-server-text D6). An unknown
+    # The language generated names are written in, once, at creation (localize-server-text D6). An unknown
     # owner has no row and gets an empty context, so nothing is composed for it.
     context["_language"] = profile.get("language")
     return context
@@ -167,7 +167,7 @@ def similar_history(cur, user_id: str, facts: NotificationFacts, key: dict | Non
     cur.execute(
         """
         SELECT * FROM (
-            SELECT t.id, t.merchant, LEFT(t.notes, 160) AS description, t.category_id, t.amount, t.date,
+            SELECT t.id, t.merchant, LEFT(t.name, 160) AS description, t.category_id, t.amount, t.date,
                    CASE WHEN t.type = 'expense' THEN COALESCE(t.kakeibo_type, c.kakeibo_type) END AS kakeibo,
                    (t.classified_by = 'owner'
                     OR (t.review_status = 'reviewed' AND t.classified_by IS DISTINCT FROM 'habit')) AS owner_confirmed,

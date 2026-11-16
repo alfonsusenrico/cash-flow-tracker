@@ -228,7 +228,7 @@ def test_an_insufficient_bank_side_is_refused(owner):
 
 def test_completing_a_one_sided_debit_with_the_credit_account(owner):
     add_credit(owner, owed=470_000)
-    debit = owner.tx("expense", 470_000, category="movement", account="bank", notes="Transfer ke PayLater")
+    debit = owner.tx("expense", 470_000, category="movement", account="bank", name="Transfer ke PayLater")
     response = owner.session.post("/api/movements/complete", json={
         "transaction_id": debit, "target_account_id": owner["credit"],
     })

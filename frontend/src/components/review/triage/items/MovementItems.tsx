@@ -316,7 +316,7 @@ function AwaitingAnswers({ item, ctx, handlers }: { item: AwaitingItem; ctx: Ite
               n={index + 1}
               disabled={ctx.pending}
               label={t("link", { amount: ctx.money(candidate.amount) })}
-              detail={[dateTime(ctx.words.format, candidate.date), candidate.category_name, candidate.notes].filter(Boolean).join(" · ")}
+              detail={[dateTime(ctx.words.format, candidate.date), candidate.category_name, candidate.name].filter(Boolean).join(" · ")}
               onClick={() => void handlers.onLinkExisting(item, candidate.id)}
             />
           ))}
@@ -365,7 +365,7 @@ export function awaitingParts(item: AwaitingItem, ctx: ItemContext, handlers: Aw
       item.account_name,
     ],
     warning: outgoing ? t("review.meta.warning.outgoing") : t("review.meta.warning.incoming"),
-    note: choosing && suggestion ? suggestion.explanation : item.notes || undefined,
+    note: choosing && suggestion ? suggestion.explanation : item.name || undefined,
     reasons: item.reasons,
     answers: <AwaitingAnswers key={`answers:${item.id}`} item={item} ctx={ctx} handlers={handlers} />,
   };

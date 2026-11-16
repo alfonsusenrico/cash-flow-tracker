@@ -23,7 +23,7 @@ def _settled_expense(account_id: str, amount: int) -> str:
     with db_conn() as connection:
         with connection.cursor() as cursor:
             cursor.execute(
-                """INSERT INTO transactions (user_id, account_id, type, amount, notes, date, source)
+                """INSERT INTO transactions (user_id, account_id, type, amount, name, date, source)
                    SELECT user_id, id, 'expense', %s, 'Top up saldo', NOW(), 'notification'
                    FROM accounts WHERE id = %s RETURNING id""",
                 (amount, account_id),

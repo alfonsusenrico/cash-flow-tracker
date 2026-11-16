@@ -39,7 +39,7 @@ object CaptureFixtures {
     private fun transaction(id: Long, type: String, amount: Long, merchant: String, account: String, category: String?, kakeibo: String?, hour: Int, date: LocalDate) =
         CaptureTransaction(
             id = uuid(3000 + id.toInt()), type = type, amount = amount, date = time(hour, date).toOffsetDateTime().toString(),
-            accountName = account, merchant = merchant, notes = merchant, categoryName = category, kakeibo = kakeibo, source = "capture"
+            accountName = account, merchant = merchant, name = merchant, categoryName = category, kakeibo = kakeibo, source = "capture"
         )
 
     fun recorded(

@@ -51,7 +51,7 @@ def validate_normalization(result: PurposeNormalization, context: dict, directio
         if not category_id or not categories[category_id].get("offsets_spending") or offset_id not in eligible:
             raise InvalidNormalization("invalid_offset")
     return {
-        "merchant": merchant, "notes": description, "category_id": category_id,
+        "merchant": merchant, "name": description, "category_id": category_id,
         "kakeibo_type": result.kakeibo if direction == "expense" and category_id else None,
         "offset_category_id": offset_id,
     }

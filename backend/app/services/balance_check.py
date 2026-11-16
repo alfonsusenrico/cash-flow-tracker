@@ -114,7 +114,7 @@ def _recording_effect(direction: str | None, amount: int | None) -> int | None:
 
 
 ROW_CANDIDATES_SQL = """
-    SELECT t.id, t.account_id, t.type, t.amount, t.date, t.merchant, t.notes, t.source,
+    SELECT t.id, t.account_id, t.type, t.amount, t.date, t.merchant, t.name, t.source,
            t.movement_id, t.fee_for_movement_id, c.name AS category, c.system_key AS category_system_key,
            a.name AS account_name, p.name AS parent_name, e.package_name,
            twin.id AS twin_id, twin.account_id AS twin_account_id, twin.date AS twin_date,
@@ -172,7 +172,7 @@ def row_candidates(cur, user_id: str, scope: CheckScope, since: datetime) -> lis
             "amount": int(row["amount"]),
             "direction": row["type"],
             "at": row["date"].isoformat(),
-            "label": row["merchant"] or row["notes"] or row["category"] or None,
+            "label": row["merchant"] or row["name"] or row["category"] or None,
             "account": _account_label(row["account_name"], row["parent_name"]),
             "app": _app_label(row["package_name"]),
             "link": {"kind": "transaction", "id": str(row["id"])},

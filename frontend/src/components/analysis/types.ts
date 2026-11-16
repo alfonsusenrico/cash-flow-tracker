@@ -210,7 +210,7 @@ export interface FlowRow {
   account_name: string;
   category_name: string | null;
   merchant: string | null;
-  notes: string | null;
+  name: string | null;
   movement_id: string | null;
   waiting: boolean;
 }

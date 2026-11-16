@@ -24,9 +24,9 @@ START = datetime(2026, 9, 1, 12, tzinfo=timezone.utc)
 
 
 def label(category="makan", kakeibo="need", *, kind="purpose_answer", minutes=0, transaction=None, hour=12,
-          weekday=2, notes=None):
+          weekday=2, name=None):
     return Label(
-        transaction_id=transaction or str(uuid4()), kind=kind, category_id=category, kakeibo=kakeibo, notes=notes,
+        transaction_id=transaction or str(uuid4()), kind=kind, category_id=category, kakeibo=kakeibo, name=name,
         merchant=None, amount=50_000, weekday=weekday, hour=hour, created_at=START + timedelta(minutes=minutes),
     )
 
@@ -98,14 +98,14 @@ def test_only_the_latest_ten_labelled_payments_count():
 
 def test_time_of_day_breaks_ties_and_picks_the_wording():
     evidence = [
-        label("makan", notes="makan siang", hour=12, minutes=1),
-        label("jajan", "want", notes="ngopi sore", hour=16, minutes=2),
+        label("makan", name="makan siang", hour=12, minutes=1),
+        label("jajan", "want", name="ngopi sore", hour=16, minutes=2),
     ]
     assert decision(evidence, hour=12).category_id == "makan"
     assert decision(evidence, hour=16).category_id == "jajan"
-    same = [label("makan", notes="makan siang", hour=12, minutes=1), label("makan", notes="makan malam", hour=19,
+    same = [label("makan", name="makan siang", hour=12, minutes=1), label("makan", name="makan malam", hour=19,
                                                                           minutes=2)]
-    assert decision(same, hour=12).notes == "makan siang" and decision(same, hour=20).notes == "makan malam"
+    assert decision(same, hour=12).name == "makan siang" and decision(same, hour=20).name == "makan malam"
 
 
 def test_kill_switch_never_records():
@@ -201,7 +201,7 @@ def test_three_agreeing_answers_record_the_next_payment_without_a_question(clien
     row = tx_for(result["event_id"])
     posted = datetime.fromisoformat(groceries(12_000, 3, hours=2)["post_time"])
     assert (row["amount"], str(row["account_id"]), row["date"]) == (12_000, owner["bca"], posted)
-    assert (str(row["category_id"]), row["kakeibo_type"], row["notes"]) == (owner["makan"], "need", "makan siang")
+    assert (str(row["category_id"]), row["kakeibo_type"], row["name"]) == (owner["makan"], "need", "makan siang")
     assert (row["classified_by"], row["review_status"], row["classification_confidence"]) == ("habit", "reviewed", None)
     assert event_row(result["event_id"])["active_question"] is None
     stored = event_row(result["event_id"])["interpretation"]
@@ -416,13 +416,13 @@ def test_pairing_a_habit_row_as_a_movement_drops_the_habit_classifier(client, ow
     assert expense["classified_by"] == "habit"
     with db_conn() as conn:
         income_id = conn.execute(
-            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, source,
+            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, name, date, source,
                    review_status, classified_by)
                VALUES (%s, %s, %s, 'income', 12000, 'synthetic', %s, 'manual', 'reviewed', 'owner') RETURNING id""",
             (owner["user_id"], owner["gopay"], owner["income"], expense["date"]),
         ).fetchone()["id"]
         with conn.cursor() as cur:
-            link_pair(cur, owner["user_id"], str(expense["id"]), str(income_id), fee=0, notes="Pindah saldo")
+            link_pair(cur, owner["user_id"], str(expense["id"]), str(income_id), fee=0, name="Pindah saldo")
         conn.commit()
     assert tx_for(recorded["event_id"])["classified_by"] == "system"
 
@@ -444,7 +444,7 @@ def test_question_rate_counts_each_recording_outcome(client, owner, monkeypatch)
     with db_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, source,
+                """INSERT INTO transactions (user_id, account_id, category_id, type, amount, name, date, source,
                        review_status, classified_by)
                    VALUES (%s, %s, %s, 'expense', 10000, 'parkir', %s, 'capture', 'reviewed', 'rule') RETURNING id""",
                 (owner["user_id"], owner["gopay"], owner["makan"], datetime(2026, 9, 29, 1, tzinfo=timezone.utc)),

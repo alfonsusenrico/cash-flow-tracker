@@ -23,7 +23,7 @@ MATCH_KEY_MAX_LENGTH = 220
 SIGNATURE_MAX_LENGTH = 200
 MEMORY_CONTEXT_LIMIT = 30
 FEEDBACK_FIELDS: tuple[str, ...] = (
-    "merchant", "notes", "category_id", "kakeibo_type", "type", "offset_category_id",
+    "merchant", "name", "category_id", "kakeibo_type", "type", "offset_category_id",
 )
 
 
@@ -173,7 +173,7 @@ def upsert_memory(cur, user_id: str, match_key: str, values: dict, source: str) 
                source = EXCLUDED.source, updated_at = NOW()
            WHERE merchant_memory.source = 'ai' OR EXCLUDED.source = 'owner'""",
         (user_id, match_key, "merchant" if match_key.startswith("merchant:") else "signature",
-         values.get("merchant"), (values.get("notes") or None) and values["notes"][:500],
+         values.get("merchant"), (values.get("name") or None) and values["name"][:500],
          values["category_id"], values.get("kakeibo_type"), values.get("offset_category_id"),
          values.get("account_id"), source),
     )
@@ -218,11 +218,14 @@ def restore_memory(cur, user_id: str, learned: dict | None) -> None:
 
 
 def snapshot_rows(cur, user_id: str, transaction_ids: list[str]) -> dict[str, dict]:
-    """Classification state of rows, read before or after an owner edit."""
+    """Classification state of rows, read before or after an owner edit.
+
+    The owner's note is not read: no learning reads or writes it.
+    """
     if not transaction_ids:
         return {}
     cur.execute(
-        """SELECT t.id, t.type, t.amount, t.date, t.account_id, t.merchant, t.notes, t.category_id,
+        """SELECT t.id, t.type, t.amount, t.date, t.account_id, t.merchant, t.name, t.category_id,
                   c.name AS category_name, c.system_key AS category_system_key, t.kakeibo_type,
                   c.kakeibo_type AS category_kakeibo_type,
                   t.offset_category_id, t.movement_id, t.source, t.review_status, t.classified_by
@@ -242,7 +245,7 @@ def snapshot_rows(cur, user_id: str, transaction_ids: list[str]) -> dict[str, di
 def classification_values(row: dict) -> dict:
     return {
         "merchant": row.get("merchant"),
-        "notes": (row.get("notes") or "").strip(),
+        "name": (row.get("name") or "").strip(),
         "category_id": str(row["category_id"]) if row.get("category_id") else None,
         "kakeibo_type": row.get("effective_kakeibo"),
         "type": row["type"],
@@ -301,10 +304,10 @@ def insert_feedback(
         (
             user_id, kind, str(after["id"]), key.get("event_id"), answer.get("question_id"),
             answer.get("reply_id"), answer.get("suggestion_id"), answer.get("text"),
-            before.get("merchant"), (before.get("notes") or None) and before["notes"][:500],
+            before.get("merchant"), (before.get("name") or None) and before["name"][:500],
             before.get("category_id"), before.get("category_name"), before.get("effective_kakeibo"),
             before.get("type"), before.get("offset_category_id"),
-            after.get("merchant"), (after.get("notes") or None) and after["notes"][:500],
+            after.get("merchant"), (after.get("name") or None) and after["name"][:500],
             after.get("category_id"), after.get("category_name"), after.get("effective_kakeibo"),
             after.get("type"), after.get("offset_category_id"),
             weekday, hour, after.get("amount"), after.get("account_id"), key.get("institution"),
@@ -342,7 +345,7 @@ def learn_from_owner(cur, user_id: str, after: dict, key: dict) -> None:
             or is_movement_category(after["category_system_key"])):
         return
     values = {
-        "merchant": after.get("merchant"), "notes": after.get("notes"), "category_id": str(after["category_id"]),
+        "merchant": after.get("merchant"), "name": after.get("name"), "category_id": str(after["category_id"]),
         "kakeibo_type": after.get("kakeibo_type") if after["type"] == "expense" else None,
         "offset_category_id": str(after["offset_category_id"]) if after.get("offset_category_id") else None,
     }

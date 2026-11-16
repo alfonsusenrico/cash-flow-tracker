@@ -97,14 +97,14 @@ class Owner:
         self.ids[key] = category_id
         return category_id
 
-    def tx(self, tx_type, amount, *, category=None, account="bank", when=None, merchant=None, notes=None,
+    def tx(self, tx_type, amount, *, category=None, account="bank", when=None, merchant=None, name=None,
            review_status="reviewed", goal=None):
         row = self.db(
-            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, date, merchant, notes,
+            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, date, merchant, name,
                                          source, review_status, goal_id)
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'manual', %s, %s) RETURNING id""",
             (self.user_id, self.ids[account], self.ids[category] if category else None, tx_type, amount,
-             when or now_utc() - timedelta(minutes=5), merchant, notes, review_status,
+             when or now_utc() - timedelta(minutes=5), merchant, name, review_status,
              self.ids[goal] if goal else None),
         )
         return str(row["id"])
@@ -121,7 +121,7 @@ class Owner:
         return response.json()
 
     def salary(self, day: date, amount=SALARY, *, source=False):
-        tx_id = self.tx("income", amount, category="gaji", when=at_local(day), notes="Gaji PT Contoh")
+        tx_id = self.tx("income", amount, category="gaji", when=at_local(day), name="Gaji PT Contoh")
         if source:
             assert self.session.put("/api/salary/source", json={"transaction_id": tx_id}).status_code == 200
         response = self.session.post("/api/salary/receipts", json={"transaction_id": tx_id})
@@ -353,11 +353,11 @@ def test_waiting_rows_by_section_and_whether_keluar_holds_them(owner):
     from app.db.pool import db_conn
     from app.services.monthly_report import review_counts
 
-    question = owner.expense(45_000, notes="QRIS 0812-0000", review_status="auto")
+    question = owner.expense(45_000, name="QRIS 0812-0000", review_status="auto")
     waiting_event(owner, question, question=True, reasons=["purpose_question"])
-    awaiting = owner.expense(112_000, "movement", notes="Transfer ke rekening contoh", review_status="needs_review")
+    awaiting = owner.expense(112_000, "movement", name="Transfer ke rekening contoh", review_status="needs_review")
     waiting_event(owner, awaiting, reasons=["awaiting_counterpart"])
-    ambiguous = owner.tx("income", 500_000, notes="Transfer masuk contoh", review_status="needs_review")
+    ambiguous = owner.tx("income", 500_000, name="Transfer masuk contoh", review_status="needs_review")
     waiting_event(owner, ambiguous, reasons=["ambiguous_movement"])
     flagged = owner.expense(30_000, "jajan", merchant="Kedai Contoh", review_status="needs_review")
     owner.expense(25_000, "makan", merchant="Warung Contoh", review_status="auto")
@@ -511,7 +511,7 @@ def test_linked_payment_leaves_terjadwal_as_it_enters_keluar(owner):
         "overdue": False, "amount": 600_000,
     }
 
-    payment = owner.expense(600_000, "makan", notes="Cicilan contoh")
+    payment = owner.expense(600_000, "makan", name="Cicilan contoh")
     response = owner.session.post(f"/api/recurring/{rule}/occurrences/link",
                                   json={"scheduled_for": due.isoformat(), "transaction_id": payment})
     assert response.status_code == 200, response.text
@@ -552,7 +552,7 @@ def test_reimbursement_raises_the_safe_amount_by_the_money_received(owner):
     owner.salary(today() - timedelta(days=5))
     owner.expense(300_000, "jajan")
     before = owner.summary()
-    owner.tx("income", 200_000, category="patungan", notes="Ganti uang contoh")
+    owner.tx("income", 200_000, category="patungan", name="Ganti uang contoh")
     owner.db("UPDATE transactions SET offset_category_id = %s WHERE category_id = %s", (owner["jajan"], owner["patungan"]))
     after = owner.summary()
     assert after["masuk"]["total"] == before["masuk"]["total"]
@@ -841,7 +841,7 @@ def test_statement_count_does_not_grow_with_rows_plans_or_goals(owner, monkeypat
     owner.plan("plan_0", "Rencana Contoh 0", 10_000, today() + timedelta(days=2))
     target = shift_months(today(), 4)
     owner.goal("goal_0", "Target Contoh 0", 1_000_000, target, accounts=["pocket"])
-    waiting = owner.expense(5_000, notes="QRIS contoh", review_status="needs_review")
+    waiting = owner.expense(5_000, name="QRIS contoh", review_status="needs_review")
     waiting_event(owner, waiting, reasons=["purpose_question"])
     baseline = count_summary(owner, monkeypatch)
     assert baseline > 0
@@ -915,7 +915,7 @@ def test_a_pocket_below_zero_is_money_short(owner):
 
 def test_money_from_before_the_salary_counts(owner):
     owner.salary(today() - timedelta(days=3))
-    owner.tx("income", 300_000, category="lain", when=at_local(today() - timedelta(days=40)), notes="Sisa bulan lalu")
+    owner.tx("income", 300_000, category="lain", when=at_local(today() - timedelta(days=40)), name="Sisa bulan lalu")
     data = owner.summary()
     # Masuk is this cycle's only; the safe amount reads what the pockets hold now.
     assert data["masuk"]["total"] == SALARY

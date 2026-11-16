@@ -30,6 +30,7 @@ from app.services.review_undo import TOKEN_PATTERN, ActionRecorder, undo_action
 from app.services.seen_twice import acknowledge, record_separately, seen_twice_items, skipped_items
 from app.services.system_categories import INTERNAL_MOVEMENT, is_system_sql
 from app.services.topup_learning import reject_suggestion, topup_suggestion
+from app.services.transaction_text import TransactionTextInput, text_fields
 
 router = APIRouter(prefix="/review", tags=["Review"])
 
@@ -42,7 +43,7 @@ QUEUE_SQL = f"""
     SELECT t.id, t.type, t.amount, t.date, t.account_id, a.name AS account_name, a.type AS account_type,
            t.category_id, c.name AS category_name,
            CASE WHEN t.type = 'expense' THEN COALESCE(t.kakeibo_type, c.kakeibo_type) END AS kakeibo_type,
-           t.merchant, t.notes, t.review_status, t.source, t.classified_by,
+           t.merchant, t.name, t.note, t.review_status, t.source, t.classified_by,
            t.movement_id, t.movement_role, t.fee_for_movement_id,
            {is_system_sql('c', INTERNAL_MOVEMENT)} AS movement_category,
            ev.interpretation -> 'review_reasons' AS review_reasons,
@@ -99,7 +100,7 @@ def queue_item(row: dict) -> dict[str, Any]:
         "account_id": str(row["account_id"]), "account_name": row["account_name"],
         "category_id": str(row["category_id"]) if row["category_id"] else None,
         "category_name": row["category_name"], "kakeibo_type": row["kakeibo_type"],
-        "merchant": row["merchant"], "notes": row["notes"], "review_status": row["review_status"],
+        "merchant": row["merchant"], **text_fields(row), "review_status": row["review_status"],
         "source": row["source"], "classified_by": row["classified_by"],
         "movement_id": str(row["movement_id"]) if row["movement_id"] else None,
         "movement_role": row["movement_role"],
@@ -112,20 +113,21 @@ def group_identity(row: dict, language: str) -> tuple[str, str, str, str | None]
     """(kind, key, label, label_key) of the group a queue row belongs to.
 
     Rows group by merchant; without one, by the notification's text signature (phase 3 match key),
-    then by notes, then by category. The key includes the type, so every group can be recategorised
+    then by name, then by category. The key includes the type, so every group can be recategorised
     into one category kind. `label_key` names the fixed fallback when the label is not user data.
     """
     merchant_key = merchant_match_key(row["merchant"])
     if merchant_key:
         return "merchant", f"{row['type']}|{merchant_key}", row["merchant"], None
-    notes = (row["notes"] or "").strip()
+    name = (row["name"] or "").strip()
     match_key = row.get("match_key") or ""
     if match_key.startswith("signature:"):
-        if notes:
-            return "signature", f"{row['type']}|{match_key}", notes, None
+        if name:
+            return "signature", f"{row['type']}|{match_key}", name, None
         return "signature", f"{row['type']}|{match_key}", t(language, "labels.fallback.undescribed"), "undescribed"
-    if notes:
-        return "notes", f"{row['type']}|" + f"notes:{normalize_key_text(notes)}"[:MATCH_KEY_MAX_LENGTH], notes, None
+    # The group kind and key prefix stay "notes": clients already know them.
+    if name:
+        return "notes", f"{row['type']}|" + f"notes:{normalize_key_text(name)}"[:MATCH_KEY_MAX_LENGTH], name, None
     category = str(row["category_id"]) if row["category_id"] else "none"
     if row["category_name"]:
         return "category", f"{row['type']}|category:{category}", row["category_name"], None
@@ -264,22 +266,22 @@ def review_queue(current_user: dict = Depends(get_current_user)):
     }
 
 
-class BulkReview(BaseModel):
+class BulkReview(TransactionTextInput):
     action: Literal["accept", "recategorise", "rename", "keep_separate"]
     transaction_ids: list[UUID] = Field(min_length=1, max_length=BULK_LIMIT)
     category_id: UUID | None = None
     kakeibo_type: str | None = Field(default=None, pattern=PILLAR_PATTERN)
     merchant: str | None = Field(default=None, max_length=500)
-    notes: str | None = Field(default=None, max_length=500)
+    name: str | None = Field(default=None, max_length=500)
 
     @field_validator("merchant")
     @classmethod
     def normalize_merchant_field(cls, value: str | None) -> str | None:
         return normalize_merchant(value)
 
-    @field_validator("notes")
+    @field_validator("name")
     @classmethod
-    def normalize_notes(cls, value: str | None) -> str | None:
+    def normalize_name(cls, value: str | None) -> str | None:
         return (value or "").strip() or None
 
     @model_validator(mode="after")
@@ -289,14 +291,14 @@ class BulkReview(BaseModel):
         given = self.model_fields_set - {"action", "transaction_ids"}
         allowed = {
             "accept": set(), "keep_separate": set(),
-            "recategorise": {"category_id", "kakeibo_type"}, "rename": {"merchant", "notes"},
+            "recategorise": {"category_id", "kakeibo_type"}, "rename": {"merchant", "name", "note"},
         }[self.action]
         if given - allowed:
             raise ValueError(f"{self.action} does not take {', '.join(sorted(given - allowed))}")
         if self.action == "recategorise" and self.category_id is None:
             raise ValueError("recategorise needs category_id")
         if self.action == "rename" and not given:
-            raise ValueError("rename needs merchant or notes")
+            raise ValueError("rename needs merchant, name or note")
         return self
 
 
@@ -312,7 +314,7 @@ def bulk_error(status: int, code: str, *, message_key: str | None = None, **extr
 
 def locked_rows(cur, user_id: str, ids: list[str]) -> dict[str, dict]:
     cur.execute(
-        """SELECT t.id, t.type, t.movement_id, t.category_id, t.kakeibo_type, t.notes, t.merchant,
+        """SELECT t.id, t.type, t.movement_id, t.category_id, t.kakeibo_type, t.name, t.note, t.merchant,
                   t.offset_category_id, t.review_status, c.kakeibo_type AS category_kakeibo_type
            FROM transactions t LEFT JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id
            WHERE t.user_id = %s AND t.id = ANY(%s::uuid[])
@@ -363,7 +365,7 @@ def recategorise(cur, user_id: str, rows: dict[str, dict], payload: BulkReview) 
         if classification_change(row, {
             "category_id": category_id,
             "kakeibo_type": effective_pillar(row["type"], payload.kakeibo_type, category["kakeibo_type"]),
-            "notes": row["notes"], "merchant": row["merchant"], "type": row["type"],
+            "name": row["name"], "merchant": row["merchant"], "type": row["type"],
             "offset_category_id": (str(row["offset_category_id"]) if row["offset_category_id"] else None) if keeps_offset else None,
         })
     ]
@@ -385,13 +387,14 @@ def recategorise(cur, user_id: str, rows: dict[str, dict], payload: BulkReview) 
 def rename(cur, user_id: str, rows: dict[str, dict], payload: BulkReview) -> int:
     reject_movement_legs(rows, "movement_leg_not_editable")
     set_merchant = "merchant" in payload.model_fields_set
-    set_notes = "notes" in payload.model_fields_set
+    set_name = "name" in payload.model_fields_set
+    set_note = "note" in payload.model_fields_set
     changed = [
         row_id for row_id, row in rows.items()
         if classification_change(row, {
             "category_id": str(row["category_id"]) if row["category_id"] else None,
             "kakeibo_type": effective_pillar(row["type"], row["kakeibo_type"], row["category_kakeibo_type"]),
-            "notes": payload.notes if set_notes else row["notes"],
+            "name": payload.name if set_name else row["name"],
             "merchant": payload.merchant if set_merchant else row["merchant"],
             "type": row["type"],
             "offset_category_id": str(row["offset_category_id"]) if row["offset_category_id"] else None,
@@ -402,10 +405,18 @@ def rename(cur, user_id: str, rows: dict[str, dict], payload: BulkReview) -> int
         cur.execute(
             f"""UPDATE transactions
                 SET merchant = CASE WHEN %s THEN %s ELSE merchant END,
-                    notes = CASE WHEN %s THEN %s ELSE notes END,
+                    name = CASE WHEN %s THEN %s ELSE name END,
                     review_status = 'reviewed', updated_at = NOW(), {OWNER_EDIT_ASSIGNMENTS}
                 WHERE user_id = %s AND id = ANY(%s::uuid[])""",
-            (set_merchant, payload.merchant, set_notes, payload.notes, user_id, changed),
+            (set_merchant, payload.merchant, set_name, payload.name, user_id, changed),
+        )
+    # The note is not a classification: it is written on every row without making the owner its classifier.
+    noted = [row_id for row_id, row in rows.items() if set_note and row["note"] != payload.note]
+    if noted:
+        cur.execute(
+            """UPDATE transactions SET note = %s, updated_at = NOW()
+               WHERE user_id = %s AND id = ANY(%s::uuid[])""",
+            (payload.note, user_id, noted),
         )
     mark_reviewed(cur, user_id, [row_id for row_id in rows if row_id not in before])
     return record_owner_corrections(cur, user_id, before)

@@ -13,6 +13,7 @@ from app.services.kakeibo import UNCLASSIFIED, effective_pillar, pillar_bucket_s
 from app.services.merchant_memory import record_owner_corrections, snapshot_rows
 from app.services.provenance import OWNER_EDIT_ASSIGNMENTS
 from app.services.report_figures import reportable_category_sql, reportable_expense_sql
+from app.services.transaction_text import text_fields
 
 GAP_ROW_LIMIT = 200
 FIX_ROW_LIMIT = 200
@@ -71,7 +72,7 @@ def classification_gaps(cur, user_id: str, start: datetime | None = None, end: d
     )
     totals = cur.fetchone()
     cur.execute(
-        f"""SELECT t.id, t.date, t.amount, t.merchant, t.notes, t.category_id, c.name AS category_name,
+        f"""SELECT t.id, t.date, t.amount, t.merchant, t.name, t.note, t.category_id, c.name AS category_name,
                    a.name AS account_name
             FROM transactions t
             JOIN accounts a ON a.id = t.account_id
@@ -83,7 +84,7 @@ def classification_gaps(cur, user_id: str, start: datetime | None = None, end: d
     rows = [
         {
             "id": str(row["id"]), "date": row["date"].isoformat(), "amount": int(row["amount"]),
-            "merchant": row["merchant"], "notes": row["notes"],
+            "merchant": row["merchant"], **text_fields(row),
             "category_id": str(row["category_id"]) if row["category_id"] else None,
             "category_name": row["category_name"], "account_name": row["account_name"],
         }

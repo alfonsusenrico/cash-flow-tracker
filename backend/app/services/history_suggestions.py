@@ -52,7 +52,7 @@ CAFE_PATTERN = re.compile(
 )
 
 ELIGIBLE_SQL = f"""
-    SELECT t.id, t.type, t.amount, t.date, t.account_id, a.name AS account_name, t.merchant, t.notes,
+    SELECT t.id, t.type, t.amount, t.date, t.account_id, a.name AS account_name, t.merchant, t.name,
            t.category_id, c.name AS category_name, t.kakeibo_type, c.kakeibo_type AS category_kakeibo_type,
            t.offset_category_id,
            ev.interpretation ->> 'match_key' AS match_key,
@@ -110,7 +110,7 @@ class Proposal:
     transaction_id: str
     source: str
     merchant: str | None
-    notes: str | None
+    name: str | None
     category_id: str
     kakeibo: str | None
     offset_category_id: str | None
@@ -175,7 +175,7 @@ def folded(value: str | None) -> str:
 
 def current_values(row: dict) -> tuple:
     return (
-        folded(row["merchant"]), folded(row["notes"]),
+        folded(row["merchant"]), folded(row["name"]),
         str(row["category_id"]) if row["category_id"] else None,
         effective_pillar(row["type"], row["kakeibo_type"], row["category_kakeibo_type"]),
         str(row["offset_category_id"]) if row["offset_category_id"] else None,
@@ -183,7 +183,7 @@ def current_values(row: dict) -> tuple:
 
 
 def proposal_values(proposal: Proposal) -> tuple:
-    return (folded(proposal.merchant), folded(proposal.notes), proposal.category_id, proposal.kakeibo,
+    return (folded(proposal.merchant), folded(proposal.name), proposal.category_id, proposal.kakeibo,
             proposal.offset_category_id)
 
 
@@ -272,7 +272,7 @@ def memory_proposal(row: dict, memory: dict[str, dict], categories: dict[str, di
                   else t(language, "reasons.history.similar"))
         return Proposal(
             transaction_id=str(row["id"]), source="memory", merchant=merchant,
-            notes=entry["notes"] or row["notes"], category_id=str(category["id"]),
+            name=entry["notes"] or row["name"], category_id=str(category["id"]),
             kakeibo=effective_pillar(row["type"], entry["kakeibo_type"], category["kakeibo_type"]),
             offset_category_id=offset, confidence=None, reason=reason[:REASON_MAX_LENGTH],
         )
@@ -280,8 +280,8 @@ def memory_proposal(row: dict, memory: dict[str, dict], categories: dict[str, di
 
 
 def row_text(row: dict) -> str:
-    """Merchant, notes and the recording notification's text; read for keywords, never stored."""
-    return " ".join(filter(None, [row["merchant"], row["notes"], row.get("event_text")]))
+    """Merchant, name and the recording notification's text; read for keywords, never stored."""
+    return " ".join(filter(None, [row["merchant"], row["name"], row.get("event_text")]))
 
 
 def rule_proposal(row: dict, categories: dict[str, dict], repayment_offset: str | None, language: str) -> Proposal | None:
@@ -305,7 +305,7 @@ def rule_proposal(row: dict, categories: dict[str, dict], repayment_offset: str 
             offset = next((str(item["id"]) for item in eligible if folded(item["name"]) == JAJAN_CATEGORY_NAME), None)
         return Proposal(
             transaction_id=str(row["id"]), source="rule", merchant=row["merchant"],
-            notes=t(language, "notes.repayment_shared"),
+            name=t(language, "notes.repayment_shared"),
             category_id=str(target["id"]), kakeibo=None, offset_category_id=offset, confidence=None,
             reason=t(language, "reasons.history.repayment"),
         )
@@ -316,7 +316,7 @@ def rule_proposal(row: dict, categories: dict[str, dict], repayment_offset: str 
     if not target or (current and str(current["id"]) == str(target["id"])):
         return None
     return Proposal(
-        transaction_id=str(row["id"]), source="rule", merchant=row["merchant"], notes=row["notes"],
+        transaction_id=str(row["id"]), source="rule", merchant=row["merchant"], name=row["name"],
         category_id=str(target["id"]), kakeibo=effective_pillar("expense", None, target["kakeibo_type"]),
         offset_category_id=None, confidence=None,
         reason=t(language, "reasons.history.cafe"),
@@ -413,9 +413,9 @@ def save_proposals(cur, user_id: str, run_id: str, rows: dict[str, dict], propos
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
             (
                 user_id, proposal.transaction_id, run_id, proposal.source, proposal.merchant,
-                (proposal.notes or None) and proposal.notes[:NOTES_MAX_LENGTH], proposal.category_id,
+                (proposal.name or None) and proposal.name[:NOTES_MAX_LENGTH], proposal.category_id,
                 proposal.kakeibo, proposal.offset_category_id, proposal.confidence, proposal.reason[:REASON_MAX_LENGTH],
-                row["type"], row["merchant"], row["notes"],
+                row["type"], row["merchant"], row["name"],
                 row["category_id"], effective_pillar(row["type"], row["kakeibo_type"], row["category_kakeibo_type"]),
                 row["offset_category_id"],
             ),
@@ -437,7 +437,7 @@ def supersede_stale(cur, user_id: str) -> int:
             OR t.movement_id IS NOT NULL OR t.fee_for_movement_id IS NOT NULL
             OR t.type IS DISTINCT FROM s.before_type
             OR t.merchant IS DISTINCT FROM s.before_merchant
-            OR NULLIF(btrim(COALESCE(t.notes, '')), '') IS DISTINCT FROM NULLIF(btrim(COALESCE(s.before_notes, '')), '')
+            OR NULLIF(btrim(COALESCE(t.name, '')), '') IS DISTINCT FROM NULLIF(btrim(COALESCE(s.before_notes, '')), '')
             OR t.category_id IS DISTINCT FROM s.before_category_id
             -- Snapshots taken before unclassified spending stopped reading as `need` stored 'need' for
             -- it; both sides fold to 'need' so that change alone supersedes no suggestion.
@@ -484,7 +484,7 @@ def batch_context(cur, user_id: str, rows: list[dict]) -> dict:
     memory = cur.fetchall()
     merchants = sorted({folded(row["merchant"]) for row in rows if row["merchant"]})
     cur.execute(
-        """SELECT t.type, t.merchant, LEFT(t.notes, 160) AS notes, t.category_id, t.amount,
+        """SELECT t.type, t.merchant, LEFT(t.name, 160) AS name, t.category_id, t.amount,
                   CASE WHEN t.type = 'expense' THEN COALESCE(t.kakeibo_type, c.kakeibo_type) END AS kakeibo
            FROM transactions t LEFT JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id
            WHERE t.user_id = %s AND t.type = ANY(%s) AND t.classified_by = 'owner' AND t.movement_id IS NULL
@@ -499,7 +499,7 @@ def batch_context(cur, user_id: str, rows: list[dict]) -> dict:
             "date": row["date"].astimezone(tz).date().isoformat(),
             "account": sanitize_text(row["account_name"], identity)[:150],
             "merchant": sanitize_text(row["merchant"], identity)[:120] or None,
-            "description": sanitize_text(row["notes"], identity)[:160] or None,
+            "description": sanitize_text(row["name"], identity)[:160] or None,
             "category_id": str(row["category_id"]) if row["category_id"] else None,
             "kakeibo": effective_pillar(row["type"], row["kakeibo_type"], row["category_kakeibo_type"]),
             "bank_category": bank_category(row), "merchant_less": not row["merchant"],
@@ -518,7 +518,7 @@ def batch_context(cur, user_id: str, rows: list[dict]) -> dict:
         } for item in memory],
         "owner_history": [{
             "direction": item["type"], "merchant": sanitize_text(item["merchant"], identity)[:120] or None,
-            "description": sanitize_text(item["notes"], identity)[:160] or None,
+            "description": sanitize_text(item["name"], identity)[:160] or None,
             "category_id": str(item["category_id"]), "kakeibo": item["kakeibo"], "amount": int(item["amount"]),
         } for item in history],
     }
@@ -533,7 +533,7 @@ def validated_proposals(
 ) -> tuple[list[Proposal], int]:
     """Model items that reference only the batch's rows and the owner's categories; returns (valid, invalid).
 
-    An English placeholder description such as "Payment" keeps the row's notes; Indonesian output is checked as before.
+    An English placeholder description such as "Payment" keeps the row's name; Indonesian output is checked as before.
     """
     by_ref = {item["ref"]: row for item, row in zip(context["rows"], rows)}
     categories = {item["id"]: item for item in context["categories"]}
@@ -563,7 +563,7 @@ def validated_proposals(
             continue
         valid.append(Proposal(
             transaction_id=str(row["id"]), source="ai", merchant=merchant[:MERCHANT_MAX_LENGTH] if merchant else None,
-            notes=description or row["notes"], category_id=category["id"],
+            name=description or row["name"], category_id=category["id"],
             kakeibo=effective_pillar(row["type"], item.kakeibo, category["default_kakeibo"]),
             offset_category_id=offset, confidence=round(item.confidence, 3),
             reason=" ".join(item.reason.split())[:REASON_MAX_LENGTH],
@@ -836,7 +836,7 @@ def suggestion_item(row: dict) -> dict:
 
 
 def group_suggestions(rows: list[dict], language: str) -> list[dict]:
-    """Pending suggestions grouped by proposed merchant (or notes), category and offset."""
+    """Pending suggestions grouped by proposed merchant (or name), category and offset."""
     groups: dict[str, dict] = {}
     for row in rows:
         item = suggestion_item(row)
@@ -924,7 +924,7 @@ def accept_suggestions(user_id: str, ids: list[str]) -> dict:
             skipped = sorted(sid for sid in ids if sid not in pending)
             transaction_ids = sorted(str(row["transaction_id"]) for row in pending.values())
             cur.execute(
-                """SELECT t.id, t.type, t.category_id, t.kakeibo_type, t.notes, t.merchant, t.offset_category_id,
+                """SELECT t.id, t.type, t.category_id, t.kakeibo_type, t.name, t.merchant, t.offset_category_id,
                           c.kakeibo_type AS category_kakeibo_type
                    FROM transactions t LEFT JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id
                    WHERE t.user_id = %s AND t.id = ANY(%s::uuid[]) ORDER BY t.id FOR UPDATE OF t""",
@@ -946,7 +946,7 @@ def accept_suggestions(user_id: str, ids: list[str]) -> dict:
                     validate_offset_category(cur, user_id, offset)
                 values = {
                     "category_id": str(category["id"]), "kakeibo_type": suggestion["proposed_kakeibo_type"],
-                    "notes": suggestion["proposed_notes"], "merchant": suggestion["proposed_merchant"],
+                    "name": suggestion["proposed_notes"], "merchant": suggestion["proposed_merchant"],
                     "type": row["type"], "offset_category_id": offset,
                 }
                 planned[sid] = (row, values)
@@ -959,10 +959,10 @@ def accept_suggestions(user_id: str, ids: list[str]) -> dict:
                 pillar = values["kakeibo_type"] if values["kakeibo_type"] != category["kakeibo_type"] else None
                 cur.execute(
                     f"""UPDATE transactions
-                        SET merchant = %s, notes = %s, category_id = %s, kakeibo_type = %s, offset_category_id = %s,
+                        SET merchant = %s, name = %s, category_id = %s, kakeibo_type = %s, offset_category_id = %s,
                             review_status = 'reviewed', updated_at = NOW(), {OWNER_EDIT_ASSIGNMENTS}
                         WHERE user_id = %s AND id = %s""",
-                    (values["merchant"], values["notes"], values["category_id"],
+                    (values["merchant"], values["name"], values["category_id"],
                      pillar if values["type"] == "expense" else None, values["offset_category_id"],
                      user_id, transaction_of[sid]),
                 )

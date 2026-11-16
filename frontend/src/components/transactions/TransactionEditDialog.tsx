@@ -89,7 +89,8 @@ export function TransactionEditDialog({
   ));
   const [receipt, setReceipt] = useState<File | null>(null);
   const [receiptRetry, setReceiptRetry] = useState(false);
-  const [notes, setNotes] = useState(tx.notes || "");
+  const [name, setName] = useState(tx.name || "");
+  const [note, setNote] = useState(tx.note || "");
   const [merchant, setMerchant] = useState(tx.merchant || "");
   const [offsetCategoryId, setOffsetCategoryId] = useState(tx.offset_category_id || "");
   const [accountId, setAccountId] = useState(tx.account_id);
@@ -155,7 +156,8 @@ export function TransactionEditDialog({
       await api.patch(`/transactions/${tx.id}`, {
         type: kind,
         amount: value,
-        notes: notes.trim() || null,
+        name: name.trim() || null,
+        note: note.trim() || null,
         account_id: accountId,
         category_id: categoryId || null,
         goal_id: goalId || null,
@@ -266,7 +268,7 @@ export function TransactionEditDialog({
   );
 
   return (
-    <ShellDialog open onClose={onClose} title={t("title")} meta={ownRowNote(tx.notes) || tx.merchant || tx.notes?.trim() || undefined} width={600} closeLabel={t("close")} footer={footer}>
+    <ShellDialog open onClose={onClose} title={t("title")} meta={ownRowNote(tx.name) || tx.merchant || tx.name?.trim() || undefined} width={600} closeLabel={t("close")} footer={footer}>
       <form id={FORM_ID} className="form-stack" onSubmit={submit} noValidate>
         {error && <p ref={errorRef} tabIndex={-1} role="alert" className="form-alert">{error}</p>}
         <div className="field">
@@ -414,8 +416,12 @@ export function TransactionEditDialog({
               onChange={(event) => setMerchant(event.target.value)} placeholder={t("merchantPlaceholder")} className="field-control" />
           </div>
           <div className="field">
-            <label htmlFor="tx-edit-notes">{t("notes")}</label>
-            <input id="tx-edit-notes" type="text" autoComplete="off" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder={t("notesPlaceholder")} className="field-control" />
+            <label htmlFor="tx-edit-name">{t("name")}</label>
+            <input id="tx-edit-name" type="text" autoComplete="off" maxLength={500} value={name} onChange={(event) => setName(event.target.value)} placeholder={t("namePlaceholder")} className="field-control" />
+          </div>
+          <div className="field">
+            <label htmlFor="tx-edit-note">{t("note")}</label>
+            <input id="tx-edit-note" type="text" autoComplete="off" maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} placeholder={t("notePlaceholder")} className="field-control" />
           </div>
           <div className="field full-row">
             <label htmlFor="tx-edit-receipt">{t("receipt")}</label>

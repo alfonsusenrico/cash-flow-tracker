@@ -177,7 +177,7 @@ def test_fee_rows_and_their_movement_link_each_other(client, owner):
                 (owner["user_id"], account, category, tx_type, amount),
             ).fetchone()["id"])
         with conn.cursor() as cur:
-            linked = link_pair(cur, owner["user_id"], legs["expense"], legs["income"], fee=2_500, notes=None)
+            linked = link_pair(cur, owner["user_id"], legs["expense"], legs["income"], fee=2_500, name=None)
         conn.commit()
 
     items = {item["id"]: item for item in client.get("/api/transactions").json()["transactions"]}

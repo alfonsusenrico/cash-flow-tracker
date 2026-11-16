@@ -139,7 +139,7 @@ def create_bilateral_movement(
     source_id: str,
     target_id: str,
     amount: int,
-    notes: str,
+    name: str,
     tx_date: datetime,
     expense_category_id: str,
     income_category_id: str,
@@ -174,14 +174,14 @@ def create_bilateral_movement(
     cur.execute(
         """
         INSERT INTO transactions (
-            user_id, account_id, category_id, obligation_id, type, amount, notes, date,
+            user_id, account_id, category_id, obligation_id, type, amount, name, date,
             recurring_rule_id, kakeibo_type, idempotency_key, movement_id, movement_role,
             source, review_status, classified_by, classification_confidence
         ) VALUES (%s, %s, %s, %s, 'expense', %s, %s, %s, %s, %s, %s, %s, 'outbound', %s, %s, %s, %s)
         RETURNING id
         """,
         (
-            user_id, source_id, expense_category_id, obligation_id, amount, notes, tx_date,
+            user_id, source_id, expense_category_id, obligation_id, amount, name, tx_date,
             recurring_rule_id, kakeibo, out_key, movement_id, *provenance.columns(),
         ),
     )
@@ -189,14 +189,14 @@ def create_bilateral_movement(
     cur.execute(
         """
         INSERT INTO transactions (
-            user_id, account_id, category_id, obligation_id, type, amount, notes, date,
+            user_id, account_id, category_id, obligation_id, type, amount, name, date,
             recurring_rule_id, kakeibo_type, idempotency_key, movement_id, movement_role,
             source, review_status, classified_by, classification_confidence
         ) VALUES (%s, %s, %s, %s, 'income', %s, %s, %s, %s, NULL, %s, %s, 'inbound', %s, %s, %s, %s)
         RETURNING id
         """,
         (
-            user_id, target_id, income_category_id, obligation_id, amount, notes, tx_date,
+            user_id, target_id, income_category_id, obligation_id, amount, name, tx_date,
             recurring_rule_id, in_key, movement_id, *provenance.columns(),
         ),
     )

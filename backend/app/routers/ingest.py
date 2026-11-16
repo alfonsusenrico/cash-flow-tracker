@@ -11,6 +11,7 @@ from app.errors import ErrorCode, api_error
 from app.i18n import language_for_user
 from app.services.auth import get_current_user, get_session_user
 from app.services.kakeibo import Pillar
+from app.services.transaction_text import TransactionTextInput
 
 router = APIRouter(tags=["Notification Ingestion"])
 
@@ -48,12 +49,12 @@ class DryRunNotificationIn(BaseModel):
     event: NotificationEventIn
 
 
-class NotificationResolution(BaseModel):
+class NotificationResolution(TransactionTextInput):
     type: Literal["expense", "income"]
     account_id: UUID
     category_id: UUID
     amount: int | None = Field(default=None, gt=0, le=9_223_372_036_854_775_807)
-    notes: str | None = Field(default=None, max_length=160)
+    name: str | None = Field(default=None, max_length=160)
     kakeibo: Pillar | None = None
 
 
@@ -208,8 +209,8 @@ def resolve_notification(
     from app.services.notification_processing import resolve_event
 
     resolution = payload.model_dump()
-    if resolution["notes"] is not None:
-        resolution["notes"] = resolution["notes"].strip() or None
+    if resolution["name"] is not None:
+        resolution["name"] = resolution["name"].strip() or None
     return {"ok": True, "result": resolve_event(str(event_id), str(current_user["id"]), resolution)}
 
 

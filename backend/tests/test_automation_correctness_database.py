@@ -52,7 +52,7 @@ def insert_tx(owner, category, amount, *, pillar=None, tx_type="expense", when=N
 
     with db_conn() as conn:
         tx_id = conn.execute(
-            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, kakeibo_type, idempotency_key)
+            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, name, date, kakeibo_type, idempotency_key)
                VALUES (%s, %s, %s, %s, %s, %s, COALESCE(%s, NOW()), %s, %s) RETURNING id""",
             (owner["user_id"], owner["cash"], owner[category] if category else None, tx_type, amount, notes, when, pillar, key),
         ).fetchone()["id"]
@@ -214,9 +214,11 @@ def test_v27_is_idempotent_and_backfills_only_default_adjustments(owner):
     custom_note = insert_tx(owner, None, 4_000, notes="Koreksi saldo manual")
     keyed = insert_tx(owner, None, 6_000, notes=note, key=f"client-{uuid4().hex[:8]}")
 
+    # V57 renamed the column V27 reads from `notes` to `name`; the backfill is replayed on today's schema.
+    backfill = V27_SQL.read_text(encoding="utf-8").replace("t.notes", "t.name")
     with db_conn() as conn:
-        conn.execute(V27_SQL.read_text(encoding="utf-8"))
-        conn.execute(V27_SQL.read_text(encoding="utf-8"))
+        conn.execute(backfill)
+        conn.execute(backfill)
         conn.commit()
         rows = {
             str(r["id"]): r for r in conn.execute(

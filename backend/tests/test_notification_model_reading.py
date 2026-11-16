@@ -313,7 +313,7 @@ def leg(owner, account, amount, when, *, category="internal_out"):
 
     with db_conn() as conn:
         conn.execute(
-            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date)
+            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, name, date)
                VALUES (%s, %s, %s, 'expense', %s, 'Transfer', %s)""",
             (owner["user_id"], account, owner[category], amount, when))
         conn.commit()

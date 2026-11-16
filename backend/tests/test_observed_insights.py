@@ -51,7 +51,7 @@ def insert(owner, category, amount, when, *, merchant=None, tx_type="expense"):
 
     with db_conn() as conn:
         row = conn.execute(
-            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, date, notes, merchant)
+            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, date, name, merchant)
                VALUES (%s, %s, %s, %s, %s, %s, 'Transaksi contoh', %s) RETURNING id""",
             (owner["user_id"], owner["cash"], owner[category], tx_type, amount, when, merchant),
         ).fetchone()

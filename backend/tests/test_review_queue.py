@@ -225,7 +225,7 @@ def test_rename_sets_merchant_and_notes_with_feedback(client, owner):
     assert response.json()["corrections"] == 2
     for tx_id in (first, second):
         stored = row(tx_id)
-        assert (stored["merchant"], stored["notes"], stored["review_status"]) == ("Kedai Awan Senja", "makan siang", "reviewed")
+        assert (stored["merchant"], stored["name"], stored["review_status"]) == ("Kedai Awan Senja", "makan siang", "reviewed")
     assert {item["after_merchant"] for item in feedback_rows(owner)} == {"Kedai Awan Senja"}
 
 

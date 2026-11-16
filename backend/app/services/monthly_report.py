@@ -37,6 +37,7 @@ from app.services.report_figures import (
 from app.services.report_windows import shift_month
 from app.services.seen_twice import seen_twice_count
 from app.services.spending_basis import SpendingBasis, spending_basis, spending_merchants
+from app.services.transaction_text import text_fields
 
 BASES = ("month", "cycle")
 BASIS_PATTERN = "^(month|cycle)$"
@@ -224,7 +225,7 @@ def _income_sources(cur, user_id: str, start: datetime, end: datetime) -> list[d
 def _unexpected_items(cur, user_id: str, start: datetime, end: datetime) -> dict[str, Any]:
     condition = f"{reportable_expense_sql()} AND {pillar_bucket_sql()} = 'unexpected' AND t.date >= %s AND t.date <= %s"
     cur.execute(
-        f"""SELECT t.id, t.date, t.amount, t.merchant, t.notes, c.name AS category_name
+        f"""SELECT t.id, t.date, t.amount, t.merchant, t.name, t.note, c.name AS category_name
             FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
             WHERE t.user_id = %s AND {condition}
             ORDER BY t.amount DESC, t.date DESC, t.id LIMIT %s""",
@@ -233,7 +234,7 @@ def _unexpected_items(cur, user_id: str, start: datetime, end: datetime) -> dict
     items = [
         {
             "id": str(row["id"]), "date": row["date"].isoformat(), "amount": int(row["amount"]),
-            "merchant": row["merchant"], "notes": row["notes"], "category_name": row["category_name"],
+            "merchant": row["merchant"], **text_fields(row), "category_name": row["category_name"],
         }
         for row in cur.fetchall()
     ]

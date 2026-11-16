@@ -71,7 +71,7 @@ def test_unlinked_leg_names_only_its_own_bank(client, notification_owner):  # no
     tx_id = str(uuid4())
     with db_conn() as conn:
         conn.execute(
-            """INSERT INTO transactions (id, user_id, account_id, category_id, type, amount, notes, date, source,
+            """INSERT INTO transactions (id, user_id, account_id, category_id, type, amount, name, date, source,
                                          review_status, classified_by)
                VALUES (%s, %s, %s, %s, 'income', 120000, 'Pindah uang dari bank lain', %s, 'notification', 'reviewed', 'owner')""",
             (tx_id, owner["user_id"], owner["main"], owner["internal_in"], datetime(2026, 11, 4, 1, 50, tzinfo=JAKARTA)),

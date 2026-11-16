@@ -144,7 +144,7 @@ def remember(owner, key, *, category, account, notes, merchant=None, kakeibo="ne
     with db_conn() as conn:
         with conn.cursor() as cur:
             upsert_memory(cur, owner["user_id"], key, {
-                "merchant": merchant, "notes": notes, "category_id": owner[category], "kakeibo_type": kakeibo,
+                "merchant": merchant, "name": notes, "category_id": owner[category], "kakeibo_type": kakeibo,
                 "account_id": owner[account] if account else None,
             }, source)
         conn.commit()
@@ -167,7 +167,7 @@ def age_capture(capture_id, seconds):
 
 def test_database_accepts_capture_source_and_feedback_kind(client, owner):
     from app.db.pool import db_conn
-    insert = """INSERT INTO transactions (user_id, account_id, type, amount, notes, source, review_status, classified_by)
+    insert = """INSERT INTO transactions (user_id, account_id, type, amount, name, source, review_status, classified_by)
                 VALUES (%s, %s, 'expense', 1000, 'Contoh', %s, 'reviewed', 'owner') RETURNING id"""
     with db_conn() as conn:
         assert conn.execute(insert, (owner["user_id"], owner["cash"], "capture")).fetchone()["id"]
@@ -198,7 +198,7 @@ def test_known_merchant_from_memory_records_without_model(client, owner, monkeyp
     row = capture_rows(owner)[0]
     assert (row["amount"], str(row["account_id"]), str(row["category_id"]), row["kakeibo_type"]) == (
         10_000, owner["cash"], owner["parkir"], "need")
-    assert (row["source"], row["review_status"], row["classified_by"], row["notes"], row["merchant"]) == (
+    assert (row["source"], row["review_status"], row["classified_by"], row["name"], row["merchant"]) == (
         "capture", "reviewed", "rule", "Parkir PTC", "Parkir PTC")
     assert row["idempotency_key"] == f"capture:{capture['id']}"
     assert capture["transaction"]["account_name"] == "Tunai" and capture["transaction"]["classified_by"] == "rule"
@@ -213,7 +213,7 @@ def test_confident_model_records_new_merchant_as_ai(client, owner, monkeypatch):
     row = capture_rows(owner)[0]
     assert (row["classified_by"], float(row["classification_confidence"]), str(row["category_id"])) == (
         "ai", 0.9, owner["jajan"])
-    assert (row["notes"], row["kakeibo_type"], str(row["account_id"]), row["review_status"]) == (
+    assert (row["name"], row["kakeibo_type"], str(row["account_id"]), row["review_status"]) == (
         "Es teh manis", "want", owner["cash"], "reviewed")
     context = provider.normalize_capture.await_args.args[0]
     assert context["text"] == "es teh manis 5rb tunai" and context["facts"]["amount"] == 5_000
@@ -264,7 +264,7 @@ def test_unknown_account_is_asked_most_recent_first(client, owner, monkeypatch):
     from app.db.pool import db_conn
     with db_conn() as conn:
         conn.execute(
-            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, source,
+            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, name, date, source,
                    review_status, classified_by) VALUES (%s, %s, %s, 'expense', 1000, 'Contoh', NOW(), 'manual',
                    'reviewed', 'owner')""",
             (owner["user_id"], owner["gopay"], owner["jajan"]),
@@ -295,7 +295,7 @@ def test_provider_unavailable_asks_category_with_ranked_chips(client, owner, mon
     from app.db.pool import db_conn
     with db_conn() as conn:
         conn.execute(
-            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, source,
+            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, name, date, source,
                    review_status, classified_by) VALUES (%s, %s, %s, 'expense', 18000, 'Kopi susu', NOW(), 'manual',
                    'reviewed', 'owner')""",
             (owner["user_id"], owner["cash"], owner["jajan"]),
@@ -323,7 +323,7 @@ def test_provider_unavailable_asks_category_with_ranked_chips(client, owner, mon
     row = capture_rows(owner)[0]
     assert (capture["status"], row["classified_by"], str(row["category_id"]), row["kakeibo_type"]) == (
         "recorded", "owner", owner["jajan"], "want")
-    assert row["notes"] == "Kopi susu"
+    assert row["name"] == "Kopi susu"
 
 
 def test_amount_questions(client, owner):
@@ -412,7 +412,7 @@ def test_cash_withdrawal_is_a_movement_from_the_usual_account(client, owner):
         ("expense", "outbound", 200_000), ("income", "inbound", 200_000)]
     assert legs[0]["movement_id"] == legs[1]["movement_id"] and legs[0]["kakeibo_type"] is None
     assert [str(row["account_id"]) for row in legs] == [owner["bca"], owner["cash"]]
-    assert legs[0]["notes"] == "Tarik tunai" and {row["classified_by"] for row in legs} == {"rule"}
+    assert legs[0]["name"] == "Tarik tunai" and {row["classified_by"] for row in legs} == {"rule"}
     from app.services.report_figures import reportable_expense_sql, reportable_income_sql
     spending = query(
         f"""SELECT COUNT(*) AS count FROM transactions t LEFT JOIN categories c ON c.id = t.category_id

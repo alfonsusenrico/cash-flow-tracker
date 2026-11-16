@@ -24,11 +24,12 @@ from app.services.ledger_mutations import (
     MOVEMENT_ACCOUNT_TYPES, ensure_generic_movement_accounts, lock_owned_accounts,
 )
 from app.services.movement_linkage import (
-    ensure_internal_movement_categories, link_transactions_as_movement, movement_note,
+    ensure_internal_movement_categories, link_transactions_as_movement, movement_name,
 )
 from app.services.notification_resolution import pairing_evidence
 from app.services.provenance import system_provenance
 from app.services.system_categories import INTERNAL_MOVEMENT, is_movement, is_system_sql
+from app.services.transaction_text import text_fields
 
 logger = logging.getLogger(__name__)
 
@@ -585,7 +586,7 @@ def ensure_fee_category(cur, user_id: str) -> dict:
     return cur.fetchone()
 
 
-def link_pair(cur, user_id: str, expense_id: str, income_id: str, *, fee: int, notes: str | None) -> dict:
+def link_pair(cur, user_id: str, expense_id: str, income_id: str, *, fee: int, name: str | None) -> dict:
     """Link two legs as one movement; with a fee, the outbound leg sheds the fee into its own expense row.
 
     Both legs are locked in id order before any change, as `link_transactions_as_movement` does, so
@@ -607,13 +608,13 @@ def link_pair(cur, user_id: str, expense_id: str, income_id: str, *, fee: int, n
             "UPDATE transactions SET amount = amount - %s, updated_at = NOW() WHERE user_id = %s AND id = %s",
             (fee, user_id, expense_id),
         )
-    result = link_transactions_as_movement(cur, user_id, expense_id, income_id, notes=notes)
+    result = link_transactions_as_movement(cur, user_id, expense_id, income_id, name=name)
     fee_transaction_id = None
     if fee:
         category = ensure_fee_category(cur, user_id)
         # The fee takes the category's pillar; a category without one leaves it unclassified, never `need`.
         cur.execute(
-            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, kakeibo_type,
+            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, name, date, kakeibo_type,
                    idempotency_key, fee_for_movement_id, source, review_status, classified_by, classification_confidence)
                VALUES (%s, %s, %s, 'expense', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
             (user_id, expense["account_id"], category["id"], fee, t(account_language(cur, user_id)[0], "notes.transfer_fee"), expense["date"],
@@ -670,7 +671,7 @@ def attach_events_to_movement(cur, user_id: str, movement_id: str, accounts: dic
     from app.services.notification_application import account_label, committed_snapshot
 
     cur.execute(
-        """SELECT id, type, account_id, amount, notes FROM transactions
+        """SELECT id, type, account_id, amount, name FROM transactions
            WHERE user_id = %s AND movement_id = %s""",
         (user_id, movement_id),
     )
@@ -690,7 +691,7 @@ def attach_events_to_movement(cur, user_id: str, movement_id: str, accounts: dic
     key = events[0]["result_key"] or f"notification:{events[0]['id']}"
     snapshot = committed_snapshot(
         key=key, kind="internal_movement",
-        description=legs["expense"]["notes"] or t(account_language(cur, user_id)[0], "notes.movement"),
+        description=legs["expense"]["name"] or t(account_language(cur, user_id)[0], "notes.movement"),
         amount=int(legs["expense"]["amount"]), source=account_label(source, listed), target=account_label(target, listed),
     )
     refresh_duplicate_results(cur, user_id, [str(leg["id"]) for leg in legs.values()], key, snapshot)
@@ -708,10 +709,10 @@ def attach_events_to_movement(cur, user_id: str, movement_id: str, accounts: dic
 
 def pair_legs(cur, user_id: str, leg: dict, counterpart: dict, fee: int, accounts: dict[str, dict]) -> dict:
     expense, income = (leg, counterpart) if leg["type"] == "expense" else (counterpart, leg)
-    # As in an owner merge, notification wording describes one leg; owner-written notes are kept.
+    # As in an owner merge, notification wording describes one leg; names the owner wrote are kept.
     from_notification = bool(leg.get("event_id") or counterpart.get("event_id"))
-    notes = movement_note(cur, user_id, str(income["account_id"])) if from_notification else None
-    result = link_pair(cur, user_id, expense["id"], income["id"], fee=fee, notes=notes)
+    leg_name = movement_name(cur, user_id, str(income["account_id"])) if from_notification else None
+    result = link_pair(cur, user_id, expense["id"], income["id"], fee=fee, name=leg_name)
     attach_events_to_movement(cur, user_id, result["movement_id"], accounts)
     return result
 
@@ -882,25 +883,25 @@ def complete_movement(
     expense_category_id, income_category_id = ensure_internal_movement_categories(cur, user_id)
     new_type = "income" if row["type"] == "expense" else "expense"
     target_id = counterpart_account_id if row["type"] == "expense" else own_account_id
-    notes = movement_note(cur, user_id, target_id)
+    leg_name = movement_name(cur, user_id, target_id)
     candidates = existing_counterparts(cur, user_id, row, counterpart_account_id, new_type)
     if not create_new and candidates:
         only = candidates[0]
         if len(candidates) == 1 and is_movement(only["category_system_key"]) and only["owner_split_at"] is None:
             if recorder is not None:
                 recorder.capture([str(only["id"])])
-            return link_existing_counterpart(cur, user_id, row, only, notes)
+            return link_existing_counterpart(cur, user_id, row, only, leg_name)
         raise api_error(409, ErrorCode.COUNTERPART_CANDIDATES, extra={"candidates": [candidate_summary(candidate) for candidate in candidates]})
     cur.execute(
-        """INSERT INTO transactions (user_id, account_id, category_id, type, amount, notes, date, idempotency_key,
+        """INSERT INTO transactions (user_id, account_id, category_id, type, amount, name, date, idempotency_key,
                source, review_status, classified_by, classification_confidence)
            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *""",
         (user_id, counterpart_account_id, income_category_id if new_type == "income" else expense_category_id,
-         new_type, row["amount"], notes, row["date"], completion_key, *system_provenance("movement").columns()),
+         new_type, row["amount"], leg_name, row["date"], completion_key, *system_provenance("movement").columns()),
     )
     partner = cur.fetchone()
     expense_id, income_id = (transaction_id, str(partner["id"])) if row["type"] == "expense" else (str(partner["id"]), transaction_id)
-    result = link_transactions_as_movement(cur, user_id, expense_id, income_id, notes=notes)
+    result = link_transactions_as_movement(cur, user_id, expense_id, income_id, name=leg_name)
     # Completing is the owner's review of the transfer; the classification itself stays the system's.
     cur.execute(
         "UPDATE transactions SET review_status = 'reviewed', updated_at = NOW() WHERE user_id = %s AND movement_id = %s",
@@ -932,13 +933,13 @@ def candidate_summary(candidate: dict) -> dict[str, Any]:
     return {
         "id": str(candidate["id"]), "type": candidate["type"], "amount": int(candidate["amount"]),
         "date": candidate["date"].isoformat(), "account_id": str(candidate["account_id"]),
-        "category_name": candidate["category_name"], "notes": candidate["notes"],
+        "category_name": candidate["category_name"], **text_fields(candidate),
     }
 
 
-def link_existing_counterpart(cur, user_id: str, row: dict, partner: dict, notes: str | None) -> dict:
+def link_existing_counterpart(cur, user_id: str, row: dict, partner: dict, leg_name: str | None) -> dict:
     expense_id, income_id = (str(row["id"]), str(partner["id"])) if row["type"] == "expense" else (str(partner["id"]), str(row["id"]))
-    result = link_transactions_as_movement(cur, user_id, expense_id, income_id, notes=notes)
+    result = link_transactions_as_movement(cur, user_id, expense_id, income_id, name=leg_name)
     cur.execute(
         "UPDATE transactions SET review_status = 'reviewed', updated_at = NOW() WHERE user_id = %s AND movement_id = %s",
         (user_id, result["movement_id"]),

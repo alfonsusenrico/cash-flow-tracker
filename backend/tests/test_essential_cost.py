@@ -70,7 +70,7 @@ def insert(owner, category, amount, when, *, tx_type="expense", account="cash", 
 
     with db_conn() as conn:
         row = conn.execute(
-            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, date, notes, kakeibo_type,
+            """INSERT INTO transactions (user_id, account_id, category_id, type, amount, date, name, kakeibo_type,
                    offset_category_id, obligation_id)
                VALUES (%s, %s, %s, %s, %s, %s, 'Transaksi contoh', %s, %s, %s) RETURNING id""",
             (owner["user_id"], owner[account], owner[category] if category else None, tx_type, amount, when, pillar,

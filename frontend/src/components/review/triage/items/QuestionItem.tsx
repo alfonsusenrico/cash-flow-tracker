@@ -100,6 +100,6 @@ export function questionParts(
       transaction.account_name,
     ],
     answers: <QuestionAnswers key={`answers:${entry.event_id}`} entry={entry} question={question} ctx={ctx} onAnswer={onAnswer} />,
-    raw: transaction.notes,
+    raw: transaction.name,
   };
 }

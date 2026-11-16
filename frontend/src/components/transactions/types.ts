@@ -83,7 +83,10 @@ export interface RowFacts {
   type: "expense" | "income";
   amount: number;
   date: string;
-  notes: string | null;
+  /** The transaction's name, its title (separate-transaction-name-and-note). */
+  name: string | null;
+  /** The owner's own remark; never written by the AI. Absent from an older API. */
+  note?: string | null;
   merchant?: string | null;
   kakeibo_type?: string | null;
   review_status?: string | null;
@@ -139,7 +142,7 @@ export interface ReimbursementLinkLine {
   /** The part of the reimbursement allocated to the expense. */
   amount: number;
   date: string;
-  notes: string | null;
+  name: string | null;
   merchant: string | null;
   /** On a reimbursement's own list: what the expense cost. */
   expense_amount?: number;

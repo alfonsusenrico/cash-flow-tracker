@@ -20,7 +20,7 @@ MERCHANT_MAX_LENGTH = 120
 
 # Fields whose change by the owner makes the owner the classifier of the row.
 CLASSIFICATION_FIELDS: tuple[str, ...] = (
-    "category_id", "kakeibo_type", "notes", "merchant", "type", "offset_category_id",
+    "category_id", "kakeibo_type", "name", "merchant", "type", "offset_category_id",
 )
 
 

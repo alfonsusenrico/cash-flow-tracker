@@ -27,12 +27,12 @@ SYSTEM_LABELS = {
 def rich_owner(owner):
     """One line of every kind: buckets with both notes, user and system income, plans, goals, debts, credit."""
     owner.regular_salaries(today() - timedelta(days=5))
-    owner.tx("income", 150_000, notes="Masuk tanpa kategori contoh")
+    owner.tx("income", 150_000, name="Masuk tanpa kategori contoh")
     for amount, category in [(420_000, "makan"), (300_000, "jajan"), (45_000, "buku"), (30_000, "servis"), (20_000, "lain")]:
         owner.expense(amount, category)
     owner.goal("liburan", "Liburan Contoh", 6_000_000, shift_months(today(), 4).replace(day=15), accounts=["pocket"])
     owner.move("bank", "pocket", 250_000)
-    owner.tx("income", 200_000, category="patungan", notes="Ganti uang contoh")
+    owner.tx("income", 200_000, category="patungan", name="Ganti uang contoh")
     owner.db("UPDATE transactions SET offset_category_id = %s WHERE category_id = %s", (owner["jajan"], owner["patungan"]))
     owner.plan("cicilan", "Cicilan Contoh", 600_000, today() + timedelta(days=2))
     owner.account("platform", "Platform Contoh", kind="investment", initial=3_000_000)
@@ -95,7 +95,7 @@ def test_every_cycle_summary_line_says_where_its_label_comes_from(owner):
 
 
 def test_waiting_lines_mark_the_undescribed_fallback(owner):
-    described = owner.expense(45_000, notes="QRIS 0812-0000", review_status="needs_review")
+    described = owner.expense(45_000, name="QRIS 0812-0000", review_status="needs_review")
     by_category = owner.expense(30_000, "jajan", review_status="needs_review")
     bare = owner.expense(12_000, review_status="needs_review")
     lines = {line["transaction_id"]: line for line in owner.summary()["waiting"]["lines"]}
@@ -122,7 +122,7 @@ def signature_event(owner, tx_id):
 
 def test_review_groups_say_where_their_label_comes_from(owner):
     owner.expense(25_000, "makan", merchant="Kedai Contoh", review_status="needs_review")
-    owner.expense(18_000, notes="Bayar parkir contoh", review_status="needs_review")
+    owner.expense(18_000, name="Bayar parkir contoh", review_status="needs_review")
     owner.expense(15_000, "jajan", review_status="needs_review")
     owner.expense(9_000, review_status="needs_review")
     signed = owner.expense(7_000, "makan", review_status="needs_review")

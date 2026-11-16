@@ -218,7 +218,7 @@ def topup_owner(owner):
 
 def converted(owner, amount, target, *, days_ago):
     tx_id = owner.tx("expense", amount, account="rdn", when=datetime.now(timezone.utc) - timedelta(days=days_ago),
-                     review_status="needs_review", notes="Pindah saldo keluar")
+                     review_status="needs_review", name="Pindah saldo keluar")
     response = owner.session.post("/api/investment-topups/from-transaction", json={"transaction_id": tx_id, "target_account_id": owner[target]})
     assert response.status_code == 200, response.text
     return tx_id
@@ -239,7 +239,7 @@ def test_topup_ready_after_three_and_conflicting_after_a_rejection(topup_owner):
         converted(topup_owner, 200_000, "fund_b", days_ago=days)
     [entry] = habits(topup_owner)["topups"]
     assert entry["state"] == "ready"
-    rejected = topup_owner.tx("expense", 200_000, account="rdn", review_status="needs_review", notes="Pindah saldo keluar")
+    rejected = topup_owner.tx("expense", 200_000, account="rdn", review_status="needs_review", name="Pindah saldo keluar")
     response = topup_owner.session.post("/api/review/topup-suggestions/reject",
                                         json={"transaction_id": rejected, "suggested_target_account_id": topup_owner["fund_b"]})
     assert response.status_code == 200, response.text

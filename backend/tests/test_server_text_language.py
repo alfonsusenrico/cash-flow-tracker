@@ -512,7 +512,7 @@ def test_cycle_summary_system_labels_follow_the_account(browser):
 
 def test_language_switch_after_a_transfer_rewrites_nothing(browser):
     from app.db.pool import db_conn
-    from app.services.movement_linkage import movement_note
+    from app.services.movement_linkage import movement_name
 
     session = browser("id")
 
@@ -527,29 +527,29 @@ def test_language_switch_after_a_transfer_rewrites_nothing(browser):
     with db_conn() as conn:
         user_id = conn.execute("SELECT id FROM users WHERE username = %s", (session.username,)).fetchone()["id"]
         before = conn.execute(
-            "SELECT id, notes, updated_at FROM transactions WHERE user_id = %s ORDER BY id", (user_id,),
+            "SELECT id, name, updated_at FROM transactions WHERE user_id = %s ORDER BY id", (user_id,),
         ).fetchall()
         with conn.cursor() as cur:
-            indonesian_note = movement_note(cur, str(user_id), target)
-    assert {row["notes"] for row in before} == {"Internal Movement"}
+            indonesian_note = movement_name(cur, str(user_id), target)
+    assert {row["name"] for row in before} == {"Internal Movement"}
     assert indonesian_note == "Pindah saldo ke BCA Harian"
 
     assert session.patch("/api/auth/settings", json={"language": "en"}).status_code == 200
     with db_conn() as conn:
         unchanged = conn.execute(
-            "SELECT id, notes, updated_at FROM transactions WHERE user_id = %s ORDER BY id", (user_id,),
+            "SELECT id, name, updated_at FROM transactions WHERE user_id = %s ORDER BY id", (user_id,),
         ).fetchall()
     assert unchanged == before
 
     second = session.post("/api/movements", json={"source_account_id": source, "target_account_id": target, "amount": 5_000})
     assert second.status_code == 200, second.text
     with db_conn() as conn:
-        rows = conn.execute("SELECT id, notes, updated_at FROM transactions WHERE user_id = %s", (user_id,)).fetchall()
+        rows = conn.execute("SELECT id, name, updated_at FROM transactions WHERE user_id = %s", (user_id,)).fetchall()
         with conn.cursor() as cur:
-            english_note = movement_note(cur, str(user_id), target)
+            english_note = movement_name(cur, str(user_id), target)
     kept = {row["id"]: row for row in before}
     assert all(row == kept[row["id"]] for row in rows if row["id"] in kept)
-    assert {row["notes"] for row in rows if row["id"] not in kept} == {"Transfer"}
+    assert {row["name"] for row in rows if row["id"] not in kept} == {"Transfer"}
     assert english_note == "Transfer to BCA Harian"
 
 
@@ -654,8 +654,8 @@ def test_recurring_notes_follow_each_owners_language(browser):
         recorded = session.post(f"/api/recurring/{rule_id}/occurrences/record", json={"scheduled_for": due.isoformat()})
         assert recorded.status_code == 200, recorded.text
         with db_conn() as conn:
-            rows = conn.execute("SELECT DISTINCT notes FROM transactions WHERE recurring_rule_id = %s", (rule_id,)).fetchall()
-        notes[language] = {row["notes"] for row in rows}
+            rows = conn.execute("SELECT DISTINCT name FROM transactions WHERE recurring_rule_id = %s", (rule_id,)).fetchall()
+        notes[language] = {row["name"] for row in rows}
     assert notes == {"en": {"Recurring: Listrik Contoh"}, "id": {"Rutin: Listrik Contoh"}}
 
 

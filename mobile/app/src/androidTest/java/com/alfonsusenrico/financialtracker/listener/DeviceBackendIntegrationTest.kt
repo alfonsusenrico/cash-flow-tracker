@@ -80,7 +80,7 @@ class DeviceBackendIntegrationTest {
             NotificationResults(context).deliverPendingAlerts()
             assertEquals(1, manager.activeNotifications.count { it.tag == recorded.recordKey })
             val edit = ApiClient(context).createService().updateTransaction(recorded.editableTransactionId!!,
-                TransactionUpdateRequest(amount = 126000, notes = "Fictional corrected expense"))
+                TransactionUpdateRequest(amount = 126000, name = "Fictional corrected expense"))
             assertTrue(edit.isSuccessful && edit.body()?.ok == true)
             val firstId = add(
                 "Rp500.000 has been moved from your Kantong Utama Pocket to your Dana Darurat Pocket.",

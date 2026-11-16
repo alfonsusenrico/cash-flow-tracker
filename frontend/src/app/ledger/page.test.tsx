@@ -60,7 +60,7 @@ function row(id: string, local: string, time: string, extra: Record<string, unkn
   return {
     id, account_id: "acc-dd", account_name: "Dompet Digital", category_id: "cat-makan", category_name: "Makan di Luar",
     goal_id: null, goal_name: null, obligation_id: null, obligation_name: null, obligation_allocations: [], type: "expense",
-    kakeibo_type: "want", amount: 30_000, notes: null, merchant: "Kedai Awan", date: `${local}T${time}:00+07:00`, local_date: local,
+    kakeibo_type: "want", amount: 30_000, name: null, merchant: "Kedai Awan", date: `${local}T${time}:00+07:00`, local_date: local,
     receipt_path: null, created_at: `${local}T${time}:00+07:00`, source: "notification", review_status: "reviewed", classified_by: "ai",
     movement_id: null, investment_topup_id: null, saving_flow: null, credit: null, ...extra,
   };
@@ -70,7 +70,7 @@ const KEDAI = row("00000000-0000-4000-8000-00000000000a", "2026-11-02", "16:05",
 const QRIS = row("00000000-0000-4000-8000-00000000000b", "2026-11-02", "12:40", { merchant: null, category_name: null, kakeibo_type: null, amount: 45_000, review_status: "needs_review" });
 const BAKSO = row("00000000-0000-4000-8000-00000000000c", "2026-11-01", "18:40", { merchant: "Bakso Mas Joko", amount: 45_000 });
 const TOPUP = row("00000000-0000-4000-8000-00000000000d", "2026-11-01", "10:31", {
-  merchant: null, notes: "Top up Investasi", movement_id: "mv-1", movement_role: "outbound", investment_topup_id: "topup-1",
+  merchant: null, name: "Top up Investasi", movement_id: "mv-1", movement_role: "outbound", investment_topup_id: "topup-1",
   movement_kind: "investment_topup", transfer_target_account_name: "Reksa Dana A", amount: 150_000, category_name: "Internal Movement",
   category_system_key: "internal_movement", saving_flow: "invested",
 });
@@ -400,7 +400,7 @@ describe("Toolbar, chips and the Filter dialog", () => {
     expect(here()).toBe("/ledger?period=cycle&waiting=1");
     await waitFor(() => expect(screen.getByRole("button", { name: "Hapus filter Menunggu jawaban" })).toHaveFocus());
     await user.keyboard("{Enter}");
-    await waitFor(() => expect(screen.getByRole("searchbox", { name: "Cari catatan, merchant, kategori" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("searchbox", { name: "Cari nama, catatan, merchant, kategori" })).toHaveFocus());
   });
 
   it("shows a link's search and range as chips and searches by note", async () => {
@@ -605,7 +605,7 @@ describe("Transaksi keys and focus", () => {
     expect(rowButton(/Tanpa keterangan/)).toHaveFocus();
     await user.keyboard("k");
     expect(first).toHaveFocus();
-    const search = screen.getByRole("searchbox", { name: "Cari catatan, merchant, kategori" });
+    const search = screen.getByRole("searchbox", { name: "Cari nama, catatan, merchant, kategori" });
     await user.click(search);
     await user.keyboard("j");
     expect(search).toHaveValue("j");
@@ -620,17 +620,17 @@ describe("Transaksi keys and focus", () => {
 
 describe("Movement routes and saving directions", () => {
   const sent = row("00000000-0000-4000-8000-0000000000e1", "2026-11-04", "01:39", {
-    merchant: null, notes: "Isi GoPay", type: "expense", category_name: "Internal Movement", category_system_key: "internal_movement", kakeibo_type: null,
+    merchant: null, name: "Isi GoPay", type: "expense", category_name: "Internal Movement", category_system_key: "internal_movement", kakeibo_type: null,
     account_id: "00000000-0000-4000-8000-0000000000a1", account_name: "ATM", account_parent_name: "BCA", movement_id: "mv-a", movement_role: "outbound",
     partner_id: "00000000-0000-4000-8000-0000000000e2", transfer_target_account_name: "Gopay", transfer_target_account_parent_name: null,
   });
   const saved = row("00000000-0000-4000-8000-0000000000e3", "2026-11-04", "01:41", {
-    merchant: null, notes: "Internal Movement", type: "income", category_name: "Internal Movement", category_system_key: "internal_movement", kakeibo_type: null,
+    merchant: null, name: "Internal Movement", type: "income", category_name: "Internal Movement", category_system_key: "internal_movement", kakeibo_type: null,
     account_id: "00000000-0000-4000-8000-0000000000a2", account_name: "Tabungan", account_parent_name: "Jago", movement_id: "mv-b", movement_role: "inbound",
     partner_id: "00000000-0000-4000-8000-0000000000e4", transfer_target_account_name: "Gopay", transfer_target_account_parent_name: null, saving_flow: "saved",
   });
   const unpaired = row("00000000-0000-4000-8000-0000000000e5", "2026-11-04", "01:50", {
-    merchant: null, notes: null, type: "income", category_name: "Internal Movement", category_system_key: "internal_movement", kakeibo_type: null,
+    merchant: null, name: null, type: "income", category_name: "Internal Movement", category_system_key: "internal_movement", kakeibo_type: null,
     account_id: "00000000-0000-4000-8000-0000000000a3", account_name: "Main Pocket", account_parent_name: "Jago", amount: 120_000,
   });
 
@@ -682,7 +682,7 @@ describe("Credit (H5)", () => {
     credit: { role: "purchase", account_id: SPL, account_name: "SPayLater", installment_count: 1, installments_settled: 0, next_due_date: "2026-12-11", settled_on: null },
   });
   const payment = row("00000000-0000-4000-8000-0000000000c2", "2026-11-05", "08:00", {
-    merchant: null, notes: null, category_name: "Internal Movement", category_system_key: "internal_movement", kakeibo_type: null, account_id: "acc-jago",
+    merchant: null, name: null, category_name: "Internal Movement", category_system_key: "internal_movement", kakeibo_type: null, account_id: "acc-jago",
     account_name: "Jago", movement_id: "mv-c", movement_role: "outbound", transfer_target_account_name: "SPayLater", amount: 470_000, saving_flow: "debt_payment",
     credit: { role: "payment", account_id: SPL, account_name: "SPayLater" },
   });

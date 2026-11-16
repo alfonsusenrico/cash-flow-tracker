@@ -12,7 +12,7 @@ export interface LedgerMovementRow {
   type: "expense" | "income";
   amount: number;
   date: string;
-  notes: string | null;
+  name: string | null;
   movement_id?: string | null;
   investment_topup_id?: string | null;
   movement_kind?: "investment_topup" | null;

@@ -435,7 +435,7 @@ def test_recent_rows_keep_their_order_when_a_movement_legs_tie(client, seeded_ow
     # Rewriting one leg moves it in the table, which changes the order of rows the query leaves tied.
     with db_conn() as conn:
         for leg in listed()[0]:
-            conn.execute("UPDATE transactions SET notes = notes WHERE id = %s", (leg,))
+            conn.execute("UPDATE transactions SET name = name WHERE id = %s", (leg,))
             conn.commit()
             for rows in listed():
                 assert rows == sorted(rows, reverse=True)
@@ -505,7 +505,7 @@ def owner_rows(owner):
 
     with db_conn() as conn:
         return conn.execute(
-            """SELECT t.type, t.notes, t.category_id, t.movement_id, c.name AS category FROM transactions t
+            """SELECT t.type, t.name, t.category_id, t.movement_id, c.name AS category FROM transactions t
                JOIN categories c ON c.id = t.category_id WHERE t.user_id = %s ORDER BY t.type""",
             (owner["user_id"],),
         ).fetchall()
@@ -517,7 +517,7 @@ def test_jago_self_transfer_files_under_the_renamed_movement_category(client, no
     result = ingest(client, notification("Raka Purnama has sent Rp125.000 to you. Need help? Contact Tanya Jago at 1500 746."))["results"][0]
     assert result["type"] == "income" and result["description"] == "Pindah saldo masuk"
     [row] = owner_rows(owner)
-    assert (str(row["category_id"]), row["category"], row["notes"]) == (owner["internal_in"], "Transfer", "Pindah saldo masuk")
+    assert (str(row["category_id"]), row["category"], row["name"]) == (owner["internal_in"], "Transfer", "Pindah saldo masuk")
     kpis = client.get("/api/dashboard/overview?timeframe=90d").json()["kpis"]
     assert (kpis["total_outflow"], kpis["total_inflow"]) == (0, 0)
 

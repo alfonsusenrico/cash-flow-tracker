@@ -14,6 +14,7 @@ from app.services.kakeibo import pillar_bucket_sql
 from app.services.reimbursements import load_spending_offsets, not_reimbursement_sql
 from app.services.report_windows import get_timeframe_window
 from app.services.system_categories import reportable_key_sql
+from app.services.transaction_text import text_fields
 
 router = APIRouter(tags=["Pulse & Insights"])
 
@@ -159,7 +160,7 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
             cur.execute(
                 """
                 SELECT
-                    t.id, t.type, t.amount, t.notes, t.date,
+                    t.id, t.type, t.amount, t.name, t.note, t.date,
                     sa.name AS account_name,
                     c.name AS category_name, c.icon AS category_icon, c.color AS category_color
                 FROM transactions t
@@ -211,7 +212,7 @@ def get_pulse(current_user: dict = Depends(get_current_user)):
                 "id": str(r["id"]),
                 "type": r["type"],
                 "amount": r["amount"],
-                "notes": r["notes"],
+                **text_fields(r),
                 "date": r["date"].isoformat(),
                 "account_name": r["account_name"],
                 "category_name": r["category_name"],

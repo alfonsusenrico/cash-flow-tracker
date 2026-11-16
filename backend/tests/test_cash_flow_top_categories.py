@@ -111,7 +111,7 @@ def test_movements_transfers_and_investments_are_left_out_and_a_fee_counts_once(
                 (owner["user_id"], account, tx_type, amount),
             ).fetchone()["id"])
         with conn.cursor() as cur:
-            link_pair(cur, owner["user_id"], legs["expense"], legs["income"], fee=2_500, notes=None)
+            link_pair(cur, owner["user_id"], legs["expense"], legs["income"], fee=2_500, name=None)
         conn.commit()
     position = client.post("/api/accounts", json={
         "name": "Saham Contoh", "type": "investment", "instrument_type": "stock", "instrument_symbol": "TEST.JK",
