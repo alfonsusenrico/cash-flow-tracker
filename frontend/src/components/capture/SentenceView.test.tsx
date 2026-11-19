@@ -22,6 +22,10 @@ const preview = (text: string) => {
     return { amount: 5000, problems: [], kind: "expense", description: "Parkir", occurred_at: new Date().toISOString(), time_phrase: "jam 2",
       time_options: [], account_hint: { account_id: "cash", label: "Tunai" }, category_hint: { category_id: "parkir", label: "Parkir", pillar: "need" } };
   }
+  if (/bensin/.test(text)) {
+    return { amount: 20_000, problems: [], kind: "expense", description: "Bensin", occurred_at: new Date().toISOString(), time_phrase: null,
+      time_options: [], account_hint: { account_id: "cash", label: "Tunai", basis: "habit" }, category_hint: null };
+  }
   if (/spaylater/.test(text)) {
     return { amount: 120_000, problems: [], kind: "expense", description: "Sepatu", occurred_at: new Date().toISOString(), time_phrase: null,
       time_options: [], account_hint: { account_id: "spaylater", label: "SPayLater" }, category_hint: null };
@@ -126,6 +130,16 @@ describe("Web Catat dialog: Tulis transaksi", () => {
     expect(await screen.findByText("SPayLater · dibayar nanti")).toBeInTheDocument();
   });
 
+  it("names an account learned from the owner's habit, and a mentioned one plainly (learn-accounts-by-item)", async () => {
+    const { user } = setup();
+    await user.type(field(), "bensin 20rb");
+    expect(await screen.findByText("Tunai · dari kebiasaan")).not.toHaveClass("c-warning");
+    await user.clear(field());
+    await user.type(field(), "parkir 5rb tunai");
+    expect(await screen.findByText("Tunai")).toBeInTheDocument();
+    expect(screen.queryByText(/dari kebiasaan/)).toBeNull();
+  });
+
   it("fills an example and previews it", async () => {
     const { user } = setup();
     await user.click(screen.getByRole("button", { name: "parkir 5rb jam 2" }));
@@ -166,6 +180,24 @@ describe("Web Catat dialog: Tulis transaksi", () => {
     await user.type(field(), "parkir 5rb{Enter}");
     await waitFor(() => expect(posts()).toContain("/capture/text"));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("marks the account the owner's habit suggests, listed first and focused, without choosing it", async () => {
+    vi.mocked(api.post).mockImplementation(async (path: string, body?: unknown) => {
+      if (path === "/capture/parse") return { ok: true, preview: preview((body as { text: string }).text) };
+      if (path === "/capture/text") return { ok: true, capture: { ...recorded, status: "needs_detail", question: {
+        question_id: "q1", type: "account", prompt: "Dari rekening mana?", suggested_account_id: "cash",
+        options: [{ id: "cash", label: "Tunai" }, { id: "rambut", label: "Jago · Potong Rambut" }], allows_text: false } } };
+      throw new Error(path);
+    });
+    const { user } = setup();
+    await user.type(field(), "tip potong rambut 5rb");
+    await user.click(screen.getByRole("button", { name: "Catat" }));
+    const question = await screen.findByRole("group", { name: "Dari rekening mana?" });
+    const suggested = within(question).getByRole("button", { name: "Tunai · Saran" });
+    await waitFor(() => expect(suggested).toHaveFocus());
+    expect(within(question).getByRole("button", { name: "Jago · Potong Rambut" })).toBeInTheDocument();
+    expect(posts().filter((path) => path.endsWith("/answer"))).toEqual([]);
   });
 
   it("asks the capture's follow-up question inline and records after the answer", async () => {

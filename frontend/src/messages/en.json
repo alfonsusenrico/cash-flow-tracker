@@ -3269,6 +3269,7 @@
       "severalAmounts": "There is more than one amount. Write one amount only.",
       "previewFailed": "Cannot read it right now. The text can still be recorded.",
       "answer": "Answer",
+      "suggested": "Suggested",
       "send": "Send",
       "failed": "Could not record it. Try again.",
       "answerFailed": "The answer was not saved. Try again."
@@ -3289,6 +3290,7 @@
       "accountLater": "chosen when recorded",
       "categoryLater": "recognized when recorded",
       "payLater": "{account} · pay later",
+      "habit": "{account} · from habit",
       "today": "Today, {time}",
       "yesterday": "Yesterday, {time}",
       "otherDay": "{date}, {time}",

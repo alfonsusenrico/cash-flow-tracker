@@ -1,0 +1,90 @@
+{
+  "prompt_version": "capture-normalization-4",
+  "model": "gpt-6-luna",
+  "reasoning_effort": "none",
+  "language": "id",
+  "repeats": 3,
+  "outcomes": {
+    "correct": 45
+  },
+  "gate_pass": true,
+  "median_seconds": 1.92,
+  "observed_usage_usd": 0.0267,
+  "per_case": {
+    "parking-new-word": [
+      "correct:parkir",
+      "correct:parkir",
+      "correct:parkir"
+    ],
+    "parking-english": [
+      "correct:parkir",
+      "correct:parkir",
+      "correct:parkir"
+    ],
+    "fuel-brand": [
+      "correct:bensin",
+      "correct:bensin",
+      "correct:bensin"
+    ],
+    "fuel-station": [
+      "correct:bensin",
+      "correct:bensin",
+      "correct:bensin"
+    ],
+    "haircut-synonym": [
+      "correct:potong rambut",
+      "correct:potong rambut",
+      "correct:potong rambut"
+    ],
+    "haircut-barber": [
+      "correct:potong rambut",
+      "correct:potong rambut",
+      "correct:potong rambut"
+    ],
+    "coffee-drink": [
+      "correct:kopi",
+      "correct:kopi",
+      "correct:kopi"
+    ],
+    "coffee-brand": [
+      "correct:kopi",
+      "correct:kopi",
+      "correct:kopi"
+    ],
+    "phone-credit": [
+      "correct:pulsa",
+      "correct:pulsa",
+      "correct:pulsa"
+    ],
+    "meal-dish": [
+      "correct:makan",
+      "correct:makan",
+      "correct:makan"
+    ],
+    "time-before-item": [
+      "correct:parkir",
+      "correct:parkir",
+      "correct:parkir"
+    ],
+    "new-umbrella": [
+      "correct:payung",
+      "correct:payung",
+      "correct:payung"
+    ],
+    "new-service": [
+      "correct:servis motor",
+      "correct:servis motor",
+      "correct:servis motor"
+    ],
+    "new-cinema": [
+      "correct:tiket bioskop",
+      "correct:tiket bioskop",
+      "correct:tiket bioskop"
+    ],
+    "tip-not-haircut": [
+      "correct:parkir",
+      "correct:parkir",
+      "correct:parkir"
+    ]
+  }
+}

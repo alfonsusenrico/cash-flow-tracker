@@ -13,6 +13,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.services.capture_parsing import WORD_PATTERN
+from app.services.item_learning import ITEM_GROUP_MAX_LENGTH, ITEM_GROUP_MAX_WORDS, first_item_word
 from app.services.kakeibo import Pillar
 from app.services.prompt_language import CAPTURE_NORMALIZATION, INDONESIAN_VERSIONS
 from app.services.prompt_language import PLACEHOLDER_DESCRIPTIONS as PLACEHOLDERS_BY_LANGUAGE
@@ -51,6 +53,16 @@ class CaptureTag(BaseModel):
     span: str = Field(max_length=80)
 
 
+class CaptureItemGroup(BaseModel):
+    """What the entry paid for, as one of the owner's item groups or 1–3 words of the text (learn-accounts-by-item
+    D3), with the words it was read from."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    group: str | None = Field(max_length=80)
+    span: str = Field(max_length=80)
+
+
 class CaptureNormalization(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
@@ -65,6 +77,7 @@ class CaptureNormalization(BaseModel):
     account_confidence: float = Field(ge=0, le=1)
     time: CaptureTimeInterpretation
     tags: list[CaptureTag] = Field(default_factory=list, max_length=3)
+    item_group: CaptureItemGroup = Field(default_factory=lambda: CaptureItemGroup(group=None, span=""))
 
 
 class InvalidCaptureNormalization(ValueError):
@@ -99,6 +112,7 @@ def validate_capture_normalization(result: CaptureNormalization, context: dict, 
         "kakeibo": kakeibo, "category_confidence": result.category_confidence,
         "account_id": account_id, "account_confidence": result.account_confidence,
         "tags": tags,
+        "item_group": validated_item_group(result.item_group, context),
     }
 
 
@@ -130,6 +144,27 @@ def validated_tags(proposed: list[CaptureTag], context: dict) -> list[dict]:
             accepted[display.lower()] = {"tag_id": None, "name": display}
     return list(accepted.values())
 
+
+def validated_item_group(proposed: CaptureItemGroup, context: dict) -> str | None:
+    """The model's item group when the code can prove it, else None so the first word is used (D3).
+
+    The span must be words of the text. The group must be one of the owner's `item_groups`, or a new group of 1–3
+    words of the text that names an item: a word of at least two letters, not only fillers, and no digits, so an
+    amount or a time never becomes an item.
+    """
+    text = " ".join(context.get("text", "").split()).casefold()
+    span = " ".join(proposed.span.split()).casefold()
+    group = " ".join((proposed.group or "").split()).casefold()
+    if not group or not span or span not in text:
+        return None
+    if group in {row["group"] for row in context.get("item_groups") or []}:
+        return group
+    words = group.split()
+    if (len(words) > ITEM_GROUP_MAX_WORDS or len(group) > ITEM_GROUP_MAX_LENGTH
+            or not set(words) <= set(WORD_PATTERN.findall(text)) or any(char.isdigit() for char in group)
+            or first_item_word(group) is None):
+        return None
+    return group
 
 
 def validate_capture_time(

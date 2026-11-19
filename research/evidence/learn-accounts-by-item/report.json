@@ -1,0 +1,418 @@
+{
+ "il-catat-1440-light": {
+  "path": "/",
+  "log": [
+   "clicked Catat",
+   "typed"
+  ],
+  "hasDialog": true,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 131,
+    "Manrope": 4
+   },
+   "sizes": {
+    "12px": 65,
+    "14px": 61,
+    "20px": 7,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 78,
+    "500": 30,
+    "600": 27
+   },
+   "textStylesInMain": 8,
+   "mainStyles": {
+    "Inter|12|400": 44,
+    "Inter|14|400": 20,
+    "Inter|14|600": 11,
+    "Inter|12|500": 6,
+    "Inter|14|500": 6,
+    "Inter|20|600": 5,
+    "Manrope|44|600": 1,
+    "Manrope|20|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 4.282.520\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 4,
+    "examples": [
+     "span.dot.is-unclassified \"\" Top rgb(100, 116, 139)",
+     "span.dot.is-unclassified \"\" Right rgb(100, 116, 139)",
+     "span.dot.is-unclassified \"\" Bottom rgb(100, 116, 139)",
+     "span.dot.is-unclassified \"\" Left rgb(100, 116, 139)"
+    ]
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 1,
+    "examples": [
+     "dialog.shell-dialog.capture-dialog \"Tulis transaksiSatu kalimat dengan jumla\" rgba(40, 34, 26, 0.14) 0px 16px 48px 0px, rgba(40, 34, 26, 0.06) 0px 2px 6px 0px"
+    ]
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ },
+ "il-catat-1440-dark": {
+  "path": "/",
+  "log": [
+   "clicked Catat",
+   "typed"
+  ],
+  "hasDialog": true,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 131,
+    "Manrope": 4
+   },
+   "sizes": {
+    "12px": 65,
+    "14px": 61,
+    "20px": 7,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 78,
+    "500": 30,
+    "600": 27
+   },
+   "textStylesInMain": 8,
+   "mainStyles": {
+    "Inter|12|400": 44,
+    "Inter|14|400": 20,
+    "Inter|14|600": 11,
+    "Inter|12|500": 6,
+    "Inter|14|500": 6,
+    "Inter|20|600": 5,
+    "Manrope|44|600": 1,
+    "Manrope|20|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 4.282.520\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 4,
+    "examples": [
+     "span.dot.is-unclassified \"\" Top rgb(148, 163, 184)",
+     "span.dot.is-unclassified \"\" Right rgb(148, 163, 184)",
+     "span.dot.is-unclassified \"\" Bottom rgb(148, 163, 184)",
+     "span.dot.is-unclassified \"\" Left rgb(148, 163, 184)"
+    ]
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 1,
+    "examples": [
+     "dialog.shell-dialog.capture-dialog \"Tulis transaksiSatu kalimat dengan jumla\" rgba(0, 0, 0, 0.5) 0px 16px 48px 0px, rgba(0, 0, 0, 0.3) 0px 2px 6px 0px"
+    ]
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ },
+ "il-catat-390-light": {
+  "path": "/",
+  "log": [
+   "clicked Catat transaksi",
+   "typed"
+  ],
+  "hasDialog": true,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 100,
+    "Manrope": 4
+   },
+   "sizes": {
+    "14px": 51,
+    "12px": 45,
+    "20px": 6,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 57,
+    "500": 22,
+    "600": 25
+   },
+   "textStylesInMain": 8,
+   "mainStyles": {
+    "Inter|12|400": 26,
+    "Inter|14|400": 20,
+    "Inter|14|600": 11,
+    "Inter|12|500": 6,
+    "Inter|14|500": 6,
+    "Inter|20|600": 4,
+    "Manrope|44|600": 1,
+    "Manrope|20|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 4.282.520\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 4,
+    "examples": [
+     "span.dot.is-unclassified \"\" Top rgb(100, 116, 139)",
+     "span.dot.is-unclassified \"\" Right rgb(100, 116, 139)",
+     "span.dot.is-unclassified \"\" Bottom rgb(100, 116, 139)",
+     "span.dot.is-unclassified \"\" Left rgb(100, 116, 139)"
+    ]
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 1,
+    "examples": [
+     "dialog.shell-dialog.capture-dialog \"Tulis transaksiSatu kalimat dengan jumla\" rgba(40, 34, 26, 0.14) 0px 16px 48px 0px, rgba(40, 34, 26, 0.06) 0px 2px 6px 0px"
+    ]
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ },
+ "il-catat-390-dark": {
+  "path": "/",
+  "log": [
+   "clicked Catat transaksi",
+   "typed"
+  ],
+  "hasDialog": true,
+  "consoleErrors": [],
+  "axeSeriousOrCritical": [],
+  "axeOther": [],
+  "measure": {
+   "families": {
+    "Inter": 100,
+    "Manrope": 4
+   },
+   "sizes": {
+    "14px": 51,
+    "12px": 45,
+    "20px": 6,
+    "24px": 1,
+    "44px": 1
+   },
+   "weights": {
+    "400": 57,
+    "500": 22,
+    "600": 25
+   },
+   "textStylesInMain": 8,
+   "mainStyles": {
+    "Inter|12|400": 26,
+    "Inter|14|400": 20,
+    "Inter|14|600": 11,
+    "Inter|12|500": 6,
+    "Inter|14|500": 6,
+    "Inter|20|600": 4,
+    "Manrope|44|600": 1,
+    "Manrope|20|600": 1
+   },
+   "offScale": {
+    "count": 0,
+    "examples": []
+   },
+   "manropeOutsideTitles": {
+    "count": 0,
+    "examples": []
+   },
+   "bigFigures": {
+    "count": 1,
+    "examples": [
+     "Manrope 44/600 \"Rp 4.282.520\""
+    ]
+   },
+   "amountsNotTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "proseTabular": {
+    "count": 0,
+    "examples": []
+   },
+   "thickBorders": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredBorders": {
+    "count": 4,
+    "examples": [
+     "span.dot.is-unclassified \"\" Top rgb(148, 163, 184)",
+     "span.dot.is-unclassified \"\" Right rgb(148, 163, 184)",
+     "span.dot.is-unclassified \"\" Bottom rgb(148, 163, 184)",
+     "span.dot.is-unclassified \"\" Left rgb(148, 163, 184)"
+    ]
+   },
+   "outlines": {
+    "count": 0,
+    "examples": []
+   },
+   "colouredRings": {
+    "count": 0,
+    "examples": []
+   },
+   "nonLayerShadows": {
+    "count": 0,
+    "examples": []
+   },
+   "layerShadows": {
+    "count": 1,
+    "examples": [
+     "dialog.shell-dialog.capture-dialog \"Tulis transaksiSatu kalimat dengan jumla\" rgba(0, 0, 0, 0.5) 0px 16px 48px 0px, rgba(0, 0, 0, 0.3) 0px 2px 6px 0px"
+    ]
+   },
+   "offScaleRadii": {
+    "count": 0,
+    "examples": []
+   },
+   "overflowX": 0
+  },
+  "lang": {
+   "root": "id",
+   "parts": [],
+   "notice": false,
+   "overflowX": false
+  }
+ }
+}

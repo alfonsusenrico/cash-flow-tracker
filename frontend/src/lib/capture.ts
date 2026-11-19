@@ -15,7 +15,9 @@ export interface CapturePreview {
   occurred_at: string | null;
   time_phrase: string | null;
   time_options: string[];
-  account_hint: { account_id: string; label: string } | null;
+  /** `basis` "habit": learned from the owner's earlier captures of the same item (learn-accounts-by-item); absent on
+   * an older API, which only named an account the text mentions. */
+  account_hint: { account_id: string; label: string; basis?: "mention" | "habit" } | null;
   category_hint: { category_id: string; label: string; pillar: string | null } | null;
 }
 
@@ -25,6 +27,8 @@ export interface CaptureQuestion {
   prompt: string;
   options: { id: string; label: string }[];
   allows_text: boolean;
+  /** An account question's likely answer from the owner's habit, listed first; never chosen for the owner. */
+  suggested_account_id?: string;
 }
 
 /** The recorded row of a capture, as `capture_view` returns it. */

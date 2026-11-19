@@ -199,6 +199,7 @@ async def lifespan(app: FastAPI):
             provider_client, api_key=settings.openai_api_key,
             model=settings.notification_ai_model,
             reasoning_effort=settings.notification_ai_reasoning_effort,
+            capture_reasoning_effort=settings.capture_ai_reasoning_effort,
             timeout=settings.notification_ai_timeout,
         )
     app.state.notification_provider = provider
