@@ -1,6 +1,6 @@
 ## Approval
 
-Pending. Requested by the owner on 2026-11-19 after "kemarin jam 18.40 cash 10rb buat tip potong rambut" showed no account in the preview. Decisions made the same day: learn the paying account per item, not only per exact phrase; hybrid, with the model grouping new wording and deterministic counting deciding the account; `gpt-6-luna` at low reasoning is acceptable for the grouping.
+Approved by the owner on 2026-11-19 ("ok add it and build it"), with the first word skipping numbers and one-letter words. Requested the same day after "kemarin jam 18.40 cash 10rb buat tip potong rambut" showed no account in the preview. Decisions made the same day: learn the paying account per item, not only per exact phrase; hybrid, with the model grouping new wording and deterministic counting deciding the account; `gpt-6-luna` at low reasoning is acceptable for the grouping.
 
 ## Why
 

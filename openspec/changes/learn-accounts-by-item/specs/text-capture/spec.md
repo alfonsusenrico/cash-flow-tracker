@@ -13,6 +13,10 @@ Each recorded capture SHALL belong to an item group that names what was paid for
 - **WHEN** the owner sends "parkiran mall 5rb" and the model names "parkir"
 - **THEN** its item group SHALL be "parkir" and SHALL be kept for that phrase
 
+#### Scenario: Numbers and one-letter words are not items
+- **WHEN** the phrase is "20 45 parkir ptc" or "07 55 e money"
+- **THEN** its first word SHALL be "parkir" or "money"
+
 #### Scenario: An unproven group
 - **WHEN** the model names a group that is neither one of the owner's groups nor words of the text
 - **THEN** the group SHALL be the phrase's first word

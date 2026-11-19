@@ -14,7 +14,7 @@ Production on 2026-11-19 (read-only): 27 recorded captures, 20 distinct keys, 11
 
 A capture's item group is decided once per owner and phrase key, in this order:
 1. a group stored for the phrase key (`capture_item_groups`);
-2. the phrase's first word (letters only, after `KEY_FILLERS`), when the owner has recorded captures in that group;
+2. the phrase's first word: the first run of at least two letters after `KEY_FILLERS`, so numbers and one-letter words are skipped ("20 45 parkir ptc" → "parkir", "07 55 e money" → "money"), when the owner has recorded captures in that group;
 3. the model's `item_group`, when the capture's model call ran;
 4. otherwise the first word.
 
@@ -70,7 +70,7 @@ CREATE TABLE capture_item_groups (
   PRIMARY KEY (user_id, match_key)
 );
 ```
-No backfill: existing captures fall to the first word (D1 step 2), which covers the owner's parking history.
+No backfill and no cleanup: existing captures fall to the first word (D1 step 2), which covers the owner's parking history. Three learned names with a leaked time or a stray word ("20 45 parkir ptc", "07 55 e money", "in", never reused) stay; new text no longer produces them, and the owner can delete them in Pengaturan → Kebiasaan.
 
 ## Risks
 
