@@ -23,4 +23,4 @@ Expected Result: the grouping is measured before it reaches production.
 ## 4. Verify and deliver
 
 - [x] 4.1 Full backend and frontend suites; `openspec validate --all --strict`; browser check of the preview; `verification.md`.
-- [ ] 4.2 After the owner accepts: archive, push, open the PR and report its URL; after the merge set `CAPTURE_AI_REASONING_EFFORT` only if the owner chose a value other than the default.
+- [x] 4.2 After the owner accepts: archive, push, open the PR and report its URL; after the merge set `CAPTURE_AI_REASONING_EFFORT` only if the owner chose a value other than the default.
