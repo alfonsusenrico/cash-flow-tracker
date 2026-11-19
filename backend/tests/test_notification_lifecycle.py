@@ -20,7 +20,7 @@ def test_lifespan_starts_only_permitted_inference_and_closes_in_order(monkeypatc
     events = []
     monkeypatch.setattr(main, "settings", replace(main.settings, notification_ai_enabled=enabled,
                        openai_api_key=key, notification_ai_model=model,
-                       notification_ai_reasoning_effort=reasoning_effort,
+                       notification_ai_reasoning_effort=reasoning_effort, capture_ai_reasoning_effort="low",
                        app_env="development" if dry_run else "production",
                        notification_ai_dry_run_enabled=dry_run, background_jobs_enabled=True))
     monkeypatch.setattr(main, "open_db_pool", lambda: events.append("open"))
@@ -62,6 +62,7 @@ def test_lifespan_starts_only_permitted_inference_and_closes_in_order(monkeypatc
         return
     if expect_client:
         assert factory.call_args.kwargs["trust_env"] is False
+        assert provider_factory.call_args.kwargs["capture_reasoning_effort"] == "low"
         assert events.index("worker_stopped") < events.index("client_closed") < events.index("pool_closed")
     else:
         assert events.index("worker_stopped") < events.index("pool_closed")

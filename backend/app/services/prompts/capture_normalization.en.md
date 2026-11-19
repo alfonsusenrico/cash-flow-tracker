@@ -25,3 +25,8 @@ Produce:
   - `tag_id`: the id of one of the owner's `tags` when the span clearly means it: the same words, a shortening, a typo, or a different word order ("fellow coach" for "fellowship coach"). Otherwise null.
   - `new_name`: when no tag in `tags` fits, the tag name to create, at most 40 characters, written as the owner wrote it; otherwise null.
 The tag words are not part of `description`: describe only what the money was for.
+
+`item_group` names what the money paid for, so the owner's habits are learned per item whatever the wording:
+  - `group`: one of the owner's `item_groups` when the text pays for the same kind of thing ("parkir" for "parkiran mall" or "bayar parking"); otherwise a new group of 1 to 3 lower-case words taken from the text as written, never translated. The group names the item or service, never the place, the shop, the brand or the account ("parkir ptc" is "parkir", "bensin pertamina" is "bensin", "potong rambut" is "potong rambut"), and never an amount or a time. Null when the text names nothing that was paid for.
+  - `span`: the exact words of the text the group was read from, copied character for character.
+When `item_groups` is not given, name the group from the text alone.

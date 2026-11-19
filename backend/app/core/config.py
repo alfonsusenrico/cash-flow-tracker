@@ -59,6 +59,8 @@ class Settings:
     history_suggestion_configuration_error: str | None = None
     capture_confidence_threshold: float = 0.8
     capture_configuration_error: str | None = None
+    # Typed captures may think harder than notifications; unset, it follows the notification effort.
+    capture_ai_reasoning_effort: str = "none"
     pairing_server_url: str = "https://finance.alfonsusenrico.com"
     pairing_configuration_error: str | None = None
     plan_auto_link_enabled: bool = True
@@ -152,6 +154,7 @@ def load_settings() -> Settings:
 
     db_pool_min = max(1, int(os.getenv("DB_POOL_MIN", "1")))
     db_pool_max = max(db_pool_min, int(os.getenv("DB_POOL_MAX", "10")))
+    reasoning_effort = os.getenv("NOTIFICATION_AI_REASONING_EFFORT", "none").strip().lower()
 
     ai_configuration_error = None
     try:
@@ -205,7 +208,8 @@ def load_settings() -> Settings:
         ledger_export_max_rows=max(100, int(os.getenv("LEDGER_EXPORT_MAX_ROWS", "5000"))),
         notification_ai_enabled=os.getenv("NOTIFICATION_AI_ENABLED", "false").lower() == "true",
         notification_ai_model=os.getenv("NOTIFICATION_AI_MODEL", "gpt-6-luna").strip(),
-        notification_ai_reasoning_effort=os.getenv("NOTIFICATION_AI_REASONING_EFFORT", "none").strip().lower(),
+        notification_ai_reasoning_effort=reasoning_effort,
+        capture_ai_reasoning_effort=os.getenv("CAPTURE_AI_REASONING_EFFORT", "").strip().lower() or reasoning_effort,
         openai_api_key=os.getenv("OPENAI_API_KEY", "").strip(),
         notification_ai_history_limit=ai_history_limit,
         notification_ai_timeout=ai_timeout,

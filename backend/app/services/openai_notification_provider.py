@@ -225,12 +225,14 @@ class OpenAINotificationProvider:
         api_key: str,
         model: str,
         reasoning_effort: str,
+        capture_reasoning_effort: str | None = None,
         timeout: float = 30,
         capture_invalid_output: bool = False,
     ):
         self.api_key = api_key
         self.model = model
         self.reasoning_effort = reasoning_effort
+        self.capture_reasoning_effort = capture_reasoning_effort or reasoning_effort
         self.timeout = max(1, min(60, timeout))
         self.last_usage: dict[str, int] | None = None
         # Only the synthetic benchmark sets this; production never keeps reply text (D4).
@@ -262,6 +264,7 @@ class OpenAINotificationProvider:
     async def normalize_capture(self, context: dict, *, prompt: Prompt) -> CaptureNormalization:
         output = await self.respond(
             instructions(prompt, CAPTURE_NORMALIZATION), context, response_schema(CaptureNormalization, "capture_normalization"),
+            reasoning_effort=self.capture_reasoning_effort,
         )
         return self.parse(CaptureNormalization, output)
 
@@ -288,10 +291,11 @@ class OpenAINotificationProvider:
         if self.capture_invalid_output and text is not None:
             self.last_invalid_output = text[:CAPTURED_OUTPUT_LIMIT]
 
-    async def respond(self, instructions: str, context: dict, schema: dict) -> str:
+    async def respond(self, instructions: str, context: dict, schema: dict, *, reasoning_effort: str | None = None) -> str:
+        effort = reasoning_effort or self.reasoning_effort
         if self.model not in OPERATIONAL_MODELS:
             raise ProviderError("provider_model_not_permitted")
-        if self.reasoning_effort not in PERMITTED_REASONING_EFFORTS and self.model in REASONING_MODELS:
+        if effort not in PERMITTED_REASONING_EFFORTS and self.model in REASONING_MODELS:
             raise ProviderError("provider_reasoning_not_permitted")
         if not self.api_key:
             raise ProviderError("provider_credential_missing")
@@ -310,7 +314,7 @@ class OpenAINotificationProvider:
                 "store": False,
             }
             if is_reasoning_model:
-                call_kwargs["reasoning"] = {"effort": self.reasoning_effort}
+                call_kwargs["reasoning"] = {"effort": effort}
             else:
                 call_kwargs["temperature"] = 0.2
             response = await self.client.responses.create(**call_kwargs)

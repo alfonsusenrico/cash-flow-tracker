@@ -8,6 +8,7 @@ import json
 import re
 from collections import Counter
 from datetime import datetime, timezone
+from typing import NamedTuple
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -18,9 +19,11 @@ from app.services.capture_normalization import CAPTURE_CONTEXT_BYTE_LIMIT
 from app.services.capture_parsing import parse_capture
 from app.i18n import account_language, t
 from app.services.capture_time import CaptureDateError, moment_label
+from app.services.item_learning import NO_DECISION, item_account, owner_item_groups
 from app.services.ledger_mutations import LIQUID_ACCOUNT_TYPES
 from app.services.merchant_memory import load_memory, merchant_match_key, owner_identity, owner_memory_hit
 from app.services.notification_context import sanitize_text
+from app.services.pocket_learning import PocketDecision
 from app.services.system_categories import reportable_key_sql
 
 
@@ -189,9 +192,17 @@ def context_bytes(context: dict) -> int:
     return len(json.dumps(context, default=str, ensure_ascii=False).encode("utf-8"))
 
 
+def needs_item_group(facts: dict) -> bool:
+    """An expense or income phrase has an item group; a movement's accounts never come from one."""
+    return bool(facts["phrase"]) and (facts["kind"] or facts["kind_guess"]) in {"expense", "income"}
+
+
 def model_context(cur, user_id: str, request: dict, facts: dict, memory: dict, accounts: list[dict],
-                  aliases: list[dict]) -> dict | None:
-    """Sanitised model input within the byte budget; None when even the minimum does not fit."""
+                  aliases: list[dict], *, group_known: bool = True) -> dict | None:
+    """Sanitised model input within the byte budget; None when even the minimum does not fit.
+
+    The owner's item groups are sent only when the phrase's group is not known without the model.
+    """
     identity = owner_identity(cur, user_id)
     leaves = liquid_leaves(accounts)
     names = {}
@@ -228,8 +239,10 @@ def model_context(cur, user_id: str, request: dict, facts: dict, memory: dict, a
     }
     # The owner's tags reach the model only when the text may mark one, so ordinary captures send no more.
     context["tags"] = active_tags(cur, user_id, identity) if has_tag_wording(request["text"]) else []
-    for field in ("similar_history", "memory", "tags"):
-        while context[field] and context_bytes(context) > CAPTURE_CONTEXT_BYTE_LIMIT:
+    if not group_known and needs_item_group(facts):
+        context["item_groups"] = owner_item_groups(cur, user_id, identity)
+    for field in ("similar_history", "memory", "item_groups", "tags"):
+        while context.get(field) and context_bytes(context) > CAPTURE_CONTEXT_BYTE_LIMIT:
             context[field].pop()
     return context if context_bytes(context) <= CAPTURE_CONTEXT_BYTE_LIMIT else None
 
@@ -383,60 +396,93 @@ def account_history(cur, user_id: str, draft: dict, kind: str, role: str, other_
     return [str(row["account_id"]) for row in cur.fetchall()]
 
 
+class AccountChoice(NamedTuple):
+    """One role's account: resolved with its basis, or the accounts to offer first and the one to preselect."""
+
+    account_id: str | None
+    basis: str | None
+    offered_first: list[str]
+    suggested: str | None = None
+
+
+def item_learned(cur, user_id: str, draft: dict, kind: str, leaves: dict, other_id: str | None) -> PocketDecision:
+    """The account the capture's item group learned (learn-accounts-by-item D2); movements learn none."""
+    group = (draft.get("item") or {}).get("group")
+    if kind == "movement" or not group:
+        return NO_DECISION
+    eligible = {item for item in leaves if item != other_id}
+    return item_account(cur, user_id, group, kind, eligible)
+
+
 def account_for(cur, user_id: str, draft: dict, kind: str, role: str, leaves: dict, other_id: str | None,
-                use_history: bool) -> tuple[str | None, str | None, list[str]]:
-    """(account, how it was resolved, accounts to offer first) for one role, in the D3 order."""
+                use_history: bool) -> AccountChoice:
+    """One role's account in the D3 order, with the item group's account after the exact phrase's."""
     answered = draft["owner"].get("accounts", {}).get(role)
     if answered:
-        return answered, "owner", []
+        return AccountChoice(answered, "owner", [])
     mentions = [item for item in draft["facts"]["mentions"] if kind != "movement" or item["role"] == role]
     candidates = sorted({item for mention in mentions for item in mention["candidates"]
                          if item in leaves and item != other_id})
     if mentions:
-        # An explicit mention is never overridden by memory or history; more than one match is asked.
+        # An explicit mention is never overridden by memory or history; more than one match is asked, with the
+        # item's learned account preselected when it is one of them.
         if len(candidates) == 1 and all(set(mention["candidates"]) & set(candidates) for mention in mentions):
-            return candidates[0], "mention", []
-        return None, None, candidates
+            return AccountChoice(candidates[0], "mention", [])
+        learned = item_learned(cur, user_id, draft, kind, leaves, other_id) if use_history else NO_DECISION
+        if learned.account_id in candidates:
+            others = [item for item in candidates if item != learned.account_id]
+            return AccountChoice(None, None, [learned.account_id, *others], learned.account_id)
+        return AccountChoice(None, None, candidates)
     if not use_history:
-        return None, None, []
+        return AccountChoice(None, None, [])
     if kind != "movement":
         remembered = draft["memory"].get("account_id")
         if remembered in leaves:
-            return remembered, "memory", []
+            return AccountChoice(remembered, "memory", [])
     history = [item for item in account_history(cur, user_id, draft, kind, role, other_id)
                if item in leaves and item != other_id]
     if history:
         account_id, count = Counter(history).most_common(1)[0]
         if count >= HISTORY_AGREEMENT:
-            return account_id, "history", []
+            return AccountChoice(account_id, "history", [])
+    learned = item_learned(cur, user_id, draft, kind, leaves, other_id)
+    if learned.auto:
+        return AccountChoice(learned.account_id, "item", [])
     model = draft.get("model")
     if (kind != "movement" and model and model["account_id"] in history
             and model["account_confidence"] >= MODEL_ACCOUNT_THRESHOLD):
-        return model["account_id"], "model", []
-    return None, None, []
+        return AccountChoice(model["account_id"], "model", [])
+    if learned.account_id:
+        return AccountChoice(None, None, [learned.account_id], learned.account_id)
+    return AccountChoice(None, None, [])
 
 
-def resolve_accounts(cur, user_id: str, draft: dict, kind: str, leaves: dict) -> tuple[dict, str | None, list]:
-    """Resolved accounts by role, the first unresolved role and its preferred options."""
+def resolve_accounts(cur, user_id: str, draft: dict, kind: str,
+                     leaves: dict) -> tuple[dict, str | None, list[str], str | None]:
+    """Resolved accounts by role, the first unresolved role, its preferred options and its preselected one."""
     roles = KIND_ROLES[kind]
     resolved: dict[str, str] = {}
-    preferred: dict[str, list[str]] = {}
     for role in roles:
-        account_id, _, first = account_for(cur, user_id, draft, kind, role, leaves, None, use_history=False)
-        if account_id:
-            resolved[role] = account_id
-        preferred[role] = first
+        choice = account_for(cur, user_id, draft, kind, role, leaves, None, use_history=False)
+        if choice.account_id:
+            resolved[role] = choice.account_id
+    unresolved: dict[str, AccountChoice] = {}
     for role in roles:
         if role in resolved:
             continue
         other = next((resolved[item] for item in roles if item != role and item in resolved), None)
-        account_id, _, _ = account_for(cur, user_id, draft, kind, role, leaves, other, use_history=True)
-        if account_id:
-            resolved[role] = account_id
+        choice = account_for(cur, user_id, draft, kind, role, leaves, other, use_history=True)
+        if choice.account_id:
+            resolved[role] = choice.account_id
+        else:
+            unresolved[role] = choice
     if kind == "movement" and resolved.get("source") and resolved.get("source") == resolved.get("target"):
         resolved.pop("target")
     missing = next((role for role in roles if role not in resolved), None)
-    return resolved, missing, preferred.get(missing, []) if missing else []
+    if missing is None:
+        return resolved, None, [], None
+    choice = unresolved.get(missing, AccountChoice(None, None, []))
+    return resolved, missing, choice.offered_first, choice.suggested
 
 
 def classification_for(cur, user_id: str, draft: dict, kind: str) -> dict | None:
@@ -535,12 +581,16 @@ def evaluate(cur, user_id: str, draft: dict) -> tuple[dict | None, dict | None]:
         return question("kind", "questions.capture.kind", language, options=options), None
     accounts = owner_accounts(cur, user_id)
     leaves = liquid_leaves(accounts)
-    resolved, missing, preferred = resolve_accounts(cur, user_id, draft, kind, leaves)
+    resolved, missing, preferred, suggested = resolve_accounts(cur, user_id, draft, kind, leaves)
     if missing:
         exclude = next((resolved[role] for role in KIND_ROLES[kind] if role != missing and role in resolved), None)
         options = account_options(cur, user_id, leaves, accounts, preferred, exclude)
-        return question("account", ACCOUNT_PROMPTS[(kind, missing)], language, role=missing, options=options,
-                        allows_other=True), None
+        asked = question("account", ACCOUNT_PROMPTS[(kind, missing)], language, role=missing, options=options,
+                         allows_other=True)
+        # The same field as the source-pocket question: the owner's likely account, preselected but not chosen.
+        if suggested in {option["id"] for option in options}:
+            asked["suggested_account_id"] = suggested
+        return asked, None
     classification = None
     if kind != "movement":
         classification = classification_for(cur, user_id, draft, kind)

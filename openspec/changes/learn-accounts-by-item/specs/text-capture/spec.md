@@ -50,7 +50,7 @@ When the text names no account and the exact phrase has no learned account, the 
 - **THEN** the account question SHALL offer Cash and Potong Rambut with Cash preselected
 
 ### Requirement: Preview Shows the Learned Account
-The capture preview SHALL show the item group's learned account with "dari kebiasaan" when the group is known without the model and the account would be recorded without a question, and SHALL never call the model.
+The capture preview SHALL show the account the capture would be recorded on from the owner's habit (the phrase's memory, its history or its item group, known without the model) with "dari kebiasaan", and SHALL never call the model.
 
 #### Scenario: Preview before sending
 - **GIVEN** parking captures all on Cash

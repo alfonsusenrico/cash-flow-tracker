@@ -3269,6 +3269,7 @@
       "severalAmounts": "Ada lebih dari satu jumlah. Tulis satu jumlah saja.",
       "previewFailed": "Belum bisa membaca sekarang. Teks tetap bisa dicatat.",
       "answer": "Jawaban",
+      "suggested": "Saran",
       "send": "Kirim",
       "failed": "Belum dapat dicatat. Coba lagi.",
       "answerFailed": "Jawaban belum tersimpan. Coba lagi."
@@ -3289,6 +3290,7 @@
       "accountLater": "ditentukan saat dicatat",
       "categoryLater": "dikenali saat dicatat",
       "payLater": "{account} · dibayar nanti",
+      "habit": "{account} · dari kebiasaan",
       "today": "Hari ini, {time}",
       "yesterday": "Kemarin, {time}",
       "otherDay": "{date}, {time}",

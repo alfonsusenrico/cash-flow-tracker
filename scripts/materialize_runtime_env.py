@@ -65,6 +65,8 @@ CRITICAL_VARIABLES = (
 
 OPTIONAL_VARIABLES = (
     "OPENAI_API_KEY",
+    # Unset follows NOTIFICATION_AI_REASONING_EFFORT for typed captures (learn-accounts-by-item D4).
+    "CAPTURE_AI_REASONING_EFFORT",
     # Unset means <DEPLOY_ROOT>/production/backups, chosen by release_storage.py backup-dir.
     "BACKUP_HOST_DIR",
     # An age public key; unset means dumps are stored unencrypted (mode 0600).

@@ -30,6 +30,7 @@ from app.services.capture_resolution import (
 )
 from app.i18n import account_language, t
 from app.services.capture_time import moment_label, parse_time_answer
+from app.services.item_learning import decide_item_group, forget_item_group, known_item_group, remember_item_group
 from app.services.kakeibo import PILLARS
 from app.services.prompt_language import CAPTURE_NORMALIZATION, select_prompt
 from app.services.plan_occurrences import request_plan_linking
@@ -241,6 +242,8 @@ def advance(cur, user_id: str, capture: dict) -> dict:
         return {"status": "needs_detail", "question": next_question}
     recorded = record_plan(cur, user_id, capture["id"], draft, plan)
     draft["learned"] = learn(cur, user_id, capture, draft, plan, recorded)
+    if plan["kind"] != "movement":
+        draft["item_stored"] = remember_item_group(cur, user_id, capture_key(draft["facts"]), draft.get("item"))
     draft["recorded"] = {"kind": plan["kind"], "accounts": plan["accounts"], "time": plan["time"],
                          "classified_by": classified_by(draft, plan["classification"])}
     recorded_at = now()
@@ -374,7 +377,11 @@ def prepare_capture(user_id: str, request: dict) -> dict:
             facts, accounts, aliases = capture_facts(cur, user_id, request)
             memory = memory_state(cur, user_id, facts)
             needed = needs_model(facts, memory, request["text"])
-            context = model_context(cur, user_id, request, facts, memory, accounts, aliases) if needed else None
+            context = None
+            if needed:
+                group_known = known_item_group(cur, user_id, capture_key(facts)) is not None
+                context = model_context(cur, user_id, request, facts, memory, accounts, aliases,
+                                        group_known=group_known)
             prompt = select_prompt(CAPTURE_NORMALIZATION, account_language(cur, user_id)[0]) if needed else None
         conn.commit()
     return {"context": context, "needs_model": needed, "time_facts": facts["time"], "prompt": prompt}
@@ -391,8 +398,11 @@ def store_capture(user_id: str, request: dict, model: dict | None, classifier: s
                 return view
             facts, _, _ = capture_facts(cur, user_id, request)
             memory = memory_state(cur, user_id, facts)
-            # Tags are kept even when the classification is not needed: the model was asked for them too.
+            # Tags and the item group are kept even when the classification is not needed: the model was asked
+            # for them too.
             model_tags = (model or {}).get("tags") or []
+            key = capture_key(facts)
+            item = decide_item_group(known_item_group(cur, user_id, key), key, (model or {}).get("item_group"))
             if not needs_classification(facts, memory):
                 model = None
             if memory["hit"]:
@@ -401,7 +411,8 @@ def store_capture(user_id: str, request: dict, model: dict | None, classifier: s
                 "id": str(uuid4()), "client_capture_id": request["client_capture_id"], "text": request["text"],
                 "answers": [], "classifier": classifier,
                 "draft": {"facts": facts, "memory": memory, "model": model, "model_time": model_time, "owner": {},
-                          "client": {"question_types": request["question_types"]}, "tags": model_tags},
+                          "client": {"question_types": request["question_types"]}, "tags": model_tags,
+                          "item": item},
             }
             columns = advance(cur, user_id, capture)
             cur.execute(
@@ -412,7 +423,7 @@ def store_capture(user_id: str, request: dict, model: dict | None, classifier: s
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                    RETURNING *""",
                 (capture["id"], user_id, request["client_capture_id"], request["text"], request["device_time"],
-                 columns["status"], capture_key(facts), Jsonb(jsonable(capture["draft"])),
+                 columns["status"], key, Jsonb(jsonable(capture["draft"])),
                  Jsonb(columns["question"]) if columns["question"] else None, columns.get("transaction_id"),
                  columns.get("movement_id"), Jsonb(columns["recorded_rows"]) if columns.get("recorded_rows") else None,
                  columns.get("recorded_at"), columns.get("undo_until"), classifier, model_name,
@@ -637,6 +648,8 @@ def undo_capture(user_id: str, capture_id: str) -> dict:
             else:
                 delete_transaction_rows(cur, user_id, recorded[0]["id"])
             restore_memory(cur, user_id, capture["draft"].get("learned"))
+            if capture["draft"].get("item_stored"):
+                forget_item_group(cur, user_id, capture["match_key"], capture_id)
             # A tag this capture created goes with it, unless another transaction carries it by now.
             created = capture["draft"].get("tags_created") or []
             if created:

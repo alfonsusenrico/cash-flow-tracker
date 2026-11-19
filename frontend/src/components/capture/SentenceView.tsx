@@ -189,6 +189,7 @@ export function SentenceView({
             {capture.question.options.map((option) => (
               <button key={option.id} type="button" className="ws-btn" disabled={submitting} onClick={() => void answer({ option_id: option.id })}>
                 {option.label}
+                {option.id === capture.question?.suggested_account_id && <span className="t-meta"> · {t("sentence.suggested")}</span>}
               </button>
             ))}
           </div>
@@ -289,6 +290,10 @@ function ReadingBox({ preview, accounts }: { preview: CapturePreview; accounts: 
   const hint = preview.account_hint;
   const onCredit = Boolean(hint && accounts.some((account) => String(account.id) === hint.account_id && isCreditAccountChoice(account)));
   const pillar = preview.category_hint?.pillar;
+  const accountLine = (account: { label: string; basis?: string }, credit: boolean) => {
+    if (credit) return t("payLater", { account: account.label });
+    return account.basis === "habit" ? t("habit", { account: account.label }) : account.label;
+  };
 
   let when: React.ReactNode = <span className="c-warning">{t("timeLater")}</span>;
   if (preview.occurred_at) {
@@ -310,9 +315,7 @@ function ReadingBox({ preview, accounts }: { preview: CapturePreview; accounts: 
         <dd>{words(KIND_TERM[kind])}</dd>
         <dt>{t("account")}</dt>
         <dd>
-          {hint
-            ? onCredit ? t("payLater", { account: hint.label }) : hint.label
-            : <span className="c-warning">{t("accountLater")}</span>}
+          {hint ? accountLine(hint, onCredit) : <span className="c-warning">{t("accountLater")}</span>}
         </dd>
         <dt>{t("category")}</dt>
         <dd>{preview.category_hint ? preview.category_hint.label : <span className="c-warning">{t("categoryLater")}</span>}</dd>

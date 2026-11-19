@@ -51,7 +51,9 @@ No extra call: the field is added to the capture's existing model call, which al
 
 ### 5. Preview
 
-The preview stays model-free. It shows the item-group account when steps 1–2 of D1 give a group and D2 gives `p ≥ 0.75`: "Cash · dari kebiasaan". Otherwise "ditentukan saat dicatat" as today.
+The preview stays model-free. It shows the account the capture would be recorded on from the owner's habit, in the recording order without the model (the exact phrase's memory, its history, then the item group of D1 steps 1–2 at `p ≥ 0.75`), as "Cash · dari kebiasaan" (`account_hint.basis = "habit"`). Showing only the item group could name a different account than the one recorded when the exact phrase has its own. Otherwise "ditentukan saat dicatat" as today.
+
+The account question carries `suggested_account_id`, the same field as the source-pocket question, and lists that account first; the web marks it "Saran". The companion lists it first and does not mark it yet.
 
 ### 6. Bare clock time after a day word
 

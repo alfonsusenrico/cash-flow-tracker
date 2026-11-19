@@ -2,7 +2,8 @@
 
 The preview reads what the deterministic parser, the owner's accounts and the owner's own merchant memory
 say about the text. It runs inside a read-only transaction, so it can write nothing, and it never calls a
-model: the category comes only from memory the owner taught. Recording stays with `/capture/text`.
+model: the category comes only from memory the owner taught, and a learned account only from the owner's own
+captures (learn-accounts-by-item D5). Recording stays with `/capture/text`.
 """
 
 from __future__ import annotations
@@ -14,7 +15,10 @@ from fastapi import HTTPException
 
 from app.db.pool import db_conn
 from app.errors import ErrorCode, api_error
-from app.services.capture_resolution import account_label, capture_facts, liquid_leaves, memory_state
+from app.services.capture_resolution import (
+    KIND_ROLES, account_for, account_label, capture_facts, capture_key, liquid_leaves, memory_state,
+)
+from app.services.item_learning import known_item_group
 from app.services.text_capture import TEXT_MAX_LENGTH, clean_text
 
 logger = logging.getLogger(__name__)
@@ -24,14 +28,29 @@ PARSE_RATE_WINDOW = 60
 AMOUNT_PROBLEMS = {"missing": "missing_amount", "several": "several_amounts", "invalid": "missing_amount"}
 
 
-def account_hint(facts: dict, accounts: list[dict]) -> dict | None:
-    """The one owner account the text names, only when exactly one candidate remains."""
+def account_hint(cur, user_id: str, facts: dict, accounts: list[dict], memory: dict) -> dict | None:
+    """The account the capture would be recorded on without a question and without the model.
+
+    `basis` is `mention` for the one account the text names, or `habit` for the account the owner's own captures
+    decide when the text names none: the exact phrase's memory or history, else its item group's learned account,
+    the group known without the model. Anything still open (several candidates, a weak habit) gives no hint.
+    """
     leaves = liquid_leaves(accounts)
-    candidates = {candidate for mention in facts["mentions"] for candidate in mention["candidates"] if candidate in leaves}
-    if len(candidates) != 1:
+    kind = facts["kind"] or facts["kind_guess"]
+    if facts["mentions"] or kind not in {"expense", "income"}:
+        candidates = {candidate for mention in facts["mentions"] for candidate in mention["candidates"]
+                      if candidate in leaves}
+        if len(candidates) != 1:
+            return None
+        (account_id,) = candidates
+        return {"account_id": account_id, "label": account_label(leaves[account_id], accounts), "basis": "mention"}
+    draft = {"facts": facts, "memory": memory, "owner": {}, "model": None,
+             "item": known_item_group(cur, user_id, capture_key(facts))}
+    choice = account_for(cur, user_id, draft, kind, KIND_ROLES[kind][0], leaves, None, use_history=True)
+    if choice.account_id is None:
         return None
-    (account_id,) = candidates
-    return {"account_id": account_id, "label": account_label(leaves[account_id], accounts)}
+    return {"account_id": choice.account_id, "label": account_label(leaves[choice.account_id], accounts),
+            "basis": "habit"}
 
 
 def category_hint(cur, user_id: str, memory: dict) -> dict | None:
@@ -78,6 +97,7 @@ def preview_capture(user_id: str, text: str, device_time: datetime) -> dict:
                         "category_hint": None}
             memory = memory_state(cur, user_id, facts)
             category = category_hint(cur, user_id, memory)
+            account = account_hint(cur, user_id, facts, accounts, memory)
     if facts["amount_issue"]:
         problems.append(AMOUNT_PROBLEMS[facts["amount_issue"]])
     preview = {
@@ -86,7 +106,7 @@ def preview_capture(user_id: str, text: str, device_time: datetime) -> dict:
         "kind": facts["kind"] or facts["kind_guess"],
         "description": facts["description"] or None,
         **time_preview(facts),
-        "account_hint": account_hint(facts, accounts),
+        "account_hint": account,
         "category_hint": category,
     }
     logger.info("Capture preview user=%s outcome=%s problems=%s", user_id, "problem" if problems else "read",

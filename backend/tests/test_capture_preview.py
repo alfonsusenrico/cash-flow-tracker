@@ -43,7 +43,8 @@ def test_preview_of_a_short_expense(client, owner):
 
 
 def test_named_account_is_a_hint_only_when_it_is_the_one_candidate(client, owner):
-    assert preview(client, "kopi 20rb tunai")["account_hint"] == {"account_id": owner["cash"], "label": "Tunai"}
+    assert preview(client, "kopi 20rb tunai")["account_hint"] == {"account_id": owner["cash"], "label": "Tunai",
+                                                                   "basis": "mention"}
     assert preview(client, "kopi 20rb")["account_hint"] is None
 
 

@@ -9,7 +9,7 @@ Nothing here ever resolves to a moment after the device time.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
@@ -121,6 +121,15 @@ CLOCK_MERIDIEM = re.compile(
 )
 CLOCK_COLON = re.compile(
     rf"(?<![\w.,:/])(?:at\s+)?(?P<hour>\d{{1,2}}):(?P<minute>\d{{2}})(?![\w]|[.,:]\d)(?:\s+(?P<part>{PART_WORDS}))?"
+)
+# A bare "20.45" or "20:45" is a clock time only directly after a day word (learn-accounts-by-item D6); alone
+# it could be anything. "minggu" alone is also "week", so Sunday counts only as "hari minggu".
+CLOCK_DAY_WORDS = "|".join([
+    "kemarin lusa", YESTERDAY_WORDS, "hari ini", "today", "semalam", "tadi", "td", "tdi", "hari minggu",
+    *(name for name in WEEKDAYS if name != "minggu"),
+])
+DAY_WORD_CLOCK = re.compile(
+    rf"\b(?:{CLOCK_DAY_WORDS})\s+(?P<hour>\d{{1,2}})[.:](?P<minute>\d{{2}})(?![\w]|[.,:]\d)"
 )
 CLOCK_NAMED = re.compile(r"\b(?P<word>tengah malam|midnight|tengah hari|noon|midday)\b")
 NOW = re.compile(r"\b(?:barusan|baru saja|baru aja|just now|sekarang|skrg|right now)\b")
@@ -350,6 +359,12 @@ def find_clocks(text: str, found: Found) -> None:
             piece = clock_piece(match, part or meridiem)
             if piece:
                 found.add(piece)
+    for match in DAY_WORD_CLOCK.finditer(text):
+        # Only the clock is taken here; the day word before it is read as a day or "earlier today".
+        start, end = match.start("hour"), match.end("minute")
+        piece = clock_piece(match, None)
+        if piece and found.free(start, end):
+            found.add(replace(piece, start=start, end=end))
     for match in CLOCK_NAMED.finditer(text):
         if found.free(match.start(), match.end()):
             hour = 0 if match["word"] in {"tengah malam", "midnight"} else 12
@@ -591,7 +606,7 @@ def parse_time_answer(text: str, evidence: str | None, device_time: datetime, tz
 # Every phrase pattern that can name a time; a bare part of the day ("makan siang") is not one.
 TIME_WORD_PATTERNS = (
     SLASH_DATE, MONTH_DATE, DAY_DATE, WEEKDAY, VAGUE_PERIOD, DAYS_AGO, RELATIVE_DAY, OFFSET, CLOCK_PREFIXED,
-    CLOCK_MERIDIEM, CLOCK_COLON, CLOCK_NAMED, NOW, RECENT_NIGHT, THIS_PART, EARLIER_TODAY, *HINTS,
+    CLOCK_MERIDIEM, CLOCK_COLON, DAY_WORD_CLOCK, CLOCK_NAMED, NOW, RECENT_NIGHT, THIS_PART, EARLIER_TODAY, *HINTS,
 )
 
 
