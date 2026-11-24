@@ -9,6 +9,7 @@ Tested on 2026-11-24, branch `fix/reimbursement-day` at `fd0fa1cf` (base `aea6ae
 | Backend, full suite (Postgres 16, Flyway V1→V59) | 2468 passed, 1 failed: `test_apportion_is_exact_and_never_exceeds_a_weight` imported `apportion` through `report_figures`, which no longer needs it; the test now imports it from `services/apportionment`, and its file passes |
 | Affected files after that fix (`test_report_figures.py`, `test_spending_basis.py`, `test_reimbursements.py`) | 37 passed |
 | Regression proof | `test_a_repaid_meal_stays_on_its_day` fails on the base code (the meal's day read 109.612, its share of a spread) and passes with the change; `test_an_unlinked_reimbursement_still_spreads` passes on both |
+| Frontend suites | not run: no frontend file changed; CI runs them on the PR |
 | `git diff --check` | clean |
 | `openspec validate --all --strict` | 87 passed, 0 failed |
 
