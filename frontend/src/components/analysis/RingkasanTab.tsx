@@ -30,9 +30,20 @@ function signedLine(amount: number, money: Money): string {
 /**
  * Ringkasan (apply-markas-analisis D4 to D10): Pengeluaran as the one hero figure with one line and one "Rincian",
  * the whole-period comparison rows, Kakeibo per pillar, daily spending and spending by category, beside the panel
- * with bills and the monthly report. Every money figure comes from the server.
+ * with bills and the monthly report. Every money figure comes from the server. A daily bar opens its day in Kalender
+ * through `onOpenDay` (improve-daily-spending-detail D1).
  */
-export function RingkasanTab({ basis, offset, onWindowLabel }: { basis: PeriodBasis; offset: number; onWindowLabel: (label: string) => void }) {
+export function RingkasanTab({
+  basis,
+  offset,
+  onWindowLabel,
+  onOpenDay,
+}: {
+  basis: PeriodBasis;
+  offset: number;
+  onWindowLabel: (label: string) => void;
+  onOpenDay: (date: string) => void;
+}) {
   const t = useTranslations("analysis");
   const money = useMoney();
   const { viewed, periods } = useAnalysisPeriods(basis, offset);
@@ -73,7 +84,7 @@ export function RingkasanTab({ basis, offset, onWindowLabel }: { basis: PeriodBa
   } else {
     const data = analytics.data;
     const spending = comparison?.totals.spending ?? data.explanations?.spending?.total ?? null;
-    const days = (data.daily_cadence ?? []).map((day) => ({ date: day.date, amount: day.spending }));
+    const days = (data.daily_cadence ?? []).map((day) => ({ date: day.date, amount: day.spending, byPillar: day.by_pillar, byCategory: day.by_category }));
     const empty = spending === 0 && days.every((day) => day.amount === 0);
     const categories = (
       <CategorySpending categories={data.category_variance ?? []} period={reportPeriodFilters(basis, offset)} money={money} />
@@ -101,7 +112,7 @@ export function RingkasanTab({ basis, offset, onWindowLabel }: { basis: PeriodBa
           money={money}
         />
         {comparison && <KakeiboRows comparison={comparison} money={money} />}
-        <DailySpendingChart days={days} money={money} />
+        <DailySpendingChart days={days} money={money} onOpenDay={onOpenDay} />
         {categories}
       </div>
     );

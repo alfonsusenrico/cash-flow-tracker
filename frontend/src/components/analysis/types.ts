@@ -30,6 +30,16 @@ export interface DailyCadenceEntry {
   /** Pengeluaran of the day (apply-markas-analisis D31); the figure Analisis shows. */
   spending: number;
   income: number;
+  /** The day's `spending` per pillar, adding up to it (improve-daily-spending-detail D2). Absent on an older API. */
+  by_pillar?: Record<Exclude<KakeiboBucket, "saving">, number>;
+  /** The day's `spending` per category, amounts above zero, largest first, adding up to it. Absent on an older API. */
+  by_category?: DailyCategoryAmount[];
+}
+
+export interface DailyCategoryAmount {
+  category_id: string | null;
+  name: string;
+  amount: number;
 }
 
 export interface AnalyticsResponse {

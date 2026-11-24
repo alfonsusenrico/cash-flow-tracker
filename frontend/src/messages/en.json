@@ -2508,8 +2508,15 @@
       "showChart": "Show as chart",
       "noDays": "No days in this period yet.",
       "tableCaption": "Spending per day",
+      "tableCaptionPillar": "Spending per day, by pillar",
+      "tableCaptionCategory": "Spending per day, by category",
+      "columns": "Table columns",
+      "byPillar": "By pillar",
+      "byCategory": "By category",
       "date": "Date",
       "amount": "Spending",
+      "total": "Total",
+      "otherCategories": "Other",
       "peakSuffix": " · highest",
       "todaySuffix": " · today, still running",
       "peak": "Highest: {date} <amount></amount>",
@@ -2517,7 +2524,9 @@
       "scope": "Excludes savings and investments",
       "chartLabel": "Daily spending, excluding savings and investments. Highest {date} {amount}.",
       "chartLabelEmpty": "Daily spending, excluding savings and investments. No spending yet.",
-      "tipToday": "{date} · today"
+      "tipToday": "{date} · today",
+      "barLabel": "{date}, {amount}, open in Calendar",
+      "openDay": "View in Calendar"
     },
     "categories": {
       "title": "Spending by category",
