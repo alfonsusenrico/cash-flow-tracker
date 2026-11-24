@@ -16,4 +16,4 @@ Expected Result: a day's spending can be explained and opened from the chart.
 ## 3. Verify and deliver
 
 - [x] 3.1 Full backend and frontend suites; `openspec validate --all --strict`; `verification.md`.
-- [ ] 3.2 After the owner accepts: archive, push, open the PR and report its URL.
+- [x] 3.2 After the owner accepts: archive, push, open the PR and report its URL.
