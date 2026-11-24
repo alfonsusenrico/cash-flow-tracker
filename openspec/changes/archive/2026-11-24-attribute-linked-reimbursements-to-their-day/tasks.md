@@ -8,4 +8,4 @@ Expected Result: a day can be checked against its own rows, and no figure outsid
 ## 2. Verify and deliver
 
 - [x] 2.1 Full backend and frontend suites; `openspec validate --all --strict`; a smoke check of Kalender and Ringkasan on a production build; `verification.md`.
-- [ ] 2.2 After the owner accepts: archive, push, open the PR and report its URL.
+- [x] 2.2 After the owner accepts: archive, push, open the PR and report its URL.
