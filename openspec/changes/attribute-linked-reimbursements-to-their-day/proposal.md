@@ -1,6 +1,6 @@
 ## Approval
 
-Pending. Requested by the owner on 2026-11-24 ("continue to plan") after Kalender showed Rp 98.982 for 23 November, whose expenses add up to Rp 109.290.
+Approved by the owner on 2026-11-24 ("ok approved, build it"). Requested the same day ("continue to plan") after Kalender showed Rp 98.982 for 23 November, whose expenses add up to Rp 109.290.
 
 ## Why
 

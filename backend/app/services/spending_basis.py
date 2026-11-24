@@ -3,8 +3,9 @@
 Pengeluaran is the figure of Beranda, Transaksi and the whole-period comparison: reportable expenses outside the
 Tabungan pillar, each category and pillar net of its applied reimbursement and never below zero. The analytics,
 the calendar and the flow return it beside their Belanja-basis fields, so every "Pengeluaran" on Analisis is one
-figure. A category and pillar's reimbursement is spread over its days in proportion to their amounts, so the days
-and the categories both add up to the total exactly, and each day's pillars and categories add up to that day.
+figure. A reimbursement linked to an expense lowers that expense's own day; the rest of a category and pillar's
+reimbursement is spread over its days in proportion to what they have left, so the days and the categories both add
+up to the total exactly, and each day's pillars and categories add up to that day.
 """
 
 from __future__ import annotations
@@ -14,10 +15,9 @@ from datetime import date, datetime
 from typing import Any
 
 from app.core.config import settings
-from app.services.apportionment import apportion
 from app.services.kakeibo import REPORT_BUCKETS, pillar_bucket_sql
 from app.services.observed_insights import merchant_spending
-from app.services.reimbursements import SpendingOffsets
+from app.services.reimbursements import SpendingOffsets, offset_day_shares
 from app.services.report_figures import reportable_expense_sql
 from app.services.saving_flow import saving_pillar_sql
 
@@ -91,7 +91,7 @@ def spending_basis(cur, user_id: str, start: datetime, end: datetime, offsets: S
         gross = sum(days.values())
         # The comparison floors each category and pillar at zero, so at most its own spending is offset.
         applied = min(offsets.for_category_pillar(category_id, pillar), gross) if category_id else 0
-        shares = apportion(applied, days)
+        shares = offset_day_shares(applied, days, offsets.linked_days(category_id, pillar)) if category_id else {}
         for day, amount in days.items():
             net = amount - shares.get(day, 0)
             basis.by_day[day] = basis.by_day.get(day, 0) + net
