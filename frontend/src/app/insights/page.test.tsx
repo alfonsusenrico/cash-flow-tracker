@@ -449,6 +449,38 @@ describe("Ringkasan", () => {
     expect(screen.getByRole("heading", { name: "Spending by category" })).toBeInTheDocument();
     expect(container.querySelector("[lang='id']")).toBeNull();
   });
+
+  it("opens Kalender at a bar's day and keeps every other parameter (improve-daily-spending-detail D1)", async () => {
+    const user = userEvent.setup();
+    navigation.params = new URLSearchParams("from=beranda");
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "2 Nov, Rp 120.000, buka di Kalender" }));
+    expect(urlState.replaceSearch).toHaveBeenLastCalledWith("/insights?from=beranda&tab=kalender&day=2026-11-02");
+  });
+
+  it("splits the daily table per pillar from the server's breakdown and keeps the whole-period rows on one grid", async () => {
+    const user = userEvent.setup();
+    serve({
+      analytics: {
+        daily_cadence: [
+          {
+            date: "2026-11-01", label: "", expense: 40_000, spending: 40_000, income: 0,
+            by_pillar: { need: 40_000, want: 0, culture: 0, unexpected: 0, unclassified: 0 }, by_category: [{ category_id: "dapur", name: "Belanja Dapur", amount: 40_000 }],
+          },
+          {
+            date: "2026-11-02", label: "", expense: 420_000, spending: 120_000, income: 0,
+            by_pillar: { need: 0, want: 120_000, culture: 0, unexpected: 0, unclassified: 0 }, by_category: [{ category_id: "jajan", name: "Jajan", amount: 120_000 }],
+          },
+        ],
+      },
+    });
+    const { container } = renderPage();
+    await user.click(await screen.findByRole("button", { name: "Lihat sebagai tabel" }));
+    const table = screen.getByRole("table", { name: "Pengeluaran per hari, per pilar" });
+    expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Tanggal", "Kebutuhan", "Keinginan", "Budaya", "Tak Terduga", "Total"]);
+    expect(container.querySelectorAll(".hero .cmp.is-compare > .cmp-row")).toHaveLength(2);
+    expect((await axe(container)).violations).toHaveLength(0);
+  });
 });
 
 describe("Category dialogs", () => {

@@ -111,3 +111,74 @@ def test_another_owner_is_never_counted(client, owners):
     seed(stranger)
     calendar = get(client, "/api/dashboard/calendar", timeframe="month", cycle_offset=-1)
     assert calendar["totals"]["spending"] == 585_000
+
+
+def seed_daily_detail(owner):
+    """Last month: every spending bucket, an uncategorised expense, saving-pillar rows and a reimbursed want."""
+    m1 = month_start(-1)
+    insert(owner, "groceries", 412_000, at(m1.replace(day=2)))
+    insert(owner, "dinner", 600_000, at(m1.replace(day=2), 13))
+    insert(owner, "dinner", 77_649, at(m1.replace(day=2), 19))
+    insert(owner, "reimbursement", 50_000, at(m1.replace(day=4)), tx_type="income", offset="dinner")
+    insert(owner, "groceries", 25_000, at(m1.replace(day=5)), pillar="culture")
+    insert(owner, "repair", 120_000, at(m1.replace(day=5), 15))
+    insert(owner, "misc", 45_000, at(m1.replace(day=6)))
+    insert(owner, None, 30_000, at(m1.replace(day=6), 16))
+    insert(owner, "saving", 40_000, at(m1.replace(day=7)))
+    insert(owner, "groceries", 300_000, at(m1.replace(day=7), 15), pillar="saving")
+    return m1
+
+
+def test_daily_pillars_and_categories_add_up_to_pengeluaran(client, owners):
+    owner, _ = owners
+    m1 = seed_daily_detail(owner)
+    for period in ({"timeframe": "month", "cycle_offset": -1}, {"timeframe": "cycle", "cycle_offset": -1},
+                   {"timeframe": "cycle", "cycle_offset": 0}):
+        for day in get(client, "/api/dashboard/analytics", **period)["daily_cadence"]:
+            assert set(day["by_pillar"]) == {"need", "want", "culture", "unexpected", "unclassified"}, day
+            assert sum(day["by_pillar"].values()) == day["spending"], day
+            assert sum(row["amount"] for row in day["by_category"]) == day["spending"], day
+            assert all(row["amount"] > 0 for row in day["by_category"]), day
+
+    analytics = get(client, "/api/dashboard/analytics", timeframe="month", cycle_offset=-1)
+    days = {day["date"]: day for day in analytics["daily_cadence"]}
+    assert sum(day["spending"] for day in days.values()) == 412_000 + 627_649 + 25_000 + 120_000 + 45_000 + 30_000
+
+
+def test_a_reimbursed_want_lowers_its_day_and_pillar(client, owners):
+    owner, _ = owners
+    m1 = seed_daily_detail(owner)
+    analytics = get(client, "/api/dashboard/analytics", timeframe="month", cycle_offset=-1)
+    second = next(day for day in analytics["daily_cadence"] if day["date"] == m1.replace(day=2).isoformat())
+    assert second["spending"] == 1_039_649
+    assert second["by_pillar"] == {"need": 412_000, "want": 627_649, "culture": 0, "unexpected": 0, "unclassified": 0}
+    assert second["by_category"] == [
+        {"category_id": owner["dinner"], "name": "Makan Bareng", "amount": 627_649},
+        {"category_id": owner["groceries"], "name": "Belanja Dapur", "amount": 412_000},
+    ]
+
+
+def test_uncategorised_and_saving_rows_in_the_daily_detail(client, owners):
+    owner, _ = owners
+    m1 = seed_daily_detail(owner)
+    analytics = get(client, "/api/dashboard/analytics", timeframe="month", cycle_offset=-1)
+    days = {day["date"]: day for day in analytics["daily_cadence"]}
+    uncategorised_name = next(row["name"] for row in analytics["category_variance"] if row["id"] is None)
+
+    fifth = days[m1.replace(day=5).isoformat()]
+    assert fifth["by_pillar"] == {"need": 0, "want": 0, "culture": 25_000, "unexpected": 120_000, "unclassified": 0}
+    assert [row["category_id"] for row in fifth["by_category"]] == [owner["repair"], owner["groceries"]]
+
+    # A category without a pillar and an expense without a category are both "unclassified".
+    sixth = days[m1.replace(day=6).isoformat()]
+    assert sixth["by_pillar"]["unclassified"] == 75_000
+    assert sixth["by_category"] == [
+        {"category_id": owner["misc"], "name": "Lain-lain", "amount": 45_000},
+        {"category_id": None, "name": uncategorised_name, "amount": 30_000},
+    ]
+
+    # Saving-pillar expenses are not Pengeluaran, so the day has no breakdown.
+    seventh = days[m1.replace(day=7).isoformat()]
+    assert seventh["expense"] == 340_000 and seventh["spending"] == 0
+    assert set(seventh["by_pillar"].values()) == {0}
+    assert seventh["by_category"] == []

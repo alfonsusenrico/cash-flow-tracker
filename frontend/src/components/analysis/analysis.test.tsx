@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { axe } from "vitest-axe";
@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 import { renderWithIntl } from "@/lib/i18n/testing";
 import { ChangeFigure, ProgressBar } from "@/components/workspace/figures";
 import { KalenderTab } from "./calendar/KalenderTab";
-import { DailySpendingChart, barGeometry, dateLabelIndexes, niceMax } from "./DailySpendingChart";
+import { DailySpendingChart, type DailyPoint, TABLE_MODE_KEY, barGeometry, dateLabelIndexes, niceMax } from "./DailySpendingChart";
 import { MAP, PetaAliranTab, fitLabel, labelWidth, nodeTotals } from "./flow/PetaAliranTab";
 import { buildFlowModel, layoutFlow, nextNode } from "./flow/sankey";
 import type { CalendarDay, CalendarResponse, FlowResponse } from "./types";
@@ -119,7 +119,7 @@ const DAYS = Array.from({ length: 14 }, (_, index) => ({ date: `2026-11-${String
 describe("Pengeluaran harian", () => {
   it("draws the highest day in the expense mark, hatches today and names both in the legend", async () => {
     stubWidth(728);
-    const { container } = wrap(<DailySpendingChart days={DAYS} money={money} today="2026-11-14" />);
+    const { container } = wrap(<DailySpendingChart days={DAYS} money={money} onOpenDay={vi.fn()} today="2026-11-14" />);
     expect(container.querySelector("[data-bar='peak']")).toHaveAttribute("fill", "var(--out-solid)");
     expect(container.querySelector("[data-bar='today']")).toHaveAttribute("fill", "var(--k-none)");
     expect(container.querySelector("rect[fill^='url(#']")).not.toBeNull();
@@ -134,7 +134,7 @@ describe("Pengeluaran harian", () => {
   it("swaps to a table with the same values, keeping focus on the toggle", async () => {
     stubWidth(728);
     const user = userEvent.setup();
-    const { container } = wrap(<DailySpendingChart days={DAYS} money={money} today="2026-11-14" />);
+    const { container } = wrap(<DailySpendingChart days={DAYS} money={money} onOpenDay={vi.fn()} today="2026-11-14" />);
     const toggle = screen.getByRole("button", { name: "Lihat sebagai tabel" });
     expect(toggle).toHaveAttribute("aria-pressed", "false");
     await user.click(toggle);
@@ -159,7 +159,7 @@ describe("Pengeluaran harian", () => {
       }
     }
     vi.stubGlobal("PointerEvent", PointerEventStandIn);
-    const { container } = wrap(<DailySpendingChart days={DAYS} money={money} today="2026-11-14" />);
+    const { container } = wrap(<DailySpendingChart days={DAYS} money={money} onOpenDay={vi.fn()} today="2026-11-14" />);
     const first = container.querySelector("[data-day='2026-11-01']")!;
     fireEvent.pointerEnter(first, { pointerType: "mouse" });
     expect(screen.getByTestId("daily-spend-tip")).toHaveTextContent("1 NovRp 40.000");
@@ -200,10 +200,205 @@ describe("Pengeluaran harian", () => {
   it("draws at the measured width and leaves the ticks blank under hidden balances", () => {
     stubWidth(320);
     ctx.hide = true;
-    const { container } = wrap(<DailySpendingChart days={DAYS} money={money} today="2026-11-14" />);
+    const { container } = wrap(<DailySpendingChart days={DAYS} money={money} onOpenDay={vi.fn()} today="2026-11-14" />);
     expect(container.querySelector("svg")).toHaveAttribute("width", "320");
     const ticks = [...container.querySelectorAll("text.ax")].map((node) => node.textContent ?? "");
     expect(ticks.some((text) => /jt|rb/.test(text))).toBe(false);
+  });
+});
+
+// jsdom has no PointerEvent, so the pointer type would be lost without this stand-in.
+class PointerEventStandIn extends MouseEvent {
+  pointerType: string;
+  constructor(type: string, init: PointerEventInit = {}) {
+    super(type, init);
+    this.pointerType = init.pointerType ?? "";
+  }
+}
+
+describe("Pengeluaran harian opens Kalender", () => {
+  it("opens a bar's day on click, Enter or Space, a Rp 0 day included", async () => {
+    stubWidth(728);
+    const user = userEvent.setup();
+    const onOpenDay = vi.fn();
+    const days = DAYS.map((entry) => (entry.date === "2026-11-03" ? { ...entry, amount: 0 } : entry));
+    wrap(<DailySpendingChart days={days} money={money} onOpenDay={onOpenDay} today="2026-11-14" />);
+    expect(screen.getAllByRole("button", { name: /buka di Kalender$/ })).toHaveLength(14);
+    await user.click(screen.getByRole("button", { name: "4 Nov, Rp 20.000, buka di Kalender" }));
+    expect(onOpenDay).toHaveBeenLastCalledWith("2026-11-04");
+    screen.getByRole("button", { name: "5 Nov, Rp 527.000, buka di Kalender" }).focus();
+    await user.keyboard("{Enter}");
+    expect(onOpenDay).toHaveBeenLastCalledWith("2026-11-05");
+    screen.getByRole("button", { name: "3 Nov, Rp 0, buka di Kalender" }).focus();
+    await user.keyboard(" ");
+    expect(onOpenDay).toHaveBeenLastCalledWith("2026-11-03");
+    expect(screen.getByRole("button", { name: "14 Nov · hari ini, Rp 20.000, buka di Kalender" })).toBeInTheDocument();
+    expect(onOpenDay).toHaveBeenCalledTimes(3);
+  });
+
+  it("shows the tip with Lihat di Kalender on a first tap, opens the day from it, and hides it on a second tap", () => {
+    stubWidth(728);
+    vi.stubGlobal("PointerEvent", PointerEventStandIn);
+    const onOpenDay = vi.fn();
+    const { container } = wrap(<DailySpendingChart days={DAYS} money={money} onOpenDay={onOpenDay} today="2026-11-14" />);
+    const bar = container.querySelector<HTMLButtonElement>("[data-day='2026-11-04']")!;
+    fireEvent.pointerDown(bar, { pointerType: "touch" });
+    fireEvent.click(bar, { detail: 1 });
+    expect(onOpenDay).not.toHaveBeenCalled();
+    const tip = screen.getByTestId("daily-spend-tip");
+    expect(tip).toHaveTextContent("4 NovRp 20.000Lihat di Kalender");
+    fireEvent.pointerDown(bar, { pointerType: "touch" });
+    fireEvent.click(bar, { detail: 1 });
+    expect(screen.queryByTestId("daily-spend-tip")).not.toBeInTheDocument();
+    expect(onOpenDay).not.toHaveBeenCalled();
+    fireEvent.pointerDown(bar, { pointerType: "touch" });
+    fireEvent.click(bar, { detail: 1 });
+    fireEvent.pointerDown(within(screen.getByTestId("daily-spend-tip")).getByRole("button", { name: "Lihat di Kalender" }), { pointerType: "touch" });
+    fireEvent.click(within(screen.getByTestId("daily-spend-tip")).getByRole("button", { name: "Lihat di Kalender" }));
+    expect(onOpenDay).toHaveBeenCalledWith("2026-11-04");
+  });
+
+  it("keeps the hover tip without the link, and names a bar's amount as hidden under hidden balances, in English too", () => {
+    stubWidth(728);
+    vi.stubGlobal("PointerEvent", PointerEventStandIn);
+    ctx.hide = true;
+    const { container } = renderWithIntl(<DailySpendingChart days={DAYS} money={money} onOpenDay={vi.fn()} today="2026-11-14" />, { language: "en" });
+    fireEvent.pointerEnter(container.querySelector("[data-day='2026-11-01']")!, { pointerType: "mouse" });
+    expect(screen.getByTestId("daily-spend-tip")).not.toHaveTextContent("View in Calendar");
+    expect(screen.getByRole("button", { name: "1 Nov, Hidden, open in Calendar" })).toBeInTheDocument();
+    expect(container.querySelector(".chart-hit[aria-label*='Rp']")).toBeNull();
+  });
+});
+
+type PillarSplit = { need: number; want: number; culture: number; unexpected: number; unclassified: number };
+const NO_PILLAR: PillarSplit = { need: 0, want: 0, culture: 0, unexpected: 0, unclassified: 0 };
+const cat = (category_id: string | null, name: string, amount: number) => ({ category_id, name, amount });
+
+/** Three synthetic days with six categories: Kopi, Hadiah, Hiburan, Makan and Transport lead, Buku is "Lainnya". */
+const SPLIT_DAYS = [
+  { date: "2026-11-01", amount: 100_000, byPillar: { ...NO_PILLAR, need: 60_000, want: 40_000 }, byCategory: [cat("makan", "Makan", 60_000), cat("kopi", "Kopi", 40_000)] },
+  { date: "2026-11-02", amount: 0, byPillar: NO_PILLAR, byCategory: [] },
+  {
+    date: "2026-11-03", amount: 250_000, byPillar: { ...NO_PILLAR, need: 50_000, want: 100_000, culture: 30_000, unexpected: 70_000 },
+    byCategory: [cat("hadiah", "Hadiah", 70_000), cat("hiburan", "Hiburan", 60_000), cat("transport", "Transport", 50_000), cat("kopi", "Kopi", 40_000), cat("buku", "Buku", 30_000)],
+  },
+];
+
+/** Node's own experimental localStorage global shadows jsdom's, so each test gets an in-memory one. */
+function installStorage(overrides: Partial<Storage> = {}) {
+  const data = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => data.get(key) ?? null,
+    setItem: (key: string, value: string) => void data.set(key, String(value)),
+    removeItem: (key: string) => void data.delete(key),
+    clear: () => data.clear(),
+    key: (index: number) => [...data.keys()][index] ?? null,
+    get length() {
+      return data.size;
+    },
+    ...overrides,
+  };
+  Object.defineProperty(window, "localStorage", { configurable: true, value: storage });
+  return storage;
+}
+
+describe("Pengeluaran harian table", () => {
+  beforeEach(() => {
+    installStorage();
+  });
+
+  async function openTable(days: DailyPoint[] = SPLIT_DAYS) {
+    stubWidth(728);
+    const user = userEvent.setup();
+    const view = wrap(<DailySpendingChart days={days} money={money} onOpenDay={vi.fn()} today="2026-11-03" />);
+    await user.click(screen.getByRole("button", { name: "Lihat sebagai tabel" }));
+    return { user, ...view };
+  }
+
+  const headers = (table: HTMLElement) => within(table).getAllByRole("columnheader").map((cell) => cell.textContent);
+  const cells = (table: HTMLElement, row: number) => within(within(table).getAllByRole("row")[row]).getAllByRole("cell");
+
+  it("splits each day per pillar by default, with zero cells as a muted dash and the total in bold", async () => {
+    const { container } = await openTable();
+    const group = screen.getByRole("radiogroup", { name: "Kolom tabel" });
+    expect(within(group).getByRole("radio", { name: "Per pilar" })).toHaveAttribute("aria-checked", "true");
+    const table = screen.getByRole("table", { name: "Pengeluaran per hari, per pilar" });
+    // "Belum diklasifikasi" is left out while no day of the period has any.
+    expect(headers(table)).toEqual(["Tanggal", "Kebutuhan", "Keinginan", "Budaya", "Tak Terduga", "Total"]);
+    const third = cells(table, 3);
+    expect(third.map((cell) => cell.textContent)).toEqual([
+      "Sel, 3 Nov · tertinggi · hari ini, masih berjalan", "Rp 50.000", "Rp 100.000", "Rp 30.000", "Rp 70.000", "Rp 250.000",
+    ]);
+    expect(third[5].querySelector(".t-amt")).toHaveTextContent("Rp 250.000");
+    const first = cells(table, 1);
+    expect(first[3].querySelector(".tbl-zero [aria-hidden='true']")).toHaveTextContent("–");
+    expect(first[3].querySelector(".tbl-zero .sr-only")).toHaveTextContent("Rp 0");
+    const empty = cells(table, 2);
+    expect(empty.slice(1, 5).every((cell) => cell.querySelector(".tbl-zero"))).toBe(true);
+    expect(empty[5]).toHaveTextContent("Rp 0");
+    expect(within(table).getByRole("columnheader", { name: "Tak Terduga" })).toHaveTextContent(/^Tak Terduga$/);
+    expect((await axe(container)).violations).toHaveLength(0);
+  });
+
+  it("adds Belum diklasifikasi when some day of the period has it", async () => {
+    const days = SPLIT_DAYS.map((entry, index) =>
+      index === 0 ? { ...entry, amount: 110_000, byPillar: { ...entry.byPillar, unclassified: 10_000 }, byCategory: [...entry.byCategory, cat(null, "Tanpa kategori", 10_000)] } : entry);
+    await openTable(days);
+    const table = screen.getByRole("table", { name: "Pengeluaran per hari, per pilar" });
+    expect(headers(table)).toEqual(["Tanggal", "Kebutuhan", "Keinginan", "Budaya", "Tak Terduga", "Belum diklasifikasi", "Total"]);
+    expect(cells(table, 1)[5]).toHaveTextContent("Rp 10.000");
+    expect(cells(table, 3)[5].querySelector(".tbl-zero")).not.toBeNull();
+  });
+
+  it("switches to the five largest categories with Lainnya for the rest, every row adding up to its total", async () => {
+    const { user } = await openTable();
+    await user.click(screen.getByRole("radio", { name: "Per kategori" }));
+    const table = screen.getByRole("table", { name: "Pengeluaran per hari, per kategori" });
+    // Hiburan and Makan tie at Rp 60.000 and keep their alphabetical order.
+    expect(headers(table)).toEqual(["Tanggal", "Kopi", "Hadiah", "Hiburan", "Makan", "Transport", "Lainnya", "Total"]);
+    expect(cells(table, 3).slice(1).map((cell) => cell.textContent)).toEqual(["Rp 40.000", "Rp 70.000", "Rp 60.000", "–Rp 0", "Rp 50.000", "Rp 30.000", "Rp 250.000"]);
+    expect(cells(table, 1).slice(1).map((cell) => cell.textContent)).toEqual(["Rp 40.000", "–Rp 0", "–Rp 0", "Rp 60.000", "–Rp 0", "–Rp 0", "Rp 100.000"]);
+  });
+
+  it("shows every category and no Lainnya when the period has five or fewer", async () => {
+    const { user } = await openTable(SPLIT_DAYS.slice(0, 2));
+    await user.click(screen.getByRole("radio", { name: "Per kategori" }));
+    const table = screen.getByRole("table", { name: "Pengeluaran per hari, per kategori" });
+    expect(headers(table)).toEqual(["Tanggal", "Makan", "Kopi", "Total"]);
+  });
+
+  it("remembers the choice per browser and opens per pillar when storage is blocked", async () => {
+    const first = await openTable();
+    await first.user.click(screen.getByRole("radio", { name: "Per kategori" }));
+    expect(window.localStorage.getItem(TABLE_MODE_KEY)).toBe("category");
+    first.unmount();
+    await openTable();
+    expect(screen.getByRole("radio", { name: "Per kategori" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("table", { name: "Pengeluaran per hari, per kategori" })).toBeInTheDocument();
+    cleanup();
+    const blockedStorage = () => {
+      throw new Error("blocked");
+    };
+    installStorage({ getItem: blockedStorage, setItem: blockedStorage });
+    const blocked = await openTable();
+    expect(screen.getByRole("radio", { name: "Per pilar" })).toHaveAttribute("aria-checked", "true");
+    await blocked.user.click(screen.getByRole("radio", { name: "Per kategori" }));
+    expect(screen.getByRole("table", { name: "Pengeluaran per hari, per kategori" })).toBeInTheDocument();
+  });
+
+  it("masks every amount, zero cells included, under hidden balances", async () => {
+    ctx.hide = true;
+    await openTable();
+    const table = screen.getByRole("table", { name: "Pengeluaran per hari, per pilar" });
+    expect(table.querySelector(".tbl-zero")).toBeNull();
+    expect(table).not.toHaveTextContent("250.000");
+    expect(within(table).getAllByRole("img", { name: "Disembunyikan" })).toHaveLength(15);
+  });
+
+  it("falls back to the date and total without the switch on an API without the split", async () => {
+    await openTable(SPLIT_DAYS.map(({ date, amount }) => ({ date, amount })));
+    expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
+    expect(headers(screen.getByRole("table", { name: "Pengeluaran per hari" }))).toEqual(["Tanggal", "Pengeluaran"]);
   });
 });
 

@@ -74,7 +74,9 @@ function Analysis() {
       {rolling && <p className="t-meta an-rolling">{t("analysis.page.rollingNote")}</p>}
       <AnalysisTabs value={tab} onSelect={(next) => go(next)} />
       <div id="analysis-panel" role="tabpanel" aria-labelledby={`analysis-tab-${tab}`}>
-        {tab === "ringkasan" && <RingkasanTab basis={basis} offset={offset} onWindowLabel={setWindowLabel} />}
+        {tab === "ringkasan" && (
+          <RingkasanTab basis={basis} offset={offset} onWindowLabel={setWindowLabel} onOpenDay={(next) => go("kalender", { day: next })} />
+        )}
         {tab === "kalender" && (
           <KalenderTab basis={basis} offset={offset} day={day} onSelectDay={(next) => go("kalender", { day: next })} onWindowLabel={setWindowLabel} />
         )}

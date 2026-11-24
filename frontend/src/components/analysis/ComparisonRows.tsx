@@ -106,7 +106,7 @@ export function ComparisonRows({ comparison, money }: { comparison: ReportCompar
   }
 
   return (
-    <div className="cmp">
+    <div className="cmp is-compare">
       {first}
       {second}
       {running && <p className="caption">{t("runningNote")}</p>}

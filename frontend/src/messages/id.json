@@ -2508,8 +2508,15 @@
       "showChart": "Lihat sebagai grafik",
       "noDays": "Belum ada hari di periode ini.",
       "tableCaption": "Pengeluaran per hari",
+      "tableCaptionPillar": "Pengeluaran per hari, per pilar",
+      "tableCaptionCategory": "Pengeluaran per hari, per kategori",
+      "columns": "Kolom tabel",
+      "byPillar": "Per pilar",
+      "byCategory": "Per kategori",
       "date": "Tanggal",
       "amount": "Pengeluaran",
+      "total": "Total",
+      "otherCategories": "Lainnya",
       "peakSuffix": " · tertinggi",
       "todaySuffix": " · hari ini, masih berjalan",
       "peak": "Tertinggi: {date} <amount></amount>",
@@ -2517,7 +2524,9 @@
       "scope": "Di luar tabungan dan investasi",
       "chartLabel": "Pengeluaran harian, di luar tabungan dan investasi. Tertinggi {date} {amount}.",
       "chartLabelEmpty": "Pengeluaran harian, di luar tabungan dan investasi. Belum ada pengeluaran.",
-      "tipToday": "{date} · hari ini"
+      "tipToday": "{date} · hari ini",
+      "barLabel": "{date}, {amount}, buka di Kalender",
+      "openDay": "Lihat di Kalender"
     },
     "categories": {
       "title": "Pengeluaran per kategori",

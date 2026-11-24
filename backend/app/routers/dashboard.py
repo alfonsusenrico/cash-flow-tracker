@@ -1013,6 +1013,10 @@ def get_dashboard_analytics(
             day_offsets = daily_offsets(cur, user_id, start_utc, end_utc, analytics_offsets)
             # Pengeluaran beside Belanja, so Analisis names one figure "Pengeluaran" (apply-markas-analisis D31).
             spending = spending_basis(cur, user_id, start_utc, end_utc, analytics_offsets)
+            # Every category with Pengeluaran in the window is listed here, uncategorised rows under None, so a
+            # day's categories carry the names of "category_variance".
+            categories = category_breakdown(cur, user_id, start_utc, end_utc, analytics_offsets)
+            category_names = {row["id"]: row["name"] for row in categories}
 
             daily_cadence = []
             dow_spent = [0] * 7
@@ -1027,6 +1031,8 @@ def get_dashboard_analytics(
                         "label": curr.strftime("%b %d"),
                         "expense": day_expense,
                         "spending": spending.day(curr),
+                        "by_pillar": spending.day_pillars(curr),
+                        "by_category": spending.day_categories(curr, category_names),
                         "income": int(r["income"]) if r else 0,
                     }
                 )
@@ -1052,7 +1058,7 @@ def get_dashboard_analytics(
 
             # 3. Category Variance Matrix
             category_variance = []
-            for r in category_breakdown(cur, user_id, start_utc, end_utc, analytics_offsets):
+            for r in categories:
                 spent = r["spent"]
                 budget = int(r["monthly_budget"]) if r["monthly_budget"] else None
                 pct = round((spent / budget) * 100, 1) if budget and budget > 0 else None

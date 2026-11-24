@@ -4,7 +4,7 @@ Pengeluaran is the figure of Beranda, Transaksi and the whole-period comparison:
 Tabungan pillar, each category and pillar net of its applied reimbursement and never below zero. The analytics,
 the calendar and the flow return it beside their Belanja-basis fields, so every "Pengeluaran" on Analisis is one
 figure. A category and pillar's reimbursement is spread over its days in proportion to their amounts, so the days
-and the categories both add up to the total exactly.
+and the categories both add up to the total exactly, and each day's pillars and categories add up to that day.
 """
 
 from __future__ import annotations
@@ -15,11 +15,14 @@ from typing import Any
 
 from app.core.config import settings
 from app.services.apportionment import apportion
-from app.services.kakeibo import pillar_bucket_sql
+from app.services.kakeibo import REPORT_BUCKETS, pillar_bucket_sql
 from app.services.observed_insights import merchant_spending
 from app.services.reimbursements import SpendingOffsets
 from app.services.report_figures import reportable_expense_sql
 from app.services.saving_flow import saving_pillar_sql
+
+# The pillar buckets Pengeluaran can hold: every report bucket but Tabungan, which is never Pengeluaran.
+SPENDING_BUCKETS: tuple[str, ...] = tuple(bucket for bucket in REPORT_BUCKETS if bucket != "saving")
 
 
 def spending_sql(tx: str = "t", category: str = "c") -> str:
@@ -35,6 +38,9 @@ class SpendingBasis:
     by_day: dict[date, int] = field(default_factory=dict)
     # Category id as a string, or None for uncategorised rows.
     by_category: dict[str | None, int] = field(default_factory=dict)
+    # Each day's Pengeluaran by pillar bucket and by category id (None for uncategorised); each adds up to `by_day`.
+    by_day_pillar: dict[date, dict[str, int]] = field(default_factory=dict)
+    by_day_category: dict[date, dict[str | None, int]] = field(default_factory=dict)
 
     def day(self, day: date) -> int:
         return self.by_day.get(day, 0)
@@ -42,9 +48,29 @@ class SpendingBasis:
     def category(self, category_id: Any) -> int:
         return self.by_category.get(str(category_id) if category_id is not None else None, 0)
 
+    def day_pillars(self, day: date) -> dict[str, int]:
+        """A day's Pengeluaran in every spending bucket, zero where it has none."""
+        pillars = self.by_day_pillar.get(day, {})
+        return {bucket: pillars.get(bucket, 0) for bucket in SPENDING_BUCKETS}
+
+    def day_categories(self, day: date, names: dict[str | None, str]) -> list[dict[str, Any]]:
+        """A day's Pengeluaran per category, largest first, without categories fully reimbursed on that day.
+
+        `names` maps every category id of the window, and None for uncategorised rows, to its display name.
+        """
+        rows = [
+            {"category_id": category_id, "name": names[category_id], "amount": amount}
+            for category_id, amount in self.by_day_category.get(day, {}).items()
+            if amount > 0
+        ]
+        return sorted(rows, key=lambda row: (-row["amount"], row["name"], row["category_id"] or ""))
+
 
 def spending_basis(cur, user_id: str, start: datetime, end: datetime, offsets: SpendingOffsets) -> SpendingBasis:
-    """Pengeluaran of `[start, end]` per local day and per category, from one statement."""
+    """Pengeluaran of `[start, end]` per local day and per category, and each day's pillars and categories.
+
+    One statement. The per-day splits come from the same net rows as `by_day`, so they add up to it exactly.
+    """
     cur.execute(
         f"""
         SELECT t.category_id, {pillar_bucket_sql()} AS pillar, (t.date AT TIME ZONE %s)::date AS day, SUM(t.amount) AS spent
@@ -69,6 +95,10 @@ def spending_basis(cur, user_id: str, start: datetime, end: datetime, offsets: S
         for day, amount in days.items():
             net = amount - shares.get(day, 0)
             basis.by_day[day] = basis.by_day.get(day, 0) + net
+            day_pillars = basis.by_day_pillar.setdefault(day, {})
+            day_pillars[pillar] = day_pillars.get(pillar, 0) + net
+            day_categories = basis.by_day_category.setdefault(day, {})
+            day_categories[category_id] = day_categories.get(category_id, 0) + net
         basis.by_category[category_id] = basis.by_category.get(category_id, 0) + gross - applied
         basis.total += gross - applied
         basis.reimbursed += applied
