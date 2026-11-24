@@ -11,8 +11,7 @@ from typing import Any
 
 from app.core.config import settings
 from app.i18n import account_language, t
-from app.services.apportionment import apportion
-from app.services.reimbursements import SpendingOffsets
+from app.services.reimbursements import SpendingOffsets, offset_day_shares
 from app.services.system_categories import reportable_key_sql
 
 UNCATEGORIZED_COLOR = "#64748b"
@@ -147,8 +146,9 @@ def top_categories(breakdown: list[dict[str, Any]], limit: int = TOP_CATEGORY_LI
 def daily_offsets(cur, user_id: str, start: datetime, end: datetime, offsets: SpendingOffsets) -> dict[date, int]:
     """The applied reimbursement offsets of a window, attributed to local days.
 
-    Each category's applied offset is spread over the days that category was spent on, in proportion
-    to that day's spending in it, so no day goes negative and the days add up to the window's offset.
+    A linked amount lowers its expense's own day; the rest of each category's applied offset is spread over the
+    days that category was spent on, in proportion to what each day has left, so no day goes negative and the days
+    add up to the window's offset.
     """
     if not offsets.applied_by_category:
         return {}
@@ -165,7 +165,8 @@ def daily_offsets(cur, user_id: str, start: datetime, end: datetime, offsets: Sp
         spending.setdefault(str(row["category_id"]), {})[row["day"]] = int(row["spent"])
     per_day: dict[date, int] = {}
     for category_id, applied in offsets.applied_by_category.items():
-        for day, share in apportion(applied, spending.get(category_id, {})).items():
+        days = spending.get(category_id, {})
+        for day, share in offset_day_shares(applied, days, offsets.linked_days(category_id)).items():
             per_day[day] = per_day.get(day, 0) + share
     return per_day
 

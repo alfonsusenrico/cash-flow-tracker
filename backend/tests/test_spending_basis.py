@@ -182,3 +182,58 @@ def test_uncategorised_and_saving_rows_in_the_daily_detail(client, owners):
     assert seventh["expense"] == 340_000 and seventh["spending"] == 0
     assert set(seventh["by_pillar"].values()) == {0}
     assert seventh["by_category"] == []
+
+
+def link(owner, reimbursement_id, expense_id, amount):
+    from app.db.pool import db_conn
+
+    with db_conn() as conn:
+        conn.execute(
+            "INSERT INTO reimbursement_links (reimbursement_id, expense_id, user_id, amount) VALUES (%s, %s, %s, %s)",
+            (reimbursement_id, expense_id, owner["user_id"], amount),
+        )
+        conn.commit()
+
+
+def seed_repaid_meal(owner):
+    """Last month: a shared meal repaid twice by link on day 3, and more of the same category on day 20."""
+    m1 = month_start(-1)
+    meal = insert(owner, "dinner", 205_350, at(m1.replace(day=3)))
+    insert(owner, "dinner", 53_290, at(m1.replace(day=20), 18))
+    insert(owner, "dinner", 35_000, at(m1.replace(day=20), 20))
+    for minute in (38, 40):
+        repaid = insert(owner, "reimbursement", 68_450, at(m1.replace(day=3), 21, minute), tx_type="income")
+        link(owner, repaid, meal, 68_450)
+    return m1
+
+
+def test_a_repaid_meal_stays_on_its_day(client, owners):
+    owner, _ = owners
+    m1 = seed_repaid_meal(owner)
+    month = {"timeframe": "month", "cycle_offset": -1}
+    analytics = get(client, "/api/dashboard/analytics", **month)
+    days = {day["date"]: day for day in analytics["daily_cadence"]}
+    meal_day, later = days[m1.replace(day=3).isoformat()], days[m1.replace(day=20).isoformat()]
+    assert meal_day["spending"] == 205_350 - 2 * 68_450
+    assert later["spending"] == 53_290 + 35_000
+    assert later["by_pillar"]["want"] == 88_290 and later["by_category"][0]["amount"] == 88_290
+    # The period figure is the same as before: gross less both links.
+    total = 205_350 + 53_290 + 35_000 - 2 * 68_450
+    assert sum(day["spending"] for day in days.values()) == total
+    comparison = get(client, "/api/reports/monthly/comparison", start_date=m1.isoformat())["comparison"]
+    assert comparison["totals"]["spending"] == total
+    # Kalender reads the same days.
+    calendar = {day["date"]: day for day in get(client, "/api/dashboard/calendar", **month)["days"]}
+    assert calendar[m1.replace(day=20).isoformat()]["spending"] == 88_290
+    assert calendar[m1.replace(day=3).isoformat()]["spending"] == 205_350 - 2 * 68_450
+
+
+def test_an_unlinked_reimbursement_still_spreads(client, owners):
+    owner, _ = owners
+    m1 = month_start(-1)
+    insert(owner, "dinner", 60_000, at(m1.replace(day=2)))
+    insert(owner, "dinner", 240_000, at(m1.replace(day=9)))
+    insert(owner, "reimbursement", 150_000, at(m1.replace(day=10)), tx_type="income", offset="dinner")
+    days = {day["date"]: day for day in get(client, "/api/dashboard/analytics", timeframe="month", cycle_offset=-1)["daily_cadence"]}
+    assert days[m1.replace(day=2).isoformat()]["spending"] == 30_000
+    assert days[m1.replace(day=9).isoformat()]["spending"] == 120_000

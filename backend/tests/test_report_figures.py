@@ -99,7 +99,7 @@ def test_offset_is_spread_over_the_days_the_category_was_spent(client, owner):
 
 
 def test_apportion_is_exact_and_never_exceeds_a_weight():
-    from app.services.report_figures import apportion
+    from app.services.apportionment import apportion
 
     assert apportion(100, {"a": 1, "b": 1, "c": 1}) == {"a": 34, "b": 33, "c": 33}
     assert apportion(300, {"a": 100, "b": 200}) == {"a": 100, "b": 200}
