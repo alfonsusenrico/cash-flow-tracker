@@ -18,7 +18,7 @@ Rejected: opening Transaksi for the day (owner chose Kalender, which already lis
 
 `spending_basis` is extended, not duplicated: its per-day rows keep the category (and therefore the effective pillar, as Kakeibo uses), and the reimbursement offset of a day is applied to the categories it was applied to. Each day gains:
 - `by_pillar: {need, want, culture, unexpected, unclassified}`;
-- `by_category: [{category_id, amount}]` (amount > 0 only).
+- `by_category: [{category_id, name, amount}]` (amount > 0 only; `name` as the owner wrote it, or the system category's label in the account's language).
 
 Both sum exactly to the day's `spending`; a test checks every day of a seeded period, including a day with a reimbursement.
 

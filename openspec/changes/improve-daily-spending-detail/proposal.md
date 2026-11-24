@@ -1,6 +1,6 @@
 ## Approval
 
-Pending. Requested by the owner on 2026-11-24 from their review of Analisis → Ringkasan. Decisions made the same day: the table splits each day by Kakeibo pillar by default with a switch to the period's top categories; a bar opens Kalender at that day; saving and investing stay in the line under the hero, not in the Kakeibo rows.
+Approved by the owner on 2026-11-24 ("ok approved, build it"). Requested the same day from their review of Analisis → Ringkasan. Decisions made the same day: the table splits each day by Kakeibo pillar by default with a switch to the period's top categories; a bar opens Kalender at that day; saving and investing stay in the line under the hero, not in the Kakeibo rows.
 
 ## Why
 
@@ -15,7 +15,7 @@ On Ringkasan, "Pengeluaran harian" shows only a total per day: a tall bar or a l
 ## What Changes
 
 - **Bars open Kalender:** each bar is a button; click, Enter or Space opens `/insights?tab=kalender&day=<date>` with the same period. Hover still shows the date and amount; on a touch screen the first tap shows them with "Lihat di Kalender", which opens the day.
-- **Daily breakdown in the API:** each `daily_cadence` day gains `by_pillar` (need, want, culture, unexpected, unclassified) and `by_category` (category id and amount), both from the same spending basis as `spending`, so each adds up to it exactly.
+- **Daily breakdown in the API:** each `daily_cadence` day gains `by_pillar` (need, want, culture, unexpected, unclassified) and `by_category` (category id, name and amount), both from the same spending basis as `spending`, so each adds up to it exactly.
 - **Table:** a "Per pilar | Per kategori" switch above the table; per pillar shows the five pillar columns and Total; per category shows the period's top five categories by Pengeluaran, "Lainnya" for the rest, and Total. On narrow screens the table scrolls inside its box with the date column fixed.
 - **Fix:** the comparison row's "seluruh periode" column fits its text.
 

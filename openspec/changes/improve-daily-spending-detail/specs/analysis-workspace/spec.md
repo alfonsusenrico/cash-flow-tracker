@@ -27,7 +27,7 @@ Ringkasan SHALL show "Pengeluaran harian" as one bar per local day of the period
 ## ADDED Requirements
 
 ### Requirement: Daily Spending by Pillar and Category
-Each day of `daily_cadence` SHALL carry `by_pillar` (need, want, culture, unexpected, unclassified) and `by_category` (category id and amount), computed from the same basis as its `spending`, each adding up exactly to it. The table SHALL offer "Per pilar" (the pillars and Total) and "Per kategori" (the period's five largest categories, "Lainnya" and Total), and SHALL scroll inside its box with the date fixed when narrow.
+Each day of `daily_cadence` SHALL carry `by_pillar` (need, want, culture, unexpected, unclassified) and `by_category` (category id, name and amount), computed from the same basis as its `spending`, each adding up exactly to it. The table SHALL offer "Per pilar" (the pillars and Total) and "Per kategori" (the period's five largest categories, "Lainnya" and Total), and SHALL scroll inside its box with the date fixed when narrow.
 
 #### Scenario: Pillars add up
 - **GIVEN** a day with Rp 412.000 of needs, Rp 677.649 of wants and a reimbursement of Rp 50.000 applied to a want
