@@ -23,8 +23,14 @@ const SPEND_EN = /\b(expenses?|spent)\b|(?<!to )\bspend\b/i;
 const SPENDING_ID = /\b(Keluar(?! (ke|dari) )|Belanja)\b/;
 /** "Keluar" in Peta Aliran's node detail is one account's direction (money in, money out), not a spending figure. */
 const DIRECTION_KEYS = new Set(["analysis.flowDetail.out", "analysis.flowDetail.outTo"]);
-/** Laporan's third question asks how much was spent; it is a question, not the spending figure's name (apply-markas-laporan D19). */
-const QUESTION_KEYS = new Set(["report.questions.spending"]);
+/** Laporan's third question asks how much was spent; it is a question, not the spending figure's name (apply-markas-laporan D19).
+ * Kalender's hero and Ringkasan's daily chart explain the gap between full-price days and net spending using the
+ * approved past-participle phrase "{gross} spent · −{reimbursed} reimbursed" (show-daily-spending-at-full-price). */
+const QUESTION_KEYS = new Set([
+  "report.questions.spending",
+  "analysis.calendar.reimbursedLine",
+  "analysis.daily.reimbursedLine",
+]);
 
 /**
  * The hero's line "{days} hari lagi sampai gajian" keeps the wording the owner approved for the safe amount

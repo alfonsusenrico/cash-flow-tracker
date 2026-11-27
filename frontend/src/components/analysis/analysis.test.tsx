@@ -205,6 +205,41 @@ describe("Pengeluaran harian", () => {
     const ticks = [...container.querySelectorAll("text.ax")].map((node) => node.textContent ?? "");
     expect(ticks.some((text) => /jt|rb/.test(text))).toBe(false);
   });
+
+  it("names the reimbursed amount beside the scope line only when reimbursed > 0, in id and en, and masks it when hidden", () => {
+    stubWidth(728);
+    const { container: without } = wrap(
+      <DailySpendingChart days={DAYS} money={money} onOpenDay={vi.fn()} today="2026-11-14" spendingTotals={{ gross: 800_000, reimbursed: 0, spending: 800_000 }} />,
+    );
+    expect(without.querySelector(".chart-foot")).not.toHaveTextContent("diganti");
+    cleanup();
+
+    const { container: idView } = wrap(
+      <DailySpendingChart days={DAYS} money={money} onOpenDay={vi.fn()} today="2026-11-14" spendingTotals={{ gross: 1_250_000, reimbursed: 200_000, spending: 1_050_000 }} />,
+    );
+    expect(idView.querySelector(".chart-foot")).toHaveTextContent("Rp 1.250.000 dibelanjakan · −Rp 200.000 diganti");
+    cleanup();
+
+    const { container: enView } = renderWithIntl(
+      <QueryClientProvider client={client()}>
+        <DailySpendingChart days={DAYS} money={money} onOpenDay={vi.fn()} today="2026-11-14" spendingTotals={{ gross: 1_250_000, reimbursed: 200_000, spending: 1_050_000 }} />
+      </QueryClientProvider>,
+      { language: "en" },
+    );
+    expect(enView.querySelector(".chart-foot")).toHaveTextContent("Rp 1.250.000 spent · −Rp 200.000 reimbursed");
+    cleanup();
+
+    ctx.hide = true;
+    const { container: masked } = wrap(
+      <DailySpendingChart days={DAYS} money={money} onOpenDay={vi.fn()} today="2026-11-14" spendingTotals={{ gross: 1_250_000, reimbursed: 200_000, spending: 1_050_000 }} />,
+    );
+    const foot = masked.querySelector(".chart-foot")!;
+    expect(foot).toHaveTextContent("dibelanjakan");
+    expect(foot).toHaveTextContent("diganti");
+    expect(foot).not.toHaveTextContent("1.250.000");
+    expect(foot).not.toHaveTextContent("200.000");
+    expect(within(foot as HTMLElement).getAllByRole("img", { name: "Disembunyikan" }).length).toBeGreaterThanOrEqual(2);
+  });
 });
 
 // jsdom has no PointerEvent, so the pointer type would be lost without this stand-in.
@@ -540,6 +575,51 @@ describe("Kalender", () => {
     expect(within(grid).getByRole("gridcell", { name: /Monday, 2 November/ })).toHaveAccessibleName("Monday, 2 November. Spending Rp 109.000. 1 waiting for an answer. Transfer.");
     expect(within(grid).getByRole("gridcell", { name: /Tuesday, 3 November/ })).toHaveTextContent("1,3M");
     expect(screen.getByText("Spending this period")).toBeInTheDocument();
+  });
+
+  it("shows the reimbursed line under the hero only when spending_reimbursed > 0, in id and en, and masks it when hidden", async () => {
+    wrap(<KalenderTab basis="month" offset={0} day="2026-11-02" onSelectDay={vi.fn()} onWindowLabel={() => {}} />);
+    await screen.findByRole("grid");
+    expect(screen.getByRole("region", { name: "Pengeluaran periode ini" })).not.toHaveTextContent("diganti");
+    cleanup();
+
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path.startsWith("/dashboard/calendar")) {
+        const fixture = calendarFixture();
+        return {
+          ...fixture,
+          totals: { ...fixture.totals, spending: 1_050_000, spending_gross: 1_250_000, spending_reimbursed: 200_000 },
+        };
+      }
+      return { transactions: [], total: 0 };
+    });
+
+    wrap(<KalenderTab basis="month" offset={0} day="2026-11-02" onSelectDay={vi.fn()} onWindowLabel={() => {}} />);
+    await screen.findByRole("grid");
+    const heroId = screen.getByRole("region", { name: "Pengeluaran periode ini" });
+    expect(heroId).toHaveTextContent("Rp 1.050.000");
+    expect(heroId).toHaveTextContent("Rp 1.250.000 dibelanjakan · −Rp 200.000 diganti");
+    cleanup();
+
+    renderWithIntl(
+      <QueryClientProvider client={client()}>
+        <KalenderTab basis="month" offset={0} day="2026-11-02" onSelectDay={vi.fn()} onWindowLabel={() => {}} />
+      </QueryClientProvider>,
+      { language: "en" },
+    );
+    await screen.findByRole("grid");
+    expect(screen.getByRole("region", { name: "Spending this period" })).toHaveTextContent("Rp 1.250.000 spent · −Rp 200.000 reimbursed");
+    cleanup();
+
+    ctx.hide = true;
+    wrap(<KalenderTab basis="month" offset={0} day="2026-11-02" onSelectDay={vi.fn()} onWindowLabel={() => {}} />);
+    await screen.findByRole("grid");
+    const maskedHero = screen.getByRole("region", { name: "Pengeluaran periode ini" });
+    expect(maskedHero).toHaveTextContent("dibelanjakan");
+    expect(maskedHero).toHaveTextContent("diganti");
+    expect(maskedHero).not.toHaveTextContent("1.250.000");
+    expect(maskedHero).not.toHaveTextContent("200.000");
+    expect(within(maskedHero).getAllByRole("img", { name: "Disembunyikan" }).length).toBeGreaterThanOrEqual(3);
   });
 });
 

@@ -12,12 +12,11 @@ unallocated and changes no spending figure.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import datetime
 from typing import Any
 
 from fastapi import HTTPException
 
-from app.core.config import settings
 from app.errors import ErrorCode, api_error
 from app.services.apportionment import apportion
 from app.services.system_categories import non_reportable_sql, reportable_key_sql
@@ -40,9 +39,6 @@ class SpendingOffsets:
     # The same apportionment, kept per (category id, pillar bucket), so a category's rows in one pillar
     # get exactly the share `applied_by_pillar` counted for them.
     applied_by_category_pillar: dict[tuple[str, str], int] = field(default_factory=dict)
-    # The linked part of `applied_by_category_pillar`, per local day of the expenses it repays: a link lowers its
-    # expense's own day (attribute-linked-reimbursements-to-their-day D1).
-    linked_by_category_pillar_day: dict[tuple[str, str], dict[date, int]] = field(default_factory=dict)
 
     def for_category(self, category_id: Any) -> int:
         return self.applied_by_category.get(str(category_id), 0)
@@ -52,16 +48,6 @@ class SpendingOffsets:
 
     def for_category_pillar(self, category_id: Any, pillar: str) -> int:
         return self.applied_by_category_pillar.get((str(category_id), pillar), 0)
-
-    def linked_days(self, category_id: Any, pillar: str | None = None) -> dict[date, int]:
-        """The linked offset of a category, in one pillar or all, per local day of the expenses it repays."""
-        days: dict[date, int] = {}
-        for (linked_category, linked_pillar), amounts in self.linked_by_category_pillar_day.items():
-            if linked_category != str(category_id) or (pillar is not None and linked_pillar != pillar):
-                continue
-            for day, amount in amounts.items():
-                days[day] = days.get(day, 0) + amount
-        return days
 
     @property
     def living(self) -> int:
@@ -107,7 +93,7 @@ def load_spending_offsets(cur, user_id: str, start: datetime, end: datetime) -> 
                        GROUP BY COALESCE(e.kakeibo_type, oc.kakeibo_type, 'unclassified')
                    ) expense_pillars
                ), '{{}}'::jsonb) AS pillar_spending,
-               NULL::text AS pillar, NULL::bigint AS amount, NULL::date AS day
+               NULL::text AS pillar, NULL::bigint AS amount
         FROM (
             SELECT t.user_id, t.offset_category_id, SUM(t.amount) AS reimbursed
             FROM transactions t
@@ -120,16 +106,15 @@ def load_spending_offsets(cur, user_id: str, start: datetime, end: datetime) -> 
         LEFT JOIN categories oc ON oc.id = r.offset_category_id AND oc.user_id = r.user_id
         UNION ALL
         SELECT 'linked', e.category_id, NULL, NULL, NULL, NULL,
-               COALESCE(e.kakeibo_type, c.kakeibo_type, 'unclassified'), SUM(l.amount),
-               (e.date AT TIME ZONE %(tz)s)::date
+               COALESCE(e.kakeibo_type, c.kakeibo_type, 'unclassified'), SUM(l.amount)
         FROM reimbursement_links l
         JOIN transactions e ON e.id = l.expense_id AND e.user_id = l.user_id
         JOIN categories c ON c.id = e.category_id
         WHERE l.user_id = %(user_id)s AND l.amount > 0 AND e.date >= %(start)s AND e.date <= %(end)s
           AND NOT COALESCE(c.is_excluded_from_budget, FALSE) AND NOT ({non_reportable_sql("c")})
-        GROUP BY e.category_id, COALESCE(e.kakeibo_type, c.kakeibo_type, 'unclassified'), (e.date AT TIME ZONE %(tz)s)::date
+        GROUP BY e.category_id, COALESCE(e.kakeibo_type, c.kakeibo_type, 'unclassified')
         UNION ALL
-        SELECT 'rest', NULL, NULL, NULL, NULL, NULL, NULL, COALESCE(SUM(t.amount - h.held), 0), NULL
+        SELECT 'rest', NULL, NULL, NULL, NULL, NULL, NULL, COALESCE(SUM(t.amount - h.held), 0)
         FROM transactions t
         JOIN categories rc ON rc.id = t.category_id
         JOIN (SELECT reimbursement_id, SUM(amount) AS held FROM reimbursement_links
@@ -137,19 +122,15 @@ def load_spending_offsets(cur, user_id: str, start: datetime, end: datetime) -> 
         WHERE t.user_id = %(user_id)s AND t.type = 'income' AND rc.offsets_spending
           AND t.date >= %(start)s AND t.date <= %(end)s
         """,
-        {"user_id": user_id, "start": start, "end": end, "tz": settings.tz},
+        {"user_id": user_id, "start": start, "end": end},
     )
     rows = cur.fetchall()
     linked: dict[tuple[str, str], int] = {}
-    linked_by_day: dict[tuple[str, str], dict[date, int]] = {}
     for row in rows:
         if row.get("part") != "linked":
             continue
         key = (str(row["offset_category_id"]), row["pillar"])
         linked[key] = linked.get(key, 0) + int(row["amount"])
-        if row.get("day") is not None:
-            days = linked_by_day.setdefault(key, {})
-            days[row["day"]] = days.get(row["day"], 0) + int(row["amount"])
     fallback_rows = [row for row in rows if row.get("part", "fallback") == "fallback"]
     by_category: dict[str, int] = {}
     by_pillar: dict[str, int] = {}
@@ -181,7 +162,7 @@ def load_spending_offsets(cur, user_id: str, start: datetime, end: datetime) -> 
         for pillar, share in apportion(category_applied, pillar_spending).items():
             by_pillar[pillar] = by_pillar.get(pillar, 0) + share
             by_category_pillar[(category_id, pillar)] = by_category_pillar.get((category_id, pillar), 0) + share
-    return SpendingOffsets(by_category, by_pillar, applied, excess, unallocated, by_category_pillar, linked_by_day)
+    return SpendingOffsets(by_category, by_pillar, applied, excess, unallocated, by_category_pillar)
 
 
 def category_offsets_spending(cur, user_id: str, category_id: str | None) -> bool:
@@ -216,22 +197,3 @@ def validate_offset_category(cur, user_id: str, offset_category_id: str) -> None
 
 def offset_not_allowed() -> HTTPException:
     return api_error(422, ErrorCode.OFFSET_NOT_ALLOWED)
-
-
-def offset_day_shares(applied: int, days: dict[date, int], linked: dict[date, int]) -> dict[date, int]:
-    """How much of `applied` each day carries: its linked amounts on their own day, then the rest of the offset
-    (unlinked reimbursements naming the category, or what links did not reach) spread over what each day has left.
-
-    A day never carries more than it spent, and the shares add up to `applied` whenever `applied` is at most the
-    days' spending (attribute-linked-reimbursements-to-their-day D1, D2).
-    """
-    on_day = {day: min(amount, days.get(day, 0)) for day, amount in linked.items() if day in days and amount > 0}
-    if sum(on_day.values()) > applied:
-        # Links larger than the applied offset cannot happen while links are capped at their expense; keep the
-        # proportional spread rather than over-subtracting.
-        return apportion(applied, days)
-    left = {day: amount - on_day.get(day, 0) for day, amount in days.items()}
-    shares = dict(on_day)
-    for day, share in apportion(applied - sum(on_day.values()), left).items():
-        shares[day] = shares.get(day, 0) + share
-    return shares

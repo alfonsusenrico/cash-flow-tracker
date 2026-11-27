@@ -57,17 +57,19 @@ def test_series_heatmap_burn_and_ledger_follow_reimbursement_offsets(client, own
     shared_dinner_cycle(client, owner)
     analytics = client.get("/api/dashboard/analytics").json()
     total = analytics["comparison"]["total_outflow"]
-    assert total == 300_000
-    assert sum(day["expense"] for day in analytics["daily_cadence"]) == total
+    gross = analytics["comparison"]["gross_outflow"]
+    assert (total, gross) == (300_000, 500_000)
+    assert sum(day["expense"] for day in analytics["daily_cadence"]) == gross
     assert all(day["expense"] >= 0 for day in analytics["daily_cadence"])
-    assert sum(day["total_spent"] for day in analytics["day_of_week_heatmap"]) == total
+    assert sum(day["total_spent"] for day in analytics["day_of_week_heatmap"]) == gross
     assert analytics["burn_rate"]["projected_30d_outflow"] == 300_000
     assert analytics["burn_rate"]["daily_burn_7d"] == round(300_000 / 7)
 
     overview = client.get("/api/dashboard/overview").json()
     trend = overview["cumulative_trendline"]
-    assert trend[-1]["cumulative_outflow"] == overview["kpis"]["total_outflow"] == 300_000
-    assert sum(day["expense"] for day in overview["burn_cadence"]) == 300_000
+    assert overview["kpis"]["total_outflow"] == 300_000
+    assert trend[-1]["cumulative_outflow"] == overview["kpis"]["gross_outflow"] == 500_000
+    assert sum(day["expense"] for day in overview["burn_cadence"]) == 500_000
 
     summary = client.get("/api/transactions").json()["summary"]
     assert (summary["cumulative"]["outflow"], summary["cumulative"]["gross_outflow"]) == (300_000, 500_000)
@@ -80,12 +82,12 @@ def test_series_heatmap_burn_and_ledger_follow_reimbursement_offsets(client, own
     assert (by_account["outflow"], by_account["reimbursement_offset"]) == (500_000, 0)
 
 
-def test_offset_is_spread_over_the_days_the_category_was_spent(client, owner):
+def test_daily_series_stays_at_full_price_with_reimbursement(client, owner):
     from app.core.config import settings
     from zoneinfo import ZoneInfo
 
     now = datetime.now(timezone.utc)
-    # Two dinner days in the same report window: 60.000 and 240.000; a 150.000 repayment offsets them 1:4.
+    # Two dinner days in the same report window: 60.000 and 240.000; a 150.000 repayment lowers the period total only.
     record(client, owner, "salary", 5_000_000, tx_type="income")
     earlier = now - timedelta(days=1)
     add_expense(owner, 60_000, category="dinner", when=earlier)
@@ -94,8 +96,10 @@ def test_offset_is_spread_over_the_days_the_category_was_spent(client, owner):
     analytics = client.get("/api/dashboard/analytics?timeframe=30d").json()
     by_day = {day["date"]: day["expense"] for day in analytics["daily_cadence"]}
     tz = ZoneInfo(settings.tz)
-    assert by_day[earlier.astimezone(tz).date().isoformat()] == 30_000
-    assert by_day[now.astimezone(tz).date().isoformat()] == 120_000
+    assert by_day[earlier.astimezone(tz).date().isoformat()] == 60_000
+    assert by_day[now.astimezone(tz).date().isoformat()] == 240_000
+    assert analytics["comparison"]["total_outflow"] == 150_000
+    assert analytics["comparison"]["gross_outflow"] == 300_000
 
 
 def test_apportion_is_exact_and_never_exceeds_a_weight():

@@ -144,16 +144,28 @@ def rich_owner(owner):
 # --- Calendar ---------------------------------------------------------------------------------------
 
 
-def test_calendar_days_add_up_to_belanja_with_a_later_reimbursement(rich_owner):
+def test_calendar_days_are_full_price_with_a_later_reimbursement(rich_owner):
     data = calendar(rich_owner)
+    report = analytics(rich_owner)
     start, end = previous_month()
     assert len(data["days"]) == (end - start).days + 1
     assert data["window"]["start"] == start.isoformat() and data["window"]["end"] == end.isoformat()
     spends = [day["spend"] for day in data["days"]]
     assert all(amount >= 0 for amount in spends)
-    assert sum(spends) == data["totals"]["spend"] == analytics(rich_owner)["comparison"]["total_outflow"]
+    assert sum(spends) == data["totals"]["gross_spend"]
+    assert data["totals"]["spend"] == report["comparison"]["total_outflow"]
     assert data["totals"]["gross_spend"] - data["totals"]["offset_applied"] == data["totals"]["spend"]
     assert data["totals"]["offset_applied"] == 30_000
+    assert sum(day["spending"] for day in data["days"]) == data["totals"]["spending_gross"]
+    assert data["totals"]["spending_gross"] - data["totals"]["spending_reimbursed"] == data["totals"]["spending"]
+    assert data["totals"]["spending_reimbursed"] == 30_000
+    by_date = {day["date"]: day for day in data["days"]}
+    report_by_date = {day["date"]: day for day in report["daily_cadence"]}
+    # Day 2 makan (Rp 120.000) stays at full price even though day 7 reimburses Rp 30.000 for makan.
+    assert by_date[month_day(2).isoformat()]["spending"] == 120_000
+    assert by_date[month_day(7).isoformat()]["spending"] == 0
+    for iso, entry in by_date.items():
+        assert entry["spending"] == report_by_date[iso]["spending"]
     assert data["upcoming"] == [] and data["upcoming_total"] == 0
 
 

@@ -112,7 +112,7 @@ export function RingkasanTab({
           money={money}
         />
         {comparison && <KakeiboRows comparison={comparison} money={money} />}
-        <DailySpendingChart days={days} money={money} onOpenDay={onOpenDay} />
+        <DailySpendingChart days={days} money={money} onOpenDay={onOpenDay} spendingTotals={data.spending_totals} />
         {categories}
       </div>
     );
