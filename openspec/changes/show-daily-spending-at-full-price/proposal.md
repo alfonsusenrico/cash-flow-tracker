@@ -1,6 +1,6 @@
 ## Approval
 
-Pending. Requested by the owner on 2026-11-24 ("ok go with B, plan it") after a Kalender day showed less than the expenses listed under it.
+Approved by the owner on 2026-11-27 ("ok, do all"). Originally requested on 2026-11-24 ("ok go with B, plan it") after a Kalender day showed less than the expenses listed under it.
 
 ## Why
 

@@ -154,10 +154,22 @@ export function KalenderTab({
       : ` · ${t("calendar.paydayUnknown", { reason })}`;
   }
 
+  const reimbursed = data.totals.spending_reimbursed ?? 0;
+  const gross = data.totals.spending_gross ?? data.totals.spending + reimbursed;
+
   return (
     <div className="cols an-cols">
       <div className="stack">
-        <HeroFigure id="an-cal-hero" label={t("calendar.heroLabel")} figure={<MaskedMoney text={money(data.totals.spending)} />} line={line} />
+        <HeroFigure id="an-cal-hero" label={t("calendar.heroLabel")} figure={<MaskedMoney text={money(data.totals.spending)} />} line={line}>
+          {reimbursed > 0 && (
+            <p className="hero-sub t-body">
+              {t.rich("calendar.reimbursedLine", {
+                gross: () => <MaskedMoney text={money(gross)} className="t-amt hero-amt" />,
+                reimbursed: () => <MaskedMoney text={`−${money(reimbursed)}`} className="t-amt hero-amt" />,
+              })}
+            </p>
+          )}
+        </HeroFigure>
         <CalendarGrid data={data} selected={selected.date} onSelect={onSelectDay} money={money} />
       </div>
       <Panel label={t("day.panel")}>

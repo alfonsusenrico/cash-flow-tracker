@@ -53,11 +53,12 @@ def test_report_pengeluaran_equals_analisis_for_a_closed_month(client, owners):
     viewed = next(item for item in data["comparison"]["history"] if item["viewed"])
     assert viewed["spending"] == spending
 
-    # Analisis for the same month: its hero (the comparison), daily, category, calendar and flow Pengeluaran.
+    # Analisis for the same month: daily bars stay at full price while period totals stay net of reimbursements.
     assert get(client, "/api/reports/monthly/comparison", start_date=m1.isoformat())["comparison"]["totals"]["spending"] == spending
     month = {"timeframe": "month", "cycle_offset": -1}
     analytics = get(client, "/api/dashboard/analytics", **month)
-    assert sum(day["spending"] for day in analytics["daily_cadence"]) == spending
+    assert analytics["spending_totals"] == {"gross": spending + 60_000, "reimbursed": 60_000, "spending": spending}
+    assert sum(day["spending"] for day in analytics["daily_cadence"]) == analytics["spending_totals"]["gross"]
     assert sum(row["spending"] for row in analytics["category_variance"]) == spending
     assert get(client, "/api/dashboard/calendar", **month)["totals"]["spending"] == spending
     assert get(client, "/api/dashboard/flow", **month)["summary"]["spending"] == spending

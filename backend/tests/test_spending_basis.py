@@ -39,13 +39,16 @@ def test_every_pengeluaran_total_equals_the_comparison(client, owners):
     assert spending == 585_000
 
     analytics = get(client, "/api/dashboard/analytics", **month)
-    assert sum(day["spending"] for day in analytics["daily_cadence"]) == spending
+    assert analytics["spending_totals"] == {"gross": spending + 60_000, "reimbursed": 60_000, "spending": spending}
+    assert sum(day["spending"] for day in analytics["daily_cadence"]) == spending + 60_000
     assert sum(row["spending"] for row in analytics["category_variance"]) == spending
     assert analytics["explanations"]["spending"]["total"] == spending
 
     calendar = get(client, "/api/dashboard/calendar", **month)
     assert calendar["totals"]["spending"] == spending
-    assert sum(day["spending"] for day in calendar["days"]) == spending
+    assert calendar["totals"]["spending_gross"] == spending + 60_000
+    assert calendar["totals"]["spending_reimbursed"] == 60_000
+    assert sum(day["spending"] for day in calendar["days"]) == spending + 60_000
 
     flow = get(client, "/api/dashboard/flow", **month)
     assert flow["summary"]["spending"] == spending
@@ -56,13 +59,15 @@ def test_belanja_fields_keep_their_values(client, owners):
     seed(owner)
     month = {"timeframe": "month", "cycle_offset": -1}
     belanja = 585_000 + 340_000
+    gross_belanja = belanja + 60_000
     analytics = get(client, "/api/dashboard/analytics", **month)
     assert analytics["comparison"]["total_outflow"] == belanja
-    assert sum(day["expense"] for day in analytics["daily_cadence"]) == belanja
+    assert sum(day["expense"] for day in analytics["daily_cadence"]) == gross_belanja
     assert sum(row["spent"] for row in analytics["category_variance"]) == belanja
     calendar = get(client, "/api/dashboard/calendar", **month)
     assert calendar["totals"]["spend"] == belanja
-    assert sum(day["spend"] for day in calendar["days"]) == belanja
+    assert calendar["totals"]["gross_spend"] == gross_belanja
+    assert sum(day["spend"] for day in calendar["days"]) == gross_belanja
     assert get(client, "/api/dashboard/flow", **month)["summary"]["belanja"] == belanja
 
 
@@ -72,9 +77,9 @@ def test_days_categories_and_levels_on_the_pengeluaran_basis(client, owners):
     month = {"timeframe": "month", "cycle_offset": -1}
     analytics = get(client, "/api/dashboard/analytics", **month)
     days = {day["date"]: day for day in analytics["daily_cadence"]}
-    # Day 3 carries the dinner reimbursement (Rp 60.000 of its Rp 200.000 Keinginan; the Kebutuhan dinner row keeps
-    # its own pillar and gets none); day 7 holds only saving-pillar expenses.
-    assert days[m1.replace(day=3).isoformat()]["spending"] == 240_000
+    # Day 3 stays at full price (Rp 200.000 + Rp 100.000); the Rp 60.000 reimbursement reduces only the period total
+    # and category total. Day 7 holds only saving-pillar expenses.
+    assert days[m1.replace(day=3).isoformat()]["spending"] == 300_000
     assert days[m1.replace(day=7).isoformat()]["spending"] == 0
     assert days[m1.replace(day=7).isoformat()]["expense"] == 340_000
     rows = {row["name"]: row for row in analytics["category_variance"]}
@@ -142,18 +147,20 @@ def test_daily_pillars_and_categories_add_up_to_pengeluaran(client, owners):
 
     analytics = get(client, "/api/dashboard/analytics", timeframe="month", cycle_offset=-1)
     days = {day["date"]: day for day in analytics["daily_cadence"]}
-    assert sum(day["spending"] for day in days.values()) == 412_000 + 627_649 + 25_000 + 120_000 + 45_000 + 30_000
+    gross = 412_000 + 677_649 + 25_000 + 120_000 + 45_000 + 30_000
+    assert sum(day["spending"] for day in days.values()) == gross
+    assert analytics["spending_totals"] == {"gross": gross, "reimbursed": 50_000, "spending": gross - 50_000}
 
 
-def test_a_reimbursed_want_lowers_its_day_and_pillar(client, owners):
+def test_a_reimbursed_want_stays_at_full_price_on_its_day(client, owners):
     owner, _ = owners
     m1 = seed_daily_detail(owner)
     analytics = get(client, "/api/dashboard/analytics", timeframe="month", cycle_offset=-1)
     second = next(day for day in analytics["daily_cadence"] if day["date"] == m1.replace(day=2).isoformat())
-    assert second["spending"] == 1_039_649
-    assert second["by_pillar"] == {"need": 412_000, "want": 627_649, "culture": 0, "unexpected": 0, "unclassified": 0}
+    assert second["spending"] == 1_089_649
+    assert second["by_pillar"] == {"need": 412_000, "want": 677_649, "culture": 0, "unexpected": 0, "unclassified": 0}
     assert second["by_category"] == [
-        {"category_id": owner["dinner"], "name": "Makan Bareng", "amount": 627_649},
+        {"category_id": owner["dinner"], "name": "Makan Bareng", "amount": 677_649},
         {"category_id": owner["groceries"], "name": "Belanja Dapur", "amount": 412_000},
     ]
 
@@ -207,33 +214,60 @@ def seed_repaid_meal(owner):
     return m1
 
 
-def test_a_repaid_meal_stays_on_its_day(client, owners):
+def test_a_linked_reimbursement_leaves_its_day_alone(client, owners):
     owner, _ = owners
     m1 = seed_repaid_meal(owner)
     month = {"timeframe": "month", "cycle_offset": -1}
     analytics = get(client, "/api/dashboard/analytics", **month)
     days = {day["date"]: day for day in analytics["daily_cadence"]}
     meal_day, later = days[m1.replace(day=3).isoformat()], days[m1.replace(day=20).isoformat()]
-    assert meal_day["spending"] == 205_350 - 2 * 68_450
+    assert meal_day["spending"] == 205_350
+    assert meal_day["by_pillar"]["want"] == 205_350 and meal_day["by_category"][0]["amount"] == 205_350
     assert later["spending"] == 53_290 + 35_000
     assert later["by_pillar"]["want"] == 88_290 and later["by_category"][0]["amount"] == 88_290
-    # The period figure is the same as before: gross less both links.
-    total = 205_350 + 53_290 + 35_000 - 2 * 68_450
-    assert sum(day["spending"] for day in days.values()) == total
+    # Period totals stay net of both links while days add up to gross.
+    gross = 205_350 + 53_290 + 35_000
+    reimbursed = 2 * 68_450
+    total = gross - reimbursed
+    assert sum(day["spending"] for day in days.values()) == gross
+    assert analytics["spending_totals"] == {"gross": gross, "reimbursed": reimbursed, "spending": total}
+    assert analytics["kakeibo"]["want_spent"] == total
+    dinner = next(row for row in analytics["category_variance"] if row["id"] == owner["dinner"])
+    assert dinner["spending"] == total
     comparison = get(client, "/api/reports/monthly/comparison", start_date=m1.isoformat())["comparison"]
     assert comparison["totals"]["spending"] == total
-    # Kalender reads the same days.
-    calendar = {day["date"]: day for day in get(client, "/api/dashboard/calendar", **month)["days"]}
-    assert calendar[m1.replace(day=20).isoformat()]["spending"] == 88_290
-    assert calendar[m1.replace(day=3).isoformat()]["spending"] == 205_350 - 2 * 68_450
+    # Kalender reads the same full-price days and carries the gross/reimbursed/net totals.
+    cal = get(client, "/api/dashboard/calendar", **month)
+    assert cal["totals"]["spending"] == total
+    assert cal["totals"]["spending_gross"] == gross
+    assert cal["totals"]["spending_reimbursed"] == reimbursed
+    cal_days = {day["date"]: day for day in cal["days"]}
+    assert cal_days[m1.replace(day=20).isoformat()]["spending"] == 88_290
+    assert cal_days[m1.replace(day=3).isoformat()]["spending"] == 205_350
 
 
-def test_an_unlinked_reimbursement_still_spreads(client, owners):
+def test_an_unlinked_reimbursement_leaves_the_days_alone(client, owners):
     owner, _ = owners
     m1 = month_start(-1)
+    # Synthetic transport-and-parking shape: Rp 10.000 + Rp 190.000 on day 21, other days and an unlinked repayment.
     insert(owner, "dinner", 60_000, at(m1.replace(day=2)))
     insert(owner, "dinner", 240_000, at(m1.replace(day=9)))
-    insert(owner, "reimbursement", 150_000, at(m1.replace(day=10)), tx_type="income", offset="dinner")
-    days = {day["date"]: day for day in get(client, "/api/dashboard/analytics", timeframe="month", cycle_offset=-1)["daily_cadence"]}
-    assert days[m1.replace(day=2).isoformat()]["spending"] == 30_000
-    assert days[m1.replace(day=9).isoformat()]["spending"] == 120_000
+    insert(owner, "dinner", 10_000, at(m1.replace(day=21), 10))
+    insert(owner, "groceries", 190_000, at(m1.replace(day=21), 12))
+    insert(owner, "reimbursement", 150_000, at(m1.replace(day=16)), tx_type="income", offset="dinner")
+    analytics = get(client, "/api/dashboard/analytics", timeframe="month", cycle_offset=-1)
+    days = {day["date"]: day for day in analytics["daily_cadence"]}
+    assert days[m1.replace(day=2).isoformat()]["spending"] == 60_000
+    assert days[m1.replace(day=9).isoformat()]["spending"] == 240_000
+    assert days[m1.replace(day=21).isoformat()]["spending"] == 200_000
+    assert {row["category_id"]: row["amount"] for row in days[m1.replace(day=21).isoformat()]["by_category"]} == {
+        owner["dinner"]: 10_000,
+        owner["groceries"]: 190_000,
+    }
+    assert analytics["spending_totals"] == {"gross": 500_000, "reimbursed": 150_000, "spending": 350_000}
+    cal = get(client, "/api/dashboard/calendar", timeframe="month", cycle_offset=-1)
+    cal_days = {day["date"]: day for day in cal["days"]}
+    assert cal_days[m1.replace(day=21).isoformat()]["spending"] == 200_000
+    assert cal["totals"]["spending"] == 350_000
+    assert cal["totals"]["spending_gross"] == 500_000
+    assert cal["totals"]["spending_reimbursed"] == 150_000

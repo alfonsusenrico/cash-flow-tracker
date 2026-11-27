@@ -1,10 +1,9 @@
 """The Analisis calendar: every local day of a period with its spending, markers and plans.
 
-A day's spending is the ledger's reportable spending less the reimbursement offset the daily
-apportionment gives that day, the same path as the analytics `daily_cadence`, so the days add up exactly
-to the period's Belanja. Waiting rows are counted with the Tinjau badge's SQL and stay in the day's
-spending where they are reportable. Heat levels and the upcoming total are computed here, so the page
-adds nothing up.
+A day's spending is the ledger's reportable spending at full price, with no reimbursement subtracted,
+the same path as the analytics `daily_cadence`, while the period totals stay net of applied reimbursements.
+Waiting rows are counted with the Tinjau badge's SQL and stay in the day's spending where they are
+reportable. Heat levels and the upcoming total are computed here, so the page adds nothing up.
 """
 
 from __future__ import annotations
@@ -19,7 +18,7 @@ from app.core.config import settings
 from app.i18n import language_for_user, t
 from app.services.plan_occurrences import plan_occurrences_in_window
 from app.services.reimbursements import load_spending_offsets
-from app.services.report_figures import daily_offsets, reportable_expense_sql, reportable_income_sql
+from app.services.report_figures import reportable_expense_sql, reportable_income_sql
 from app.services.report_windows import (
     cycle_range_label,
     get_timeframe_window,
@@ -130,7 +129,6 @@ def build_calendar(conn, user: dict[str, Any], *, timeframe: str, cycle_offset: 
             (settings.tz, user_id, read_start, read_end),
         )
         daily = {row["day"]: row for row in cur.fetchall()}
-        day_offsets = daily_offsets(cur, user_id, read_start, read_end, offsets)
         spending = spending_basis(cur, user_id, read_start, read_end, offsets)
         waiting = fetch_waiting_rows(cur, user_id, read_start, read_end)
         plans = plan_occurrences_in_window(
@@ -150,14 +148,12 @@ def build_calendar(conn, user: dict[str, Any], *, timeframe: str, cycle_offset: 
     day = start_date
     while day <= grid_end:
         row = daily.get(day)
-        spend = (int(row["spend"]) if row else 0) - day_offsets.get(day, 0)
-        if spend < 0:
-            raise RuntimeError("daily apportionment left a negative day")
+        spend = int(row["spend"]) if row else 0
         day_waiting = waiting_by_day.get(day, [])
         days.append({
             "date": day.isoformat(),
             "spend": spend,
-            # Pengeluaran of the day (apply-markas-analisis D31): Belanja without saving-pillar expenses.
+            # Full-price Pengeluaran of the day (show-daily-spending-at-full-price): Belanja without saving-pillar expenses.
             "spending": spending.day(day),
             "spend_count": int(row["spend_count"]) if row else 0,
             "heat": 0,
@@ -190,13 +186,19 @@ def build_calendar(conn, user: dict[str, Any], *, timeframe: str, cycle_offset: 
     for entry in days:
         entry["heat"] = heat_level(entry["spend"], thresholds)
         entry["spending_heat"] = heat_level(entry["spending"], spending_thresholds)
-    if sum(entry["spending"] for entry in days) != spending.total:
-        raise RuntimeError("calendar days do not add up to the period's Pengeluaran")
+    spending_gross = spending.total + spending.reimbursed
+    if sum(entry["spending"] for entry in days) != spending_gross:
+        raise RuntimeError("calendar days do not add up to the period's full-price Pengeluaran")
+    if spending_gross - spending.reimbursed != spending.total:
+        raise RuntimeError("calendar Pengeluaran totals do not reconcile")
 
     gross = sum(int(row["spend"]) for row in daily.values())
-    spend_total = sum(entry["spend"] for entry in days)
-    if gross - spend_total != sum(day_offsets.values()):
-        raise RuntimeError("calendar days do not add up to the period's Belanja")
+    spend_total = max(0, gross - offsets.applied)
+    offset_applied = gross - spend_total
+    if sum(entry["spend"] for entry in days) != gross:
+        raise RuntimeError("calendar days do not add up to the period's full-price Belanja")
+    if gross - offset_applied != spend_total:
+        raise RuntimeError("calendar Belanja totals do not reconcile")
 
     upcoming: list[dict[str, Any]] = []
     if is_current:
@@ -225,7 +227,14 @@ def build_calendar(conn, user: dict[str, Any], *, timeframe: str, cycle_offset: 
             "status": expected.status,
             "reason": expected.reason,
         },
-        "totals": {"spend": spend_total, "gross_spend": gross, "offset_applied": gross - spend_total, "spending": spending.total},
+        "totals": {
+            "spend": spend_total,
+            "gross_spend": gross,
+            "offset_applied": offset_applied,
+            "spending": spending.total,
+            "spending_gross": spending_gross,
+            "spending_reimbursed": spending.reimbursed,
+        },
         "days": days,
         "upcoming": upcoming,
         "upcoming_total": sum(line["amount"] for line in upcoming),
