@@ -62,13 +62,15 @@ def jago_accounts(cur, user_id: str) -> list[dict]:
     )
     accounts = cur.fetchall()
     cur.execute(
-        """SELECT account_id, institution, name_normalized FROM notification_account_aliases
+        """SELECT account_id, institution, name_normalized, source FROM notification_account_aliases
            WHERE user_id = %s""", (user_id,),
     )
     learned: dict[str, list[dict]] = {}
     for alias in cur.fetchall():
-        learned.setdefault(str(alias["account_id"]), []).append(
-            {"key": alias_key(alias["institution"], alias["name_normalized"])})
+        learned.setdefault(str(alias["account_id"]), []).append({
+            "key": alias_key(alias["institution"], alias["name_normalized"]),
+            "confirmed_by": alias["source"],
+        })
     for account in accounts:
         account["learned_notification_names"] = learned.get(str(account["id"]), [])
     return accounts

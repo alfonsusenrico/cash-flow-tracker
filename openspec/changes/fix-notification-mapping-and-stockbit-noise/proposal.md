@@ -2,7 +2,7 @@
 
 ## Approval
 
-Pending. Requested by the owner on 2026-11-27 ("ok plan all") after the production audit confirmed that an AI-learned alias overrides an existing pocket name on locked Jago pockets and that Stockbit market-news alerts with foreign currency figures still land in `needs_review` with `unsupported_currency`.
+Approved by the owner on 2026-11-27 ("ok, do all") after the production audit confirmed that an AI-learned alias overrides an existing pocket name on locked Jago pockets and that Stockbit market-news alerts with foreign currency figures still land in `needs_review` with `unsupported_currency`.
 
 ## Why
 
