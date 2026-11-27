@@ -7,13 +7,16 @@ when deterministic checks pass (understand-capture-time D5), and it can never to
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
+import re
 from zoneinfo import ZoneInfo
 from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.services.capture_parsing import WORD_PATTERN
+from app.services.capture_parsing import (
+    MONEY_PATTERN, WORD_PATTERN, is_money_expression, money_value, normalize_text, parse_amount,
+)
 from app.services.item_learning import ITEM_GROUP_MAX_LENGTH, ITEM_GROUP_MAX_WORDS, first_item_word
 from app.services.kakeibo import Pillar
 from app.services.prompt_language import CAPTURE_NORMALIZATION, INDONESIAN_VERSIONS
@@ -84,6 +87,48 @@ class InvalidCaptureNormalization(ValueError):
     pass
 
 
+def _parsed_amount_tokens(context: dict) -> list[str]:
+    """The money span token(s) parsed from the capture text, longest first."""
+    raw_text = context.get("text") or ""
+    if not raw_text:
+        return []
+    source = normalize_text(raw_text)
+    folded = source.casefold()
+    if len(folded) != len(source):
+        source = folded
+    expected_amount = (context.get("facts") or {}).get("amount")
+    spans: list[tuple[int, int]] = []
+    if expected_amount is not None:
+        for match in MONEY_PATTERN.finditer(folded):
+            if is_money_expression(match) and money_value(match) == expected_amount:
+                spans.append((match.start(), match.end()))
+    if not spans:
+        amount, issue, parsed_spans = parse_amount(folded)
+        if amount is not None and issue is None:
+            spans = parsed_spans
+    tokens: list[str] = []
+    for start, end in spans:
+        raw_span = " ".join(source[start:end].split())
+        if raw_span:
+            tokens.append(raw_span)
+            bare = re.sub(r"^rp\.?\s*", "", raw_span, flags=re.IGNORECASE).strip()
+            if bare and bare != raw_span:
+                tokens.append(bare)
+    return sorted(set(tokens), key=len, reverse=True)
+
+
+def _strip_amount_tokens(value: str, tokens: list[str], *, trailing_only: bool = False) -> str:
+    """Remove parsed capture money tokens from a model-proposed merchant or description tail."""
+    cleaned = value
+    for token in tokens:
+        if trailing_only:
+            pattern = re.compile(rf"(?:[\s,:;\-]+)?(?<!\w){re.escape(token)}(?!\w)\s*$", re.IGNORECASE)
+        else:
+            pattern = re.compile(rf"(?<!\w){re.escape(token)}(?!\w)", re.IGNORECASE)
+        cleaned = pattern.sub(" ", cleaned)
+    return " ".join(cleaned.split()).strip(" -,:;")
+
+
 def validate_capture_normalization(result: CaptureNormalization, context: dict, *, output_language: str = "id") -> dict:
     """Checked proposal; raises InvalidCaptureNormalization for any reference outside the context.
 
@@ -101,11 +146,17 @@ def validate_capture_normalization(result: CaptureNormalization, context: dict, 
     if category and category["kind"] == "expense":
         kakeibo = result.kakeibo or category.get("default_kakeibo")
     tags = validated_tags(result.tags, context)
+    amount_tokens = _parsed_amount_tokens(context)
+    merchant = " ".join((result.merchant or "").split())
+    if merchant and amount_tokens:
+        merchant = _strip_amount_tokens(merchant, amount_tokens)
     description = " ".join(result.description.split())
+    if description and amount_tokens:
+        description = _strip_amount_tokens(description, amount_tokens, trailing_only=True)
     if description.casefold() in PLACEHOLDER_DESCRIPTIONS[output_language]:
         description = ""
     return {
-        "merchant": " ".join((result.merchant or "").split()) or None,
+        "merchant": merchant or None,
         "description": description or None,
         "type": result.type, "type_confidence": result.type_confidence,
         "category_id": category_id, "category_kind": category["kind"] if category else None,

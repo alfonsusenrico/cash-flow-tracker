@@ -2896,6 +2896,7 @@
       "past": "Laporan sebelumnya",
       "running": "Berjalan",
       "complete": "Lengkap",
+      "partial": "Belum lengkap",
       "hasNote": "ada catatan"
     },
     "quality": {

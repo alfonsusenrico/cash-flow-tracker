@@ -48,14 +48,28 @@ def reportable_income_sql(tx: str = "t", category: str = "c") -> str:
 DUPLICATE_WINDOW_MINUTES = 3
 
 
+def _duplicate_label_sql(alias: str) -> str:
+    """Normalized non-empty transaction label (merchant, else name) for duplicate comparison."""
+    return (
+        f"LOWER(REGEXP_REPLACE(BTRIM(COALESCE("
+        f"NULLIF(BTRIM({alias}.merchant), ''), NULLIF(BTRIM({alias}.name), ''), ''"
+        f")), '\\s+', ' ', 'g'))"
+    )
+
+
 def possible_duplicate_sql(tx: str = "t") -> str:
     """True for an expense or income row that another row of the same account, amount and type sits
-    within 3 minutes of. Movement legs and movement fees are paired on purpose, so they never count."""
+    within 3 minutes of, unless their categories or non-empty labels disagree. Movement legs and
+    movement fees are paired on purpose, so they never count."""
+    tx_label = _duplicate_label_sql(tx)
+    dup_label = _duplicate_label_sql("dup")
     return (
         f"({tx}.type IN ('expense', 'income') AND {tx}.movement_id IS NULL AND {tx}.fee_for_movement_id IS NULL"
         f" AND EXISTS (SELECT 1 FROM transactions dup WHERE dup.user_id = {tx}.user_id AND dup.id <> {tx}.id"
         f" AND dup.account_id = {tx}.account_id AND dup.amount = {tx}.amount AND dup.type = {tx}.type"
         f" AND dup.movement_id IS NULL AND dup.fee_for_movement_id IS NULL"
+        f" AND ({tx}.category_id IS NULL OR dup.category_id IS NULL OR {tx}.category_id = dup.category_id)"
+        f" AND ({tx_label} = '' OR {dup_label} = '' OR {tx_label} = {dup_label})"
         f" AND dup.date BETWEEN {tx}.date - INTERVAL '{DUPLICATE_WINDOW_MINUTES} minutes'"
         f" AND {tx}.date + INTERVAL '{DUPLICATE_WINDOW_MINUTES} minutes'))"
     )

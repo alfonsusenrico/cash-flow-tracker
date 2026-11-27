@@ -2896,6 +2896,7 @@
       "past": "Earlier reports",
       "running": "In progress",
       "complete": "Complete",
+      "partial": "Partial",
       "hasNote": "has a note"
     },
     "quality": {
