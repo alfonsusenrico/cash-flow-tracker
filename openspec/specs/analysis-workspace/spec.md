@@ -198,12 +198,12 @@ Analisis SHALL read in English and Indonesian from one catalogue per language, w
 - **THEN** every amount, count, percent and date number SHALL be the same string in both
 
 ### Requirement: Daily Spending by Pillar and Category
-Each day of `daily_cadence` SHALL carry `by_pillar` (need, want, culture, unexpected, unclassified) and `by_category` (category id, name and amount), computed from the same basis as its `spending`, each adding up exactly to it. The table SHALL offer "Per pilar" (the pillars and Total) and "Per kategori" (the period's five largest categories, "Lainnya" and Total), and SHALL scroll inside its box with the date fixed when narrow.
+Each day of `daily_cadence` SHALL carry `by_pillar` (need, want, culture, unexpected, unclassified) and `by_category` (category id, name and amount), computed from the same full-price rows as its `spending`, each adding up exactly to it. The table SHALL offer "Per pilar" (the pillars and Total) and "Per kategori" (the period's five largest categories, "Lainnya" and Total), and SHALL scroll inside its box with the date fixed when narrow.
 
 #### Scenario: Pillars add up
 - **GIVEN** a day with Rp 412.000 of needs, Rp 677.649 of wants and a reimbursement of Rp 50.000 applied to a want
 - **WHEN** the period's analytics are requested
-- **THEN** that day's `by_pillar` SHALL be need 412.000 and want 627.649, and their sum SHALL equal the day's `spending`
+- **THEN** that day's `by_pillar` SHALL be need 412.000 and want 677.649, and their sum SHALL equal the day's `spending`
 
 #### Scenario: Per category columns
 - **GIVEN** a period with eight spending categories
@@ -220,3 +220,15 @@ The comparison row's "seluruh periode" (or "whole period") label SHALL fit on on
 #### Scenario: Label and bar apart
 - **WHEN** Ringkasan shows "135% dari total 29 Sep – 30 Okt" at 1280 px
 - **THEN** "seluruh periode" SHALL end before its bar starts, with at least 8 px between them
+
+### Requirement: Daily Chart Names the Reimbursed Amount
+Analytics SHALL return `spending_totals` with `gross` (the sum of the days' `spending`), `reimbursed` and `spending` (the period's Pengeluaran), where `gross − reimbursed = spending`. When `reimbursed` is above zero, Ringkasan's "Pengeluaran harian" SHALL show beside its scope line "{gross} dibelanjakan · −{reimbursed} diganti" ("spent", "reimbursed" in English), masked when balances are hidden; otherwise it SHALL not.
+
+#### Scenario: Bars explained by the line
+- **GIVEN** a period with Rp 1.250.000 of full-price days and Rp 200.000 reimbursed
+- **WHEN** Ringkasan is shown
+- **THEN** the hero SHALL read Rp 1.050.000 and the daily chart SHALL show "Rp 1.250.000 dibelanjakan · −Rp 200.000 diganti"
+
+#### Scenario: Nothing reimbursed
+- **WHEN** nothing was reimbursed in the period
+- **THEN** the daily chart SHALL show no such line, and the days SHALL add up to the hero

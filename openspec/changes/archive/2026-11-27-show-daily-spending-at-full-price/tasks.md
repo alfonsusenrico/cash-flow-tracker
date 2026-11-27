@@ -16,4 +16,4 @@ Expected Result: where days and the period total appear together, the difference
 ## 3. Verify and deliver
 
 - [x] 3.1 Full backend and frontend suites; `openspec validate --all --strict`; browser check of Kalender and Ringkasan on a production build with synthetic data at 1440 and 390 px, light and dark, axe and console; `verification.md`.
-- [ ] 3.2 After the owner accepts: archive, push, open the PR and report its URL.
+- [x] 3.2 After the owner accepts: archive, push, open the PR and report its URL.
