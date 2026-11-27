@@ -69,13 +69,14 @@ class PeriodAmounts:
     fresh_saving: int
     # pillar -> category key -> {"category_id", "name", "amount"}
     categories: dict[str, dict[str, dict[str, Any]]]
+    unlinked_reimbursement: int = 0
 
     def pillar(self, pillar: str) -> int:
         return sum(item["amount"] for item in self.categories.get(pillar, {}).values())
 
     @property
     def spending(self) -> int:
-        return sum(self.pillar(pillar) for pillar in SPENDING_PILLARS)
+        return max(0, sum(self.pillar(pillar) for pillar in SPENDING_PILLARS) - self.unlinked_reimbursement)
 
     def category_totals(self) -> dict[str, dict[str, Any]]:
         """Spending per category over the spending pillars (a category split across pillars summed)."""
@@ -124,6 +125,7 @@ def _period_amounts(cur, user_id: str, period: ObservedPeriod, partial: bool, ka
     return PeriodAmounts(
         period=period, partial=partial, inflow=figures["inflow"], fresh_saving=int(kakeibo["saving_spent"]),
         categories=_category_pillar_spending(cur, user_id, start, end, offsets),
+        unlinked_reimbursement=int(kakeibo.get("unlinked_reimbursement") or 0),
     )
 
 
@@ -235,6 +237,7 @@ def build_comparison(
         }
 
     result["pillars"] = _pillars(current, previous, baseline_amounts, previous_verdict, baseline_verdict)
+    result["unlinked_reimbursement"] = current.unlinked_reimbursement
     result["facts"] = _facts(
         cur, user_id, current, previous, baseline_amounts, running=running, now=now,
         previous_verdict=previous_verdict, recurring_in_period=recurring_in_period, basis=basis, merchants=merchants,

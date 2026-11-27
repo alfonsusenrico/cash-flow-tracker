@@ -31,6 +31,7 @@ export function periodBasis(summary: CycleSummary): "cycle" | "month" {
 export function lineLabel(line: SummaryLine, t: Translate): string {
   if (line.label_source !== "system") return line.label;
   if (line.key === "uncategorized") return t("terms.noCategory");
+  if (line.key === "unlinked_reimbursement") return t("terms.unlinkedReimbursements");
   return bucketName(t, line.key);
 }
 

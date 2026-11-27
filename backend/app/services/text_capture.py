@@ -34,6 +34,7 @@ from app.services.item_learning import decide_item_group, forget_item_group, kno
 from app.services.kakeibo import PILLARS
 from app.services.prompt_language import CAPTURE_NORMALIZATION, select_prompt
 from app.services.plan_occurrences import request_plan_linking
+from app.services.reimbursement_links import auto_link_exact_reimbursement
 from app.services.ledger_mutations import (
     create_bilateral_movement, delete_movement_rows, delete_transaction_rows, ensure_generic_movement_accounts,
     lock_owned_accounts,
@@ -170,6 +171,8 @@ def record_plan(cur, user_id: str, capture_id: str, draft: dict, plan: dict) -> 
          key, merchant, offset, *provenance.columns(), moment["basis"], moment["evidence"]),
     )
     transaction_id = str(cur.fetchone()["id"])
+    if plan["kind"] == "income" and offset is None:
+        auto_link_exact_reimbursement(cur, user_id, transaction_id)
     draft["tags_created"] = attach_capture_tags(cur, user_id, transaction_id, draft.get("tags") or [])
     return {"transaction_ids": [transaction_id], "movement_id": None}
 

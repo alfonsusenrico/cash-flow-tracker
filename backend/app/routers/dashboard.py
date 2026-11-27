@@ -239,7 +239,9 @@ def get_kakeibo_breakdown(
     # (spending + this figure) stays equal to the money that really left daily use.
     saving_spent = saving_expenses + net_saving_transfers - paid_from_savings
 
-    total_allocated = need_spent + want_spent + culture_spent + unexpected_spent + saving_spent + unclassified_spent
+    spending_pillars_total = need_spent + want_spent + culture_spent + unexpected_spent + unclassified_spent
+    unlinked_reimbursement = min(offsets.applied_unlinked_spending, spending_pillars_total)
+    total_allocated = spending_pillars_total - unlinked_reimbursement + saving_spent
     base_calc = max(total_inflow, total_allocated)
 
     def pct(amount: int) -> float:
@@ -281,6 +283,7 @@ def get_kakeibo_breakdown(
         # Spending with no transaction or category pillar; outside the 50/30/20 groups.
         "unclassified_spent": unclassified_spent,
         "unclassified_pct": unclassified_pct,
+        "unlinked_reimbursement": unlinked_reimbursement,
         "essentials_pct": essentials_pct,
         "essentials_target_pct": 50.0,
         "lifestyle_pct": lifestyle_pct,
@@ -923,6 +926,15 @@ def analytics_explanations(
             "amount": int(kakeibo[field]),
             "note": ". ".join(notes) if notes else None,
             "href": analytics_ledger_href(timeframe, cycle_offset, kakeibo=key),
+        })
+    unlinked = int(kakeibo.get("unlinked_reimbursement") or 0)
+    if unlinked > 0:
+        keluar_lines.append({
+            "key": "unlinked_reimbursement",
+            "label": t(language, "labels.summary.unlinked_reimbursements"),
+            "amount": -unlinked,
+            "note": None,
+            "href": analytics_ledger_href(timeframe, cycle_offset, type="income"),
         })
     keluar_total = int(kakeibo["total_allocated"])
     if sum(line["amount"] for line in keluar_lines) != keluar_total:

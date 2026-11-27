@@ -54,23 +54,27 @@ A reimbursement MAY name the expense category it repays in `offset_category_id`.
 - **THEN** the category SHALL be archived and the link SHALL remain.
 
 ### Requirement: Reimbursements Are Not Income
-Every income total SHALL exclude reimbursements: dashboard overview and analytics totals and comparisons, daily series, pulse cycle income, the insights totals and the ledger summary inflow. Reports SHALL return the sum of reimbursements without an offset category as `reimbursement_unallocated`, and these SHALL change no spending figure.
+Every income total SHALL exclude reimbursements (overview, analytics, daily series, pulse, insights, and ledger inflow). Unlinked reimbursements without an offset category SHALL lower window total `Pengeluaran` and `Belanja` (floored at zero, overflow in `reimbursement_excess`), while the uncounted remainder of an explicitly linked reimbursement SHALL stay in `reimbursement_unallocated` and change no spending figure.
 
 #### Scenario: Unallocated reimbursement
-- **GIVEN** a cycle with salary Rp 5.000.000 and a Rp 80.000 reimbursement without an offset category
+- **GIVEN** a cycle with salary Rp 5.000.000, Rp 500.000 of reportable expenses, and a Rp 80.000 unlinked reimbursement without an offset category
 - **WHEN** the dashboard overview is requested
 - **THEN** `total_inflow` SHALL be Rp 5.000.000
-- **AND** `reimbursement_unallocated` SHALL be Rp 80.000
-- **AND** `total_outflow` SHALL be unchanged by it.
+- **AND** `total_outflow` SHALL be Rp 420.000 with `reimbursement_offset` Rp 80.000 and `reimbursement_unallocated` 0
+- **AND** individual category and pillar totals SHALL remain Rp 500.000
+
+#### Scenario: Unlinked reimbursement exceeding period spending floors at zero
+- **GIVEN** a cycle with Rp 100.000 of reportable expenses and a Rp 150.000 unlinked reimbursement without an offset category
+- **WHEN** the dashboard overview is requested
+- **THEN** `total_outflow` SHALL be Rp 0, `reimbursement_offset` Rp 100.000, and `reimbursement_excess` Rp 50.000
 
 ### Requirement: Reimbursements Reduce Spending of Their Offset Category
 For a report window, the applied offset of category X SHALL be the smaller of X's reportable expenses and reimbursements naming X in the window. Total spending and X's category spending SHALL be reduced by that amount. The applied amount SHALL be allocated proportionally among the effective pillars of X's expenses with exact integer totals and deterministic rounding.
 
 #### Scenario: Shared dinner partly repaid
-- **GIVEN** salary Rp 5.000.000, Rp 300.000 spent in a want category, Rp 200.000 in a need category, a Rp 200.000 reimbursement offsetting the want category and Rp 80.000 unallocated reimbursement in the same window
+- **GIVEN** salary Rp 5.000.000, Rp 300.000 spent in a want category, Rp 200.000 in a need category, a Rp 200.000 reimbursement offsetting the want category and Rp 80.000 unlinked reimbursement without an offset category in the same window
 - **WHEN** dashboard overview is requested
-- **THEN** inflow SHALL be Rp 5.000.000, gross outflow Rp 500.000, applied offset Rp 200.000, net outflow Rp 300.000, want spending Rp 100.000 and need spending Rp 200.000
-- **AND** the unallocated reimbursement SHALL not reduce spending
+- **THEN** inflow SHALL be Rp 5.000.000, gross outflow Rp 500.000, applied offset Rp 280.000, net outflow Rp 220.000, want spending Rp 100.000, and need spending Rp 200.000
 
 #### Scenario: Analytics follow the same figures
 - **WHEN** the same shared-dinner window is requested in analytics
@@ -84,7 +88,7 @@ For a report window, the applied offset of category X SHALL be the smaller of X'
 
 #### Scenario: Category without its own pillar
 - **WHEN** an expense has no transaction or category pillar
-- **THEN** its effective pillar SHALL remain `need`
+- **THEN** its effective pillar SHALL remain `unclassified`
 
 ### Requirement: Excess Reimbursement
 When reimbursements naming X exceed X's reportable expenses in the window, X's spending and the reduction of its pillar SHALL floor at zero. The remainder SHALL be returned as `reimbursement_excess`; it SHALL count neither as income nor as a reduction of any other category, and SHALL NOT carry into another window.
@@ -210,13 +214,31 @@ The reimbursement's edit dialog and Catat SHALL offer "Mengganti transaksi" for 
 - **WHEN** the picker is used by keyboard
 - **THEN** the search, each result and the chosen list SHALL be reachable and named, and the choice SHALL be announced
 
+### Requirement: Exact Single-Match Auto-Linking for Reimbursements
+When a reimbursement is recorded or recategorized into an offsetting category with no explicit links and no `offset_category_id`, the backend SHALL auto-link it to an unlinked reportable expense of the same owner within the preceding 14 days if and only if **exactly one** such expense has the exact same amount. Ambiguous, split, or rounded amounts SHALL NOT be auto-linked, and manually unlinking SHALL NOT re-link.
+
+#### Scenario: Exact single match within 14 days auto-links
+- **GIVEN** one unlinked Rp 800.000 expense recorded 4 hours earlier
+- **WHEN** a Rp 800.000 reimbursement arrives in "Patungan & Ganti Uang" with no offset category
+- **THEN** the backend SHALL create a Rp 800.000 link in `reimbursement_links` to that expense, lowering its category and pillar to Rp 0
+
+#### Scenario: Split or rounded repayment is not auto-linked
+- **GIVEN** a Rp 198.800 expense recorded 1 day earlier
+- **WHEN** a Rp 50.000 rounded split reimbursement arrives in "Patungan & Ganti Uang"
+- **THEN** no link SHALL be created and the Rp 50.000 SHALL reduce period total spending as an unlinked reimbursement
+
+#### Scenario: Two matching expenses are ambiguous and stay unlinked
+- **GIVEN** two unlinked Rp 100.000 expenses recorded within the last 14 days
+- **WHEN** a Rp 100.000 reimbursement arrives in "Patungan & Ganti Uang"
+- **THEN** no link SHALL be created
+
 ### Requirement: Daily Series at Full Price
 Dashboard daily series (analytics `daily_cadence`, overview `cumulative_trendline` and `burn_cadence`) and the analytics day-of-week heatmap SHALL report each local day at the full price of its rows, without subtracting reimbursements. The window's applied offsets SHALL be subtracted only from the window's totals, so the days add up to the gross outflow and the gross outflow less `reimbursement_offset` is `total_outflow`.
 
 #### Scenario: Days add up to the gross outflow
-- **GIVEN** the "Shared dinner partly repaid" cycle (Rp 500.000 spent, Rp 200.000 reimbursed)
+- **GIVEN** the "Shared dinner partly repaid" cycle (Rp 500.000 spent, Rp 280.000 reimbursed)
 - **WHEN** dashboard analytics and overview are requested
-- **THEN** the sum of `daily_cadence[].expense` and of the heatmap `total_spent` SHALL be Rp 500.000, the last `cumulative_outflow` SHALL be Rp 500.000, and `total_outflow` SHALL stay Rp 300.000
+- **THEN** the sum of `daily_cadence[].expense` and of the heatmap `total_spent` SHALL be Rp 500.000, the last `cumulative_outflow` SHALL be Rp 500.000, and `total_outflow` SHALL stay Rp 220.000
 
 #### Scenario: An unlinked reimbursement leaves the days alone
 - **GIVEN** Rp 10.000 of Transportasi on 21 November, other Transportasi days, and Rp 200.000 of reimbursements naming Transportasi without links on 16 November
@@ -234,7 +256,7 @@ The unfiltered ledger summary SHALL report the window's outflow net of applied r
 #### Scenario: Ledger summary follows the dashboard
 - **GIVEN** the "Shared dinner partly repaid" cycle
 - **WHEN** the unfiltered ledger is listed
-- **THEN** the cumulative `outflow` SHALL be Rp 300.000 with `gross_outflow` Rp 500.000 and `reimbursement_offset` Rp 200.000
+- **THEN** the cumulative `outflow` SHALL be Rp 220.000 with `gross_outflow` Rp 500.000 and `reimbursement_offset` Rp 280.000
 - **AND** filtered to "Makan Bareng" the `outflow` SHALL be Rp 100.000
 
 #### Scenario: Filters that no report figure covers stay gross

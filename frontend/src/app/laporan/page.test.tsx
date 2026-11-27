@@ -625,6 +625,40 @@ describe("Laporan", () => {
     expect((indonesian.container.textContent ?? "").match(/Rp \d{1,3}(?:\.\d{3})*|\d+%/g)).toEqual(englishFigures);
   });
 
+  it("renders unlinked reimbursement deduction row in SpendingTable only when > 0, in id and en, and masks when hidden", async () => {
+    mockApi(makeReport());
+    const none = renderPage("id");
+    await hero();
+    expect(screen.queryByText("Ganti uang belum ditautkan")).toBeNull();
+    none.unmount();
+
+    const withUnlinked = makeReport({
+      comparison: makeComparison({
+        totals: { spending: 5_843_830, inflow: 11_068_400, fresh_saving: 2_750_000, difference: 5_224_570 },
+        unlinked_reimbursement: 150_000,
+      }),
+    });
+    mockApi(withUnlinked);
+    const idView = renderPage("id");
+    const tableId = await screen.findByRole("table", { name: "Pengeluaran Oktober 2026 per pilar dan kategori" });
+    expect(within(tableId).getByRole("row", { name: /Ganti uang belum ditautkan/ })).toHaveTextContent("−Rp 150.000");
+    expect(within(tableId).getByRole("row", { name: /Total pengeluaran/ })).toHaveTextContent("Rp 5.843.830");
+    idView.unmount();
+
+    const enView = renderPage("en");
+    const tableEn = await screen.findByRole("table", { name: /Spending for Oktober 2026/ });
+    expect(within(tableEn).getByRole("row", { name: /Unlinked reimbursements/ })).toHaveTextContent("−Rp 150.000");
+    enView.unmount();
+
+    ctx.hide = true;
+    const maskedView = renderPage("id");
+    const maskedTable = await screen.findByRole("table", { name: "Pengeluaran Oktober 2026 per pilar dan kategori" });
+    const dedRow = within(maskedTable).getByRole("row", { name: /Ganti uang belum ditautkan/ });
+    expect(dedRow).not.toHaveTextContent("150.000");
+    expect(within(dedRow).getByRole("img", { name: "Disembunyikan" })).toBeInTheDocument();
+    maskedView.unmount();
+  });
+
   it("defaults to salary cycle when latest readiness is cycle, and honors explicit ?basis=month", async () => {
     mockApi(makeReport({ basis: "cycle", cycle_available: true }), { latestBasis: "cycle" });
     const first = renderPage();

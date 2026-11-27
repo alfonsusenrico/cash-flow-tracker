@@ -22,7 +22,7 @@ def summary(client, period="today"):
     listed = report["top_categories"]
     assert isinstance(listed, list) and len(listed) <= 3
     assert all(item["outflow"] > 0 for item in listed)
-    assert sum(item["outflow"] for item in listed) <= report["outflow"]
+    assert sum(item["outflow"] for item in listed) <= report["outflow"] + report["reimbursement_offset"]
     assert listed == sorted(listed, key=lambda item: (-item["outflow"], item["name"]))
     return report
 
@@ -67,12 +67,13 @@ def test_listed_categories_add_up_to_outflow_net_of_reimbursements(client, owner
     shared_dinner_cycle(client, owner)
     for period in ("today", "month"):
         report = summary(client, period)
-        assert report["outflow"] == 300_000 and report["reimbursement_offset"] == 200_000
+        # Rp 80.000 unlinked reimbursement lowers total outflow (300.000 -> 220.000) without changing per-category rows.
+        assert report["outflow"] == 220_000 and report["reimbursement_offset"] == 280_000
         assert report["top_categories"] == [
             {"category_id": owner["groceries"], "name": "Belanja Dapur", "kakeibo_type": "need", "outflow": 200_000},
             {"category_id": owner["dinner"], "name": "Makan Bareng", "kakeibo_type": "want", "outflow": 100_000},
         ]
-        assert sum(item["outflow"] for item in report["top_categories"]) == report["outflow"]
+        assert sum(item["outflow"] for item in report["top_categories"]) - 80_000 == report["outflow"]
 
 
 def test_a_fully_reimbursed_category_is_left_out(client, owner):
@@ -323,20 +324,20 @@ def test_reimbursements_net_their_category_and_leave_uncategorised_spending_whol
     record(client, owner, "dinner", 300_000)
     record(client, owner, "groceries", 50_000)
     record(client, owner, "reimbursement", 250_000, tx_type="income", offset="dinner")
-    # Without an offset category a reimbursement is unallocated and lowers no spending, uncategorised included.
+    # Without an offset category or link, a reimbursement lowers total outflow without altering category or uncategorised rows.
     record(client, owner, "reimbursement", 40_000, tx_type="income")
 
     for period in ("today", "month"):
         report = summary(client, period)
         assert (report["outflow"], report["reimbursement_offset"], report["reimbursement_unallocated"]) == (
-            200_000, 250_000, 40_000,
+            160_000, 290_000, 0,
         )
         assert report["top_categories"] == [
             {**UNCATEGORISED, "outflow": 100_000},
             {"category_id": owner["groceries"], "name": "Belanja Dapur", "kakeibo_type": "need", "outflow": 50_000},
             {"category_id": owner["dinner"], "name": "Makan Bareng", "kakeibo_type": "want", "outflow": 50_000},
         ]
-        assert listed_total(report) == report["outflow"]
+        assert listed_total(report) - 40_000 == report["outflow"]
 
 
 def test_another_owners_uncategorised_spending_is_not_listed(client, owner):

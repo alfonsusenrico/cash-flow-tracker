@@ -229,7 +229,8 @@ def test_detail_shows_both_sides_and_unlinking_restores(client, owner):
     assert [(item["transaction_id"], item["amount"]) for item in repays["repays"]] == [(game, 40_000)]
     assert client.delete(f"/api/transactions/{money_back}/reimburses").status_code == 200
     assert held(game) == {}
-    assert offsets(owner, *THIS_WINDOW).unallocated == 40_000
+    after_unlink = offsets(owner, *THIS_WINDOW)
+    assert after_unlink.applied_unlinked == 40_000 and after_unlink.unallocated == 0
 
 
 def test_category_fallback_is_capped_by_what_links_leave(client, owner):

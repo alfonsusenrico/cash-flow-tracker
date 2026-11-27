@@ -88,6 +88,16 @@ export function KakeiboRows({ comparison, money }: { comparison: ReportCompariso
             </Link>
           );
         })}
+        {(comparison.unlinked_reimbursement ?? 0) > 0 && (
+          <div className="cmp-row is-pillar">
+            <span className="t-body kk-name">
+              <span>{terms("unlinkedReimbursements")}</span>
+            </span>
+            <MaskedMoney text={`−${money(comparison.unlinked_reimbursement ?? 0)}`} className="t-amt cmp-num" />
+            <span className="t-meta cmp-num">—</span>
+            <span className="ph-hide" aria-hidden="true" />
+          </div>
+        )}
       </div>
     </section>
   );

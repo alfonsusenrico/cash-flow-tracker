@@ -39,6 +39,7 @@ from app.services.habits import HabitDecision
 from app.services.provenance import (
     MERCHANT_MAX_LENGTH, Provenance, habit_provenance, normalize_merchant, notification_provenance,
 )
+from app.services.reimbursement_links import auto_link_exact_reimbursement
 
 
 # A second notification may confirm a movement role only when it arrives this close to it.
@@ -704,6 +705,8 @@ def record_observed_leg(
          stored_merchant, offset_category_id if facts.direction == "income" else None, *provenance.columns()),
     )
     tx_id = str(cur.fetchone()["id"])
+    if facts.direction == "income" and not counterpart and offset_category_id is None:
+        auto_link_exact_reimbursement(cur, user_id, tx_id)
     snapshot = committed_snapshot(key=record_key, kind=facts.direction, description=description,
                                   amount=facts.amount, source=account_label(observed, accounts) if facts.direction == "expense" else None,
                                   target=account_label(observed, accounts) if facts.direction == "income" else None)

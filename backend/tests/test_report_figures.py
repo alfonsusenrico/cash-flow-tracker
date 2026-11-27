@@ -40,8 +40,9 @@ def test_breakdown_adds_up_to_total_outflow_with_uncategorised_and_archived(clie
     analytics = client.get("/api/dashboard/analytics").json()
     variance = analytics["category_variance"]
     total = analytics["comparison"]["total_outflow"]
-    assert total == 300_000 + 70_000 + 30_000
-    assert sum(item["spent"] for item in variance) == total
+    unlinked = analytics["kakeibo"]["unlinked_reimbursement"]
+    assert (total, unlinked) == (220_000 + 70_000 + 30_000, 80_000)
+    assert sum(item["spent"] for item in variance) - unlinked == total
     bucket = next(item for item in variance if item["is_uncategorized"])
     assert (bucket["id"], bucket["name"], bucket["spent"]) == (None, "Tanpa kategori", 70_000)
     archived = next(item for item in variance if item["id"] == owner["misc"])
@@ -49,7 +50,7 @@ def test_breakdown_adds_up_to_total_outflow_with_uncategorised_and_archived(clie
     assert {item["name"] for item in variance}.isdisjoint({"Investasi", "Internal Movement"})
 
     overview = client.get("/api/dashboard/overview").json()
-    assert sum(item["spent"] for item in overview["categories"]) == overview["kpis"]["total_outflow"] == total
+    assert sum(item["spent"] for item in overview["categories"]) - unlinked == overview["kpis"]["total_outflow"] == total
     assert next(item for item in overview["categories"] if item["is_uncategorized"])["spent"] == 70_000
 
 
@@ -58,22 +59,23 @@ def test_series_heatmap_burn_and_ledger_follow_reimbursement_offsets(client, own
     analytics = client.get("/api/dashboard/analytics").json()
     total = analytics["comparison"]["total_outflow"]
     gross = analytics["comparison"]["gross_outflow"]
-    assert (total, gross) == (300_000, 500_000)
+    unlinked = analytics["kakeibo"]["unlinked_reimbursement"]
+    assert (total, gross, unlinked) == (220_000, 500_000, 80_000)
     assert sum(day["expense"] for day in analytics["daily_cadence"]) == gross
     assert all(day["expense"] >= 0 for day in analytics["daily_cadence"])
     assert sum(day["total_spent"] for day in analytics["day_of_week_heatmap"]) == gross
-    assert analytics["burn_rate"]["projected_30d_outflow"] == 300_000
-    assert analytics["burn_rate"]["daily_burn_7d"] == round(300_000 / 7)
+    assert analytics["burn_rate"]["projected_30d_outflow"] == 220_000
+    assert analytics["burn_rate"]["daily_burn_7d"] == round(220_000 / 7)
 
     overview = client.get("/api/dashboard/overview").json()
     trend = overview["cumulative_trendline"]
-    assert overview["kpis"]["total_outflow"] == 300_000
+    assert overview["kpis"]["total_outflow"] == 220_000
     assert trend[-1]["cumulative_outflow"] == overview["kpis"]["gross_outflow"] == 500_000
     assert sum(day["expense"] for day in overview["burn_cadence"]) == 500_000
 
     summary = client.get("/api/transactions").json()["summary"]
-    assert (summary["cumulative"]["outflow"], summary["cumulative"]["gross_outflow"]) == (300_000, 500_000)
-    assert summary["cumulative"]["reimbursement_offset"] == 200_000 and summary["period"] is None
+    assert (summary["cumulative"]["outflow"], summary["cumulative"]["gross_outflow"]) == (220_000, 500_000)
+    assert summary["cumulative"]["reimbursement_offset"] == 280_000 and summary["period"] is None
     dinner = client.get(f"/api/transactions?category_id={owner['dinner']}").json()["summary"]["cumulative"]
     assert (dinner["outflow"], dinner["reimbursement_offset"]) == (100_000, 200_000)
     want = client.get("/api/transactions?kakeibo_type=want&type=expense").json()["summary"]["cumulative"]
