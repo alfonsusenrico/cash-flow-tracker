@@ -2,7 +2,7 @@
 
 ## Approval
 
-Pending. Requested by the owner on 2026-11-27 ("ok plan all") after a full production cycle audit exposed report-default, top-places, search-link, cycle-boundary, partial-status, and false-duplicate defects.
+Approved by the owner on 2026-11-27 ("ok, do all") after the production cycle audit exposed report-default, top-places, search-link, cycle-boundary, partial-status, and false-duplicate defects.
 
 ## Why
 

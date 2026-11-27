@@ -25,6 +25,7 @@ import {
   reportQuery,
 } from "@/lib/monthlyReport";
 import { queryKeys } from "@/lib/queryKeys";
+import type { ReportReadiness } from "@/lib/reportReady";
 import { replaceSearch } from "@/lib/urlState";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -48,7 +49,8 @@ function ReportView() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const money = useMoney();
-  const basis: ReportBasis = searchParams?.get("basis") === "cycle" ? "cycle" : "month";
+  const rawBasis = searchParams?.get("basis");
+  const explicitBasis: ReportBasis | null = rawBasis === "cycle" || rawBasis === "month" ? rawBasis : null;
   const rawStart = searchParams?.get("start") ?? null;
   const start = rawStart && DATE_PATTERN.test(rawStart) ? rawStart : null;
   const [classifyOpen, setClassifyOpen] = useState(searchParams?.get("lengkapi") === "1");
@@ -56,13 +58,27 @@ function ReportView() {
   const classifyRef = useRef<HTMLButtonElement>(null);
   const budgetRef = useRef<HTMLButtonElement>(null);
 
+  const latest = useQuery<ReportReadiness>({
+    queryKey: queryKeys.reports.latest,
+    queryFn: () => api.get("/reports/monthly/latest"),
+    enabled: explicitBasis === null,
+    staleTime: 60 * 60 * 1000,
+    retry: false,
+  });
+  // Without an explicit `?basis=`, follow `latest`'s basis (cycle when confirmed salary cycles exist, else month)
+  // so opening Laporan from the sidebar matches the readiness badge without flashing the calendar month.
+  const resolvedBasis: ReportBasis | null = explicitBasis ?? (latest.data?.basis === "cycle" ? "cycle" : latest.isPending ? null : "month");
+  const basis: ReportBasis = resolvedBasis ?? "month";
+
   const periods = useQuery<ReportPeriodList>({
     queryKey: queryKeys.reports.periods(basis),
     queryFn: () => api.get(`/reports/monthly/periods?basis=${basis}`),
+    enabled: resolvedBasis !== null,
   });
   const reportResult = useQuery<MonthlyReportResponse>({
     queryKey: queryKeys.reports.monthly(basis, start),
     queryFn: () => api.get(reportQuery(basis, start)),
+    enabled: resolvedBasis !== null,
     retry: false,
   });
 
@@ -119,7 +135,7 @@ function ReportView() {
   );
 
   let body;
-  if (reportResult.isPending) {
+  if (resolvedBasis === null || reportResult.isPending) {
     body = <ReportSkeleton label={t("states.loading")} />;
   } else if (reportResult.isError || !reportResult.data) {
     body = <ErrorState message={(reportResult.error as Error | null)?.message || t("states.error")} onRetry={() => reportResult.refetch()} />;
