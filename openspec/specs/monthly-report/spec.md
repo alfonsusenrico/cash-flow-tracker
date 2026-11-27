@@ -96,16 +96,26 @@ A completed period SHALL be compared with the whole previous period of the same 
 - **THEN** the previous Pengeluaran SHALL be Rp 1.000.000 for the whole of September and the change SHALL be Rp 200.000 higher
 
 ### Requirement: Data quality box
-The report SHALL show "Kualitas data" for its window with the number of rows waiting in Tinjau, the count and amount of unclassified spending, the number of possible duplicates (expense or income rows with another row of the same account, amount and type within 3 minutes, excluding movement legs and movement fees) and the days without any recorded transaction, each linking to its fix: Tinjau, the ledger filtered to the exact rows or "Lengkapi klasifikasi", and Catat.
+The report SHALL show "Kualitas data" for its window with rows waiting in Tinjau, unclassified spending, possible duplicates (non-movement expense or income rows on the same account, amount and type within 3 minutes whose non-null categories and non-empty labels do not contradict each other), and complete local days without records (excluding a closed salary cycle's partial closing day), each linking to its fix.
 
 #### Scenario: Possible duplicate
-- **GIVEN** two Rp 25.000 expenses on the same account 2 minutes apart and a Rp 25.000 movement leg on that account 1 minute later
+- **GIVEN** two Rp 25.000 expenses on the same account 2 minutes apart with the same label (or without labels) and a Rp 25.000 movement leg 1 minute later
 - **WHEN** the report is requested
 - **THEN** possible duplicates SHALL be 2, and `GET /api/transactions?possible_duplicates=true` for the window SHALL list exactly those two rows
+
+#### Scenario: Distinct counterparties or items within 3 minutes are not duplicates
+- **GIVEN** two Rp 75.000 incomes on the same account 1 minute apart named `"Transfer dari Andi"` and `"Transfer dari Budi"`, and two Rp 36.000 expenses 2 minutes apart in different categories
+- **WHEN** the report is requested
+- **THEN** possible duplicates SHALL be 0
 
 #### Scenario: Days without records
 - **WHEN** a closed month has transactions on every day except the 3rd and the 17th
 - **THEN** days without records SHALL be 2 with those dates
+
+#### Scenario: Closed salary cycle ignores partial closing morning
+- **GIVEN** a salary cycle running from 25 September 04:00 to 24 October 03:00 WIB with transactions on every day from 25 September through 23 October and none between 00:00 and 03:00 on 24 October
+- **WHEN** the cycle report is requested
+- **THEN** days without records SHALL be 0 and 24 October SHALL NOT be listed
 
 ### Requirement: Drill-down from every report figure
 Every amount in the report that is a sum of ledger rows SHALL link to the ledger filtered to its exact window (`from`, `to`) and rows: `type`, `category` (or `uncategorized`), `kakeibo` (including `unclassified`), `q` for a merchant or recurring charge, `review` or `dup=1`. A figure that is not a sum of rows in one window, the essential cost and the net savings movements, SHALL say where it is explained instead of linking to rows that do not add up to it.
@@ -159,7 +169,7 @@ The report SHALL return `budget: null` and show no budget figure when the owner 
 - **THEN** it SHALL show budget Rp 500.000, spent Rp 620.000 and Rp 120.000 over, in text
 
 ### Requirement: Report page layout
-`/laporan` SHALL show, without verdict words, the basis segment and stepper in its title block with `basis` and `start` in the URL, then one hero "Pengeluaran {period}", the four questions in a reading column of at most 880 px and a context panel with "Kualitas data" in one line, "Selisih" and "Laporan sebelumnya", beside it from 1200 px and after it below. It SHALL have no KPI cards or prose lead, and states SHALL be truthful.
+`/laporan` SHALL show, without verdict words, the basis segment and stepper in its title block with `basis` and `start` in the URL, then one hero "Pengeluaran {period}", the four questions in a reading column of at most 880 px and a context panel with "Kualitas data", "Selisih" and "Laporan sebelumnya", beside it from 1200 px and after it below. It SHALL have no KPI cards or prose lead, and states SHALL be truthful.
 
 #### Scenario: Phone width
 - **WHEN** the page is shown at 390 and at 320 CSS pixels
@@ -175,8 +185,8 @@ The report SHALL return `budget: null` and show no budget figure when the owner 
 - **THEN** the September report SHALL be shown and the URL SHALL become `/laporan?basis=month&start=2026-09-01`
 
 #### Scenario: Past reports
-- **WHEN** the report page is shown on a desktop
-- **THEN** the panel's "Laporan sebelumnya" SHALL list the periods of the basis with "Berjalan" or "Lengkap" and " · ada catatan", each a whole-row link to its report, the shown one marked with the straight selection bar and `aria-current="page"`
+- **WHEN** the report page is shown on a desktop with a running November, a full October, and a September where tracking started on 15 September
+- **THEN** "Laporan sebelumnya" SHALL label November "Berjalan", October "Lengkap", and September "Belum lengkap" ("Partial" in English), each a whole-row link to its report with `aria-current="page"` on the shown one
 
 #### Scenario: Hero against both comparisons
 - **GIVEN** October with Pengeluaran Rp 5.993.830, a whole September of Rp 5.240.000 and an average of Rp 4.943.333
@@ -318,3 +328,39 @@ Every "Pengeluaran" figure on Laporan SHALL equal the comparison's `totals.spend
 - **GIVEN** a Rp 1.000.000 budget on Belanja Dapur with Rp 450.000 of Pengeluaran and a Rp 900.000 row with the Tabungan pillar in it
 - **WHEN** the report is shown
 - **THEN** the budget row SHALL read "Rp 450.000 dari Rp 1.000.000 · sisa Rp 550.000", while `spent` stays Rp 1.350.000
+
+### Requirement: Laporan Default Basis Matches Readiness
+When `/laporan` is opened without a `basis` query parameter, the page SHALL open `cycle` when the owner has confirmed salary cycles (`cycle_available: true`, matching `GET /api/reports/monthly/latest`) and `month` otherwise. An explicit `basis=month` or `basis=cycle` query parameter SHALL always be respected.
+
+#### Scenario: User with salary cycles opens Laporan from sidebar
+- **GIVEN** an owner with confirmed salary cycles
+- **WHEN** the owner opens `/laporan` with no query parameters
+- **THEN** the page SHALL load the salary-cycle report and highlight the salary-cycle basis segment
+
+#### Scenario: Explicit calendar month URL stays on month
+- **GIVEN** an owner with confirmed salary cycles
+- **WHEN** the owner opens `/laporan?basis=month`
+- **THEN** the page SHALL load the calendar-month report
+
+#### Scenario: User without salary cycles defaults to month
+- **GIVEN** an owner with no confirmed salary cycles
+- **WHEN** the owner opens `/laporan` with no query parameters
+- **THEN** the page SHALL load the calendar-month report
+
+### Requirement: Top Spending Places Cover Named Expenses Net of Linked Reimbursements
+`merchant_spending` and `spending_merchants` SHALL identify each reportable expense by its cleaned `merchant`, falling back to its cleaned `name` when `merchant` is empty (skipping empty or generic placeholder labels), and SHALL subtract allocations from `reimbursement_links` for that expense row floored at zero. `search_text` SHALL strip invisible Unicode format characters and formatted numeric tokens without leaving orphaned punctuation.
+
+#### Scenario: Expense with only name ranks in top places
+- **GIVEN** a Rp 1.500.000 expense with `merchant: null` and `name: "Perbaikan sepeda"` and a Rp 400.000 expense with `merchant: "Toko Contoh"`
+- **WHEN** the report is requested
+- **THEN** `"Perbaikan sepeda"` SHALL rank first in `top_spending_merchants` with Rp 1.500.000
+
+#### Scenario: Fully linked-reimbursed expense drops out of top places
+- **GIVEN** a Rp 900.000 expense at `"Travel Contoh"` with a Rp 900.000 linked reimbursement in `reimbursement_links`
+- **WHEN** the report is requested
+- **THEN** `"Travel Contoh"` SHALL NOT appear in `top_spending_merchants` or as the top-merchant fact
+
+#### Scenario: Merchant name with formatted digits produces working search text
+- **GIVEN** an expense with `merchant: "Warung Contoh 125.000"`
+- **WHEN** the report is requested
+- **THEN** its `search_text` SHALL be `"Warung Contoh"` (with no trailing dot) and querying the ledger with that `q` SHALL return that transaction

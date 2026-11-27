@@ -19,6 +19,6 @@ Expected Result: `/laporan` opens the same basis as its sidebar badge and labels
 ## 3. Verify and deliver
 
 - [x] 3.1 Run the full backend suite against migrated disposable PostgreSQL (`TEST_DATABASE_URL`, `REQUIRE_TEST_DATABASE=1`, reporting any skips), full frontend checks (`type-check`, `lint`, `test`, `build`), `openspec validate --all --strict`, and browser verification of `/laporan` on a production build with synthetic data at 1440 and 390 px in light and dark themes (0 serious/critical axe, 0 console errors, no horizontal overflow); write `verification.md`.
-- [ ] 3.2 After owner acceptance: archive the change with `openspec archive fix-monthly-report-accuracy`, commit, push `fix/monthly-report-accuracy`, and when the owner says "open", create the PR (`gh pr create`) and report its URL.
+- [x] 3.2 After owner acceptance: archive the change with `openspec archive fix-monthly-report-accuracy`, commit, push `fix/monthly-report-accuracy`, and when the owner says "open", create the PR (`gh pr create`) and report its URL.
 
 Expected Result: verified PR ready for owner review and merge.
