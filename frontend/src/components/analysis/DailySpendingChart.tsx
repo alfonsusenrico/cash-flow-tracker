@@ -12,7 +12,7 @@ import { useFormat } from "@/lib/format";
 import type { SpendingBucket } from "@/lib/monthlyReport";
 import { todayIso } from "./format";
 import { PILLAR_TERM } from "./KakeiboRows";
-import type { DailyCategoryAmount } from "./types";
+import type { DailyCategoryAmount, SpendingTotals } from "./types";
 
 type Money = (amount: number) => string;
 
@@ -147,11 +147,13 @@ export function DailySpendingChart({
   days,
   money,
   onOpenDay,
+  spendingTotals,
   today = todayIso(),
 }: {
   days: DailyPoint[];
   money: Money;
   onOpenDay: (date: string) => void;
+  spendingTotals?: SpendingTotals;
   today?: string;
 }) {
   const t = useTranslations("analysis.daily");
@@ -192,6 +194,14 @@ export function DailySpendingChart({
               </span>
             )}
             <span className="t-meta">{t("scope")}</span>
+            {spendingTotals && spendingTotals.reimbursed > 0 && (
+              <span className="t-meta">
+                {t.rich("reimbursedLine", {
+                  gross: () => <MaskedMoney text={money(spendingTotals.gross)} className="t-amt" />,
+                  reimbursed: () => <MaskedMoney text={`−${money(spendingTotals.reimbursed)}`} className="t-amt" />,
+                })}
+              </span>
+            )}
           </div>
         </>
       )}

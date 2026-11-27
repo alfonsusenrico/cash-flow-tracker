@@ -47,7 +47,10 @@ PROMOTIONAL_PATTERN = re.compile(
     r"\b(?:cashback|promo|diskon|bonus|voucher|klaim|up to|hingga)\b|\bs\.d\.", re.I
 )
 MARKET_INFO_PATTERN = re.compile(
-    r"\b(?:IHSG|trending|net (?:buy|sell)|top (?:buy|sell)|YoY|laba bersih|aksi korporasi)\b", re.I
+    r"\b(?:IHSG|trending|net (?:buy|sell)|top (?:buy|sell)|YoY|laba bersih|aksi korporasi|"
+    r"dividen\s+interim|cum\s+dividen|ex\s+dividen|yield|sell[\s-]?off|"
+    r"asumsi\s+kurs|tahun\s+buku)\b|/\s*(?:saham|ton|barel|ons)\b",
+    re.I,
 )
 # Headline figures such as "Rp1,5 T" or "Rp500 M" appear in news and offers, never in bank
 # confirmations, which always write the full amount.
@@ -267,6 +270,8 @@ def collect_facts(event: dict[str, Any]) -> NotificationFacts:
         ignore_reason = "promotional_or_market"
     elif not recognised and idr_mentions and len(HEADLINE_AMOUNT_PATTERN.findall(text)) >= idr_mentions:
         ignore_reason = "headline_figures"
+    elif institution == "stockbit" and not recognised and not settled:
+        ignore_reason = "promotional_or_market"
     elif not recognised and not idr_mentions and not FOREIGN_CURRENCY_PATTERN.search(text):
         ignore_reason = "no_amount"
     if ignore_reason:

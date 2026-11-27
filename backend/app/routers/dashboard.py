@@ -22,7 +22,6 @@ from app.services.reimbursements import SpendingOffsets, load_spending_offsets, 
 from app.services.report_figures import (
     category_breakdown,
     cash_flow_totals,
-    daily_offsets,
     reportable_expense_sql,
     reportable_income_sql,
     sunday_first_weekday,
@@ -519,7 +518,6 @@ def get_dashboard_overview(
                 (settings.tz, user_id, start_utc, end_utc),
             )
             grouped_days = {r["tx_day"]: r for r in cur.fetchall()}
-            day_offsets = daily_offsets(cur, user_id, start_utc, end_utc, offsets)
 
             # Generate continuous series from start_date to end_date (or today)
             series_end_date = min(end_date, today_date) if timeframe in ("cycle", "month") else end_date
@@ -533,7 +531,7 @@ def get_dashboard_overview(
             while curr <= series_end_date:
                 day_data = grouped_days.get(curr)
                 day_income = int(day_data["income"]) if day_data else 0
-                day_expense = (int(day_data["expense"]) if day_data else 0) - day_offsets.get(curr, 0)
+                day_expense = int(day_data["expense"]) if day_data else 0
 
                 running_inflow += day_income
                 running_outflow += day_expense
@@ -1005,7 +1003,7 @@ def get_dashboard_analytics(
         with conn.cursor() as cur:
             analytics_offsets = load_spending_offsets(cur, user_id, start_utc, end_utc)
 
-            # 1. Daily series: reportable spending net of reimbursements attributed to its days
+            # 1. Daily series: full-price reportable spending per local day
             cur.execute(
                 f"""
                 SELECT
@@ -1022,7 +1020,6 @@ def get_dashboard_analytics(
                 (settings.tz, user_id, start_utc, end_utc),
             )
             daily_rows = {r["tx_day"]: r for r in cur.fetchall()}
-            day_offsets = daily_offsets(cur, user_id, start_utc, end_utc, analytics_offsets)
             # Pengeluaran beside Belanja, so Analisis names one figure "Pengeluaran" (apply-markas-analisis D31).
             spending = spending_basis(cur, user_id, start_utc, end_utc, analytics_offsets)
             # Every category with Pengeluaran in the window is listed here, uncategorised rows under None, so a
@@ -1036,7 +1033,7 @@ def get_dashboard_analytics(
             curr = start_date
             while curr <= end_date:
                 r = daily_rows.get(curr)
-                day_expense = (int(r["expense"]) if r else 0) - day_offsets.get(curr, 0)
+                day_expense = int(r["expense"]) if r else 0
                 daily_cadence.append(
                     {
                         "date": curr.isoformat(),
@@ -1053,7 +1050,7 @@ def get_dashboard_analytics(
                 dow_count[dow] += int(r["expense_count"]) if r else 0
                 curr += timedelta(days=1)
 
-            # 2. Day of Week Heatmap Matrix (0=Sunday to 6=Saturday), from the same net daily figures
+            # 2. Day of Week Heatmap Matrix (0=Sunday to 6=Saturday), from the same full-price daily figures
             day_names = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"]
             day_short = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"]
             day_of_week_heatmap = [
@@ -1257,6 +1254,11 @@ def get_dashboard_analytics(
         "timeframe_label": timeframe_label,
         "day_of_week_heatmap": day_of_week_heatmap,
         "daily_cadence": daily_cadence,
+        "spending_totals": {
+            "gross": spending.total + spending.reimbursed,
+            "reimbursed": spending.reimbursed,
+            "spending": spending.total,
+        },
         "category_variance": category_variance,
         "burn_rate": {
             "daily_burn_7d": burn_7d,

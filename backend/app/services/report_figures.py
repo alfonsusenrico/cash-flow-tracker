@@ -1,7 +1,7 @@
-"""Shared spending figures for reports: what counts as spending, the category breakdown and daily netting.
+"""Shared spending figures for reports: what counts as spending and the category breakdown.
 
-Every report total, breakdown and series uses `reportable_expense_sql`, so a category list adds up to
-the total outflow and a daily series adds up to it too.
+Every report total and category breakdown uses `reportable_expense_sql`, so a category list adds up to
+the total outflow.
 """
 
 from __future__ import annotations
@@ -9,9 +9,8 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
-from app.core.config import settings
 from app.i18n import account_language, t
-from app.services.reimbursements import SpendingOffsets, offset_day_shares
+from app.services.reimbursements import SpendingOffsets
 from app.services.system_categories import reportable_key_sql
 
 UNCATEGORIZED_COLOR = "#64748b"
@@ -49,14 +48,28 @@ def reportable_income_sql(tx: str = "t", category: str = "c") -> str:
 DUPLICATE_WINDOW_MINUTES = 3
 
 
+def _duplicate_label_sql(alias: str) -> str:
+    """Normalized non-empty transaction label (merchant, else name) for duplicate comparison."""
+    return (
+        f"LOWER(REGEXP_REPLACE(BTRIM(COALESCE("
+        f"NULLIF(BTRIM({alias}.merchant), ''), NULLIF(BTRIM({alias}.name), ''), ''"
+        f")), '\\s+', ' ', 'g'))"
+    )
+
+
 def possible_duplicate_sql(tx: str = "t") -> str:
     """True for an expense or income row that another row of the same account, amount and type sits
-    within 3 minutes of. Movement legs and movement fees are paired on purpose, so they never count."""
+    within 3 minutes of, unless their categories or non-empty labels disagree. Movement legs and
+    movement fees are paired on purpose, so they never count."""
+    tx_label = _duplicate_label_sql(tx)
+    dup_label = _duplicate_label_sql("dup")
     return (
         f"({tx}.type IN ('expense', 'income') AND {tx}.movement_id IS NULL AND {tx}.fee_for_movement_id IS NULL"
         f" AND EXISTS (SELECT 1 FROM transactions dup WHERE dup.user_id = {tx}.user_id AND dup.id <> {tx}.id"
         f" AND dup.account_id = {tx}.account_id AND dup.amount = {tx}.amount AND dup.type = {tx}.type"
         f" AND dup.movement_id IS NULL AND dup.fee_for_movement_id IS NULL"
+        f" AND ({tx}.category_id IS NULL OR dup.category_id IS NULL OR {tx}.category_id = dup.category_id)"
+        f" AND ({tx_label} = '' OR {dup_label} = '' OR {tx_label} = {dup_label})"
         f" AND dup.date BETWEEN {tx}.date - INTERVAL '{DUPLICATE_WINDOW_MINUTES} minutes'"
         f" AND {tx}.date + INTERVAL '{DUPLICATE_WINDOW_MINUTES} minutes'))"
     )
@@ -141,34 +154,6 @@ def top_categories(breakdown: list[dict[str, Any]], limit: int = TOP_CATEGORY_LI
         }
         for row in spending[:limit]
     ]
-
-
-def daily_offsets(cur, user_id: str, start: datetime, end: datetime, offsets: SpendingOffsets) -> dict[date, int]:
-    """The applied reimbursement offsets of a window, attributed to local days.
-
-    A linked amount lowers its expense's own day; the rest of each category's applied offset is spread over the
-    days that category was spent on, in proportion to what each day has left, so no day goes negative and the days
-    add up to the window's offset.
-    """
-    if not offsets.applied_by_category:
-        return {}
-    cur.execute(
-        """SELECT t.category_id, (t.date AT TIME ZONE %s)::date AS day, SUM(t.amount) AS spent
-           FROM transactions t
-           WHERE t.user_id = %s AND t.type = 'expense' AND t.category_id = ANY(%s::uuid[])
-             AND t.date >= %s AND t.date <= %s
-           GROUP BY t.category_id, day""",
-        (settings.tz, user_id, list(offsets.applied_by_category), start, end),
-    )
-    spending: dict[str, dict[date, int]] = {}
-    for row in cur.fetchall():
-        spending.setdefault(str(row["category_id"]), {})[row["day"]] = int(row["spent"])
-    per_day: dict[date, int] = {}
-    for category_id, applied in offsets.applied_by_category.items():
-        days = spending.get(category_id, {})
-        for day, share in offset_day_shares(applied, days, offsets.linked_days(category_id)).items():
-            per_day[day] = per_day.get(day, 0) + share
-    return per_day
 
 
 def sunday_first_weekday(day: date) -> int:

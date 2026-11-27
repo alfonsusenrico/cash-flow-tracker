@@ -152,15 +152,29 @@ const overBudget = {
   overall: { budget: 6_000_000, spent: 7_493_830, remaining: -1_493_830, spending: 5_993_830, spending_remaining: 6_170 },
 };
 
-function mockApi(report: MonthlyReport | { empty: true; basis: "month"; cycle_available: false }) {
+function mockApi(
+  report: MonthlyReport | { empty: true; basis: "month" | "cycle"; cycle_available: boolean },
+  options: { latestBasis?: "month" | "cycle"; previousTrackingStartedInside?: boolean } = {},
+) {
+  const latestBasis = options.latestBasis ?? "month";
   vi.mocked(api.get).mockImplementation(async (path: string) => {
+    if (path === "/reports/monthly/latest") {
+      return {
+        basis: latestBasis,
+        ready: true,
+        period: { label: period.label, start: period.start, end: period.end, start_date: period.start_date, end_date: period.end_date },
+        url: `/laporan?basis=${latestBasis}&start=${period.start_date}`,
+        pending_review: 0,
+        unreviewed: 0,
+      };
+    }
     if (path.startsWith("/reports/monthly/periods")) {
       return {
-        basis: "month", cycle_available: false,
+        basis: latestBasis, cycle_available: latestBasis === "cycle",
         periods: [
           { ...period, complete: false, label: "November 2026", start_date: "2026-11-01", has_reflection: false },
           { ...period, has_reflection: false },
-          { ...previousPeriod, has_reflection: true },
+          { ...previousPeriod, tracking_started_inside: Boolean(options.previousTrackingStartedInside), has_reflection: true },
         ],
       };
     }
@@ -643,5 +657,45 @@ describe("Laporan", () => {
     expect(dedRow).not.toHaveTextContent("150.000");
     expect(within(dedRow).getByRole("img", { name: "Disembunyikan" })).toBeInTheDocument();
     maskedView.unmount();
+  });
+
+  it("defaults to salary cycle when latest readiness is cycle, and honors explicit ?basis=month", async () => {
+    mockApi(makeReport({ basis: "cycle", cycle_available: true }), { latestBasis: "cycle" });
+    const first = renderPage();
+    await hero();
+    expect(api.get).toHaveBeenCalledWith("/reports/monthly/latest");
+    expect(api.get).toHaveBeenCalledWith("/reports/monthly?basis=cycle");
+    expect(api.get).toHaveBeenCalledWith("/reports/monthly/periods?basis=cycle");
+    first.unmount();
+
+    vi.clearAllMocks();
+    navigation.params = new URLSearchParams("basis=month");
+    mockApi(makeReport({ basis: "month", cycle_available: true }), { latestBasis: "cycle" });
+    renderPage();
+    await hero();
+    expect(api.get).not.toHaveBeenCalledWith("/reports/monthly/latest");
+    expect(api.get).toHaveBeenCalledWith("/reports/monthly?basis=month");
+  });
+
+  it("labels a closed period where tracking started inside as Belum lengkap / Partial in past reports", async () => {
+    mockApi(makeReport(), { previousTrackingStartedInside: true });
+    const idView = renderPage("id");
+    const idPanel = await screen.findByRole("complementary", { name: "Konteks laporan" });
+    const idPast = within(idPanel).getAllByRole("link").filter((link) => link.getAttribute("href")?.startsWith("/laporan"));
+    expect(idPast.map((link) => link.textContent)).toEqual([
+      "November 2026Berjalan",
+      "Oktober 2026Lengkap",
+      "September 2026Belum lengkap · ada catatan",
+    ]);
+    idView.unmount();
+
+    renderPage("en");
+    const enPanel = await screen.findByRole("complementary", { name: "Report context" });
+    const enPast = within(enPanel).getAllByRole("link").filter((link) => link.getAttribute("href")?.startsWith("/laporan"));
+    expect(enPast.map((link) => link.textContent)).toEqual([
+      "November 2026In progress",
+      "Oktober 2026Complete",
+      "September 2026Partial · has a note",
+    ]);
   });
 });

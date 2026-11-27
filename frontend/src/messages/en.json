@@ -2527,7 +2527,8 @@
       "chartLabelEmpty": "Daily spending, excluding savings and investments. No spending yet.",
       "tipToday": "{date} · today",
       "barLabel": "{date}, {amount}, open in Calendar",
-      "openDay": "View in Calendar"
+      "openDay": "View in Calendar",
+      "reimbursedLine": "<gross></gross> spent · <reimbursed></reimbursed> reimbursed"
     },
     "categories": {
       "title": "Spending by category",
@@ -2587,7 +2588,8 @@
       "heatAbove": "above {amount}",
       "cellSpending": "Spending {amount}",
       "cellWaiting": "{count, plural, one {# waiting for an answer} other {# waiting for an answer}}",
-      "cellBill": "Bill {names}"
+      "cellBill": "Bill {names}",
+      "reimbursedLine": "<gross></gross> spent · <reimbursed></reimbursed> reimbursed"
     },
     "day": {
       "panel": "Day details",
@@ -2895,6 +2897,7 @@
       "past": "Earlier reports",
       "running": "In progress",
       "complete": "Complete",
+      "partial": "Partial",
       "hasNote": "has a note"
     },
     "quality": {

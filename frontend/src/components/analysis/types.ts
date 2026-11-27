@@ -42,10 +42,17 @@ export interface DailyCategoryAmount {
   amount: number;
 }
 
+export interface SpendingTotals {
+  gross: number;
+  reimbursed: number;
+  spending: number;
+}
+
 export interface AnalyticsResponse {
   timeframe?: string;
   timeframe_label?: string;
   daily_cadence?: DailyCadenceEntry[];
+  spending_totals?: SpendingTotals;
   category_variance?: CategoryVariance[];
   comparison?: {
     total_inflow: number;
@@ -127,7 +134,14 @@ export interface CalendarResponse {
     open: boolean;
   };
   expected_salary: { date: string | null; available: boolean; status: string; reason: string | null };
-  totals: { spend: number; gross_spend: number; offset_applied: number; spending: number };
+  totals: {
+    spend: number;
+    gross_spend: number;
+    offset_applied: number;
+    spending: number;
+    spending_gross?: number;
+    spending_reimbursed?: number;
+  };
   days: CalendarDay[];
   upcoming: { date: string; rule_id: string; label: string; amount: number; status: CalendarPlan["status"] }[];
   upcoming_total: number;

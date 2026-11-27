@@ -1,11 +1,9 @@
-"""Pengeluaran per local day and per category for a window (apply-markas-analisis D31, owner decision 2026-11-08).
+"""Pengeluaran per local day and per category for a window (apply-markas-analisis D31, owner decision 2026-11-24).
 
 Pengeluaran is the figure of Beranda, Transaksi and the whole-period comparison: reportable expenses outside the
-Tabungan pillar, each category and pillar net of its applied reimbursement and never below zero. The analytics,
-the calendar and the flow return it beside their Belanja-basis fields, so every "Pengeluaran" on Analisis is one
-figure. A reimbursement linked to an expense lowers that expense's own day; the rest of a category and pillar's
-reimbursement is spread over its days in proportion to what they have left, so the days and the categories both add
-up to the total exactly, and each day's pillars and categories add up to that day.
+Tabungan pillar, each category and pillar net of its applied reimbursement and never below zero. Each local day,
+however, is reported at the full price of its Pengeluaran rows, with no reimbursement subtracted: days add up to
+`total + reimbursed`, and each day's pillars and categories add up to that day.
 """
 
 from __future__ import annotations
@@ -17,7 +15,7 @@ from typing import Any
 from app.core.config import settings
 from app.services.kakeibo import REPORT_BUCKETS, pillar_bucket_sql
 from app.services.observed_insights import merchant_spending
-from app.services.reimbursements import SpendingOffsets, offset_day_shares
+from app.services.reimbursements import SpendingOffsets
 from app.services.report_figures import reportable_expense_sql
 from app.services.saving_flow import saving_pillar_sql
 
@@ -55,7 +53,7 @@ class SpendingBasis:
         return {bucket: pillars.get(bucket, 0) for bucket in SPENDING_BUCKETS}
 
     def day_categories(self, day: date, names: dict[str | None, str]) -> list[dict[str, Any]]:
-        """A day's Pengeluaran per category, largest first, without categories fully reimbursed on that day.
+        """A day's full-price Pengeluaran per category, largest first, for every category with spending that day.
 
         `names` maps every category id of the window, and None for uncategorised rows, to its display name.
         """
@@ -68,9 +66,9 @@ class SpendingBasis:
 
 
 def spending_basis(cur, user_id: str, start: datetime, end: datetime, offsets: SpendingOffsets) -> SpendingBasis:
-    """Pengeluaran of `[start, end]` per local day and per category, and each day's pillars and categories.
+    """Pengeluaran of `[start, end]`: full-price per local day (with pillars and categories) and net per category.
 
-    One statement. The per-day splits come from the same net rows as `by_day`, so they add up to it exactly.
+    One statement. The per-day splits come from the same full-price rows as `by_day`, so they add up to it exactly.
     """
     cur.execute(
         f"""
@@ -92,14 +90,12 @@ def spending_basis(cur, user_id: str, start: datetime, end: datetime, offsets: S
         gross = sum(days.values())
         # The comparison floors each category and pillar at zero, so at most its own spending is offset.
         applied = min(offsets.for_category_pillar(category_id, pillar), gross) if category_id else 0
-        shares = offset_day_shares(applied, days, offsets.linked_days(category_id, pillar)) if category_id else {}
         for day, amount in days.items():
-            net = amount - shares.get(day, 0)
-            basis.by_day[day] = basis.by_day.get(day, 0) + net
+            basis.by_day[day] = basis.by_day.get(day, 0) + amount
             day_pillars = basis.by_day_pillar.setdefault(day, {})
-            day_pillars[pillar] = day_pillars.get(pillar, 0) + net
+            day_pillars[pillar] = day_pillars.get(pillar, 0) + amount
             day_categories = basis.by_day_category.setdefault(day, {})
-            day_categories[category_id] = day_categories.get(category_id, 0) + net
+            day_categories[category_id] = day_categories.get(category_id, 0) + amount
         basis.by_category[category_id] = basis.by_category.get(category_id, 0) + gross - applied
         basis.total += gross - applied
         basis.reimbursed += applied

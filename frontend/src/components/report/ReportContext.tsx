@@ -105,7 +105,8 @@ function PastReports({ periods, current, basis, onOpen }: { periods: ReportPerio
   return (
     <ul className="list lp-past" aria-labelledby="lp-past">
       {periods.map((item) => {
-        const status = [item.complete ? t("complete") : t("running"), item.has_reflection ? t("hasNote") : null].filter(Boolean).join(" · ");
+        const periodStatus = !item.complete ? t("running") : item.tracking_started_inside ? t("partial") : t("complete");
+        const status = [periodStatus, item.has_reflection ? t("hasNote") : null].filter(Boolean).join(" · ");
         return (
           <li key={item.start_date}>
             <Link

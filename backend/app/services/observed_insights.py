@@ -19,6 +19,7 @@ from zoneinfo import ZoneInfo
 from app.core.config import settings
 from app.services.kakeibo import REPORT_BUCKETS, pillar_bucket_sql
 from app.services.observed_periods import ObservedPeriod, load_period_history
+from app.services.prompt_language import PLACEHOLDER_DESCRIPTIONS
 from app.services.reimbursements import load_spending_offsets
 from app.services.report_figures import (
     cash_flow_totals,
@@ -40,20 +41,29 @@ PLAN_AMOUNT_TOLERANCE = 0.15
 WEEKS_PER_MONTH = 52 / 12
 
 _DIGITS = re.compile(r"\d+")
+_NUMERIC_TOKEN = re.compile(r"\d+(?:[.,]\d+)*")
 _NON_WORD = re.compile(r"[^\w\s]")
+_PLACEHOLDER_LABELS = PLACEHOLDER_DESCRIPTIONS["id"] | PLACEHOLDER_DESCRIPTIONS["en"]
+
+
+def _strip_format_chars(value: str | None) -> str:
+    """Remove invisible Unicode format characters (category Cf, such as zero-width spaces)."""
+    return "".join(ch for ch in (value or "") if unicodedata.category(ch) != "Cf")
 
 
 def merchant_key(value: str | None) -> str | None:
-    """Grouping key for a merchant: case, accents' compatibility forms, digits and punctuation removed."""
-    text = unicodedata.normalize("NFKC", value or "").casefold()
+    """Grouping key for a merchant: format chars, case, compatibility forms, digits and punctuation removed."""
+    text = unicodedata.normalize("NFKC", _strip_format_chars(value)).casefold()
     text = _NON_WORD.sub(" ", _DIGITS.sub(" ", text))
     words = text.split()
     return " ".join(words) if words else None
 
 
 def search_text(name: str) -> str:
-    """Ledger search text for a merchant group: its name without reference numbers."""
-    return " ".join(_DIGITS.sub(" ", name).split()).strip(" -#*/:") or name
+    """Ledger search text for a merchant group: its name without reference numbers or leftover separators."""
+    cleaned = " ".join(_strip_format_chars(name).split())
+    stripped = " ".join(_NUMERIC_TOKEN.sub(" ", cleaned).split()).strip(" -#*/:.,")
+    return stripped or cleaned
 
 
 def window_figures(cur, user_id: str, start: datetime, end: datetime) -> dict[str, Any]:
@@ -90,33 +100,55 @@ def _pillar_spending(cur, user_id: str, start: datetime, end: datetime, offsets)
     return {pillar: max(0, gross.get(pillar, 0) - offsets.for_pillar(pillar)) for pillar in REPORT_BUCKETS}
 
 
+def _merchant_label(merchant: str | None, name: str | None) -> str | None:
+    """Display label for Top Places: merchant if non-placeholder, else non-placeholder name."""
+    for candidate in (merchant, name):
+        cleaned = " ".join(_strip_format_chars(candidate).split())
+        if cleaned and cleaned.casefold() not in _PLACEHOLDER_LABELS:
+            return cleaned
+    return None
+
+
 def merchant_spending(
     cur, user_id: str, start: datetime, end: datetime, *, expense_sql: str | None = None,
 ) -> dict[str, dict[str, Any]]:
-    """Gross reportable spending per merchant; reimbursements apply to categories, not merchants.
+    """Reportable spending per place (merchant or name fallback), net of per-row linked reimbursements.
 
+    Unlinked category-only reimbursements cannot be attributed to one place and do not change these totals.
     `expense_sql` narrows the rows, such as to Pengeluaran (`spending_basis.spending_merchants`); by default every
     reportable expense counts.
     """
     condition = expense_sql or reportable_expense_sql()
     cur.execute(
         f"""
-        SELECT t.merchant, t.amount, t.date
+        SELECT t.merchant, t.name, t.amount, COALESCE(rl.reimbursed, 0) AS reimbursed, t.date
         FROM transactions t
         LEFT JOIN categories c ON c.id = t.category_id
-        WHERE t.user_id = %s AND {condition} AND t.merchant IS NOT NULL
+        LEFT JOIN (
+            SELECT expense_id, SUM(amount) AS reimbursed
+            FROM reimbursement_links
+            WHERE user_id = %s AND amount > 0
+            GROUP BY expense_id
+        ) rl ON rl.expense_id = t.id
+        WHERE t.user_id = %s AND {condition}
           AND t.date >= %s AND t.date <= %s
         ORDER BY t.date DESC
         """,
-        (user_id, start, end),
+        (user_id, user_id, start, end),
     )
     merchants: dict[str, dict[str, Any]] = {}
     for row in cur.fetchall():
-        key = merchant_key(row["merchant"])
+        net_amount = max(0, int(row["amount"]) - int(row["reimbursed"] or 0))
+        if net_amount <= 0:
+            continue
+        label = _merchant_label(row["merchant"], row["name"])
+        if not label:
+            continue
+        key = merchant_key(label)
         if not key:
             continue
-        item = merchants.setdefault(key, {"name": row["merchant"], "search_text": search_text(row["merchant"]), "amount": 0})
-        item["amount"] += int(row["amount"])
+        item = merchants.setdefault(key, {"name": label, "search_text": search_text(label), "amount": 0})
+        item["amount"] += net_amount
     return merchants
 
 

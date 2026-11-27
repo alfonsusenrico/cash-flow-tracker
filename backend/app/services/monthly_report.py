@@ -7,7 +7,7 @@ its own, so each figure equals the ledger summary for the same window (design D1
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -292,7 +292,13 @@ def _data_quality(cur, user_id: str, period: ObservedPeriod, kakeibo: dict[str, 
     )
     recorded = {row["day"] for row in cur.fetchall()}
     today = now.astimezone(_zone()).date()
-    day, last = local_start(period), min(local_end(period), today)
+    end_local = period.last_instant.astimezone(_zone())
+    last = min(end_local.date(), today)
+    # A closed salary cycle ends right before the next payroll timestamp, leaving a partial morning on its closing
+    # local day (e.g. 00:00-03:00 WIB) that should not be flagged as a missing day.
+    if period.complete and end_local.time() < time(23, 59, 59):
+        last = max(local_start(period), last - timedelta(days=1))
+    day = local_start(period)
     empty_days = []
     while day <= last:
         if day not in recorded:

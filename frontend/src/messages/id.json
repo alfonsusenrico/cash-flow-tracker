@@ -2527,7 +2527,8 @@
       "chartLabelEmpty": "Pengeluaran harian, di luar tabungan dan investasi. Belum ada pengeluaran.",
       "tipToday": "{date} · hari ini",
       "barLabel": "{date}, {amount}, buka di Kalender",
-      "openDay": "Lihat di Kalender"
+      "openDay": "Lihat di Kalender",
+      "reimbursedLine": "<gross></gross> dibelanjakan · <reimbursed></reimbursed> diganti"
     },
     "categories": {
       "title": "Pengeluaran per kategori",
@@ -2587,7 +2588,8 @@
       "heatAbove": "di atas {amount}",
       "cellSpending": "Pengeluaran {amount}",
       "cellWaiting": "{count, plural, other {# menunggu jawaban}}",
-      "cellBill": "Tagihan {names}"
+      "cellBill": "Tagihan {names}",
+      "reimbursedLine": "<gross></gross> dibelanjakan · <reimbursed></reimbursed> diganti"
     },
     "day": {
       "panel": "Detail hari",
@@ -2895,6 +2897,7 @@
       "past": "Laporan sebelumnya",
       "running": "Berjalan",
       "complete": "Lengkap",
+      "partial": "Belum lengkap",
       "hasNote": "ada catatan"
     },
     "quality": {
