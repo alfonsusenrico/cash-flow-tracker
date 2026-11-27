@@ -20,7 +20,7 @@ GENERIC_COUNTERPARTY_WORDS = frozenset({
 EXTERNAL_SOURCE_HINTS = frozenset({"salary", "gaji", "interest", "bunga", "refund", "cashback", "bonus"})
 INSTITUTION_LABELS = {"bca": "BCA", "jago": "Bank Jago", "gopay": "GoPay", "shopeepay": "ShopeePay", "stockbit": "Stockbit"}
 MAPPABLE_ACCOUNT_TYPES = frozenset({"bank", "cash", "wallet", "ewallet"})
-MAPPING_STOP_WORDS = frozenset({"pocket", "kantong", "my", "your", "bank", "by", "the", "dan", "and"})
+MAPPING_STOP_WORDS = frozenset({"pocket", "kantong", "my", "your", "bank", "by", "the", "dan", "and", "locked", "terkunci"})
 
 
 class UnresolvedName(EvidenceError):
@@ -37,10 +37,18 @@ def alias_key(institution: str, name_normalized: str) -> str:
     return f"{institution}|{name_normalized}"
 
 
-def aliased_account(accounts: list[dict], institution: str, name_normalized: str) -> dict | None:
+def aliased_account(
+    accounts: list[dict], institution: str, name_normalized: str, *, sources: set[str] | None = None,
+) -> dict | None:
     key = alias_key(institution, name_normalized)
-    matches = [account for account in accounts
-               if any(learned.get("key") == key for learned in account.get("learned_notification_names") or ())]
+    matches = [
+        account for account in accounts
+        if any(
+            learned.get("key") == key
+            and (sources is None or (learned.get("confirmed_by") or "owner") in sources)
+            for learned in account.get("learned_notification_names") or ()
+        )
+    ]
     return matches[0] if len(matches) == 1 else None
 
 
@@ -132,7 +140,7 @@ def root_account_id(accounts: list[dict], account_id: str) -> str | None:
 
 
 def normalize_name(value: str) -> str:
-    value = re.sub(r"\b(?:pocket|kantong|your|my)\b", "", value.lower())
+    value = re.sub(r"\b(?:pocket|kantong|your|my|locked|terkunci)\b", "", value.lower())
     value = re.sub(r"\s+", " ", value).strip()
     return {"main": "utama", "emergency fund": "dana darurat", "savings": "tabungan"}.get(value, value)
 
@@ -140,13 +148,14 @@ def normalize_name(value: str) -> str:
 def institution_parent(accounts: list[dict], institution: str) -> dict:
     """The account an institution's notifications belong to.
 
-    A top-level account named after the institution wins. When none exists, a uniquely
-    named pocket is used instead: some balances shown in one app live in another bank,
+    Precedence: owner-confirmed alias -> active account name -> AI-learned alias.
+    A top-level account named after the institution wins over a child pocket. When none exists,
+    a uniquely named pocket is used instead: some balances shown in one app live in another bank,
     for example GoPay Tabungan, which is a Bank Jago pocket.
     """
-    learned = aliased_account(accounts, institution, "")
-    if learned:
-        return learned
+    owner_learned = aliased_account(accounts, institution, "", sources={"owner"})
+    if owner_learned:
+        return owner_learned
     aliases = {"shopeepay": ("shopeepay",), "stockbit": ("stockbit",)}.get(institution, (institution,))
 
     def matches(account: dict) -> bool:
@@ -158,12 +167,15 @@ def institution_parent(accounts: list[dict], institution: str) -> dict:
     candidates = [account for account in accounts if not account.get("parent_id") and matches(account)]
     if not candidates:
         candidates = [account for account in accounts if account.get("parent_id") and matches(account)]
-    if len(candidates) != 1:
-        raise UnresolvedName(
-            "uncertain_institution_mapping", institution=institution,
-            name=INSTITUTION_LABELS.get(institution, institution), name_normalized="",
-        )
-    return candidates[0]
+    if len(candidates) == 1:
+        return candidates[0]
+    ai_learned = aliased_account(accounts, institution, "", sources={"ai"})
+    if ai_learned:
+        return ai_learned
+    raise UnresolvedName(
+        "uncertain_institution_mapping", institution=institution,
+        name=INSTITUTION_LABELS.get(institution, institution), name_normalized="",
+    )
 
 
 def main_endpoint(parent: dict, accounts: list[dict]) -> dict:
@@ -185,9 +197,10 @@ def pocket_endpoint(name: str | None, parent: dict, accounts: list[dict], *, ins
     if not name or normalize_name(name) == "utama":
         return main_endpoint(parent, accounts)
     target_name = normalize_name(name)
-    learned = aliased_account(accounts, institution, target_name)
-    if learned:
-        return learned
+    # Precedence: owner-confirmed alias -> active pocket name (exact then stem) -> AI-learned alias.
+    owner_learned = aliased_account(accounts, institution, target_name, sources={"owner"})
+    if owner_learned:
+        return owner_learned
     matches = [account for account in accounts
                if str(account.get("parent_id")) == str(parent["id"])
                and normalize_name(account["name"]) == target_name]
@@ -196,11 +209,14 @@ def pocket_endpoint(name: str | None, parent: dict, accounts: list[dict], *, ins
         matches = [account for account in accounts
                    if str(account.get("parent_id")) == str(parent["id"])
                    and normalize_name(account["name"]).rstrip("s") == target_stem]
-    if len(matches) != 1:
-        raise UnresolvedName(
-            "uncertain_pocket_mapping", institution=institution, name=name.strip(), name_normalized=target_name,
-        )
-    return matches[0]
+    if len(matches) == 1:
+        return matches[0]
+    ai_learned = aliased_account(accounts, institution, target_name, sources={"ai"})
+    if ai_learned:
+        return ai_learned
+    raise UnresolvedName(
+        "uncertain_pocket_mapping", institution=institution, name=name.strip(), name_normalized=target_name,
+    )
 
 
 def rdn_account(accounts: list[dict]) -> dict:
