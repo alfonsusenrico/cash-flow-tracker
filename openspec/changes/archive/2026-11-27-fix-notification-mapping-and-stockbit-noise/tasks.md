@@ -15,6 +15,6 @@ Expected Result: Stockbit market news stops reaching `needs_review`, and existin
 ## 3. Verify and deliver
 
 - [x] 3.1 Run the full backend test suite against migrated disposable PostgreSQL (`TEST_DATABASE_URL`, `REQUIRE_TEST_DATABASE=1`, reporting any skips) and `openspec validate --all --strict`; write `verification.md`.
-- [ ] 3.2 After owner acceptance: archive the change with `openspec archive fix-notification-mapping-and-stockbit-noise`, commit, push `fix/notification-mapping-and-stockbit-noise`, and when the owner says "open", create the PR (`gh pr create`) and report its URL.
+- [x] 3.2 After owner acceptance: archive the change with `openspec archive fix-notification-mapping-and-stockbit-noise`, commit, push `fix/notification-mapping-and-stockbit-noise`, and when the owner says "open", create the PR (`gh pr create`) and report its URL.
 
 Expected Result: verified PR ready for owner review and merge.
