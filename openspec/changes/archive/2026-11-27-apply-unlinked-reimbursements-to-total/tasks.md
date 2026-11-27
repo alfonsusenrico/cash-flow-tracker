@@ -22,6 +22,6 @@ Expected Result: Laporan, Analisis, and Rincian visibly reconcile categories/pil
 ## 4. Verify and deliver
 
 - [x] 4.1 Run full backend suite against migrated disposable PostgreSQL (`TEST_DATABASE_URL`, `REQUIRE_TEST_DATABASE=1`, reporting any skips), full frontend checks, `openspec validate --all --strict`, and browser check of Laporan and Analisis on a production build with synthetic data at 1440 and 390 px, light and dark, axe and console clean; write `verification.md`.
-- [ ] 4.2 After owner acceptance: archive with `openspec archive apply-unlinked-reimbursements-to-total`, commit, push `feat/apply-unlinked-reimbursements`, and when the owner says "open", create the PR (`gh pr create`) and report its URL.
+- [x] 4.2 After owner acceptance: archive with `openspec archive apply-unlinked-reimbursements-to-total`, commit, push `feat/apply-unlinked-reimbursements`, and when the owner says "open", create the PR (`gh pr create`) and report its URL.
 
 Expected Result: verified PR ready for owner review and merge.
