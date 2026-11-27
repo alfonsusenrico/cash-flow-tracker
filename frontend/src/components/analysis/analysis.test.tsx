@@ -9,6 +9,7 @@ import { renderWithIntl } from "@/lib/i18n/testing";
 import { ChangeFigure, ProgressBar } from "@/components/workspace/figures";
 import { KalenderTab } from "./calendar/KalenderTab";
 import { DailySpendingChart, type DailyPoint, TABLE_MODE_KEY, barGeometry, dateLabelIndexes, niceMax } from "./DailySpendingChart";
+import { KakeiboRows } from "./KakeiboRows";
 import { MAP, PetaAliranTab, fitLabel, labelWidth, nodeTotals } from "./flow/PetaAliranTab";
 import { buildFlowModel, layoutFlow, nextNode } from "./flow/sankey";
 import type { CalendarDay, CalendarResponse, FlowResponse } from "./types";
@@ -747,5 +748,45 @@ describe("Peta Aliran tab", () => {
     stubPhone(true);
     wrap(<PetaAliranTab basis="month" offset={-1} view={null} onView={() => {}} onWindowLabel={() => {}} />);
     expect(await screen.findByRole("table")).toBeInTheDocument();
+  });
+});
+
+describe("KakeiboRows unlinked reimbursement", () => {
+  const baseComparison = {
+    basis: "month" as const,
+    period: { label: "Oktober 2026", start: "2026-10-01T00:00:00Z", end: "2026-10-31T23:59:59Z", start_date: "2026-10-01", end_date: "2026-10-31", complete: true, partial: false, tracking_from: null },
+    running: false,
+    totals: { spending: 350_000, inflow: 5_000_000, fresh_saving: 0, difference: 4_650_000 },
+    previous: null,
+    baseline: null,
+    progress: null,
+    pillars: [
+      { pillar: "need" as const, amount: 400_000, share: 100, previous: null, change: null, baseline: null, baseline_change: null, ref: { from: "2026-10-01T00:00:00Z", to: "2026-10-31T23:59:59Z", kakeibo_type: "need" as const }, categories: [] },
+    ],
+    facts: [],
+    history: [],
+    spending_top_merchant: null,
+  };
+
+  it("shows Ganti uang belum ditautkan / Unlinked reimbursements only when > 0 and masks under hidden balances", () => {
+    const without = render(<KakeiboRows comparison={{ ...baseComparison, unlinked_reimbursement: 0 }} money={money} />);
+    expect(without.container).not.toHaveTextContent("Ganti uang belum ditautkan");
+    without.unmount();
+
+    const withId = render(<KakeiboRows comparison={{ ...baseComparison, unlinked_reimbursement: 50_000 }} money={money} />);
+    expect(withId.container).toHaveTextContent("Ganti uang belum ditautkan");
+    expect(withId.container).toHaveTextContent("−Rp 50.000");
+    withId.unmount();
+
+    const withEn = renderWithIntl(<KakeiboRows comparison={{ ...baseComparison, unlinked_reimbursement: 50_000 }} money={money} />, { language: "en" });
+    expect(withEn.container).toHaveTextContent("Unlinked reimbursements");
+    expect(withEn.container).toHaveTextContent("−Rp 50.000");
+    withEn.unmount();
+
+    ctx.hide = true;
+    const masked = render(<KakeiboRows comparison={{ ...baseComparison, unlinked_reimbursement: 50_000 }} money={money} />);
+    expect(masked.container).toHaveTextContent("Ganti uang belum ditautkan");
+    expect(masked.container).not.toHaveTextContent("50.000");
+    masked.unmount();
   });
 });

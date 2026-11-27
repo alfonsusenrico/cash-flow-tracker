@@ -146,17 +146,17 @@ def test_dashboard_overview_nets_reimbursements(client, owner):
     kpis = overview["kpis"]
     assert kpis["total_inflow"] == 5_000_000
     assert kpis["gross_outflow"] == 500_000
-    assert kpis["reimbursement_offset"] == 200_000
-    assert kpis["total_outflow"] == 300_000
-    assert kpis["reimbursement_unallocated"] == 80_000
+    assert kpis["reimbursement_offset"] == 280_000
+    assert kpis["total_outflow"] == 220_000
+    assert kpis["reimbursement_unallocated"] == 0
     assert kpis["reimbursement_excess"] == 0
-    assert kpis["net_cashflow"] == 4_700_000
+    assert kpis["net_cashflow"] == 4_780_000
     dinner = next(row for row in overview["categories"] if row["id"] == owner["dinner"])
     assert (dinner["spent"], dinner["gross_spent"], dinner["reimbursed"]) == (100_000, 300_000, 200_000)
     groceries = next(row for row in overview["categories"] if row["id"] == owner["groceries"])
     assert (groceries["spent"], groceries["reimbursed"]) == (200_000, 0)
     kakeibo = overview["kakeibo"]
-    assert (kakeibo["want_spent"], kakeibo["need_spent"]) == (100_000, 200_000)
+    assert (kakeibo["want_spent"], kakeibo["need_spent"], kakeibo["unlinked_reimbursement"]) == (100_000, 200_000, 80_000)
     assert (kakeibo["want_pct"], kakeibo["need_pct"]) == (2.0, 4.0)
 
 
@@ -164,29 +164,29 @@ def test_analytics_insights_and_ledger_follow_the_same_figures(client, owner):
     shared_dinner_cycle(client, owner)
     analytics = client.get("/api/dashboard/analytics").json()
     comparison = analytics["comparison"]
-    assert (comparison["total_inflow"], comparison["total_outflow"]) == (5_000_000, 300_000)
-    assert comparison["reimbursement_offset"] == 200_000 and comparison["reimbursement_unallocated"] == 80_000
+    assert (comparison["total_inflow"], comparison["total_outflow"]) == (5_000_000, 220_000)
+    assert comparison["reimbursement_offset"] == 280_000 and comparison["reimbursement_unallocated"] == 0
     dinner = next(row for row in analytics["category_variance"] if row["id"] == owner["dinner"])
     assert dinner["spent"] == 100_000 and dinner["reimbursed"] == 200_000
     assert analytics["kakeibo"]["want_spent"] == 100_000
+    assert analytics["kakeibo"]["unlinked_reimbursement"] == 80_000
     assert sum(day["income"] for day in analytics["daily_cadence"]) == 5_000_000
 
     insights = client.get("/api/insights").json()
-    assert (insights["total_income"], insights["total_expense"]) == (5_000_000, 300_000)
+    assert (insights["total_income"], insights["total_expense"]) == (5_000_000, 220_000)
     assert next(row for row in insights["categories"] if row["id"] == owner["dinner"])["spent"] == 100_000
 
     summary = client.get("/api/transactions").json()["summary"]
     assert summary["cycle"]["inflow"] == 5_000_000
-    # Phase 6 nets the ledger summary like the dashboard total (phase 2 open decision 6 resolved).
-    assert summary["cycle"]["outflow"] == 300_000
-    assert summary["cycle"]["gross_outflow"] == 500_000 and summary["cycle"]["reimbursement_offset"] == 200_000
+    assert summary["cycle"]["outflow"] == 220_000
+    assert summary["cycle"]["gross_outflow"] == 500_000 and summary["cycle"]["reimbursement_offset"] == 280_000
 
 
 def test_pulse_reports_net_spending_without_predicting_payday(client, owner):
     shared_dinner_cycle(client, owner)
     pulse = client.get("/api/pulse").json()
-    assert pulse["cycle_spent"] == 300_000
-    assert pulse["cycle_reimbursed"] == 200_000
+    assert pulse["cycle_spent"] == 220_000
+    assert pulse["cycle_reimbursed"] == 280_000
     assert pulse["today_spent"] == 500_000
     assert pulse["safe_to_spend_today"] is None
     assert pulse["cycle_days_remaining"] is None

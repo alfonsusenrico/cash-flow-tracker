@@ -90,6 +90,18 @@ export function SpendingTable({ report, money }: { report: MonthlyReport; money:
                   )),
                 ];
               })}
+              {(comparison.unlinked_reimbursement ?? 0) > 0 && (
+                <tr className="lp-pillar-row">
+                  <th scope="row" className="t-body">
+                    {terms("unlinkedReimbursements")}
+                  </th>
+                  <td className="num">
+                    <MaskedMoney text={`−${money(comparison.unlinked_reimbursement ?? 0)}`} className="t-amt" />
+                  </td>
+                  <td className="num t-meta ph-hide">—</td>
+                  {lastHeading && <td className="num t-meta ph-hide">—</td>}
+                </tr>
+              )}
             </tbody>
             <tfoot>
               <tr>

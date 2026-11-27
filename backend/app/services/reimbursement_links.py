@@ -15,6 +15,65 @@ from app.services.system_categories import reportable_key_sql
 from app.services.transaction_text import text_fields
 
 LINK_LIMIT = 20
+AUTO_LINK_WINDOW_DAYS = 14
+
+
+def auto_link_exact_reimbursement(cur, user_id: str, reimbursement_id: str) -> str | None:
+    """Auto-link an untagged, unlinked reimbursement when exactly one unlinked reportable expense
+    with the exact same rupiah amount occurred within the prior 14 days.
+
+    Never guesses on split/rounded amounts or ambiguous matches, and never overrides explicit links
+    or `offset_category_id`.
+    """
+    cur.execute(
+        """SELECT t.id, t.amount, t.date, t.type, t.offset_category_id, t.movement_id,
+                  COALESCE(c.offsets_spending, FALSE) AS offsets_spending,
+                  EXISTS (SELECT 1 FROM reimbursement_links l WHERE l.reimbursement_id = t.id) AS has_links
+           FROM transactions t
+           LEFT JOIN categories c ON c.id = t.category_id
+           WHERE t.user_id = %s AND t.id = %s""",
+        (user_id, reimbursement_id),
+    )
+    row = cur.fetchone()
+    if (
+        not row
+        or row["type"] != "income"
+        or not row["offsets_spending"]
+        or row["offset_category_id"] is not None
+        or row["movement_id"] is not None
+        or row["has_links"]
+    ):
+        return None
+    cur.execute(
+        f"""SELECT e.id
+            FROM transactions e
+            JOIN categories c ON c.id = e.category_id
+            WHERE e.user_id = %s
+              AND e.type = 'expense'
+              AND e.movement_id IS NULL
+              AND e.amount = %s
+              AND e.date >= %s - INTERVAL '{AUTO_LINK_WINDOW_DAYS} days'
+              AND e.date <= %s
+              AND COALESCE(c.is_excluded_from_budget, FALSE) = FALSE
+              AND {reportable_key_sql("c")}
+              AND NOT EXISTS (
+                  SELECT 1 FROM reimbursement_links l
+                  WHERE l.user_id = e.user_id AND l.expense_id = e.id AND l.amount > 0
+              )
+            LIMIT 2""",
+        (user_id, int(row["amount"]), row["date"], row["date"]),
+    )
+    matches = cur.fetchall()
+    if len(matches) != 1:
+        return None
+    expense_id = str(matches[0]["id"])
+    cur.execute(
+        """INSERT INTO reimbursement_links (reimbursement_id, expense_id, user_id)
+           VALUES (%s, %s, %s) ON CONFLICT DO NOTHING""",
+        (reimbursement_id, expense_id, user_id),
+    )
+    reallocate(cur, user_id, reimbursement_ids={reimbursement_id}, expense_ids={expense_id})
+    return expense_id
 
 
 def _connected_reimbursements(cur, user_id: str, reimbursement_ids: set[str], expense_ids: set[str]) -> set[str]:

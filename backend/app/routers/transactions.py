@@ -52,7 +52,9 @@ from app.services.receipts import (
     remove_receipt_file,
     store_receipt,
 )
-from app.services.reimbursement_links import drop_invalid_links, link_details, remove_links, set_links
+from app.services.reimbursement_links import (
+    auto_link_exact_reimbursement, drop_invalid_links, link_details, remove_links, set_links,
+)
 from app.services.reimbursements import (
     category_offsets_spending,
     load_spending_offsets,
@@ -1182,6 +1184,8 @@ def create_transaction(payload: TransactionCreate, current_user: dict = Depends(
                 ),
             )
             created = cur.fetchone()
+            if payload.type == "income" and offset_category_id is None:
+                auto_link_exact_reimbursement(cur, user_id, str(created["id"]))
             if tag_ids:
                 set_transaction_tags(cur, user_id, str(created["id"]), tag_ids)
             if payload.credit_terms is not None:
@@ -1482,6 +1486,9 @@ def update_transaction(
 
             new_merchant = payload.merchant if "merchant" in payload.model_fields_set else old_tx.get("merchant")
             old_offset_id = str(old_tx["offset_category_id"]) if old_tx.get("offset_category_id") else None
+            was_offset_allowed = old_tx["type"] == "income" and category_offsets_spending(
+                cur, user_id, str(old_tx["category_id"]) if old_tx.get("category_id") else None
+            )
             offset_allowed = new_type == "income" and category_offsets_spending(cur, user_id, new_category_id)
             if "offset_category_id" in payload.model_fields_set:
                 new_offset_id = str(payload.offset_category_id) if payload.offset_category_id else None
@@ -1705,6 +1712,8 @@ def update_transaction(
 
             # A changed amount, date, type or category moves the reimbursement links it is part of (D7).
             drop_invalid_links(cur, user_id, [tid])
+            if not was_offset_allowed and offset_allowed and new_offset_id is None:
+                auto_link_exact_reimbursement(cur, user_id, tid)
             conn.commit()
 
     request_plan_linking(user_id)

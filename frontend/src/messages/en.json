@@ -53,7 +53,8 @@
     },
     "stillLeft": "Still left",
     "waitingForPair": "Waiting for its pair",
-    "difference": "Difference"
+    "difference": "Difference",
+    "unlinkedReimbursements": "Unlinked reimbursements"
   },
   "common": {
     "close": "Close",

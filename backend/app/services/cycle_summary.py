@@ -19,6 +19,7 @@ from app.i18n import format_money, language_for_user, region_for_user, t
 from app.routers.accounts import summarize_account_balances
 from app.services.credit_accounts import credit_owed, is_credit
 from app.services.account_roles import DANA_INVESTASI, HARIAN, INVESTASI, TABUNGAN
+from app.services.apportionment import apportion
 from app.services.credit_bills import load_schedules, next_due_summary
 from app.services.credit_figures import count_credit_bill_plans, credit_bill_plan_targets, credit_spending
 from app.services.kakeibo import UNCLASSIFIED
@@ -121,6 +122,17 @@ def _keluar(kakeibo: dict[str, Any], offsets, period: str, language: str, region
             "note": ". ".join(notes) if notes else None,
             "note_codes": note_codes,
             "href": ledger_href(period, kakeibo=key),
+        })
+    unlinked = int(kakeibo.get("unlinked_reimbursement") or 0)
+    if unlinked > 0:
+        lines.append({
+            "key": "unlinked_reimbursement",
+            "label": t(language, "labels.summary.unlinked_reimbursements"),
+            "label_source": SYSTEM_LABEL,
+            "amount": -unlinked,
+            "note": None,
+            "note_codes": [],
+            "href": ledger_href(period, type="income"),
         })
     total = int(kakeibo["total_allocated"])
     if sum(line["amount"] for line in lines) != total:
@@ -516,7 +528,19 @@ def build_cycle_summary(
 
     spending, fresh_saving = spending_split(keluar)
     if spending_on_credit["spent_on_credit"] > spending["amount"]:
-        raise RuntimeError("Spending on credit exceeds Pengeluaran")
+        if offsets.applied_unlinked_spending > 0:
+            excess_credit = spending_on_credit["spent_on_credit"] - spending["amount"]
+            weights = {
+                line["account_id"]: line["spent_on_credit"]
+                for line in spending_on_credit["lines"]
+                if line["spent_on_credit"] > 0
+            }
+            reductions = apportion(excess_credit, weights)
+            for line in spending_on_credit["lines"]:
+                line["spent_on_credit"] -= reductions.get(line["account_id"], 0)
+            spending_on_credit["spent_on_credit"] = spending["amount"]
+        else:
+            raise RuntimeError("Spending on credit exceeds Pengeluaran")
     # Informational (add-credit-spending-flow D11): a part of Pengeluaran and the cash paid to credit.
     spending = {**spending, "credit": spending_on_credit}
     tabungan = savings_change(kakeibo)

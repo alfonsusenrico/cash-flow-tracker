@@ -43,6 +43,9 @@ class SpendingOffsets:
     # The linked part of `applied_by_category_pillar`, per local day of the expenses it repays: a link lowers its
     # expense's own day (attribute-linked-reimbursements-to-their-day D1).
     linked_by_category_pillar_day: dict[tuple[str, str], dict[date, int]] = field(default_factory=dict)
+    # Unlinked, untagged reimbursements applied at period-total level without altering any category or pillar.
+    applied_unlinked: int = 0
+    applied_unlinked_spending: int = 0
 
     def for_category(self, category_id: Any) -> int:
         return self.applied_by_category.get(str(category_id), 0)
@@ -65,8 +68,8 @@ class SpendingOffsets:
 
     @property
     def living(self) -> int:
-        """Applied offsets of spending pillars; saving is set aside, not spent."""
-        return sum(amount for pillar, amount in self.applied_by_pillar.items() if pillar != "saving")
+        """Applied offsets of spending pillars plus period-level unlinked reimbursements; saving is set aside, not spent."""
+        return sum(amount for pillar, amount in self.applied_by_pillar.items() if pillar != "saving") + self.applied_unlinked_spending
 
     def summary(self, gross_outflow: int) -> dict[str, int]:
         return {
@@ -136,6 +139,17 @@ def load_spending_offsets(cur, user_id: str, start: datetime, end: datetime) -> 
               WHERE user_id = %(user_id)s GROUP BY reimbursement_id) h ON h.reimbursement_id = t.id
         WHERE t.user_id = %(user_id)s AND t.type = 'income' AND rc.offsets_spending
           AND t.date >= %(start)s AND t.date <= %(end)s
+        UNION ALL
+        SELECT 'totals', NULL,
+               COALESCE(SUM(t.amount), 0),
+               NULL,
+               COALESCE(SUM(t.amount) FILTER (WHERE COALESCE(t.kakeibo_type, c.kakeibo_type, '') <> 'saving'), 0),
+               NULL, NULL, NULL, NULL
+        FROM transactions t
+        LEFT JOIN categories c ON c.id = t.category_id
+        WHERE t.user_id = %(user_id)s AND t.type = 'expense'
+          AND COALESCE(c.is_excluded_from_budget, FALSE) = FALSE AND {reportable_key_sql("c")}
+          AND t.date >= %(start)s AND t.date <= %(end)s
         """,
         {"user_id": user_id, "start": start, "end": end, "tz": settings.tz},
     )
@@ -151,6 +165,9 @@ def load_spending_offsets(cur, user_id: str, start: datetime, end: datetime) -> 
             days = linked_by_day.setdefault(key, {})
             days[row["day"]] = days.get(row["day"], 0) + int(row["amount"])
     fallback_rows = [row for row in rows if row.get("part", "fallback") == "fallback"]
+    totals_row = next((row for row in rows if row.get("part") == "totals"), None)
+    total_gross_outflow = int(totals_row["reimbursed"] or 0) if totals_row else 0
+    total_gross_spending = int(totals_row["gross_spent"] or 0) if totals_row else 0
     by_category: dict[str, int] = {}
     by_pillar: dict[str, int] = {}
     by_category_pillar: dict[tuple[str, str], int] = dict(linked)
@@ -160,10 +177,11 @@ def load_spending_offsets(cur, user_id: str, start: datetime, end: datetime) -> 
     applied = sum(linked.values())
     excess = 0
     unallocated = sum(int(row["amount"] or 0) for row in rows if row.get("part") == "rest")
+    unlinked_raw = 0
     for row in fallback_rows:
         reimbursed = int(row["reimbursed"] or 0)
         if row["offset_category_id"] is None:
-            unallocated += reimbursed
+            unlinked_raw += reimbursed
             continue
         category_id = str(row["offset_category_id"])
         # The category link only reaches what the linked parts left of the category (D3).
@@ -181,7 +199,15 @@ def load_spending_offsets(cur, user_id: str, start: datetime, end: datetime) -> 
         for pillar, share in apportion(category_applied, pillar_spending).items():
             by_pillar[pillar] = by_pillar.get(pillar, 0) + share
             by_category_pillar[(category_id, pillar)] = by_category_pillar.get((category_id, pillar), 0) + share
-    return SpendingOffsets(by_category, by_pillar, applied, excess, unallocated, by_category_pillar, linked_by_day)
+    living_category_applied = sum(amount for pillar, amount in by_pillar.items() if pillar != "saving")
+    applied_unlinked = min(unlinked_raw, max(0, total_gross_outflow - applied))
+    applied_unlinked_spending = min(unlinked_raw, max(0, total_gross_spending - living_category_applied))
+    excess += unlinked_raw - applied_unlinked
+    applied += applied_unlinked
+    return SpendingOffsets(
+        by_category, by_pillar, applied, excess, unallocated, by_category_pillar, linked_by_day,
+        applied_unlinked, applied_unlinked_spending,
+    )
 
 
 def category_offsets_spending(cur, user_id: str, category_id: str | None) -> bool:

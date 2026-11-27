@@ -502,7 +502,8 @@
       "liquid": "Available cash",
       "investment_cash": "Investment cash",
       "investments": "Investments",
-      "negative_balance": "Negative balance to match"
+      "negative_balance": "Negative balance to match",
+      "unlinked_reimbursements": "Unlinked reimbursements"
     },
     "dashboard": {
       "gross": "Recorded spending",

@@ -33,8 +33,9 @@ def spending_sql(tx: str = "t", category: str = "c") -> str:
 @dataclass
 class SpendingBasis:
     total: int = 0
-    # The reimbursements subtracted from Pengeluaran: those applied to the spending pillars' categories.
+    # The reimbursements subtracted from Pengeluaran: category/pillar offsets plus period-level unlinked offsets.
     reimbursed: int = 0
+    unlinked_reimbursed: int = 0
     by_day: dict[date, int] = field(default_factory=dict)
     # Category id as a string, or None for uncategorised rows.
     by_category: dict[str | None, int] = field(default_factory=dict)
@@ -102,6 +103,10 @@ def spending_basis(cur, user_id: str, start: datetime, end: datetime, offsets: S
         basis.by_category[category_id] = basis.by_category.get(category_id, 0) + gross - applied
         basis.total += gross - applied
         basis.reimbursed += applied
+    unlinked = min(offsets.applied_unlinked_spending, basis.total)
+    basis.total -= unlinked
+    basis.reimbursed += unlinked
+    basis.unlinked_reimbursed = unlinked
     return basis
 
 

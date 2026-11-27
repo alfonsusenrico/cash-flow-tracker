@@ -53,7 +53,8 @@
     },
     "stillLeft": "Masih ada",
     "waitingForPair": "Menunggu pasangan",
-    "difference": "Selisih"
+    "difference": "Selisih",
+    "unlinkedReimbursements": "Ganti uang belum ditautkan"
   },
   "common": {
     "close": "Tutup",

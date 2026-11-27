@@ -148,6 +148,8 @@ export interface ReportComparison {
     pillars: { pillar: SpendingBucket; amount: number; previous: number | null; share: number | null }[];
   } | null;
   pillars: ComparisonPillar[];
+  /** Unlinked, untagged reimbursements applied to total Pengeluaran without altering any pillar or category. */
+  unlinked_reimbursement?: number;
   facts: ComparisonFact[];
   history: ComparisonHistoryItem[];
   /** The top-merchant fact on the Pengeluaran basis, shown on Laporan instead of the one in `facts` (D29). */

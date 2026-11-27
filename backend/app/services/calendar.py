@@ -190,13 +190,14 @@ def build_calendar(conn, user: dict[str, Any], *, timeframe: str, cycle_offset: 
     for entry in days:
         entry["heat"] = heat_level(entry["spend"], thresholds)
         entry["spending_heat"] = heat_level(entry["spending"], spending_thresholds)
-    if sum(entry["spending"] for entry in days) != spending.total:
+    if sum(entry["spending"] for entry in days) != spending.total + spending.unlinked_reimbursed:
         raise RuntimeError("calendar days do not add up to the period's Pengeluaran")
 
     gross = sum(int(row["spend"]) for row in daily.values())
-    spend_total = sum(entry["spend"] for entry in days)
-    if gross - spend_total != sum(day_offsets.values()):
+    spend_days_total = sum(entry["spend"] for entry in days)
+    if gross - spend_days_total != sum(day_offsets.values()):
         raise RuntimeError("calendar days do not add up to the period's Belanja")
+    spend_total = max(0, gross - offsets.applied)
 
     upcoming: list[dict[str, Any]] = []
     if is_current:
